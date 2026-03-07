@@ -1,29 +1,58 @@
 # ritomer
 
-Depot initialise avec une base de travail propre.
+Base de projet organisee en deux applications autonomes :
 
-## Objectif
+- `backend` : API Node.js
+- `frontend` : interface statique servie en local
 
-Ce repository est pret a accueillir le projet. Remplace cette section par une description claire du produit, du contexte et du perimetre fonctionnel.
+Chaque dossier contient son propre `package.json` et se lance separement avec `pnpm`.
 
-## Demarrage
+## Lancer le backend
 
-1. Clone le depot.
-2. Cree une branche de travail depuis `main`.
-3. Ajoute la stack technique et les commandes du projet.
-4. Documente l'installation et l'execution ici.
+```bash
+cd backend
+pnpm i
+pnpm dev
+```
 
-## Fichiers de base
+Le backend ecoute par defaut sur `http://localhost:3001`.
 
-- `README.md` : presentation du projet et instructions.
-- `.gitignore` : exclusions Git generiques.
-- `.editorconfig` : conventions d'indentation et de fin de ligne.
-- `.gitattributes` : normalisation des fichiers texte.
-- `CONTRIBUTING.md` : regles de contribution minimales.
+## Lancer le frontend
 
-## Prochaines etapes recommandees
+```bash
+cd frontend
+pnpm i
+pnpm dev
+```
 
-- Definir la stack du projet.
-- Ajouter une licence si le depot doit etre partage.
-- Mettre en place une CI quand les outils de build et de test seront choisis.
-- Creer le premier commit de base.
+Le frontend ecoute par defaut sur `http://localhost:3000`.
+
+## Structure
+
+```text
+.
+|-- backend/
+|   |-- package.json
+|   `-- src/server.js
+|-- frontend/
+|   |-- package.json
+|   |-- public/
+|   |   |-- app.js
+|   |   |-- index.html
+|   |   `-- styles.css
+|   `-- server.js
+|-- .editorconfig
+|-- .gitattributes
+|-- .gitignore
+`-- CONTRIBUTING.md
+```
+
+## Endpoints backend
+
+- `GET /api/health`
+- `GET /api/message`
+
+## Notes
+
+- La base actuelle n'impose aucune dependance externe.
+- Les deux applications peuvent etre enrichies ensuite avec la stack de ton choix.

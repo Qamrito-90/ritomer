@@ -9,6 +9,11 @@ Desktop.ini
 *.swp
 *.swo
 
+# Node
+node_modules/
+dist/
+.pnpm-store/
+
 # Environment files
 .env
 .env.*
