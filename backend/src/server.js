@@ -1,6 +1,14 @@
+import "dotenv/config";
 import { createServer } from "node:http";
+import {
+  closeDatabaseConnection,
+  getDatabaseStatus,
+  initializeDatabase
+} from "./database.js";
 
 const port = Number(process.env.PORT ?? 3001);
+
+await initializeDatabase();
 
 function writeJson(response, statusCode, payload) {
   response.writeHead(statusCode, {
@@ -28,7 +36,10 @@ const server = createServer((request, response) => {
   }
 
   if (request.method === "GET" && url.pathname === "/api/health") {
+    const databaseStatus = getDatabaseStatus();
+
     writeJson(response, 200, {
+      database: databaseStatus,
       status: "ok",
       service: "ritomer-backend",
       timestamp: new Date().toISOString(),
@@ -38,10 +49,17 @@ const server = createServer((request, response) => {
   }
 
   if (request.method === "GET" && url.pathname === "/api/message") {
+    const databaseStatus = getDatabaseStatus();
+    const databaseMessage =
+      databaseStatus.status === "connected"
+        ? `MongoDB connected on database "${databaseStatus.databaseName}".`
+        : "MongoDB is not connected yet. Complete the Atlas connection string in backend/.env.";
+
     writeJson(response, 200, {
+      database: databaseStatus,
       title: "Ritomer backend",
       message: "L'API locale repond correctement.",
-      nextStep: "Branche ici tes routes metier."
+      nextStep: databaseMessage
     });
     return;
   }
@@ -54,4 +72,18 @@ const server = createServer((request, response) => {
 
 server.listen(port, () => {
   console.log(`Backend listening on http://localhost:${port}`);
+});
+
+async function shutdown(signal) {
+  console.log(`${signal} received. Closing backend.`);
+  await closeDatabaseConnection();
+  process.exit(0);
+}
+
+process.on("SIGINT", () => {
+  void shutdown("SIGINT");
+});
+
+process.on("SIGTERM", () => {
+  void shutdown("SIGTERM");
 });

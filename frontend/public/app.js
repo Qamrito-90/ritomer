@@ -44,13 +44,17 @@ async function loadBackendStatus() {
 
     const health = await healthResponse.json();
     const message = await messageResponse.json();
+    const databaseStatus = health.database?.status ?? "unknown";
+    const databaseName = health.database?.databaseName ?? "-";
+    const nextStep = typeof message.nextStep === "string" ? ` ${message.nextStep}` : "";
 
     setBadge("Connecte", "success");
-    elements.backendState.textContent = health.status;
+    elements.backendState.textContent = `${health.status} / MongoDB: ${databaseStatus}`;
     elements.backendPort.textContent = String(health.port ?? "-");
     elements.checkedAt.textContent = formatter.format(new Date(health.timestamp));
     elements.messageTitle.textContent = message.title;
-    elements.messageBody.textContent = message.message;
+    elements.messageBody.textContent = `${message.message}${nextStep}`;
+    elements.backendUrl.textContent = `${backendUrl} (${databaseName})`;
   } catch (error) {
     setBadge("Indisponible", "error");
     elements.backendState.textContent = "Hors ligne";

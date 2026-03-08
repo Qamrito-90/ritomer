@@ -12,10 +12,13 @@ Chaque dossier contient son propre `package.json` et se lance separement avec `p
 ```bash
 cd backend
 pnpm i
+cp .env.example .env
 pnpm dev
 ```
 
 Le backend ecoute par defaut sur `http://localhost:3001`.
+Avant `pnpm dev`, renseigne MongoDB Atlas dans `backend/.env`.
+Le plus simple est de copier la connection string Atlas depuis `Connect` -> `Drivers`.
 
 ## Lancer le frontend
 
@@ -52,7 +55,19 @@ Le frontend ecoute par defaut sur `http://localhost:3000`.
 - `GET /api/health`
 - `GET /api/message`
 
+## MongoDB Atlas
+
+Le backend lit la configuration MongoDB depuis `backend/.env`.
+
+Variables supportees :
+
+- `MONGODB_URI`
+- `MONGODB_DB_NAME`
+- ou bien `MONGODB_USERNAME`, `MONGODB_PASSWORD`, `MONGODB_CLUSTER_HOST`, `MONGODB_APP_NAME`
+
+Important : le nom d'utilisateur et le mot de passe ne suffisent pas a eux seuls.
+Il faut aussi le `cluster host` complet Atlas, visible dans la connection string fournie par MongoDB.
+
 ## Notes
 
-- La base actuelle n'impose aucune dependance externe.
 - Les deux applications peuvent etre enrichies ensuite avec la stack de ton choix.
