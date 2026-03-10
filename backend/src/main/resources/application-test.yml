@@ -1,0 +1,4 @@
+ritomer:
+  security:
+    jwt:
+      hmac-secret: test-only-jwt-hmac-secret-for-spec-001

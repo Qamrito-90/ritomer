@@ -1,73 +1,57 @@
-# ritomer
+# SaaS Closing Comptable IA-Native — Pack de démarrage Codex
 
-Base de projet organisee en deux applications autonomes :
+Ce dépôt sert à construire une plateforme SaaS suisse de closing comptable, multi-tenant, audit-ready, avec une UX premium et une IA evidence-first.
 
-- `backend` : API Node.js
-- `frontend` : interface statique servie en local
+## Lecture recommandée pour Codex
+1. `AGENTS.md`
+2. `docs/vision/ux.md`
+3. `docs/vision/architecture.md`
+4. `docs/vision/ai-native.md`
+5. `docs/product/v1-plan.md`
+6. `docs/adr/*.md`
+7. `specs/<feature>.md` de la mission courante
+8. `contracts/*` impactés par la mission
 
-Chaque dossier contient son propre `package.json` et se lance separement avec `pnpm`.
+## Règle d’or
+Le produit repose sur 3 couches complémentaires :
+- un moteur métier déterministe
+- une couche de preuves et de traçabilité
+- une IA copilote structurée, jamais autonome sur les décisions engageantes
 
-## Lancer le backend
+## Arborescence clé
+- `AGENTS.md` : règles permanentes pour Codex
+- `backend/` : backend Kotlin/Spring Boot (source de vérité technique)
+  - `backend/legacy-node/` : ancien backend Node conservé temporairement (legacy)
+- `frontend/` : frontend local
+- `docs/vision/` : North Star UX, architecture et IA
+- `docs/playbooks/` : patterns d’exécution et garde-fous
+- `docs/product/` : plan V1 exécutable
+- `docs/adr/` : décisions structurantes
+- `specs/` : missions atomiques
+- `contracts/` : contrats techniques source de vérité
+- `evals/` : qualité IA
+- `prompts/` : prompts et garde-fous versionnés
+- `knowledge/` : politique de retrieval / RAG
+- `runbooks/` : exploitation et incidents
+- `policies/` : sécurité, privacy, règles IA
 
-```bash
-cd backend
-pnpm i
-cp .env.example .env
-pnpm dev
-```
+## Priorités V1
+- monolithe modulaire Kotlin/Spring Boot
+- multi-tenant strict, audit trail append-only
+- REST first en V1
+- GraphQL read-model plus tard, avec garde-fous
+- AI Gateway contractuelle dès le départ
+- structured outputs, evals, observabilité, feature flags
 
-Le backend ecoute par defaut sur `http://localhost:3001`.
-Avant `pnpm dev`, renseigne MongoDB Atlas dans `backend/.env`.
-Le plus simple est de copier la connection string Atlas depuis `Connect` -> `Drivers`.
+## Démarrage backend (Spec 001)
 
-## Lancer le frontend
+Depuis la racine du repo :
 
-```bash
-cd frontend
-pnpm i
-pnpm dev
-```
+- `cd backend && ./gradlew test`
+- `cd backend && ./gradlew build`
+- `cd backend && ./gradlew bootRun --args='--spring.profiles.active=local'`
 
-Le frontend ecoute par defaut sur `http://localhost:3000`.
+Variable d’environnement JWT (exemple local) :
 
-## Structure
-
-```text
-.
-|-- backend/
-|   |-- package.json
-|   `-- src/server.js
-|-- frontend/
-|   |-- package.json
-|   |-- public/
-|   |   |-- app.js
-|   |   |-- index.html
-|   |   `-- styles.css
-|   `-- server.js
-|-- .editorconfig
-|-- .gitattributes
-|-- .gitignore
-`-- CONTRIBUTING.md
-```
-
-## Endpoints backend
-
-- `GET /api/health`
-- `GET /api/message`
-
-## MongoDB Atlas
-
-Le backend lit la configuration MongoDB depuis `backend/.env`.
-
-Variables supportees :
-
-- `MONGODB_URI`
-- `MONGODB_DB_NAME`
-- ou bien `MONGODB_USERNAME`, `MONGODB_PASSWORD`, `MONGODB_CLUSTER_HOST`, `MONGODB_APP_NAME`
-
-Important : le nom d'utilisateur et le mot de passe ne suffisent pas a eux seuls.
-Il faut aussi le `cluster host` complet Atlas, visible dans la connection string fournie par MongoDB.
-
-## Notes
-
-- Les deux applications peuvent etre enrichies ensuite avec la stack de ton choix.
+- `RITOMER_SECURITY_JWT_HMAC_SECRET=local-dev-only-jwt-hmac-secret-change-me`
+- voir aussi `backend/.env.example`

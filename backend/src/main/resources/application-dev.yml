@@ -1,0 +1,4 @@
+ritomer:
+  security:
+    jwt:
+      hmac-secret: ${RITOMER_SECURITY_JWT_HMAC_SECRET}

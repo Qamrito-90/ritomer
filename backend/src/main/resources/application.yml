@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: ritomer-backend
+  jackson:
+    default-property-inclusion: non_null
+
+server:
+  shutdown: graceful
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  observations:
+    key-values:
+      application: ${spring.application.name}
+
+ritomer:
+  security:
+    jwt:
+      hmac-secret: ${RITOMER_SECURITY_JWT_HMAC_SECRET}
+
+logging:
+  pattern:
+    level: "%5p [tenant:%X{tenant_id:-na}]"

@@ -1,0 +1,3 @@
+# Configuration projet Codex
+project_root_markers = [".git"]
+project_doc_max_bytes = 65536

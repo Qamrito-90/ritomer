@@ -1,0 +1,57 @@
+openapi: 3.1.1
+info:
+  title: Closing Commands API
+  version: 0.1.0
+paths:
+  /api/closings/{closingId}/imports/balance:
+    post:
+      operationId: createBalanceImport
+      summary: Upload a balance import file
+      parameters:
+        - in: path
+          name: closingId
+          required: true
+          schema: { type: string }
+      responses:
+        "202":
+          description: Import accepted
+  /api/closings/{closingId}/mapping:
+    put:
+      operationId: replaceMappings
+      summary: Replace or upsert mappings for a closing
+      parameters:
+        - in: path
+          name: closingId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mappings]
+              properties:
+                mappings:
+                  type: array
+                  items:
+                    type: object
+                    required: [accountId, targetRubricId]
+                    properties:
+                      accountId: { type: string }
+                      targetRubricId: { type: string }
+      responses:
+        "200":
+          description: Mappings updated
+  /api/closings/{closingId}/financials:
+    get:
+      operationId: getFinancials
+      summary: Get deterministic financial statements for a closing
+      parameters:
+        - in: path
+          name: closingId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Financial statements

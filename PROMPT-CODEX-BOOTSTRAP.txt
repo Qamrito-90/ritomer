@@ -1,0 +1,19 @@
+Lis dans cet ordre :
+1. AGENTS.md
+2. README.md
+3. docs/vision/ux.md
+4. docs/vision/architecture.md
+5. docs/vision/ai-native.md
+6. docs/product/v1-plan.md
+7. docs/adr/*.md
+8. specs/001-foundation-bootstrap.md
+9. contracts/openapi/closing-api.yaml
+10. contracts/ai/mapping-suggestion.schema.json
+
+Ensuite :
+- bootstrappe le backend Kotlin/Spring Boot selon les contraintes du dépôt
+- crée une structure de monolithe modulaire cohérente avec les modules métier visés
+- ajoute les tests nécessaires, y compris la vérification des frontières modulaires
+- prépare le socle sécurité, observabilité et documentation minimale
+- ne dépasse pas le périmètre de la spec 001
+- dans ta réponse finale, liste les fichiers créés ou modifiés, les tests exécutés et les risques/restes à faire
