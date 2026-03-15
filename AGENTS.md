@@ -38,6 +38,7 @@ Référence UI documentaire : `docs/ui/ui-foundations-v1.md`
 - Clean Architecture : domaine pur, application, infrastructure.
 - REST first en V1. GraphQL seulement si la composition front devient un coût réel.
 - PostgreSQL est la base principale ; Cloud SQL for PostgreSQL est la cible de prod.
+- Cible plateforme V1 : Google Cloud, Cloud Run depuis le code source, prod en `europe-west6`, Cloud SQL for PostgreSQL 17 Enterprise en HA régional / Private IP.
 - Le développement local et les tests par défaut ne doivent pas dépendre de Docker, Docker Compose ou Testcontainers.
 - Contrats techniques versionnés dans `contracts/`.
 

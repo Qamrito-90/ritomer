@@ -53,9 +53,11 @@ Le produit repose sur 3 couches complémentaires :
 ## Principes d'exécution backend
 - le backend reste PostgreSQL-first avec Flyway
 - la cible de production est Cloud SQL for PostgreSQL
+- la cible plateforme V1 est Google Cloud, Cloud Run depuis le code source, prod en `europe-west6`
 - le développement local ne requiert ni Docker, ni Docker Compose, ni Testcontainers
 - `cd backend && ./gradlew test` doit rester exécutable sans Docker ni base PostgreSQL
 - les tests PostgreSQL réels sont opt-in via `cd backend && ./gradlew dbIntegrationTest`
+- référence décisionnelle : `docs/adr/0006-postgresql-cloud-sql-no-docker-v1.md`
 
 ## Démarrage backend (Spec 001)
 
