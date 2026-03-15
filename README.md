@@ -42,17 +42,27 @@ Le produit repose sur 3 couches complémentaires :
 
 ## Priorités V1
 - monolithe modulaire Kotlin/Spring Boot
+- PostgreSQL comme base principale
+- Cloud SQL for PostgreSQL comme cible de production
 - multi-tenant strict, audit trail append-only
 - REST first en V1
 - GraphQL read-model plus tard, avec garde-fous
 - AI Gateway contractuelle dès le départ
 - structured outputs, evals, observabilité, feature flags
 
+## Principes d'exécution backend
+- le backend reste PostgreSQL-first avec Flyway
+- la cible de production est Cloud SQL for PostgreSQL
+- le développement local ne requiert ni Docker, ni Docker Compose, ni Testcontainers
+- `cd backend && ./gradlew test` doit rester exécutable sans Docker ni base PostgreSQL
+- les tests PostgreSQL réels sont opt-in via `cd backend && ./gradlew dbIntegrationTest`
+
 ## Démarrage backend (Spec 001)
 
 Depuis la racine du repo :
 
 - `cd backend && ./gradlew test`
+- `cd backend && ./gradlew dbIntegrationTest` avec configuration PostgreSQL explicite
 - `cd backend && ./gradlew build`
 - `cd backend && ./gradlew bootRun --args='--spring.profiles.active=local'`
 - détails de démarrage local : `runbooks/local-dev.md`
@@ -63,4 +73,6 @@ Variables d’environnement locales minimales :
 - `SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/ritomer`
 - `SPRING_DATASOURCE_USERNAME=ritomer`
 - `SPRING_DATASOURCE_PASSWORD=ritomer`
+- `RITOMER_DB_TESTS_ENABLED=true` pour lancer les tests PostgreSQL optionnels
+- `RITOMER_DB_TEST_JDBC_URL`, `RITOMER_DB_TEST_USERNAME`, `RITOMER_DB_TEST_PASSWORD` pour cibler une base locale ou distante
 - voir aussi `backend/.env.example`

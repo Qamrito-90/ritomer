@@ -2,15 +2,17 @@
 
 ## Pré-requis
 - JDK 21
-- PostgreSQL local ou Docker
-- Docker (pour Testcontainers et option PostgreSQL locale)
+- une instance PostgreSQL accessible directement, locale ou distante
+- aucun Docker Desktop requis
 - accès GCP non requis pour le développement local initial
+- la cible de production reste Cloud SQL for PostgreSQL
 
 ## Commandes
 Depuis la racine du repo :
 
 - `cd backend && ./gradlew bootRun --args='--spring.profiles.active=local'`
 - `cd backend && ./gradlew test`
+- `cd backend && ./gradlew dbIntegrationTest`
 - `cd backend && ./gradlew build`
 
 PowerShell pour un démarrage local complet :
@@ -24,15 +26,20 @@ $env:SPRING_DATASOURCE_PASSWORD='ritomer'
 .\gradlew.bat bootRun --args="--spring.profiles.active=local"
 ```
 
-Option PostgreSQL via Docker :
+## Tests
+
+- `./gradlew test` exécute les tests unitaires, smoke et structure sans Docker et sans base PostgreSQL.
+- `./gradlew dbIntegrationTest` exécute les tests PostgreSQL réels uniquement si une configuration explicite est fournie.
+
+PowerShell pour les tests PostgreSQL optionnels :
 
 ```powershell
-docker run --name ritomer-postgres `
-  -e POSTGRES_DB=ritomer `
-  -e POSTGRES_USER=ritomer `
-  -e POSTGRES_PASSWORD=ritomer `
-  -p 5432:5432 `
-  -d postgres:17-alpine
+cd backend
+$env:RITOMER_DB_TESTS_ENABLED='true'
+$env:RITOMER_DB_TEST_JDBC_URL='jdbc:postgresql://localhost:5432/ritomer'
+$env:RITOMER_DB_TEST_USERNAME='ritomer'
+$env:RITOMER_DB_TEST_PASSWORD='ritomer'
+.\gradlew.bat dbIntegrationTest
 ```
 
 ## Vérification locale rapide

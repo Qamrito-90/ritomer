@@ -1,0 +1,10 @@
+spring:
+  datasource:
+    url: ${RITOMER_DB_TEST_JDBC_URL}
+    username: ${RITOMER_DB_TEST_USERNAME}
+    password: ${RITOMER_DB_TEST_PASSWORD:}
+
+ritomer:
+  security:
+    jwt:
+      hmac-secret: test-only-jwt-hmac-secret-for-db-tests

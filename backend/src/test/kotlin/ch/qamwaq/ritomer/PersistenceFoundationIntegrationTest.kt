@@ -1,15 +1,19 @@
 package ch.qamwaq.ritomer
 
 import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.ActiveProfiles
 
 @SpringBootTest
-@ActiveProfiles("test")
-class PersistenceFoundationIntegrationTest : PostgresIntegrationTest() {
+@ActiveProfiles("dbtest")
+@Tag("db-integration")
+@EnabledIfEnvironmentVariable(named = "RITOMER_DB_TESTS_ENABLED", matches = "true")
+class PersistenceFoundationIntegrationTest {
   @Autowired
   private lateinit var jdbcTemplate: JdbcTemplate
 

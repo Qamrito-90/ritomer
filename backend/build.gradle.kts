@@ -1,3 +1,7 @@
+import org.gradle.api.tasks.SourceSetContainer
+import org.gradle.api.tasks.testing.Test
+import org.gradle.kotlin.dsl.the
+
 plugins {
   kotlin("jvm") version "1.9.25"
   kotlin("plugin.spring") version "1.9.25"
@@ -43,8 +47,6 @@ dependencies {
   testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
   testImplementation("org.springframework.modulith:spring-modulith-starter-test")
   testImplementation("org.springframework.security:spring-security-test")
-  testImplementation("org.testcontainers:junit-jupiter")
-  testImplementation("org.testcontainers:postgresql")
   testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
@@ -60,6 +62,38 @@ kotlin {
   }
 }
 
-tasks.withType<Test> {
+val testSourceSet = the<SourceSetContainer>()["test"]
+
+tasks.withType<Test>().configureEach {
   useJUnitPlatform()
+}
+
+tasks.named<Test>("test") {
+  useJUnitPlatform {
+    excludeTags("db-integration")
+  }
+}
+
+tasks.register<Test>("dbIntegrationTest") {
+  description = "Runs optional PostgreSQL integration tests against an explicitly configured database."
+  group = "verification"
+  testClassesDirs = testSourceSet.output.classesDirs
+  classpath = testSourceSet.runtimeClasspath
+  shouldRunAfter(tasks.named("test"))
+  useJUnitPlatform {
+    includeTags("db-integration")
+  }
+  onlyIf {
+    val enabled = System.getenv("RITOMER_DB_TESTS_ENABLED").equals("true", ignoreCase = true)
+    val urlConfigured = !System.getenv("RITOMER_DB_TEST_JDBC_URL").isNullOrBlank()
+    val usernameConfigured = !System.getenv("RITOMER_DB_TEST_USERNAME").isNullOrBlank()
+
+    if (!enabled || !urlConfigured || !usernameConfigured) {
+      logger.lifecycle(
+        "Skipping dbIntegrationTest: set RITOMER_DB_TESTS_ENABLED=true, RITOMER_DB_TEST_JDBC_URL and RITOMER_DB_TEST_USERNAME."
+      )
+    }
+
+    enabled && urlConfigured && usernameConfigured
+  }
 }

@@ -22,3 +22,8 @@ Poser le socle de sécurité et d’isolation sans lequel le reste n’a pas de 
 - intégration auth
 - intégration cross-tenant
 - tests audit_event
+
+## Note Jalon 1
+- PostgreSQL reste la base principale de la V1 ; Cloud SQL for PostgreSQL est la cible de prod.
+- `./gradlew test` ne doit pas dépendre de Docker, Docker Compose ou Testcontainers.
+- Les tests d’intégration base de données réels du Jalon 1 sont optionnels et s’exécutent uniquement avec une configuration PostgreSQL explicite.

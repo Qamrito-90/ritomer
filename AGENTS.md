@@ -37,6 +37,8 @@ Référence UI documentaire : `docs/ui/ui-foundations-v1.md`
 - Interactions inter-modules via API explicites ou événements applicatifs.
 - Clean Architecture : domaine pur, application, infrastructure.
 - REST first en V1. GraphQL seulement si la composition front devient un coût réel.
+- PostgreSQL est la base principale ; Cloud SQL for PostgreSQL est la cible de prod.
+- Le développement local et les tests par défaut ne doivent pas dépendre de Docker, Docker Compose ou Testcontainers.
 - Contrats techniques versionnés dans `contracts/`.
 
 ## Invariants IA
@@ -74,6 +76,7 @@ Une mission est terminée seulement si :
 ## Commandes de base
 - Build : `cd backend && ./gradlew build`
 - Tests : `cd backend && ./gradlew test`
+- Tests DB optionnels : `cd backend && ./gradlew dbIntegrationTest` avec une configuration PostgreSQL explicite
 - Vérification modulith : `cd backend && ./gradlew test --tests *ApplicationModule*`
 - Lancer en local : `cd backend && ./gradlew bootRun --args='--spring.profiles.active=local'`
 
