@@ -27,3 +27,10 @@ Poser le socle de sécurité et d’isolation sans lequel le reste n’a pas de 
 - PostgreSQL reste la base principale de la V1 ; Cloud SQL for PostgreSQL est la cible de prod.
 - `./gradlew test` ne doit pas dépendre de Docker, Docker Compose ou Testcontainers.
 - Les tests d’intégration base de données réels du Jalon 1 sont optionnels et s’exécutent uniquement avec une configuration PostgreSQL explicite.
+
+## Note Jalon 2
+- `X-Tenant-Id` est le header canonique de tenant actif ; il porte `tenant.id`.
+- `app_user.external_subject` est lié au claim JWT `sub`, obligatoire.
+- Les rôles RBAC V1 sont `ACCOUNTANT`, `REVIEWER`, `MANAGER`, `ADMIN`.
+- Le backend valide toujours memberships et rôles contre `tenant_membership`, jamais contre le seul token.
+- Sans `X-Tenant-Id`, `activeTenant` est auto-résolu seulement s’il existe exactement un membership actif ; sinon il reste `null`.

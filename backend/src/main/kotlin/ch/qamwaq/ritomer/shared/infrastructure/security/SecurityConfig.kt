@@ -9,9 +9,6 @@ import org.springframework.http.HttpMethod
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.http.SessionCreationPolicy
-import org.springframework.security.core.GrantedAuthority
-import org.springframework.security.core.authority.SimpleGrantedAuthority
-import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.security.oauth2.jwt.JwtDecoder
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter
@@ -58,26 +55,7 @@ class SecurityConfig(
     val scopeAuthoritiesConverter = JwtGrantedAuthoritiesConverter()
 
     return JwtAuthenticationConverter().apply {
-      setJwtGrantedAuthoritiesConverter { jwt ->
-        val authorities = linkedSetOf<GrantedAuthority>()
-        authorities.addAll(scopeAuthoritiesConverter.convert(jwt)?.toSet().orEmpty())
-        authorities.addAll(extractRoleAuthorities(jwt))
-        authorities
-      }
-    }
-  }
-
-  private fun extractRoleAuthorities(jwt: Jwt): Collection<GrantedAuthority> {
-    val rolesClaim = jwt.claims["roles"]
-    val roles = when (rolesClaim) {
-      is Collection<*> -> rolesClaim.filterIsInstance<String>()
-      is String -> listOf(rolesClaim)
-      else -> emptyList()
-    }
-
-    return roles.map { role ->
-      val normalizedRole = role.removePrefix("ROLE_").uppercase()
-      SimpleGrantedAuthority("ROLE_$normalizedRole")
+      setJwtGrantedAuthoritiesConverter { jwt -> scopeAuthoritiesConverter.convert(jwt)?.toSet().orEmpty() }
     }
   }
 }

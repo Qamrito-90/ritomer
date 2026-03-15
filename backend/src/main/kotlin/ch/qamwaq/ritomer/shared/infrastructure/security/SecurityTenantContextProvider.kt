@@ -1,17 +1,18 @@
 package ch.qamwaq.ritomer.shared.infrastructure.security
 
+import ch.qamwaq.ritomer.shared.application.ACTIVE_TENANT_HEADER
 import ch.qamwaq.ritomer.shared.application.TenantContext
 import ch.qamwaq.ritomer.shared.application.TenantContextProvider
-import org.springframework.security.core.context.SecurityContextHolder
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken
+import jakarta.servlet.http.HttpServletRequest
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.stereotype.Component
 
 @Component
-class SecurityTenantContextProvider : TenantContextProvider {
+class SecurityTenantContextProvider(
+  private val requestProvider: ObjectProvider<HttpServletRequest>
+) : TenantContextProvider {
   override fun currentTenantContext(): TenantContext {
-    val jwtAuthentication = SecurityContextHolder.getContext().authentication as? JwtAuthenticationToken
-    val token = jwtAuthentication?.token
-    val tenantId = token?.getClaimAsString("tenant_id") ?: token?.getClaimAsString("tenantId")
+    val tenantId = requestProvider.getIfAvailable()?.getHeader(ACTIVE_TENANT_HEADER)?.trim()?.takeUnless { it.isEmpty() }
 
     return TenantContext(tenantId = tenantId)
   }
