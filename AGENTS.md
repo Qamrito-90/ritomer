@@ -11,8 +11,10 @@ Toujours lire dans cet ordre :
 4. `docs/vision/ai-native.md`
 5. `docs/product/v1-plan.md`
 6. `docs/adr/*.md`
-7. `specs/<feature>.md`
+7. `specs/active/<feature>.md`
 8. `contracts/*` impactés
+
+Référence UI documentaire : `docs/ui/ui-foundations-v1.md`
 
 ## Invariants produit
 - L’utilisateur métier doit garder le contrôle sur toute décision engageante.

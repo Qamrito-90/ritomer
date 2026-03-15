@@ -19,4 +19,4 @@ Ce pack respecte la vision UX, la vision architecture, la vision IA-native et le
 - Les contracts, evals, prompts et runbooks rendent l’IA réellement gouvernable.
 
 ## Première mission recommandée
-Commencer par `specs/001-foundation-bootstrap.md`.
+Commencer par `specs/done/001-foundation-bootstrap.md`.

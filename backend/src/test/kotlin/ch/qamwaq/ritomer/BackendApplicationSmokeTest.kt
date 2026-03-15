@@ -12,7 +12,7 @@ import org.springframework.test.context.ActiveProfiles
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-class BackendApplicationSmokeTest {
+class BackendApplicationSmokeTest : PostgresIntegrationTest() {
   @Autowired
   private lateinit var mockMvc: MockMvc
 

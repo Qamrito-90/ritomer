@@ -39,7 +39,7 @@ Creer la fondation technique minimale pour lancer le developpement en gardant de
 
 ## Hardening final (sans extension de perimetre)
 - Le backend Kotlin/Spring Boot de reference est dans `backend/`.
-- L'ancien backend Node est conserve en legacy dans `backend/legacy-node/`.
+- Le backend Kotlin/Spring Boot devient la source de verite unique ; tout backend legacy peut etre retire apres audit des references.
 - Le demarrage local passe via le profil `local`.
 - `GET /actuator/health` est accessible sans authentification.
 - `GET /api/me` est protege et renvoie `401 Unauthorized` sans token.

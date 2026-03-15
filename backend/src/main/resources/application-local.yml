@@ -1,3 +1,9 @@
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/ritomer}
+    username: ${SPRING_DATASOURCE_USERNAME:ritomer}
+    password: ${SPRING_DATASOURCE_PASSWORD:ritomer}
+
 ritomer:
   security:
     jwt:
