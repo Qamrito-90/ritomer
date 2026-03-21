@@ -1,15 +1,22 @@
 package ch.qamwaq.ritomer
 
+import ch.qamwaq.ritomer.identity.application.IDENTITY_ACTIVE_TENANT_SELECTED_ACTION
+import ch.qamwaq.ritomer.identity.application.TENANT_AUDIT_RESOURCE_TYPE
 import ch.qamwaq.ritomer.identity.application.AppUserRepository
 import ch.qamwaq.ritomer.identity.application.TenantMembershipRepository
 import ch.qamwaq.ritomer.identity.domain.TenantRole
+import ch.qamwaq.ritomer.shared.application.AuditCorrelationContext
+import ch.qamwaq.ritomer.shared.application.AuditTrail
+import ch.qamwaq.ritomer.shared.application.AppendAuditEventCommand
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.dao.DataAccessException
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.ActiveProfiles
 import java.util.UUID
@@ -27,6 +34,9 @@ class PersistenceFoundationIntegrationTest {
 
   @Autowired
   private lateinit var tenantMembershipRepository: TenantMembershipRepository
+
+  @Autowired
+  private lateinit var auditTrail: AuditTrail
 
   @BeforeEach
   fun resetDatabaseState() {
@@ -50,11 +60,13 @@ class PersistenceFoundationIntegrationTest {
   }
 
   @Test
-  fun `tenant scoped tables expose tenant columns and audit metadata uses jsonb`() {
+  fun `tenant scoped tables expose tenant columns and audit correlation metadata`() {
     assertThat(columnExists("tenant_membership", "tenant_id")).isTrue()
     assertThat(columnExists("closing_folder", "tenant_id")).isTrue()
     assertThat(columnExists("closing_folder", "archived_at")).isTrue()
     assertThat(columnExists("audit_event", "tenant_id")).isTrue()
+    assertThat(columnExists("audit_event", "ip")).isTrue()
+    assertThat(columnExists("audit_event", "user_agent")).isTrue()
     assertThat(columnType("audit_event", "actor_roles")).isEqualTo("jsonb")
     assertThat(columnType("audit_event", "metadata")).isEqualTo("jsonb")
   }
@@ -92,6 +104,134 @@ class PersistenceFoundationIntegrationTest {
         "tenant-alpha" to TenantRole.ACCOUNTANT,
         "tenant-beta" to TenantRole.MANAGER
       )
+  }
+
+  @Test
+  fun `audit trail appends structured audit_event rows`() {
+    val tenantId = UUID.fromString("11111111-1111-1111-1111-111111111111")
+    insertTenant(tenantId, "tenant-alpha", "Tenant Alpha")
+    val appUser = appUserRepository.create("audit-user", "audit-user@example.com", "Audit User")
+
+    val auditEventId = auditTrail.append(
+      AppendAuditEventCommand(
+        tenantId = tenantId,
+        actorUserId = appUser.id,
+        actorSubject = appUser.externalSubject,
+        actorRoles = setOf("MANAGER", "ACCOUNTANT"),
+        correlation = AuditCorrelationContext(
+          requestId = "req-001",
+          traceId = "trace-001",
+          ip = "203.0.113.10",
+          userAgent = "PersistenceFoundationIntegrationTest"
+        ),
+        action = IDENTITY_ACTIVE_TENANT_SELECTED_ACTION,
+        resourceType = TENANT_AUDIT_RESOURCE_TYPE,
+        resourceId = tenantId.toString(),
+        metadata = mapOf(
+          "selection_source" to "X-Tenant-Id",
+          "validated" to true
+        )
+      )
+    )
+
+    val persistedEvent = jdbcTemplate.queryForMap(
+      """
+      select tenant_id::text as tenant_id,
+             actor_user_id::text as actor_user_id,
+             actor_subject,
+             request_id,
+             trace_id,
+             ip,
+             user_agent,
+             action,
+             resource_type,
+             resource_id,
+             actor_roles #>> '{0}' as first_role,
+             actor_roles #>> '{1}' as second_role,
+             metadata ->> 'selection_source' as selection_source,
+             metadata ->> 'validated' as validated
+      from audit_event
+      where id = ?
+      """.trimIndent(),
+      auditEventId
+    )
+
+    assertThat(persistedEvent["tenant_id"]).isEqualTo(tenantId.toString())
+    assertThat(persistedEvent["actor_user_id"]).isEqualTo(appUser.id.toString())
+    assertThat(persistedEvent["actor_subject"]).isEqualTo("audit-user")
+    assertThat(persistedEvent["request_id"]).isEqualTo("req-001")
+    assertThat(persistedEvent["trace_id"]).isEqualTo("trace-001")
+    assertThat(persistedEvent["ip"]).isEqualTo("203.0.113.10")
+    assertThat(persistedEvent["user_agent"]).isEqualTo("PersistenceFoundationIntegrationTest")
+    assertThat(persistedEvent["action"]).isEqualTo(IDENTITY_ACTIVE_TENANT_SELECTED_ACTION)
+    assertThat(persistedEvent["resource_type"]).isEqualTo(TENANT_AUDIT_RESOURCE_TYPE)
+    assertThat(persistedEvent["resource_id"]).isEqualTo(tenantId.toString())
+    assertThat(persistedEvent["first_role"]).isEqualTo("ACCOUNTANT")
+    assertThat(persistedEvent["second_role"]).isEqualTo("MANAGER")
+    assertThat(persistedEvent["selection_source"]).isEqualTo("X-Tenant-Id")
+    assertThat(persistedEvent["validated"]).isEqualTo("true")
+  }
+
+  @Test
+  fun `audit_event rejects update and delete mutations`() {
+    val tenantId = UUID.fromString("11111111-1111-1111-1111-111111111111")
+    insertTenant(tenantId, "tenant-alpha", "Tenant Alpha")
+    val appUser = appUserRepository.create("audit-user", "audit-user@example.com", "Audit User")
+    val auditEventId = auditTrail.append(
+      AppendAuditEventCommand(
+        tenantId = tenantId,
+        actorUserId = appUser.id,
+        actorSubject = appUser.externalSubject,
+        actorRoles = setOf("ACCOUNTANT"),
+        correlation = AuditCorrelationContext(requestId = "req-002"),
+        action = IDENTITY_ACTIVE_TENANT_SELECTED_ACTION,
+        resourceType = TENANT_AUDIT_RESOURCE_TYPE,
+        resourceId = tenantId.toString()
+      )
+    )
+
+    assertThatThrownBy {
+      jdbcTemplate.update(
+        """
+        update audit_event
+        set action = ?
+        where id = ?
+        """.trimIndent(),
+        "IDENTITY.OTHER_ACTION",
+        auditEventId
+      )
+    }
+      .isInstanceOf(DataAccessException::class.java)
+      .hasMessageContaining("append-only")
+
+    assertThatThrownBy {
+      jdbcTemplate.update(
+        """
+        delete from audit_event
+        where id = ?
+        """.trimIndent(),
+        auditEventId
+      )
+    }
+      .isInstanceOf(DataAccessException::class.java)
+      .hasMessageContaining("append-only")
+
+    val persistedAction = jdbcTemplate.queryForObject(
+      """
+      select action
+      from audit_event
+      where id = ?
+      """.trimIndent(),
+      String::class.java,
+      auditEventId
+    )
+    val auditEventCount = jdbcTemplate.queryForObject(
+      "select count(*) from audit_event",
+      Int::class.java
+    )
+
+    assertThat(persistedAction).isEqualTo(IDENTITY_ACTIVE_TENANT_SELECTED_ACTION)
+    assertThat(auditEventCount).isEqualTo(1)
   }
 
   private fun tableExists(tableName: String): Boolean =

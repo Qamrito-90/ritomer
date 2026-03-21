@@ -1,7 +1,10 @@
 package ch.qamwaq.ritomer
 
+import ch.qamwaq.ritomer.identity.application.IDENTITY_ACTIVE_TENANT_SELECTED_ACTION
+import ch.qamwaq.ritomer.identity.application.TENANT_AUDIT_RESOURCE_TYPE
 import ch.qamwaq.ritomer.identity.domain.TenantRole
 import ch.qamwaq.ritomer.shared.application.ACTIVE_TENANT_HEADER
+import ch.qamwaq.ritomer.shared.application.REQUEST_ID_HEADER
 import java.util.UUID
 import org.assertj.core.api.Assertions.assertThat
 import org.hamcrest.Matchers.nullValue
@@ -27,9 +30,13 @@ class BackendApplicationSmokeTest {
   @Autowired
   private lateinit var identityTestStore: IdentityTestStore
 
+  @Autowired
+  private lateinit var auditTestStore: AuditTestStore
+
   @BeforeEach
   fun resetIdentityTestStore() {
     identityTestStore.reset()
+    auditTestStore.reset()
   }
 
   @Test
@@ -103,6 +110,8 @@ class BackendApplicationSmokeTest {
       jsonPath("$.activeTenant.tenantId") { value(tenantId.toString()) }
       jsonPath("$.effectiveRoles[0]") { value("ACCOUNTANT") }
     }
+
+    assertThat(auditTestStore.auditEvents()).isEmpty()
   }
 
   @Test
@@ -143,6 +152,54 @@ class BackendApplicationSmokeTest {
       jsonPath("$.effectiveRoles.length()") { value(1) }
       jsonPath("$.effectiveRoles[0]") { value("MANAGER") }
     }
+
+    val auditEvents = auditTestStore.auditEvents()
+    assertThat(auditEvents).hasSize(1)
+    assertThat(auditEvents.single().command.tenantId).isEqualTo(tenantBetaId)
+    assertThat(auditEvents.single().command.actorSubject).isEqualTo("user-123")
+    assertThat(auditEvents.single().command.actorRoles).containsExactly("MANAGER")
+    assertThat(auditEvents.single().command.action).isEqualTo(IDENTITY_ACTIVE_TENANT_SELECTED_ACTION)
+    assertThat(auditEvents.single().command.resourceType).isEqualTo(TENANT_AUDIT_RESOURCE_TYPE)
+    assertThat(auditEvents.single().command.resourceId).isEqualTo(tenantBetaId.toString())
+    assertThat(auditEvents.single().command.metadata)
+      .containsEntry("selection_source", ACTIVE_TENANT_HEADER)
+    assertThat(auditEvents.single().command.correlation.requestId).isNotBlank()
+  }
+
+  @Test
+  fun `api me emits exactly one audit event when explicit valid tenant is selected`() {
+    val tenantAlphaId = UUID.fromString("11111111-1111-1111-1111-111111111111")
+    val tenantBetaId = UUID.fromString("33333333-3333-3333-3333-333333333333")
+    identityTestStore.seedActiveMembership(
+      "user-456",
+      tenantAlphaId,
+      "tenant-alpha",
+      "Tenant Alpha",
+      TenantRole.ACCOUNTANT
+    )
+    identityTestStore.seedActiveMembership(
+      "user-456",
+      tenantBetaId,
+      "tenant-beta",
+      "Tenant Beta",
+      TenantRole.ADMIN
+    )
+
+    mockMvc.get("/api/me") {
+      header(ACTIVE_TENANT_HEADER, tenantBetaId.toString())
+      header(REQUEST_ID_HEADER, "req-explicit-tenant")
+      header("User-Agent", "BackendApplicationSmokeTest")
+      with(actorJwt(subject = "user-456"))
+    }.andExpect {
+      status { isOk() }
+      jsonPath("$.activeTenant.tenantId") { value(tenantBetaId.toString()) }
+      jsonPath("$.effectiveRoles[0]") { value("ADMIN") }
+    }
+
+    val auditEvents = auditTestStore.auditEvents()
+    assertThat(auditEvents).hasSize(1)
+    assertThat(auditEvents.single().command.correlation.requestId).isEqualTo("req-explicit-tenant")
+    assertThat(auditEvents.single().command.correlation.userAgent).isEqualTo("BackendApplicationSmokeTest")
   }
 
   @Test
@@ -161,6 +218,8 @@ class BackendApplicationSmokeTest {
     }.andExpect {
       status { isForbidden() }
     }
+
+    assertThat(auditTestStore.auditEvents()).isEmpty()
   }
 
   @Test
@@ -188,6 +247,8 @@ class BackendApplicationSmokeTest {
       jsonPath("$.activeTenant") { value(nullValue()) }
       jsonPath("$.effectiveRoles.length()") { value(0) }
     }
+
+    assertThat(auditTestStore.auditEvents()).isEmpty()
   }
 }
 

@@ -3,13 +3,13 @@ package ch.qamwaq.ritomer.identity.infrastructure.persistence
 import ch.qamwaq.ritomer.identity.application.AppUserRepository
 import ch.qamwaq.ritomer.identity.domain.AppUser
 import java.util.UUID
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
+import org.springframework.context.annotation.Profile
 import org.springframework.jdbc.core.RowMapper
 import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.stereotype.Repository
 
 @Repository
-@ConditionalOnBean(JdbcClient::class)
+@Profile("!test")
 class JdbcAppUserRepository(
   private val jdbcClient: JdbcClient
 ) : AppUserRepository {

@@ -1,0 +1,4 @@
+package ch.qamwaq.ritomer.identity.application
+
+const val IDENTITY_ACTIVE_TENANT_SELECTED_ACTION = "IDENTITY.ACTIVE_TENANT_SELECTED"
+const val TENANT_AUDIT_RESOURCE_TYPE = "TENANT"

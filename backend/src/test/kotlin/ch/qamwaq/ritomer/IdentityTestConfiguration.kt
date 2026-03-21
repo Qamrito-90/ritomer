@@ -5,6 +5,8 @@ import ch.qamwaq.ritomer.identity.application.TenantMembershipRepository
 import ch.qamwaq.ritomer.identity.domain.AppUser
 import ch.qamwaq.ritomer.identity.domain.TenantMembershipGrant
 import ch.qamwaq.ritomer.identity.domain.TenantRole
+import ch.qamwaq.ritomer.shared.application.AuditTrail
+import ch.qamwaq.ritomer.shared.application.AppendAuditEventCommand
 import java.util.UUID
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
@@ -21,6 +23,13 @@ class IdentityTestConfiguration {
   @Bean
   fun tenantMembershipRepository(identityTestStore: IdentityTestStore): TenantMembershipRepository =
     InMemoryTenantMembershipRepository(identityTestStore)
+
+  @Bean
+  fun auditTestStore(): AuditTestStore = AuditTestStore()
+
+  @Bean
+  fun auditTrail(auditTestStore: AuditTestStore): AuditTrail =
+    InMemoryAuditTrail(auditTestStore)
 }
 
 class IdentityTestStore {
@@ -73,6 +82,25 @@ class IdentityTestStore {
   }
 }
 
+class AuditTestStore {
+  private val recordedEvents = mutableListOf<RecordedAuditEvent>()
+
+  fun reset() {
+    recordedEvents.clear()
+  }
+
+  fun record(event: RecordedAuditEvent) {
+    recordedEvents.add(event)
+  }
+
+  fun auditEvents(): List<RecordedAuditEvent> = recordedEvents.toList()
+}
+
+data class RecordedAuditEvent(
+  val id: UUID,
+  val command: AppendAuditEventCommand
+)
+
 private class InMemoryAppUserRepository(
   private val identityTestStore: IdentityTestStore
 ) : AppUserRepository {
@@ -105,4 +133,14 @@ private class InMemoryTenantMembershipRepository(
 ) : TenantMembershipRepository {
   override fun findActiveMembershipGrants(userId: UUID): List<TenantMembershipGrant> =
     identityTestStore.membershipGrantsForUser(userId)
+}
+
+private class InMemoryAuditTrail(
+  private val auditTestStore: AuditTestStore
+) : AuditTrail {
+  override fun append(command: AppendAuditEventCommand): UUID {
+    val auditEventId = UUID.randomUUID()
+    auditTestStore.record(RecordedAuditEvent(auditEventId, command))
+    return auditEventId
+  }
 }
