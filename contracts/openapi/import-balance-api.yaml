@@ -1,0 +1,206 @@
+openapi: 3.1.1
+info:
+  title: Import Balance API
+  version: 0.1.0
+paths:
+  /api/closing-folders/{closingFolderId}/imports/balance:
+    post:
+      operationId: createBalanceImport
+      summary: Upload a canonical CSV trial balance for a closing folder
+      parameters:
+        - in: header
+          name: X-Tenant-Id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: closingFolderId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "201":
+          description: Balance import created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreatedBalanceImport"
+        "400":
+          description: Missing, blank or malformed X-Tenant-Id, invalid multipart payload, or invalid CSV content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BalanceImportError"
+        "401":
+          description: Authentication required
+        "403":
+          description: Tenant inaccessible or role insufficient
+        "404":
+          description: Closing folder absent or outside tenant
+        "409":
+          description: Closing folder archived and not importable
+  /api/closing-folders/{closingFolderId}/imports/balance/versions:
+    get:
+      operationId: listBalanceImportVersions
+      summary: List balance import versions for a closing folder
+      parameters:
+        - in: header
+          name: X-Tenant-Id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: closingFolderId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Versions returned in descending version order
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BalanceImportVersion"
+        "400":
+          description: Missing, blank or malformed X-Tenant-Id
+        "401":
+          description: Authentication required
+        "403":
+          description: Tenant inaccessible or role insufficient
+        "404":
+          description: Closing folder absent or outside tenant
+  /api/closing-folders/{closingFolderId}/imports/balance/versions/{version}/diff-previous:
+    get:
+      operationId: getBalanceImportDiffPrevious
+      summary: Return the diff between a balance import version and the previous version
+      parameters:
+        - in: header
+          name: X-Tenant-Id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: closingFolderId
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: version
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Diff returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BalanceImportDiff"
+        "400":
+          description: Missing, blank or malformed X-Tenant-Id, or invalid version
+        "401":
+          description: Authentication required
+        "403":
+          description: Tenant inaccessible or role insufficient
+        "404":
+          description: Closing folder absent or outside tenant, or version absent
+components:
+  schemas:
+    CreatedBalanceImport:
+      type: object
+      required: [importId, version, closingFolderId, importedAt, importedByUserId, rowCount, totalDebit, totalCredit, diffSummary]
+      properties:
+        importId: { type: string, format: uuid }
+        version: { type: integer, minimum: 1 }
+        closingFolderId: { type: string, format: uuid }
+        importedAt: { type: string, format: date-time }
+        importedByUserId: { type: string, format: uuid }
+        rowCount: { type: integer, minimum: 1 }
+        totalDebit: { type: string }
+        totalCredit: { type: string }
+        diffSummary:
+          $ref: "#/components/schemas/BalanceImportDiffSummary"
+    BalanceImportVersion:
+      type: object
+      required: [importId, version, closingFolderId, importedAt, importedByUserId, rowCount, totalDebit, totalCredit]
+      properties:
+        importId: { type: string, format: uuid }
+        version: { type: integer, minimum: 1 }
+        closingFolderId: { type: string, format: uuid }
+        importedAt: { type: string, format: date-time }
+        importedByUserId: { type: string, format: uuid }
+        rowCount: { type: integer, minimum: 1 }
+        totalDebit: { type: string }
+        totalCredit: { type: string }
+    BalanceImportDiff:
+      type: object
+      required: [version, added, removed, changed]
+      properties:
+        version: { type: integer, minimum: 1 }
+        previousVersion:
+          type: [integer, "null"]
+          minimum: 1
+        added:
+          type: array
+          items:
+            $ref: "#/components/schemas/BalanceImportLine"
+        removed:
+          type: array
+          items:
+            $ref: "#/components/schemas/BalanceImportLine"
+        changed:
+          type: array
+          items:
+            $ref: "#/components/schemas/BalanceImportLineChange"
+    BalanceImportLine:
+      type: object
+      required: [accountCode, accountLabel, debit, credit]
+      properties:
+        accountCode: { type: string }
+        accountLabel: { type: string }
+        debit: { type: string }
+        credit: { type: string }
+    BalanceImportLineChange:
+      type: object
+      required: [accountCode, before, after]
+      properties:
+        accountCode: { type: string }
+        before:
+          $ref: "#/components/schemas/BalanceImportLine"
+        after:
+          $ref: "#/components/schemas/BalanceImportLine"
+    BalanceImportDiffSummary:
+      type: object
+      required: [addedCount, removedCount, changedCount]
+      properties:
+        previousVersion:
+          type: [integer, "null"]
+          minimum: 1
+        addedCount: { type: integer, minimum: 0 }
+        removedCount: { type: integer, minimum: 0 }
+        changedCount: { type: integer, minimum: 0 }
+    BalanceImportError:
+      type: object
+      required: [message, errors]
+      properties:
+        message: { type: string }
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/BalanceImportValidationError"
+    BalanceImportValidationError:
+      type: object
+      required: [message]
+      properties:
+        line:
+          type: [integer, "null"]
+          minimum: 1
+        field:
+          type: [string, "null"]
+        message: { type: string }

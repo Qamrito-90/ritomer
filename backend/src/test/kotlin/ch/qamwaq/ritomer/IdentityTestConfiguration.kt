@@ -1,5 +1,9 @@
 package ch.qamwaq.ritomer
 
+import ch.qamwaq.ritomer.closing.access.ClosingFolderAccess
+import ch.qamwaq.ritomer.closing.access.ClosingFolderAccessNotFoundException
+import ch.qamwaq.ritomer.closing.access.ClosingFolderAccessStatus
+import ch.qamwaq.ritomer.closing.access.ClosingFolderAccessView
 import ch.qamwaq.ritomer.closing.application.ClosingFolderRepository
 import ch.qamwaq.ritomer.closing.domain.ClosingFolder
 import ch.qamwaq.ritomer.identity.application.AppUserRepository
@@ -7,6 +11,10 @@ import ch.qamwaq.ritomer.identity.application.TenantMembershipRepository
 import ch.qamwaq.ritomer.identity.domain.AppUser
 import ch.qamwaq.ritomer.identity.domain.TenantMembershipGrant
 import ch.qamwaq.ritomer.identity.domain.TenantRole
+import ch.qamwaq.ritomer.imports.application.BalanceImportRepository
+import ch.qamwaq.ritomer.imports.domain.BalanceImport
+import ch.qamwaq.ritomer.imports.domain.BalanceImportLine
+import ch.qamwaq.ritomer.imports.domain.BalanceImportSnapshot
 import ch.qamwaq.ritomer.shared.application.AuditTrail
 import ch.qamwaq.ritomer.shared.application.AppendAuditEventCommand
 import java.util.UUID
@@ -39,6 +47,17 @@ class IdentityTestConfiguration {
   @Bean
   fun closingFolderRepository(closingFolderTestStore: ClosingFolderTestStore): ClosingFolderRepository =
     InMemoryClosingFolderRepository(closingFolderTestStore)
+
+  @Bean
+  fun closingFolderAccess(closingFolderTestStore: ClosingFolderTestStore): ClosingFolderAccess =
+    InMemoryClosingFolderAccess(closingFolderTestStore)
+
+  @Bean
+  fun balanceImportTestStore(): BalanceImportTestStore = BalanceImportTestStore()
+
+  @Bean
+  fun balanceImportRepository(balanceImportTestStore: BalanceImportTestStore): BalanceImportRepository =
+    InMemoryBalanceImportRepository(balanceImportTestStore)
 }
 
 class IdentityTestStore {
@@ -172,6 +191,41 @@ class ClosingFolderTestStore {
       .sortedWith(compareByDescending<ClosingFolder> { it.periodEndOn }.thenByDescending { it.createdAt }.thenByDescending { it.id })
 }
 
+class BalanceImportTestStore {
+  private val snapshotsByImportId = linkedMapOf<UUID, BalanceImportSnapshot>()
+
+  fun reset() {
+    snapshotsByImportId.clear()
+  }
+
+  fun save(snapshot: BalanceImportSnapshot) {
+    snapshotsByImportId[snapshot.import.id] = snapshot
+  }
+
+  fun nextVersion(tenantId: UUID, closingFolderId: UUID): Int =
+    snapshotsByImportId.values
+      .asSequence()
+      .filter { it.import.tenantId == tenantId && it.import.closingFolderId == closingFolderId }
+      .maxOfOrNull { it.import.version }
+      ?.plus(1)
+      ?: 1
+
+  fun versions(tenantId: UUID, closingFolderId: UUID): List<BalanceImport> =
+    snapshotsByImportId.values
+      .asSequence()
+      .filter { it.import.tenantId == tenantId && it.import.closingFolderId == closingFolderId }
+      .map { it.import }
+      .sortedByDescending { it.version }
+      .toList()
+
+  fun snapshot(tenantId: UUID, closingFolderId: UUID, version: Int): BalanceImportSnapshot? =
+    snapshotsByImportId.values.firstOrNull {
+      it.import.tenantId == tenantId &&
+        it.import.closingFolderId == closingFolderId &&
+        it.import.version == version
+    }
+}
+
 data class RecordedAuditEvent(
   val id: UUID,
   val command: AppendAuditEventCommand
@@ -244,4 +298,47 @@ private class InMemoryClosingFolderRepository(
     closingFolderTestStore.save(folder)
     return folder
   }
+}
+
+private class InMemoryClosingFolderAccess(
+  private val closingFolderTestStore: ClosingFolderTestStore
+) : ClosingFolderAccess {
+  override fun getRequired(tenantId: UUID, closingFolderId: UUID): ClosingFolderAccessView =
+    findRequired(tenantId, closingFolderId)
+
+  override fun lockRequired(tenantId: UUID, closingFolderId: UUID): ClosingFolderAccessView =
+    findRequired(tenantId, closingFolderId)
+
+  private fun findRequired(tenantId: UUID, closingFolderId: UUID): ClosingFolderAccessView {
+    val folder = closingFolderTestStore.findById(closingFolderId)?.takeIf { it.tenantId == tenantId }
+      ?: throw ClosingFolderAccessNotFoundException(closingFolderId)
+
+    return ClosingFolderAccessView(
+      id = folder.id,
+      tenantId = folder.tenantId,
+      status = ClosingFolderAccessStatus.fromDomain(folder.status)
+    )
+  }
+}
+
+private class InMemoryBalanceImportRepository(
+  private val balanceImportTestStore: BalanceImportTestStore
+) : BalanceImportRepository {
+  override fun nextVersion(tenantId: UUID, closingFolderId: UUID): Int =
+    balanceImportTestStore.nextVersion(tenantId, closingFolderId)
+
+  override fun create(balanceImport: BalanceImport, lines: List<BalanceImportLine>): BalanceImport {
+    balanceImportTestStore.save(BalanceImportSnapshot(balanceImport, lines))
+    return balanceImport
+  }
+
+  override fun findVersions(tenantId: UUID, closingFolderId: UUID): List<BalanceImport> =
+    balanceImportTestStore.versions(tenantId, closingFolderId)
+
+  override fun findSnapshotByVersion(
+    tenantId: UUID,
+    closingFolderId: UUID,
+    version: Int
+  ): BalanceImportSnapshot? =
+    balanceImportTestStore.snapshot(tenantId, closingFolderId, version)
 }

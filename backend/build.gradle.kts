@@ -26,6 +26,7 @@ repositories {
 extra["springModulithVersion"] = "1.4.8"
 
 dependencies {
+  implementation("org.apache.commons:commons-csv:1.13.0")
   implementation("org.springframework.boot:spring-boot-starter-actuator")
   implementation("org.springframework.boot:spring-boot-starter-jdbc")
   implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")

@@ -12,6 +12,7 @@ Source exécutable du schéma :
 
 Conventions actives :
 - voir `contracts/db/core-persistence-foundation.md`
+- voir `contracts/db/import-balance-v1.md`
 
 Rappel :
 - PostgreSQL est la source de vérité backend
