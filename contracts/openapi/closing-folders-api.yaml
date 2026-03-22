@@ -1,0 +1,104 @@
+openapi: 3.1.1
+info:
+  title: Closing Folders API
+  version: 0.1.0
+paths:
+  /api/closing-folders:
+    post:
+      operationId: createClosingFolder
+      summary: Create a closing folder in the active tenant
+      parameters:
+        - in: header
+          name: X-Tenant-Id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, periodStartOn, periodEndOn]
+              properties:
+                name: { type: string }
+                periodStartOn: { type: string, format: date }
+                periodEndOn: { type: string, format: date }
+                externalRef: { type: string, nullable: true }
+      responses:
+        "201":
+          description: Closing folder created
+    get:
+      operationId: listClosingFolders
+      summary: List closing folders for the active tenant
+      parameters:
+        - in: header
+          name: X-Tenant-Id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Closing folders returned
+  /api/closing-folders/{id}:
+    get:
+      operationId: getClosingFolder
+      summary: Get a closing folder by id inside the active tenant
+      parameters:
+        - in: header
+          name: X-Tenant-Id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Closing folder returned
+        "404":
+          description: Closing folder absent or outside tenant
+    patch:
+      operationId: patchClosingFolder
+      summary: Partially update a closing folder inside the active tenant
+      parameters:
+        - in: header
+          name: X-Tenant-Id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                periodStartOn: { type: string, format: date }
+                periodEndOn: { type: string, format: date }
+                externalRef: { type: string, nullable: true }
+      responses:
+        "200":
+          description: Closing folder updated
+        "404":
+          description: Closing folder absent or outside tenant
+  /api/closing-folders/{id}/archive:
+    post:
+      operationId: archiveClosingFolder
+      summary: Logically archive a closing folder inside the active tenant
+      parameters:
+        - in: header
+          name: X-Tenant-Id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Closing folder archived or already archived
+        "404":
+          description: Closing folder absent or outside tenant

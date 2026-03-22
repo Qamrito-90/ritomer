@@ -1,5 +1,16 @@
 package ch.qamwaq.ritomer
 
+import ch.qamwaq.ritomer.closing.application.CLOSING_FOLDER_ARCHIVED_ACTION
+import ch.qamwaq.ritomer.closing.application.CLOSING_FOLDER_CREATED_ACTION
+import ch.qamwaq.ritomer.closing.application.CLOSING_FOLDER_UPDATED_ACTION
+import ch.qamwaq.ritomer.closing.application.ClosingFolderRepository
+import ch.qamwaq.ritomer.closing.application.ClosingFolderService
+import ch.qamwaq.ritomer.closing.application.CreateClosingFolderCommand
+import ch.qamwaq.ritomer.closing.application.FieldPatch
+import ch.qamwaq.ritomer.closing.application.PatchClosingFolderCommand
+import ch.qamwaq.ritomer.closing.domain.ClosingFolder
+import ch.qamwaq.ritomer.closing.domain.ClosingFolderStatus
+import ch.qamwaq.ritomer.identity.access.TenantAccessContext
 import ch.qamwaq.ritomer.identity.application.IDENTITY_ACTIVE_TENANT_SELECTED_ACTION
 import ch.qamwaq.ritomer.identity.application.TENANT_AUDIT_RESOURCE_TYPE
 import ch.qamwaq.ritomer.identity.application.AppUserRepository
@@ -8,6 +19,8 @@ import ch.qamwaq.ritomer.identity.domain.TenantRole
 import ch.qamwaq.ritomer.shared.application.AuditCorrelationContext
 import ch.qamwaq.ritomer.shared.application.AuditTrail
 import ch.qamwaq.ritomer.shared.application.AppendAuditEventCommand
+import java.time.LocalDate
+import java.time.OffsetDateTime
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.BeforeEach
@@ -37,6 +50,12 @@ class PersistenceFoundationIntegrationTest {
 
   @Autowired
   private lateinit var auditTrail: AuditTrail
+
+  @Autowired
+  private lateinit var closingFolderRepository: ClosingFolderRepository
+
+  @Autowired
+  private lateinit var closingFolderService: ClosingFolderService
 
   @BeforeEach
   fun resetDatabaseState() {
@@ -234,6 +253,122 @@ class PersistenceFoundationIntegrationTest {
     assertThat(auditEventCount).isEqualTo(1)
   }
 
+  @Test
+  fun `closing folder repository always filters by tenant id with deterministic ordering`() {
+    val tenantAlphaId = UUID.fromString("11111111-1111-1111-1111-111111111111")
+    val tenantBetaId = UUID.fromString("22222222-2222-2222-2222-222222222222")
+    insertTenant(tenantAlphaId, "tenant-alpha", "Tenant Alpha")
+    insertTenant(tenantBetaId, "tenant-beta", "Tenant Beta")
+
+    closingFolderRepository.create(
+      closingFolder(
+        id = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+        tenantId = tenantAlphaId,
+        name = "FY24",
+        periodEndOn = LocalDate.parse("2024-12-31"),
+        createdAt = OffsetDateTime.parse("2025-01-02T10:00:00Z")
+      )
+    )
+    closingFolderRepository.create(
+      closingFolder(
+        id = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
+        tenantId = tenantAlphaId,
+        name = "FY23",
+        periodEndOn = LocalDate.parse("2023-12-31"),
+        createdAt = OffsetDateTime.parse("2024-01-02T10:00:00Z")
+      )
+    )
+    closingFolderRepository.create(
+      closingFolder(
+        id = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc"),
+        tenantId = tenantBetaId,
+        name = "Other Tenant",
+        periodEndOn = LocalDate.parse("2025-12-31"),
+        createdAt = OffsetDateTime.parse("2026-01-02T10:00:00Z")
+      )
+    )
+
+    val alphaFolders = closingFolderRepository.findAllByTenantId(tenantAlphaId)
+
+    assertThat(alphaFolders).hasSize(2)
+    assertThat(alphaFolders.map { it.name }).containsExactly("FY24", "FY23")
+    assertThat(
+      closingFolderRepository.findByIdAndTenantId(UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc"), tenantAlphaId)
+    ).isNull()
+  }
+
+  @Test
+  fun `closing service persists create patch archive and writes audit events`() {
+    val tenantId = UUID.fromString("11111111-1111-1111-1111-111111111111")
+    insertTenant(tenantId, "tenant-alpha", "Tenant Alpha")
+    val appUser = appUserRepository.create("closing-user", "closing-user@example.com", "Closing User")
+    val access = TenantAccessContext(
+      actorUserId = appUser.id,
+      actorSubject = appUser.externalSubject,
+      tenantId = tenantId,
+      effectiveRoles = setOf("MANAGER")
+    )
+
+    val created = closingFolderService.create(
+      access,
+      CreateClosingFolderCommand(
+        name = "FY24",
+        periodStartOn = LocalDate.parse("2024-01-01"),
+        periodEndOn = LocalDate.parse("2024-12-31"),
+        externalRef = "EXT-100"
+      )
+    )
+
+    val patched = closingFolderService.patch(
+      access,
+      created.id,
+      PatchClosingFolderCommand(
+        name = FieldPatch.present("FY24 Updated"),
+        externalRef = FieldPatch.present(null)
+      )
+    )
+
+    val archived = closingFolderService.archive(access, created.id)
+    val archivedAgain = closingFolderService.archive(access, created.id)
+
+    val persistedFolder = jdbcTemplate.queryForMap(
+      """
+      select status,
+             archived_at,
+             archived_by_user_id::text as archived_by_user_id
+      from closing_folder
+      where id = ?
+      """.trimIndent(),
+      created.id
+    )
+
+    val persistedAuditActions = jdbcTemplate.queryForList(
+      """
+      select action
+      from audit_event
+      where tenant_id = ?
+      order by occurred_at asc, id asc
+      """.trimIndent(),
+      String::class.java,
+      tenantId
+    )
+
+    assertThat(created.status).isEqualTo(ClosingFolderStatus.DRAFT)
+    assertThat(patched.name).isEqualTo("FY24 Updated")
+    assertThat(patched.externalRef).isNull()
+    assertThat(archived.status).isEqualTo(ClosingFolderStatus.ARCHIVED)
+    assertThat(archivedAgain.status).isEqualTo(ClosingFolderStatus.ARCHIVED)
+    assertThat(persistedFolder["status"]).isEqualTo("ARCHIVED")
+    assertThat(persistedFolder["archived_at"]).isNotNull
+    assertThat(persistedFolder["archived_by_user_id"]).isEqualTo(appUser.id.toString())
+    assertThat(closingFolderRepository.findByIdAndTenantId(created.id, tenantId)).isNotNull()
+    assertThat(persistedAuditActions).containsExactly(
+      CLOSING_FOLDER_CREATED_ACTION,
+      CLOSING_FOLDER_UPDATED_ACTION,
+      CLOSING_FOLDER_ARCHIVED_ACTION
+    )
+  }
+
   private fun tableExists(tableName: String): Boolean =
     jdbcTemplate.queryForObject(
       """
@@ -313,4 +448,24 @@ class PersistenceFoundationIntegrationTest {
       status
     )
   }
+
+  private fun closingFolder(
+    id: UUID,
+    tenantId: UUID,
+    name: String,
+    periodEndOn: LocalDate,
+    createdAt: OffsetDateTime
+  ) = ClosingFolder(
+    id = id,
+    tenantId = tenantId,
+    name = name,
+    periodStartOn = LocalDate.of(periodEndOn.year, 1, 1),
+    periodEndOn = periodEndOn,
+    externalRef = null,
+    status = ClosingFolderStatus.DRAFT,
+    archivedAt = null,
+    archivedByUserId = null,
+    createdAt = createdAt,
+    updatedAt = createdAt
+  )
 }
