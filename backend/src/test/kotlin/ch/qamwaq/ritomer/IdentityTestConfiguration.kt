@@ -43,12 +43,14 @@ class IdentityTestConfiguration {
 
 class IdentityTestStore {
   private val usersBySubject = linkedMapOf<String, AppUser>()
-  private val membershipsByUserId = linkedMapOf<UUID, MutableList<TenantMembershipGrant>>()
+  private val membershipsByUserId = linkedMapOf<UUID, MutableList<StoredTenantMembershipGrant>>()
 
   fun reset() {
     usersBySubject.clear()
     membershipsByUserId.clear()
   }
+
+  fun userCount(): Int = usersBySubject.size
 
   fun findUserBySubject(externalSubject: String): AppUser? = usersBySubject[externalSubject]
 
@@ -56,10 +58,30 @@ class IdentityTestStore {
     usersBySubject[appUser.externalSubject] = appUser
   }
 
+  fun seedUser(
+    externalSubject: String,
+    status: String = AppUser.ACTIVE_STATUS,
+    email: String? = null,
+    displayName: String? = null
+  ): AppUser {
+    val appUser = AppUser(
+      id = UUID.randomUUID(),
+      externalSubject = externalSubject,
+      email = email,
+      displayName = displayName,
+      status = status
+    )
+    saveUser(appUser)
+    return appUser
+  }
+
   fun findUserById(userId: UUID): AppUser? = usersBySubject.values.firstOrNull { it.id == userId }
 
   fun membershipGrantsForUser(userId: UUID): List<TenantMembershipGrant> =
-    membershipsByUserId[userId].orEmpty().toList()
+    membershipsByUserId[userId].orEmpty()
+      .filter { it.membershipStatus.equals(AppUser.ACTIVE_STATUS, ignoreCase = true) }
+      .filter { it.tenantStatus.equals(AppUser.ACTIVE_STATUS, ignoreCase = true) }
+      .map { it.grant }
 
   fun seedActiveMembership(
     externalSubject: String,
@@ -68,28 +90,54 @@ class IdentityTestStore {
     tenantName: String,
     vararg roles: TenantRole
   ) {
+    seedMembership(
+      externalSubject,
+      tenantId,
+      tenantSlug,
+      tenantName,
+      AppUser.ACTIVE_STATUS,
+      AppUser.ACTIVE_STATUS,
+      AppUser.ACTIVE_STATUS,
+      *roles
+    )
+  }
+
+  fun seedMembership(
+    externalSubject: String,
+    tenantId: UUID,
+    tenantSlug: String,
+    tenantName: String,
+    membershipStatus: String = AppUser.ACTIVE_STATUS,
+    tenantStatus: String = AppUser.ACTIVE_STATUS,
+    userStatus: String = AppUser.ACTIVE_STATUS,
+    vararg roles: TenantRole
+  ) {
     val user = usersBySubject[externalSubject]
-      ?: AppUser(
-        id = UUID.randomUUID(),
-        externalSubject = externalSubject,
-        email = null,
-        displayName = null,
-        status = AppUser.ACTIVE_STATUS
-      ).also { usersBySubject[externalSubject] = it }
+      ?: seedUser(externalSubject = externalSubject, status = userStatus)
 
     val grants = membershipsByUserId.getOrPut(user.id) { mutableListOf() }
     roles.forEach { role ->
       grants.add(
-        TenantMembershipGrant(
-          tenantId = tenantId,
-          tenantSlug = tenantSlug,
-          tenantName = tenantName,
-          role = role
+        StoredTenantMembershipGrant(
+          grant = TenantMembershipGrant(
+            tenantId = tenantId,
+            tenantSlug = tenantSlug,
+            tenantName = tenantName,
+            role = role
+          ),
+          membershipStatus = membershipStatus,
+          tenantStatus = tenantStatus
         )
       )
     }
   }
 }
+
+private data class StoredTenantMembershipGrant(
+  val grant: TenantMembershipGrant,
+  val membershipStatus: String,
+  val tenantStatus: String
+)
 
 class AuditTestStore {
   private val recordedEvents = mutableListOf<RecordedAuditEvent>()

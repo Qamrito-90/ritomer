@@ -9,6 +9,7 @@ import ch.qamwaq.ritomer.shared.application.AuditCorrelationContextProvider
 import ch.qamwaq.ritomer.shared.application.AuditTrail
 import ch.qamwaq.ritomer.shared.application.AppendAuditEventCommand
 import ch.qamwaq.ritomer.shared.application.TenantContextProvider
+import java.util.UUID
 import org.springframework.stereotype.Service
 
 @Service
@@ -19,11 +20,11 @@ class CurrentActorService(
   private val auditCorrelationContextProvider: AuditCorrelationContextProvider
 ) {
   fun currentActor(): CurrentActor {
+    val requestedTenantId = tenantContextProvider.currentTenantContext().optionalTenantId()
     val actorContext = actorResolutionSupport.resolveActorContext()
     val appUser = actorContext.appUser
     val memberships = actorContext.memberships
 
-    val requestedTenantId = tenantContextProvider.currentTenantContext().tenantId.normalized()
     val activeTenant = actorResolutionSupport.resolveActiveTenant(memberships, requestedTenantId)
     auditTenantSelectionIfExplicitAndValid(appUser, requestedTenantId, activeTenant)
 
@@ -42,7 +43,7 @@ class CurrentActorService(
 
   private fun auditTenantSelectionIfExplicitAndValid(
     appUser: AppUser,
-    requestedTenantId: String?,
+    requestedTenantId: UUID?,
     activeTenant: TenantMembership?
   ) {
     if (requestedTenantId == null || activeTenant == null) {
@@ -64,5 +65,3 @@ class CurrentActorService(
     )
   }
 }
-
-private fun String?.normalized(): String? = this?.trim()?.takeUnless { it.isEmpty() }

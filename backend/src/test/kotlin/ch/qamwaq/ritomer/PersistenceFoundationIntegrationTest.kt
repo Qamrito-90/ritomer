@@ -70,6 +70,22 @@ class PersistenceFoundationIntegrationTest {
   }
 
   @Test
+  fun `flyway applies migrations from scratch through V3`() {
+    val versions = jdbcTemplate.queryForList(
+      """
+      select version
+      from flyway_schema_history
+      where success = true
+        and version is not null
+      order by installed_rank asc
+      """.trimIndent(),
+      String::class.java
+    )
+
+    assertThat(versions).containsSubsequence("1", "2", "3")
+  }
+
+  @Test
   fun `flyway creates the core schema`() {
     assertThat(tableExists("tenant")).isTrue()
     assertThat(tableExists("app_user")).isTrue()
@@ -192,6 +208,75 @@ class PersistenceFoundationIntegrationTest {
   }
 
   @Test
+  fun `V3 hardening constraints reject invalid status and role mutations`() {
+    val tenantId = UUID.fromString("11111111-1111-1111-1111-111111111111")
+    val userId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+
+    assertThatThrownBy {
+      insertTenant(UUID.fromString("99999999-9999-9999-9999-999999999999"), "tenant-invalid", "Tenant Invalid", status = "LOCKED")
+    }
+      .isInstanceOf(DataAccessException::class.java)
+
+    insertTenant(tenantId, "tenant-alpha", "Tenant Alpha")
+    jdbcTemplate.update(
+      """
+      insert into app_user (id, external_subject, email, display_name, status)
+      values (?, ?, ?, ?, ?)
+      """.trimIndent(),
+      userId,
+      "status-user",
+      "status-user@example.com",
+      "Status User",
+      "ACTIVE"
+    )
+    val membershipId = insertMembership(userId, tenantId, "ACCOUNTANT")
+
+    assertThatThrownBy {
+      jdbcTemplate.update(
+        """
+        update app_user
+        set status = ?
+        where id = ?
+        """.trimIndent(),
+        "LOCKED",
+        userId
+      )
+    }
+      .isInstanceOf(DataAccessException::class.java)
+
+    assertThatThrownBy {
+      jdbcTemplate.update(
+        """
+        update tenant
+        set status = ?
+        where id = ?
+        """.trimIndent(),
+        "LOCKED",
+        tenantId
+      )
+    }
+      .isInstanceOf(DataAccessException::class.java)
+
+    assertThatThrownBy {
+      insertMembership(userId, tenantId, "AUDITOR")
+    }
+      .isInstanceOf(DataAccessException::class.java)
+
+    assertThatThrownBy {
+      jdbcTemplate.update(
+        """
+        update tenant_membership
+        set status = ?
+        where id = ?
+        """.trimIndent(),
+        "REVOKED",
+        membershipId
+      )
+    }
+      .isInstanceOf(DataAccessException::class.java)
+  }
+
+  @Test
   fun `audit_event rejects update and delete mutations`() {
     val tenantId = UUID.fromString("11111111-1111-1111-1111-111111111111")
     insertTenant(tenantId, "tenant-alpha", "Tenant Alpha")
@@ -251,6 +336,116 @@ class PersistenceFoundationIntegrationTest {
 
     assertThat(persistedAction).isEqualTo(IDENTITY_ACTIVE_TENANT_SELECTED_ACTION)
     assertThat(auditEventCount).isEqualTo(1)
+  }
+
+  @Test
+  fun `V3 hardening rejects inconsistent closing folder state and null audit request id`() {
+    val tenantId = UUID.fromString("11111111-1111-1111-1111-111111111111")
+    insertTenant(tenantId, "tenant-alpha", "Tenant Alpha")
+    val appUser = appUserRepository.create("closing-user", "closing-user@example.com", "Closing User")
+    val validFolderId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+
+    assertThatThrownBy {
+      jdbcTemplate.update(
+        """
+        insert into closing_folder (
+          id,
+          tenant_id,
+          name,
+          period_start_on,
+          period_end_on,
+          status,
+          archived_at,
+          archived_by_user_id,
+          created_at,
+          updated_at
+        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """.trimIndent(),
+        UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
+        tenantId,
+        "Invalid archived folder",
+        LocalDate.parse("2024-01-01"),
+        LocalDate.parse("2024-12-31"),
+        "ARCHIVED",
+        null,
+        null,
+        OffsetDateTime.parse("2025-01-01T00:00:00Z"),
+        OffsetDateTime.parse("2025-01-01T00:00:00Z")
+      )
+    }
+      .isInstanceOf(DataAccessException::class.java)
+
+    jdbcTemplate.update(
+      """
+      insert into closing_folder (
+        id,
+        tenant_id,
+        name,
+        period_start_on,
+        period_end_on,
+        status,
+        archived_at,
+        archived_by_user_id,
+        created_at,
+        updated_at
+      ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      """.trimIndent(),
+      validFolderId,
+      tenantId,
+      "Valid draft folder",
+      LocalDate.parse("2024-01-01"),
+      LocalDate.parse("2024-12-31"),
+      "DRAFT",
+      null,
+      null,
+      OffsetDateTime.parse("2025-01-01T00:00:00Z"),
+      OffsetDateTime.parse("2025-01-01T00:00:00Z")
+    )
+
+    assertThatThrownBy {
+      jdbcTemplate.update(
+        """
+        update closing_folder
+        set archived_at = ?,
+            archived_by_user_id = ?
+        where id = ?
+        """.trimIndent(),
+        OffsetDateTime.parse("2025-02-01T00:00:00Z"),
+        appUser.id,
+        validFolderId
+      )
+    }
+      .isInstanceOf(DataAccessException::class.java)
+
+    assertThatThrownBy {
+      jdbcTemplate.update(
+        """
+        insert into audit_event (
+          id,
+          tenant_id,
+          actor_user_id,
+          actor_subject,
+          actor_roles,
+          request_id,
+          action,
+          resource_type,
+          resource_id,
+          metadata
+        ) values (?, ?, ?, ?, cast(? as jsonb), ?, ?, ?, ?, cast(? as jsonb))
+        """.trimIndent(),
+        UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc"),
+        tenantId,
+        appUser.id,
+        appUser.externalSubject,
+        """["ACCOUNTANT"]""",
+        null,
+        IDENTITY_ACTIVE_TENANT_SELECTED_ACTION,
+        TENANT_AUDIT_RESOURCE_TYPE,
+        tenantId.toString(),
+        """{"selection_source":"X-Tenant-Id"}"""
+      )
+    }
+      .isInstanceOf(DataAccessException::class.java)
   }
 
   @Test
@@ -435,18 +630,20 @@ class PersistenceFoundationIntegrationTest {
     tenantId: UUID,
     roleCode: String,
     status: String = "ACTIVE"
-  ) {
+  ): UUID {
+    val membershipId = UUID.randomUUID()
     jdbcTemplate.update(
       """
       insert into tenant_membership (id, tenant_id, user_id, role_code, status)
       values (?, ?, ?, ?, ?)
       """.trimIndent(),
-      UUID.randomUUID(),
+      membershipId,
       tenantId,
       userId,
       roleCode,
       status
     )
+    return membershipId
   }
 
   private fun closingFolder(

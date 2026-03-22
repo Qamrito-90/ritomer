@@ -17,9 +17,8 @@ class TenantMdcFilter(
     response: HttpServletResponse,
     filterChain: FilterChain
   ) {
-    val tenantId = tenantContextProvider.currentTenantContext().tenantId
-    if (!tenantId.isNullOrBlank()) {
-      MDC.put("tenant_id", tenantId)
+    tenantContextProvider.currentTenantContext().tenantId?.let { tenantId ->
+      MDC.put("tenant_id", tenantId.toString())
     }
 
     try {

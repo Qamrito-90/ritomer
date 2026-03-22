@@ -124,6 +124,60 @@ class ClosingFolderApiTest {
   }
 
   @Test
+  fun `closing rejects inactive membership without audit`() {
+    val tenantId = tenantId("11111111-1111-1111-1111-111111111111")
+    seedMembership("user-123", tenantId, TenantRole.ACCOUNTANT, membershipStatus = "INACTIVE")
+
+    mockMvc.post("/api/closing-folders") {
+      header(ACTIVE_TENANT_HEADER, tenantId.toString())
+      with(actorJwt("user-123"))
+      contentType = MediaType.APPLICATION_JSON
+      content = createBody()
+    }.andExpect { status { isForbidden() } }
+
+    assertThat(auditTestStore.auditEvents()).isEmpty()
+  }
+
+  @Test
+  fun `closing rejects inactive tenant without audit`() {
+    val tenantId = tenantId("11111111-1111-1111-1111-111111111111")
+    seedMembership("user-123", tenantId, TenantRole.ACCOUNTANT, tenantStatus = "INACTIVE")
+
+    mockMvc.post("/api/closing-folders") {
+      header(ACTIVE_TENANT_HEADER, tenantId.toString())
+      with(actorJwt("user-123"))
+      contentType = MediaType.APPLICATION_JSON
+      content = createBody()
+    }.andExpect { status { isForbidden() } }
+
+    assertThat(auditTestStore.auditEvents()).isEmpty()
+  }
+
+  @Test
+  fun `closing ignores misleading JWT tenant and role claims`() {
+    val tenantAlphaId = tenantId("11111111-1111-1111-1111-111111111111")
+    val tenantBetaId = tenantId("22222222-2222-2222-2222-222222222222")
+    seedMembership("user-123", tenantAlphaId, TenantRole.ACCOUNTANT)
+
+    mockMvc.post("/api/closing-folders") {
+      header(ACTIVE_TENANT_HEADER, tenantBetaId.toString())
+      with(
+        actorJwt(
+          subject = "user-123",
+          extraClaims = mapOf(
+            "tenant_id" to tenantBetaId.toString(),
+            "roles" to listOf("ADMIN")
+          )
+        )
+      )
+      contentType = MediaType.APPLICATION_JSON
+      content = createBody()
+    }.andExpect { status { isForbidden() } }
+
+    assertThat(auditTestStore.auditEvents()).isEmpty()
+  }
+
+  @Test
   fun `reviewer cannot mutate closing folders`() {
     val tenantId = tenantId("11111111-1111-1111-1111-111111111111")
     seedMembership("user-123", tenantId, TenantRole.REVIEWER)
@@ -168,6 +222,29 @@ class ClosingFolderApiTest {
       header(ACTIVE_TENANT_HEADER, tenantAlphaId.toString())
       with(actorJwt("user-123"))
     }.andExpect { status { isNotFound() } }
+  }
+
+  @Test
+  fun `patch and archive return 404 without audit when folder belongs to another tenant`() {
+    val tenantAlphaId = tenantId("11111111-1111-1111-1111-111111111111")
+    val tenantBetaId = tenantId("22222222-2222-2222-2222-222222222222")
+    seedMembership("user-123", tenantAlphaId, TenantRole.MANAGER)
+    seedMembership("user-123", tenantBetaId, TenantRole.MANAGER)
+    val betaFolder = seedFolder(tenantBetaId)
+
+    mockMvc.patch("/api/closing-folders/${betaFolder.id}") {
+      header(ACTIVE_TENANT_HEADER, tenantAlphaId.toString())
+      with(actorJwt("user-123"))
+      contentType = MediaType.APPLICATION_JSON
+      content = """{"name":"Updated"}"""
+    }.andExpect { status { isNotFound() } }
+
+    mockMvc.post("/api/closing-folders/${betaFolder.id}/archive") {
+      header(ACTIVE_TENANT_HEADER, tenantAlphaId.toString())
+      with(actorJwt("user-123"))
+    }.andExpect { status { isNotFound() } }
+
+    assertThat(auditTestStore.auditEvents()).isEmpty()
   }
 
   @Test
@@ -272,6 +349,13 @@ class ClosingFolderApiTest {
       header(ACTIVE_TENANT_HEADER, tenantId.toString())
       with(actorJwt("user-123"))
       contentType = MediaType.APPLICATION_JSON
+      content = """[]"""
+    }.andExpect { status { isBadRequest() } }
+
+    mockMvc.patch("/api/closing-folders/${folder.id}") {
+      header(ACTIVE_TENANT_HEADER, tenantId.toString())
+      with(actorJwt("user-123"))
+      contentType = MediaType.APPLICATION_JSON
       content = """{}"""
     }.andExpect { status { isBadRequest() } }
 
@@ -280,6 +364,68 @@ class ClosingFolderApiTest {
       with(actorJwt("user-123"))
       contentType = MediaType.APPLICATION_JSON
       content = """{"periodStartOn":"2024-12-31","periodEndOn":"2024-01-01"}"""
+    }.andExpect { status { isBadRequest() } }
+
+    assertThat(auditTestStore.auditEvents()).isEmpty()
+  }
+
+  @Test
+  fun `create and patch reject invalid dates and invalid names without audit`() {
+    val tenantId = tenantId("11111111-1111-1111-1111-111111111111")
+    seedMembership("user-123", tenantId, TenantRole.ACCOUNTANT)
+    val folder = seedFolder(tenantId)
+
+    mockMvc.post("/api/closing-folders") {
+      header(ACTIVE_TENANT_HEADER, tenantId.toString())
+      with(actorJwt("user-123"))
+      contentType = MediaType.APPLICATION_JSON
+      content = """
+        {
+          "name":"   ",
+          "periodStartOn":"2024-01-01",
+          "periodEndOn":"2024-12-31"
+        }
+      """.trimIndent()
+    }.andExpect { status { isBadRequest() } }
+
+    mockMvc.post("/api/closing-folders") {
+      header(ACTIVE_TENANT_HEADER, tenantId.toString())
+      with(actorJwt("user-123"))
+      contentType = MediaType.APPLICATION_JSON
+      content = """
+        {
+          "name":null,
+          "periodStartOn":"2024-01-01",
+          "periodEndOn":"2024-12-31"
+        }
+      """.trimIndent()
+    }.andExpect { status { isBadRequest() } }
+
+    mockMvc.post("/api/closing-folders") {
+      header(ACTIVE_TENANT_HEADER, tenantId.toString())
+      with(actorJwt("user-123"))
+      contentType = MediaType.APPLICATION_JSON
+      content = """
+        {
+          "name":"Invalid date",
+          "periodStartOn":"not-a-date",
+          "periodEndOn":"2024-12-31"
+        }
+      """.trimIndent()
+    }.andExpect { status { isBadRequest() } }
+
+    mockMvc.patch("/api/closing-folders/${folder.id}") {
+      header(ACTIVE_TENANT_HEADER, tenantId.toString())
+      with(actorJwt("user-123"))
+      contentType = MediaType.APPLICATION_JSON
+      content = """{"name":null}"""
+    }.andExpect { status { isBadRequest() } }
+
+    mockMvc.patch("/api/closing-folders/${folder.id}") {
+      header(ACTIVE_TENANT_HEADER, tenantId.toString())
+      with(actorJwt("user-123"))
+      contentType = MediaType.APPLICATION_JSON
+      content = """{"periodStartOn":"not-a-date"}"""
     }.andExpect { status { isBadRequest() } }
 
     assertThat(auditTestStore.auditEvents()).isEmpty()
@@ -337,9 +483,20 @@ class ClosingFolderApiTest {
   private fun seedMembership(
     subject: String,
     tenantId: UUID,
-    vararg roles: TenantRole
+    vararg roles: TenantRole,
+    membershipStatus: String = "ACTIVE",
+    tenantStatus: String = "ACTIVE"
   ) {
-    identityTestStore.seedActiveMembership(subject, tenantId, "tenant-${tenantId.toString().take(4)}", "Tenant", *roles)
+    identityTestStore.seedMembership(
+      subject,
+      tenantId,
+      "tenant-${tenantId.toString().take(4)}",
+      "Tenant",
+      membershipStatus,
+      tenantStatus,
+      "ACTIVE",
+      *roles
+    )
   }
 
   private fun seedFolder(
@@ -389,10 +546,12 @@ private fun actorJwt(
   subject: String,
   email: String? = null,
   name: String? = null,
-  preferredUsername: String? = null
+  preferredUsername: String? = null,
+  extraClaims: Map<String, Any> = emptyMap()
 ) = jwt().jwt { token ->
   token.subject(subject)
   email?.let { token.claim("email", it) }
   name?.let { token.claim("name", it) }
   preferredUsername?.let { token.claim("preferred_username", it) }
+  extraClaims.forEach { (claimName, value) -> token.claim(claimName, value) }
 }

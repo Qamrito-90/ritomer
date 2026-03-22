@@ -3,6 +3,7 @@ package ch.qamwaq.ritomer.identity.application
 import ch.qamwaq.ritomer.identity.domain.AppUser
 import ch.qamwaq.ritomer.identity.domain.TenantMembership
 import ch.qamwaq.ritomer.identity.domain.TenantMembershipGrant
+import java.util.UUID
 import org.springframework.security.access.AccessDeniedException
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.security.oauth2.jwt.Jwt
@@ -32,11 +33,11 @@ class ActorResolutionSupport(
 
   fun resolveActiveTenant(
     memberships: List<TenantMembership>,
-    requestedTenantId: String?
+    requestedTenantId: UUID?
   ): TenantMembership? {
     return when {
       requestedTenantId != null ->
-        memberships.firstOrNull { it.tenantId.toString() == requestedTenantId }
+        memberships.firstOrNull { it.tenantId == requestedTenantId }
           ?: throw AccessDeniedException("Requested tenant is not accessible.")
       memberships.size == 1 -> memberships.single()
       else -> null

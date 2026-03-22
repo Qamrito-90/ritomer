@@ -1,6 +1,7 @@
 package ch.qamwaq.ritomer.identity.access
 
 import ch.qamwaq.ritomer.identity.application.ActorResolutionSupport
+import ch.qamwaq.ritomer.shared.application.TenantContextProvider
 import java.util.UUID
 import org.springframework.stereotype.Service
 
@@ -12,16 +13,18 @@ data class TenantAccessContext(
 )
 
 fun interface TenantAccessResolver {
-  fun resolveRequiredTenantAccess(tenantId: UUID): TenantAccessContext
+  fun resolveRequiredTenantAccess(): TenantAccessContext
 }
 
 @Service
 class CurrentTenantAccessResolver(
-  private val actorResolutionSupport: ActorResolutionSupport
+  private val actorResolutionSupport: ActorResolutionSupport,
+  private val tenantContextProvider: TenantContextProvider
 ) : TenantAccessResolver {
-  override fun resolveRequiredTenantAccess(tenantId: UUID): TenantAccessContext {
+  override fun resolveRequiredTenantAccess(): TenantAccessContext {
+    val tenantId = tenantContextProvider.currentTenantContext().requiredTenantId()
     val actorContext = actorResolutionSupport.resolveActorContext()
-    val activeTenant = actorResolutionSupport.resolveActiveTenant(actorContext.memberships, tenantId.toString())
+    val activeTenant = actorResolutionSupport.resolveActiveTenant(actorContext.memberships, tenantId)
       ?: error("Explicit tenant resolution must not return null.")
 
     return TenantAccessContext(

@@ -61,6 +61,30 @@ class BackendApplicationSmokeTest {
   }
 
   @Test
+  fun `api me returns 403 without provisioning when sub is missing`() {
+    mockMvc.get("/api/me") {
+      with(actorJwt(subject = null))
+    }.andExpect {
+      status { isForbidden() }
+    }
+
+    assertThat(identityTestStore.userCount()).isZero()
+    assertThat(auditTestStore.auditEvents()).isEmpty()
+  }
+
+  @Test
+  fun `api me returns 403 without provisioning when sub is blank`() {
+    mockMvc.get("/api/me") {
+      with(actorJwt(subject = "   "))
+    }.andExpect {
+      status { isForbidden() }
+    }
+
+    assertThat(identityTestStore.userCount()).isZero()
+    assertThat(auditTestStore.auditEvents()).isEmpty()
+  }
+
+  @Test
   fun `api me provisions actor from sub and returns 403 without active membership`() {
     mockMvc.get("/api/me") {
       with(
@@ -78,6 +102,19 @@ class BackendApplicationSmokeTest {
     assertThat(provisionedUser).isNotNull
     assertThat(provisionedUser?.email).isEqualTo("reviewer@example.com")
     assertThat(provisionedUser?.displayName).isEqualTo("reviewer")
+  }
+
+  @Test
+  fun `api me returns 403 for inactive app user without audit`() {
+    identityTestStore.seedUser("inactive-user", status = "INACTIVE")
+
+    mockMvc.get("/api/me") {
+      with(actorJwt(subject = "inactive-user"))
+    }.andExpect {
+      status { isForbidden() }
+    }
+
+    assertThat(auditTestStore.auditEvents()).isEmpty()
   }
 
   @Test
@@ -203,6 +240,26 @@ class BackendApplicationSmokeTest {
   }
 
   @Test
+  fun `api me returns 400 when X-Tenant-Id is malformed`() {
+    identityTestStore.seedActiveMembership(
+      "user-123",
+      UUID.fromString("11111111-1111-1111-1111-111111111111"),
+      "tenant-alpha",
+      "Tenant Alpha",
+      TenantRole.REVIEWER
+    )
+
+    mockMvc.get("/api/me") {
+      header(ACTIVE_TENANT_HEADER, "not-a-uuid")
+      with(actorJwt(subject = "user-123"))
+    }.andExpect {
+      status { isBadRequest() }
+    }
+
+    assertThat(auditTestStore.auditEvents()).isEmpty()
+  }
+
+  @Test
   fun `api me returns 403 when the requested tenant is not in active memberships`() {
     identityTestStore.seedActiveMembership(
       "user-123",
@@ -253,13 +310,18 @@ class BackendApplicationSmokeTest {
 }
 
 private fun actorJwt(
-  subject: String,
+  subject: String? = "user-123",
   email: String? = null,
   name: String? = null,
   preferredUsername: String? = null,
   extraClaims: Map<String, Any> = emptyMap()
 ) = jwt().jwt { token ->
-  token.subject(subject)
+  token.claims { claims ->
+    if (subject == null) {
+      claims.remove("sub")
+    }
+  }
+  subject?.let { token.subject(it) }
   email?.let { token.claim("email", it) }
   name?.let { token.claim("name", it) }
   preferredUsername?.let { token.claim("preferred_username", it) }

@@ -7,7 +7,6 @@ import ch.qamwaq.ritomer.closing.application.PatchClosingFolderCommand
 import ch.qamwaq.ritomer.closing.domain.ClosingFolder
 import ch.qamwaq.ritomer.identity.access.TenantAccessContext
 import ch.qamwaq.ritomer.identity.access.TenantAccessResolver
-import ch.qamwaq.ritomer.shared.application.ACTIVE_TENANT_HEADER
 import com.fasterxml.jackson.databind.JsonNode
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
@@ -25,7 +24,6 @@ import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
-import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ResponseStatusException
@@ -39,10 +37,9 @@ class ClosingFolderController(
 ) {
   @PostMapping
   fun create(
-    @RequestHeader(ACTIVE_TENANT_HEADER) tenantHeader: String,
     @Valid @RequestBody request: CreateClosingFolderRequest
   ): ResponseEntity<ClosingFolderResponse> {
-    val access = resolveTenantAccess(tenantHeader)
+    val access = resolveTenantAccess()
     val created = closingFolderService.create(access, request.toCommand())
 
     return ResponseEntity
@@ -51,46 +48,30 @@ class ClosingFolderController(
   }
 
   @GetMapping
-  fun list(
-    @RequestHeader(ACTIVE_TENANT_HEADER) tenantHeader: String
-  ): List<ClosingFolderResponse> =
-    closingFolderService.list(resolveTenantAccess(tenantHeader)).map { it.toResponse() }
+  fun list(): List<ClosingFolderResponse> =
+    closingFolderService.list(resolveTenantAccess()).map { it.toResponse() }
 
   @GetMapping("/{id}")
   fun get(
-    @RequestHeader(ACTIVE_TENANT_HEADER) tenantHeader: String,
     @PathVariable id: UUID
   ): ClosingFolderResponse =
-    closingFolderService.get(resolveTenantAccess(tenantHeader), id).toResponse()
+    closingFolderService.get(resolveTenantAccess(), id).toResponse()
 
   @PatchMapping("/{id}")
   fun patch(
-    @RequestHeader(ACTIVE_TENANT_HEADER) tenantHeader: String,
     @PathVariable id: UUID,
     @RequestBody request: JsonNode
   ): ClosingFolderResponse =
-    closingFolderService.patch(resolveTenantAccess(tenantHeader), id, request.toPatchCommand()).toResponse()
+    closingFolderService.patch(resolveTenantAccess(), id, request.toPatchCommand()).toResponse()
 
   @PostMapping("/{id}/archive")
   fun archive(
-    @RequestHeader(ACTIVE_TENANT_HEADER) tenantHeader: String,
     @PathVariable id: UUID
   ): ClosingFolderResponse =
-    closingFolderService.archive(resolveTenantAccess(tenantHeader), id).toResponse()
+    closingFolderService.archive(resolveTenantAccess(), id).toResponse()
 
-  private fun resolveTenantAccess(tenantHeader: String): TenantAccessContext =
-    tenantAccessResolver.resolveRequiredTenantAccess(parseTenantId(tenantHeader))
-
-  private fun parseTenantId(tenantHeader: String): UUID {
-    val normalized = tenantHeader.trim().takeUnless { it.isEmpty() }
-      ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "$ACTIVE_TENANT_HEADER must not be blank.")
-
-    return try {
-      UUID.fromString(normalized)
-    } catch (_: IllegalArgumentException) {
-      throw ResponseStatusException(HttpStatus.BAD_REQUEST, "$ACTIVE_TENANT_HEADER must be a valid UUID.")
-    }
-  }
+  private fun resolveTenantAccess(): TenantAccessContext =
+    tenantAccessResolver.resolveRequiredTenantAccess()
 }
 
 data class CreateClosingFolderRequest(
