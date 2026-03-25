@@ -64,6 +64,9 @@ kotlin {
 }
 
 val testSourceSet = the<SourceSetContainer>()["test"]
+val mainSourceSet = the<SourceSetContainer>()["main"]
+
+mainSourceSet.resources.srcDir("../contracts/reference")
 
 tasks.withType<Test>().configureEach {
   useJUnitPlatform()

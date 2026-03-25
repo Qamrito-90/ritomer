@@ -1,0 +1,161 @@
+openapi: 3.1.1
+info:
+  title: Manual Mapping API
+  version: 0.1.0
+paths:
+  /api/closing-folders/{closingFolderId}/mappings/manual:
+    get:
+      operationId: getManualMappings
+      summary: Return the current manual mapping projection for a closing folder
+      parameters:
+        - in: header
+          name: X-Tenant-Id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: closingFolderId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Mapping projection returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManualMappingProjection"
+        "400":
+          description: Missing, blank or malformed X-Tenant-Id
+        "401":
+          description: Authentication required
+        "403":
+          description: Tenant inaccessible or role insufficient
+        "404":
+          description: Closing folder absent or outside tenant
+    put:
+      operationId: upsertManualMapping
+      summary: Create or update a manual mapping for a closing folder
+      parameters:
+        - in: header
+          name: X-Tenant-Id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: closingFolderId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ManualMappingUpsertRequest"
+      responses:
+        "201":
+          description: Mapping created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManualMappingEntry"
+        "200":
+          description: Mapping updated or unchanged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManualMappingEntry"
+        "400":
+          description: Invalid payload, unknown accountCode in latest import, or unknown targetCode
+        "401":
+          description: Authentication required
+        "403":
+          description: Tenant inaccessible or role insufficient
+        "404":
+          description: Closing folder absent or outside tenant
+        "409":
+          description: Closing folder archived or no balance import available
+    delete:
+      operationId: deleteManualMapping
+      summary: Delete a manual mapping for a closing folder
+      parameters:
+        - in: header
+          name: X-Tenant-Id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: closingFolderId
+          required: true
+          schema: { type: string, format: uuid }
+        - in: query
+          name: accountCode
+          required: true
+          schema: { type: string, minLength: 1 }
+      responses:
+        "204":
+          description: Mapping deleted or already absent
+        "400":
+          description: accountCode is missing or blank
+        "401":
+          description: Authentication required
+        "403":
+          description: Tenant inaccessible or role insufficient
+        "404":
+          description: Closing folder absent or outside tenant
+        "409":
+          description: Closing folder archived or no balance import available
+components:
+  schemas:
+    ManualMappingProjection:
+      type: object
+      required: [closingFolderId, targets, lines, mappings, summary]
+      properties:
+        closingFolderId: { type: string, format: uuid }
+        latestImportVersion:
+          type: [integer, "null"]
+          minimum: 1
+        targets:
+          type: array
+          items:
+            $ref: "#/components/schemas/ManualMappingTarget"
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/ManualMappingLine"
+        mappings:
+          type: array
+          items:
+            $ref: "#/components/schemas/ManualMappingEntry"
+        summary:
+          $ref: "#/components/schemas/ManualMappingSummary"
+    ManualMappingTarget:
+      type: object
+      required: [code, label]
+      properties:
+        code: { type: string }
+        label: { type: string }
+    ManualMappingLine:
+      type: object
+      required: [accountCode, accountLabel, debit, credit]
+      properties:
+        accountCode: { type: string }
+        accountLabel: { type: string }
+        debit: { type: string }
+        credit: { type: string }
+    ManualMappingEntry:
+      type: object
+      required: [accountCode, targetCode]
+      properties:
+        accountCode: { type: string }
+        targetCode: { type: string }
+    ManualMappingSummary:
+      type: object
+      required: [total, mapped, unmapped]
+      properties:
+        total: { type: integer, minimum: 0 }
+        mapped: { type: integer, minimum: 0 }
+        unmapped: { type: integer, minimum: 0 }
+    ManualMappingUpsertRequest:
+      type: object
+      additionalProperties: false
+      required: [accountCode, targetCode]
+      properties:
+        accountCode: { type: string }
+        targetCode: { type: string }

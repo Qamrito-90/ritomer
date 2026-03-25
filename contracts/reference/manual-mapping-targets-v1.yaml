@@ -1,0 +1,12 @@
+version: 1
+targets:
+  - code: BS.ASSET
+    label: Asset
+  - code: BS.EQUITY
+    label: Equity
+  - code: BS.LIABILITY
+    label: Liability
+  - code: PL.EXPENSE
+    label: Expense
+  - code: PL.REVENUE
+    label: Revenue

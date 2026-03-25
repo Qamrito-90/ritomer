@@ -15,6 +15,8 @@ import ch.qamwaq.ritomer.imports.application.BalanceImportRepository
 import ch.qamwaq.ritomer.imports.domain.BalanceImport
 import ch.qamwaq.ritomer.imports.domain.BalanceImportLine
 import ch.qamwaq.ritomer.imports.domain.BalanceImportSnapshot
+import ch.qamwaq.ritomer.mapping.application.ManualMappingRepository
+import ch.qamwaq.ritomer.mapping.domain.ManualMapping
 import ch.qamwaq.ritomer.shared.application.AuditTrail
 import ch.qamwaq.ritomer.shared.application.AppendAuditEventCommand
 import java.util.UUID
@@ -58,6 +60,13 @@ class IdentityTestConfiguration {
   @Bean
   fun balanceImportRepository(balanceImportTestStore: BalanceImportTestStore): BalanceImportRepository =
     InMemoryBalanceImportRepository(balanceImportTestStore)
+
+  @Bean
+  fun manualMappingTestStore(): ManualMappingTestStore = ManualMappingTestStore()
+
+  @Bean
+  fun manualMappingRepository(manualMappingTestStore: ManualMappingTestStore): ManualMappingRepository =
+    InMemoryManualMappingRepository(manualMappingTestStore)
 }
 
 class IdentityTestStore {
@@ -226,6 +235,34 @@ class BalanceImportTestStore {
     }
 }
 
+class ManualMappingTestStore {
+  private val mappingsById = linkedMapOf<UUID, ManualMapping>()
+
+  fun reset() {
+    mappingsById.clear()
+  }
+
+  fun save(mapping: ManualMapping) {
+    mappingsById[mapping.id] = mapping
+  }
+
+  fun delete(id: UUID) {
+    mappingsById.remove(id)
+  }
+
+  fun mappings(tenantId: UUID, closingFolderId: UUID): List<ManualMapping> =
+    mappingsById.values
+      .filter { it.tenantId == tenantId && it.closingFolderId == closingFolderId }
+      .sortedBy { it.accountCode }
+
+  fun findByAccountCode(tenantId: UUID, closingFolderId: UUID, accountCode: String): ManualMapping? =
+    mappingsById.values.firstOrNull {
+      it.tenantId == tenantId &&
+        it.closingFolderId == closingFolderId &&
+        it.accountCode == accountCode
+    }
+}
+
 data class RecordedAuditEvent(
   val id: UUID,
   val command: AppendAuditEventCommand
@@ -341,4 +378,28 @@ private class InMemoryBalanceImportRepository(
     version: Int
   ): BalanceImportSnapshot? =
     balanceImportTestStore.snapshot(tenantId, closingFolderId, version)
+}
+
+private class InMemoryManualMappingRepository(
+  private val manualMappingTestStore: ManualMappingTestStore
+) : ManualMappingRepository {
+  override fun findByClosingFolder(tenantId: UUID, closingFolderId: UUID): List<ManualMapping> =
+    manualMappingTestStore.mappings(tenantId, closingFolderId)
+
+  override fun findByAccountCode(tenantId: UUID, closingFolderId: UUID, accountCode: String): ManualMapping? =
+    manualMappingTestStore.findByAccountCode(tenantId, closingFolderId, accountCode)
+
+  override fun create(mapping: ManualMapping): ManualMapping {
+    manualMappingTestStore.save(mapping)
+    return mapping
+  }
+
+  override fun update(mapping: ManualMapping): ManualMapping {
+    manualMappingTestStore.save(mapping)
+    return mapping
+  }
+
+  override fun delete(tenantId: UUID, mappingId: UUID) {
+    manualMappingTestStore.delete(mappingId)
+  }
 }
