@@ -1,0 +1,231 @@
+openapi: 3.1.1
+info:
+  title: Controls API
+  version: 0.1.0
+paths:
+  /api/closing-folders/{closingFolderId}/controls:
+    get:
+      operationId: getClosingControls
+      summary: Return the derived controls read-model for a closing folder
+      parameters:
+        - in: header
+          name: X-Tenant-Id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: closingFolderId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Controls read-model returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClosingControls"
+              examples:
+                noImport:
+                  summary: No valid import is available yet
+                  value:
+                    closingFolderId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+                    closingFolderStatus: DRAFT
+                    readiness: BLOCKED
+                    latestImportPresent: false
+                    latestImportVersion: null
+                    mappingSummary:
+                      total: 0
+                      mapped: 0
+                      unmapped: 0
+                    unmappedAccounts: []
+                    controls:
+                      - code: LATEST_VALID_BALANCE_IMPORT_PRESENT
+                        status: FAIL
+                        severity: BLOCKER
+                        message: No valid balance import is available.
+                      - code: MANUAL_MAPPING_COMPLETE_ON_LATEST_IMPORT
+                        status: NOT_APPLICABLE
+                        severity: BLOCKER
+                        message: Manual mapping completeness is not applicable until a valid balance import is available.
+                    nextAction:
+                      code: IMPORT_BALANCE
+                      path: /api/closing-folders/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/imports/balance
+                      actionable: true
+                mappingIncomplete:
+                  summary: Latest import exists but manual mapping is incomplete
+                  value:
+                    closingFolderId: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+                    closingFolderStatus: DRAFT
+                    readiness: BLOCKED
+                    latestImportPresent: true
+                    latestImportVersion: 2
+                    mappingSummary:
+                      total: 3
+                      mapped: 1
+                      unmapped: 2
+                    unmappedAccounts:
+                      - accountCode: "9000"
+                        accountLabel: Revenue
+                        debit: "0"
+                        credit: "100"
+                      - accountCode: "0500"
+                        accountLabel: Receivable
+                        debit: "100"
+                        credit: "0"
+                    controls:
+                      - code: LATEST_VALID_BALANCE_IMPORT_PRESENT
+                        status: PASS
+                        severity: BLOCKER
+                        message: Latest valid balance import version 2 is available.
+                      - code: MANUAL_MAPPING_COMPLETE_ON_LATEST_IMPORT
+                        status: FAIL
+                        severity: BLOCKER
+                        message: 2 account(s) remain unmapped on the latest import.
+                    nextAction:
+                      code: COMPLETE_MANUAL_MAPPING
+                      path: /api/closing-folders/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb/mappings/manual
+                      actionable: true
+                ready:
+                  summary: Latest import exists and mapping is complete
+                  value:
+                    closingFolderId: "cccccccc-cccc-cccc-cccc-cccccccccccc"
+                    closingFolderStatus: DRAFT
+                    readiness: READY
+                    latestImportPresent: true
+                    latestImportVersion: 3
+                    mappingSummary:
+                      total: 2
+                      mapped: 2
+                      unmapped: 0
+                    unmappedAccounts: []
+                    controls:
+                      - code: LATEST_VALID_BALANCE_IMPORT_PRESENT
+                        status: PASS
+                        severity: BLOCKER
+                        message: Latest valid balance import version 3 is available.
+                      - code: MANUAL_MAPPING_COMPLETE_ON_LATEST_IMPORT
+                        status: PASS
+                        severity: BLOCKER
+                        message: Manual mapping is complete on the latest import.
+                    nextAction: null
+                archivedNotActionable:
+                  summary: Archived closing remains readable but the canonical corrective action is not actionable
+                  value:
+                    closingFolderId: "dddddddd-dddd-dddd-dddd-dddddddddddd"
+                    closingFolderStatus: ARCHIVED
+                    readiness: BLOCKED
+                    latestImportPresent: true
+                    latestImportVersion: 1
+                    mappingSummary:
+                      total: 2
+                      mapped: 1
+                      unmapped: 1
+                    unmappedAccounts:
+                      - accountCode: "3000"
+                        accountLabel: Receivable
+                        debit: "100"
+                        credit: "0"
+                    controls:
+                      - code: LATEST_VALID_BALANCE_IMPORT_PRESENT
+                        status: PASS
+                        severity: BLOCKER
+                        message: Latest valid balance import version 1 is available.
+                      - code: MANUAL_MAPPING_COMPLETE_ON_LATEST_IMPORT
+                        status: FAIL
+                        severity: BLOCKER
+                        message: 1 account(s) remain unmapped on the latest import.
+                    nextAction:
+                      code: COMPLETE_MANUAL_MAPPING
+                      path: /api/closing-folders/dddddddd-dddd-dddd-dddd-dddddddddddd/mappings/manual
+                      actionable: false
+        "400":
+          description: Missing, blank or malformed X-Tenant-Id, or invalid closingFolderId
+        "401":
+          description: Authentication required
+        "403":
+          description: Tenant inaccessible or role insufficient
+        "404":
+          description: Closing folder absent or outside tenant
+components:
+  schemas:
+    ClosingControls:
+      type: object
+      required:
+        - closingFolderId
+        - closingFolderStatus
+        - readiness
+        - latestImportPresent
+        - latestImportVersion
+        - mappingSummary
+        - unmappedAccounts
+        - controls
+        - nextAction
+      properties:
+        closingFolderId: { type: string, format: uuid }
+        closingFolderStatus:
+          type: string
+          enum: [DRAFT, ARCHIVED]
+        readiness:
+          type: string
+          enum: [READY, BLOCKED]
+        latestImportPresent: { type: boolean }
+        latestImportVersion:
+          type: [integer, "null"]
+          minimum: 1
+        mappingSummary:
+          $ref: "#/components/schemas/ControlsMappingSummary"
+        unmappedAccounts:
+          description: Unmapped accounts visible in the latest import, ordered by import snapshot `line_no asc`.
+          type: array
+          items:
+            $ref: "#/components/schemas/UnmappedAccount"
+        controls:
+          description: Control results ordered deterministically as `LATEST_VALID_BALANCE_IMPORT_PRESENT`, then `MANUAL_MAPPING_COMPLETE_ON_LATEST_IMPORT`.
+          type: array
+          items:
+            $ref: "#/components/schemas/ControlResult"
+        nextAction:
+          oneOf:
+            - $ref: "#/components/schemas/ControlsNextAction"
+            - type: "null"
+    ControlsMappingSummary:
+      type: object
+      required: [total, mapped, unmapped]
+      properties:
+        total: { type: integer, minimum: 0 }
+        mapped: { type: integer, minimum: 0 }
+        unmapped: { type: integer, minimum: 0 }
+    UnmappedAccount:
+      type: object
+      required: [accountCode, accountLabel, debit, credit]
+      properties:
+        accountCode: { type: string }
+        accountLabel: { type: string }
+        debit: { type: string }
+        credit: { type: string }
+    ControlResult:
+      type: object
+      required: [code, status, severity, message]
+      properties:
+        code:
+          type: string
+          enum:
+            - LATEST_VALID_BALANCE_IMPORT_PRESENT
+            - MANUAL_MAPPING_COMPLETE_ON_LATEST_IMPORT
+        status:
+          type: string
+          enum: [PASS, FAIL, NOT_APPLICABLE]
+        severity:
+          type: string
+          enum: [BLOCKER]
+        message: { type: string }
+    ControlsNextAction:
+      type: object
+      required: [code, path, actionable]
+      properties:
+        code:
+          type: string
+          enum: [IMPORT_BALANCE, COMPLETE_MANUAL_MAPPING]
+        path:
+          type: string
+          description: Fixed canonical path for the action code. `IMPORT_BALANCE` maps to `/api/closing-folders/{closingFolderId}/imports/balance`. `COMPLETE_MANUAL_MAPPING` maps to `/api/closing-folders/{closingFolderId}/mappings/manual`.
+        actionable: { type: boolean }

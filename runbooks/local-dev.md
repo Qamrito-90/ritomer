@@ -42,6 +42,38 @@ $env:RITOMER_DB_TEST_PASSWORD='ritomer'
 .\gradlew.bat dbIntegrationTest
 ```
 
+## Validation PostgreSQL réelle via cloud-sql-proxy
+
+Pré-requis minimaux :
+
+- binaire `cloud-sql-proxy` disponible localement
+- authentification GCP déjà établie pour atteindre l'instance Cloud SQL cible
+- nom d'instance au format `project:region:instance`
+
+PowerShell Windows validé pour ouvrir le proxy :
+
+```powershell
+$env:CLOUD_SQL_INSTANCE='project:region:instance'
+.\cloud-sql-proxy.exe --address 127.0.0.1 --port 5432 $env:CLOUD_SQL_INSTANCE
+```
+
+PowerShell Windows validé pour lancer `dbIntegrationTest` contre le proxy :
+
+```powershell
+cd backend
+$env:RITOMER_DB_TESTS_ENABLED='true'
+$env:RITOMER_DB_TEST_JDBC_URL='jdbc:postgresql://127.0.0.1:5432/ritomer'
+$env:RITOMER_DB_TEST_USERNAME='ritomer'
+$env:RITOMER_DB_TEST_PASSWORD='ritomer'
+.\gradlew.bat dbIntegrationTest
+```
+
+Notes :
+
+- gardez `cloud-sql-proxy` actif pendant toute l'exécution du task Gradle
+- si l'environnement cible impose un autre nom de base, utilisateur ou mot de passe, adaptez uniquement les variables `RITOMER_DB_TEST_*`
+- la recette reste compatible avec le principe V1 : aucun Docker local requis
+
 ## Vérification locale rapide
 - `GET /actuator/health` doit répondre `200 OK`
 - `GET /api/me` sans token doit répondre `401 Unauthorized`

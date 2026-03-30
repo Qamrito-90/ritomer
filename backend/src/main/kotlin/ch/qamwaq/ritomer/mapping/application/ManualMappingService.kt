@@ -3,7 +3,7 @@ package ch.qamwaq.ritomer.mapping.application
 import ch.qamwaq.ritomer.closing.access.ClosingFolderAccess
 import ch.qamwaq.ritomer.closing.access.ClosingFolderAccessStatus
 import ch.qamwaq.ritomer.identity.access.TenantAccessContext
-import ch.qamwaq.ritomer.imports.access.BalanceImportAccess
+import ch.qamwaq.ritomer.mapping.access.ManualMappingAccess
 import ch.qamwaq.ritomer.mapping.domain.ManualMapping
 import ch.qamwaq.ritomer.shared.application.AppendAuditEventCommand
 import ch.qamwaq.ritomer.shared.application.AuditCorrelationContextProvider
@@ -64,7 +64,7 @@ enum class ManualMappingUpsertOutcome {
 @Service
 class ManualMappingService(
   private val closingFolderAccess: ClosingFolderAccess,
-  private val balanceImportAccess: BalanceImportAccess,
+  private val manualMappingAccess: ManualMappingAccess,
   private val manualMappingRepository: ManualMappingRepository,
   private val manualMappingTargetCatalog: ManualMappingTargetCatalog,
   private val auditTrail: AuditTrail,
@@ -75,44 +75,29 @@ class ManualMappingService(
     closingFolderAccess.getRequired(access.tenantId, closingFolderId)
 
     val targets = manualMappingTargetCatalog.all()
-    val latestImport = balanceImportAccess.findLatestImportedBalance(access.tenantId, closingFolderId)
-      ?: return ManualMappingProjection(
-        closingFolderId = closingFolderId,
-        latestImportVersion = null,
-        targets = targets,
-        lines = emptyList(),
-        mappings = emptyList(),
-        summary = ManualMappingSummary(total = 0, mapped = 0, unmapped = 0)
-      )
-
-    val lines = latestImport.lines
-      .sortedBy { it.lineNo }
-      .map {
+    val projection = manualMappingAccess.getCurrentProjection(access.tenantId, closingFolderId)
+    return ManualMappingProjection(
+      closingFolderId = closingFolderId,
+      latestImportVersion = projection.latestImportVersion,
+      targets = targets,
+      lines = projection.lines.map {
         ManualMappingLineProjection(
           accountCode = it.accountCode,
           accountLabel = it.accountLabel,
           debit = it.debit,
           credit = it.credit
         )
-      }
-
-    val visibleAccountCodes = lines.asSequence().map { it.accountCode }.toSet()
-    val mappings = manualMappingRepository.findByClosingFolder(access.tenantId, closingFolderId)
-      .filter { it.accountCode in visibleAccountCodes }
-      .sortedBy { it.accountCode }
-      .map { it.toEntry() }
-
-    val mappedCount = mappings.size
-    return ManualMappingProjection(
-      closingFolderId = closingFolderId,
-      latestImportVersion = latestImport.version,
-      targets = targets,
-      lines = lines,
-      mappings = mappings,
+      },
+      mappings = projection.mappings.map {
+        ManualMappingEntry(
+          accountCode = it.accountCode,
+          targetCode = it.targetCode
+        )
+      },
       summary = ManualMappingSummary(
-        total = lines.size,
-        mapped = mappedCount,
-        unmapped = lines.size - mappedCount
+        total = projection.summary.total,
+        mapped = projection.summary.mapped,
+        unmapped = projection.summary.unmapped
       )
     )
   }
@@ -133,10 +118,11 @@ class ManualMappingService(
       throw ManualMappingConflictException("Closing folder is archived and manual mappings cannot be modified.")
     }
 
-    val latestImport = balanceImportAccess.findLatestImportedBalance(access.tenantId, closingFolderId)
+    val projection = manualMappingAccess.getCurrentProjection(access.tenantId, closingFolderId)
+    val latestImportVersion = projection.latestImportVersion
       ?: throw ManualMappingConflictException("No balance import is available for manual mapping.")
 
-    if (latestImport.lines.none { it.accountCode == accountCode }) {
+    if (projection.lines.none { it.accountCode == accountCode }) {
       throw ManualMappingBadRequestException("accountCode is not present in the latest import.")
     }
     if (manualMappingTargetCatalog.all().none { it.code == targetCode }) {
@@ -159,7 +145,7 @@ class ManualMappingService(
           updatedByUserId = access.actorUserId
         )
       )
-      appendAudit(access, latestImport.version, created, MANUAL_MAPPING_CREATED_ACTION, before = null, after = created.targetCode)
+      appendAudit(access, latestImportVersion, created, MANUAL_MAPPING_CREATED_ACTION, before = null, after = created.targetCode)
       return ManualMappingUpsertResult(created.toEntry(), ManualMappingUpsertOutcome.CREATED)
     }
 
@@ -174,7 +160,7 @@ class ManualMappingService(
         updatedByUserId = access.actorUserId
       )
     )
-    appendAudit(access, latestImport.version, updated, MANUAL_MAPPING_UPDATED_ACTION, before = existing.targetCode, after = updated.targetCode)
+    appendAudit(access, latestImportVersion, updated, MANUAL_MAPPING_UPDATED_ACTION, before = existing.targetCode, after = updated.targetCode)
     return ManualMappingUpsertResult(updated.toEntry(), ManualMappingUpsertOutcome.UPDATED)
   }
 
@@ -192,12 +178,12 @@ class ManualMappingService(
       throw ManualMappingConflictException("Closing folder is archived and manual mappings cannot be modified.")
     }
 
-    val latestImport = balanceImportAccess.findLatestImportedBalance(access.tenantId, closingFolderId)
+    val latestImportVersion = manualMappingAccess.getCurrentProjection(access.tenantId, closingFolderId).latestImportVersion
       ?: throw ManualMappingConflictException("No balance import is available for manual mapping.")
 
     val existing = manualMappingRepository.findByAccountCode(access.tenantId, closingFolderId, normalizedAccountCode) ?: return
     manualMappingRepository.delete(access.tenantId, existing.id)
-    appendAudit(access, latestImport.version, existing, MANUAL_MAPPING_DELETED_ACTION, before = existing.targetCode, after = null)
+    appendAudit(access, latestImportVersion, existing, MANUAL_MAPPING_DELETED_ACTION, before = existing.targetCode, after = null)
   }
 
   private fun appendAudit(

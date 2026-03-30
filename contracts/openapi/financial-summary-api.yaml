@@ -1,0 +1,279 @@
+openapi: 3.1.1
+info:
+  title: Financial Summary API
+  version: 0.1.0
+paths:
+  /api/closing-folders/{closingFolderId}/financial-summary:
+    get:
+      operationId: getClosingFolderFinancialSummary
+      summary: Return the derived financial summary preview for a closing folder
+      description: >
+        Returns an ultra-synthetic, non-statutory, non-export financial preview derived from
+        the latest balance import, the current manual mapping projected on that import, and the
+        existing controls readiness.
+      parameters:
+        - in: header
+          name: X-Tenant-Id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: closingFolderId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Financial summary preview returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinancialSummary"
+              examples:
+                noData:
+                  summary: No import is available yet
+                  value:
+                    closingFolderId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+                    closingFolderStatus: DRAFT
+                    readiness: BLOCKED
+                    statementState: NO_DATA
+                    latestImportVersion: null
+                    coverage:
+                      totalLines: 0
+                      mappedLines: 0
+                      unmappedLines: 0
+                      mappedShare: "0"
+                    blockers:
+                      - code: LATEST_VALID_BALANCE_IMPORT_PRESENT
+                        message: No valid balance import is available.
+                    nextAction:
+                      code: IMPORT_BALANCE
+                      path: /api/closing-folders/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/imports/balance
+                      actionable: true
+                    unmappedBalanceImpact:
+                      debitTotal: "0"
+                      creditTotal: "0"
+                      netDebitMinusCredit: "0"
+                    balanceSheetSummary: null
+                    incomeStatementSummary: null
+                previewPartial:
+                  summary: Import exists but mapping is incomplete
+                  value:
+                    closingFolderId: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+                    closingFolderStatus: DRAFT
+                    readiness: BLOCKED
+                    statementState: PREVIEW_PARTIAL
+                    latestImportVersion: 2
+                    coverage:
+                      totalLines: 3
+                      mappedLines: 2
+                      unmappedLines: 1
+                      mappedShare: "0.6667"
+                    blockers:
+                      - code: MANUAL_MAPPING_COMPLETE_ON_LATEST_IMPORT
+                        message: 1 account(s) remain unmapped on the latest import.
+                    nextAction:
+                      code: COMPLETE_MANUAL_MAPPING
+                      path: /api/closing-folders/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb/mappings/manual
+                      actionable: true
+                    unmappedBalanceImpact:
+                      debitTotal: "75"
+                      creditTotal: "0"
+                      netDebitMinusCredit: "75"
+                    balanceSheetSummary:
+                      assets: "100"
+                      liabilities: "0"
+                      equity: "0"
+                      currentPeriodResult: "100"
+                      totalAssets: "100"
+                      totalLiabilitiesAndEquity: "100"
+                    incomeStatementSummary:
+                      revenue: "100"
+                      expenses: "0"
+                      netResult: "100"
+                previewReady:
+                  summary: Import exists and mapping is complete
+                  value:
+                    closingFolderId: "cccccccc-cccc-cccc-cccc-cccccccccccc"
+                    closingFolderStatus: DRAFT
+                    readiness: READY
+                    statementState: PREVIEW_READY
+                    latestImportVersion: 3
+                    coverage:
+                      totalLines: 2
+                      mappedLines: 2
+                      unmappedLines: 0
+                      mappedShare: "1"
+                    blockers: []
+                    nextAction: null
+                    unmappedBalanceImpact:
+                      debitTotal: "0"
+                      creditTotal: "0"
+                      netDebitMinusCredit: "0"
+                    balanceSheetSummary:
+                      assets: "100"
+                      liabilities: "0"
+                      equity: "0"
+                      currentPeriodResult: "100"
+                      totalAssets: "100"
+                      totalLiabilitiesAndEquity: "100"
+                    incomeStatementSummary:
+                      revenue: "100"
+                      expenses: "0"
+                      netResult: "100"
+                archivedPreview:
+                  summary: Archived closing remains readable
+                  value:
+                    closingFolderId: "dddddddd-dddd-dddd-dddd-dddddddddddd"
+                    closingFolderStatus: ARCHIVED
+                    readiness: BLOCKED
+                    statementState: PREVIEW_PARTIAL
+                    latestImportVersion: 1
+                    coverage:
+                      totalLines: 2
+                      mappedLines: 1
+                      unmappedLines: 1
+                      mappedShare: "0.5"
+                    blockers:
+                      - code: MANUAL_MAPPING_COMPLETE_ON_LATEST_IMPORT
+                        message: 1 account(s) remain unmapped on the latest import.
+                    nextAction:
+                      code: COMPLETE_MANUAL_MAPPING
+                      path: /api/closing-folders/dddddddd-dddd-dddd-dddd-dddddddddddd/mappings/manual
+                      actionable: false
+                    unmappedBalanceImpact:
+                      debitTotal: "0"
+                      creditTotal: "100"
+                      netDebitMinusCredit: "-100"
+                    balanceSheetSummary:
+                      assets: "100"
+                      liabilities: "0"
+                      equity: "0"
+                      currentPeriodResult: "0"
+                      totalAssets: "100"
+                      totalLiabilitiesAndEquity: "0"
+                    incomeStatementSummary:
+                      revenue: "0"
+                      expenses: "0"
+                      netResult: "0"
+        "400":
+          description: Missing, blank or malformed X-Tenant-Id, or invalid closingFolderId
+        "401":
+          description: Authentication required
+        "403":
+          description: Tenant inaccessible or role insufficient
+        "404":
+          description: Closing folder absent or outside tenant
+components:
+  schemas:
+    FinancialSummary:
+      type: object
+      required:
+        - closingFolderId
+        - closingFolderStatus
+        - readiness
+        - statementState
+        - latestImportVersion
+        - coverage
+        - blockers
+        - nextAction
+        - unmappedBalanceImpact
+        - balanceSheetSummary
+        - incomeStatementSummary
+      properties:
+        closingFolderId: { type: string, format: uuid }
+        closingFolderStatus:
+          type: string
+          enum: [DRAFT, ARCHIVED]
+        readiness:
+          type: string
+          enum: [READY, BLOCKED]
+        statementState:
+          type: string
+          enum: [NO_DATA, PREVIEW_PARTIAL, PREVIEW_READY]
+        latestImportVersion:
+          type: [integer, "null"]
+          minimum: 1
+        coverage:
+          $ref: "#/components/schemas/FinancialSummaryCoverage"
+        blockers:
+          description: >
+            Current blockers inherited from controls. Empty when the closing is ready.
+          type: array
+          items:
+            $ref: "#/components/schemas/FinancialSummaryBlocker"
+        nextAction:
+          oneOf:
+            - $ref: "#/components/schemas/FinancialSummaryNextAction"
+            - type: "null"
+        unmappedBalanceImpact:
+          $ref: "#/components/schemas/UnmappedBalanceImpact"
+        balanceSheetSummary:
+          description: >
+            Ultra-synthetic preview only. In PREVIEW_PARTIAL the summary is computed on mapped
+            lines only and may therefore not balance.
+          oneOf:
+            - $ref: "#/components/schemas/BalanceSheetSummary"
+            - type: "null"
+        incomeStatementSummary:
+          description: >
+            Ultra-synthetic preview only. In PREVIEW_PARTIAL the summary is computed on mapped
+            lines only.
+          oneOf:
+            - $ref: "#/components/schemas/IncomeStatementSummary"
+            - type: "null"
+    FinancialSummaryCoverage:
+      type: object
+      required: [totalLines, mappedLines, unmappedLines, mappedShare]
+      properties:
+        totalLines: { type: integer, minimum: 0 }
+        mappedLines: { type: integer, minimum: 0 }
+        unmappedLines: { type: integer, minimum: 0 }
+        mappedShare:
+          type: string
+          description: Decimal-string between 0 and 1 derived from mappedLines / totalLines.
+    FinancialSummaryBlocker:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+    FinancialSummaryNextAction:
+      type: object
+      required: [code, path, actionable]
+      properties:
+        code:
+          type: string
+          enum: [IMPORT_BALANCE, COMPLETE_MANUAL_MAPPING]
+        path:
+          type: string
+          description: Fixed canonical path for the action code.
+        actionable: { type: boolean }
+    UnmappedBalanceImpact:
+      type: object
+      required: [debitTotal, creditTotal, netDebitMinusCredit]
+      properties:
+        debitTotal: { type: string }
+        creditTotal: { type: string }
+        netDebitMinusCredit: { type: string }
+    BalanceSheetSummary:
+      type: object
+      required:
+        - assets
+        - liabilities
+        - equity
+        - currentPeriodResult
+        - totalAssets
+        - totalLiabilitiesAndEquity
+      properties:
+        assets: { type: string }
+        liabilities: { type: string }
+        equity: { type: string }
+        currentPeriodResult: { type: string }
+        totalAssets: { type: string }
+        totalLiabilitiesAndEquity: { type: string }
+    IncomeStatementSummary:
+      type: object
+      required: [revenue, expenses, netResult]
+      properties:
+        revenue: { type: string }
+        expenses: { type: string }
+        netResult: { type: string }

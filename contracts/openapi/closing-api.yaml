@@ -45,8 +45,12 @@ paths:
           description: Mappings updated
   /api/closings/{closingId}/financials:
     get:
+      deprecated: true
       operationId: getFinancials
-      summary: Get deterministic financial statements for a closing
+      summary: Legacy stub superseded by closing-folders financial summary
+      description: >
+        Superseded by GET /api/closing-folders/{closingFolderId}/financial-summary.
+        Retained here only as a legacy stub and not as the canonical contract.
       parameters:
         - in: path
           name: closingId
@@ -54,4 +58,4 @@ paths:
           schema: { type: string }
       responses:
         "200":
-          description: Financial statements
+          description: Legacy stub, superseded by financial-summary-api.yaml
