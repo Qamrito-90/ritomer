@@ -37,7 +37,7 @@ class FinancialSummaryDbIntegrationTest {
   }
 
   @Test
-  fun `financial summary derives preview partial from real PostgreSQL rows without writing audit`() {
+  fun `financial summary derives preview partial from v2 codes in real PostgreSQL rows without writing audit`() {
     val tenantId = UUID.fromString("11111111-1111-1111-1111-111111111111")
     val userId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
     val closingFolderId = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
@@ -51,8 +51,8 @@ class FinancialSummaryDbIntegrationTest {
     insertBalanceImportLine(importId, tenantId, 2, "1000", "Cash", "100.00", "0.00")
     insertBalanceImportLine(importId, tenantId, 4, "2000", "Revenue", "0.00", "175.00")
     insertBalanceImportLine(importId, tenantId, 7, "0500", "Receivable", "75.00", "0.00")
-    insertManualMapping(tenantId, closingFolderId, userId, "1000", "BS.ASSET")
-    insertManualMapping(tenantId, closingFolderId, userId, "2000", "PL.REVENUE")
+    insertManualMapping(tenantId, closingFolderId, userId, "1000", "BS.ASSET.CASH_AND_EQUIVALENTS")
+    insertManualMapping(tenantId, closingFolderId, userId, "2000", "PL.REVENUE.OPERATING_REVENUE")
 
     val auditBefore = countAuditEvents()
 

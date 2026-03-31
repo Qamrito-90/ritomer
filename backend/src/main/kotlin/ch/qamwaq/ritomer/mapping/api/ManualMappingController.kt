@@ -78,6 +78,7 @@ data class ManualMappingUpsertRequest(
 @JsonInclude(JsonInclude.Include.ALWAYS)
 data class ManualMappingProjectionResponse(
   val closingFolderId: String,
+  val taxonomyVersion: Int,
   val latestImportVersion: Int?,
   val targets: List<ManualMappingTargetResponse>,
   val lines: List<ManualMappingLineResponse>,
@@ -87,7 +88,15 @@ data class ManualMappingProjectionResponse(
 
 data class ManualMappingTargetResponse(
   val code: String,
-  val label: String
+  val label: String,
+  val statement: String,
+  val summaryBucketCode: String,
+  val sectionCode: String,
+  val normalSide: String,
+  val granularity: String,
+  val deprecated: Boolean,
+  val selectable: Boolean,
+  val displayOrder: Int
 )
 
 data class ManualMappingLineResponse(
@@ -117,6 +126,7 @@ private fun ManualMappingUpsertRequest.toCommand(): ManualMappingUpsertCommand =
 private fun ManualMappingProjection.toResponse(): ManualMappingProjectionResponse =
   ManualMappingProjectionResponse(
     closingFolderId = closingFolderId.toString(),
+    taxonomyVersion = taxonomyVersion,
     latestImportVersion = latestImportVersion,
     targets = targets.map { it.toResponse() },
     lines = lines.map { it.toResponse() },
@@ -127,7 +137,15 @@ private fun ManualMappingProjection.toResponse(): ManualMappingProjectionRespons
 private fun ManualMappingTarget.toResponse(): ManualMappingTargetResponse =
   ManualMappingTargetResponse(
     code = code,
-    label = label
+    label = label,
+    statement = statement.name,
+    summaryBucketCode = summaryBucketCode,
+    sectionCode = sectionCode,
+    normalSide = normalSide.name,
+    granularity = granularity.name,
+    deprecated = deprecated,
+    selectable = selectable,
+    displayOrder = displayOrder
   )
 
 private fun ManualMappingLineProjection.toResponse(): ManualMappingLineResponse =

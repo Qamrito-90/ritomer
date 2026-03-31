@@ -289,7 +289,7 @@ class ControlsApiTest {
   }
 
   @Test
-  fun `controls returns ready when import exists and mapping is complete`() {
+  fun `controls counts selectable v2 codes as mapped and returns ready`() {
     val tenantId = uuid("11111111-1111-1111-1111-111111111111")
     val closingFolder = seedClosingFolder(tenantId)
     seedMembership("user-123", tenantId, TenantRole.REVIEWER)
@@ -302,8 +302,8 @@ class ControlsApiTest {
         BalanceImportLine(3, "2000", "Revenue", decimal("0.00"), decimal("100.00"))
       )
     )
-    manualMappingTestStore.save(manualMapping(tenantId, closingFolder.id, "1000", "BS.ASSET"))
-    manualMappingTestStore.save(manualMapping(tenantId, closingFolder.id, "2000", "PL.REVENUE"))
+    manualMappingTestStore.save(manualMapping(tenantId, closingFolder.id, "1000", "BS.ASSET.CASH_AND_EQUIVALENTS"))
+    manualMappingTestStore.save(manualMapping(tenantId, closingFolder.id, "2000", "PL.REVENUE.OPERATING_REVENUE"))
 
     mockMvc.get("/api/closing-folders/${closingFolder.id}/controls") {
       header(ACTIVE_TENANT_HEADER, tenantId.toString())

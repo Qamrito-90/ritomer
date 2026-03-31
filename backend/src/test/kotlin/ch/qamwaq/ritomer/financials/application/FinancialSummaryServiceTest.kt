@@ -87,8 +87,8 @@ class FinancialSummaryServiceTest {
             ProjectedManualMappingLine(7, "0500", "Receivable", decimal("75.00"), decimal("0.00"))
           ),
           mappings = listOf(
-            ProjectedManualMappingEntry("1000", "BS.ASSET"),
-            ProjectedManualMappingEntry("2000", "PL.REVENUE")
+            ProjectedManualMappingEntry("1000", "BS.ASSET", "BS.ASSET"),
+            ProjectedManualMappingEntry("2000", "PL.REVENUE", "PL.REVENUE")
           ),
           summary = ProjectedManualMappingSummary(3, 2, 1)
         )
@@ -136,8 +136,8 @@ class FinancialSummaryServiceTest {
             ProjectedManualMappingLine(3, "2000", "Revenue", decimal("0.00"), decimal("100.00"))
           ),
           mappings = listOf(
-            ProjectedManualMappingEntry("1000", "BS.ASSET"),
-            ProjectedManualMappingEntry("2000", "PL.REVENUE")
+            ProjectedManualMappingEntry("1000", "BS.ASSET", "BS.ASSET"),
+            ProjectedManualMappingEntry("2000", "PL.REVENUE", "PL.REVENUE")
           ),
           summary = ProjectedManualMappingSummary(2, 2, 0)
         )
@@ -174,6 +174,43 @@ class FinancialSummaryServiceTest {
     assertThatThrownBy {
       service.getFinancialSummary(access(), UUID.randomUUID())
     }.isInstanceOf(AccessDeniedException::class.java)
+  }
+
+  @Test
+  fun `detailed v2 target aggregates through summary bucket`() {
+    val closingFolderId = UUID.randomUUID()
+    val service = FinancialSummaryService(
+      controlsAccess = controlsAccess(
+        ClosingControlsSnapshot(
+          closingFolderStatus = ClosingFolderAccessStatus.DRAFT,
+          readiness = ControlsReadiness.READY,
+          blockers = emptyList(),
+          nextAction = null
+        )
+      ),
+      manualMappingAccess = projectionAccess(
+        CurrentManualMappingProjection(
+          closingFolderId = closingFolderId,
+          latestImportVersion = 4,
+          lines = listOf(
+            ProjectedManualMappingLine(2, "1000", "Cash", decimal("100.00"), decimal("0.00")),
+            ProjectedManualMappingLine(3, "2000", "Revenue", decimal("0.00"), decimal("100.00"))
+          ),
+          mappings = listOf(
+            ProjectedManualMappingEntry("1000", "BS.ASSET.CASH_AND_EQUIVALENTS", "BS.ASSET"),
+            ProjectedManualMappingEntry("2000", "PL.REVENUE.OPERATING_REVENUE", "PL.REVENUE")
+          ),
+          summary = ProjectedManualMappingSummary(2, 2, 0)
+        )
+      )
+    )
+
+    val summary = service.getFinancialSummary(access(), closingFolderId)
+
+    assertThat(summary.statementState).isEqualTo(FinancialSummaryState.PREVIEW_READY)
+    assertThat(summary.balanceSheetSummary?.totalAssets).isEqualByComparingTo("100")
+    assertThat(summary.balanceSheetSummary?.totalLiabilitiesAndEquity).isEqualByComparingTo("100")
+    assertThat(summary.incomeStatementSummary?.netResult).isEqualByComparingTo("100")
   }
 
   private fun access() = TenantAccessContext(

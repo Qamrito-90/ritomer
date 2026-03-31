@@ -123,6 +123,7 @@ class ManualMappingApiTest {
     }.andExpect {
       status { isOk() }
       jsonPath("$.closingFolderId") { value(closingFolder.id.toString()) }
+      jsonPath("$.taxonomyVersion") { value(2) }
       jsonPath("$.latestImportVersion") { value(nullValue()) }
       jsonPath("$.lines.length()") { value(0) }
       jsonPath("$.mappings.length()") { value(0) }
@@ -134,6 +135,13 @@ class ManualMappingApiTest {
       jsonPath("$.targets[2].code") { value("BS.LIABILITY") }
       jsonPath("$.targets[3].code") { value("PL.EXPENSE") }
       jsonPath("$.targets[4].code") { value("PL.REVENUE") }
+      jsonPath("$.targets[0].statement") { value("BALANCE_SHEET") }
+      jsonPath("$.targets[0].summaryBucketCode") { value("BS.ASSET") }
+      jsonPath("$.targets[0].sectionCode") { value("BS.ASSET") }
+      jsonPath("$.targets[0].normalSide") { value("DEBIT") }
+      jsonPath("$.targets[0].granularity") { value("LEAF") }
+      jsonPath("$.targets[0].deprecated") { value(true) }
+      jsonPath("$.targets[0].selectable") { value(true) }
     }
   }
 
@@ -208,7 +216,7 @@ class ManualMappingApiTest {
   }
 
   @Test
-  fun `put validates unknown account code and unknown target code`() {
+  fun `put validates unknown account code unknown target code and non selectable target code`() {
     val tenantId = uuid("11111111-1111-1111-1111-111111111111")
     val closingFolder = seedClosingFolder(tenantId = tenantId)
     seedMembership("user-123", tenantId, TenantRole.ACCOUNTANT)
@@ -227,6 +235,59 @@ class ManualMappingApiTest {
       content = """{"accountCode":"1000","targetCode":"UNKNOWN"}"""
       with(actorJwt("user-123"))
     }.andExpect { status { isBadRequest() } }
+
+    mockMvc.put("/api/closing-folders/${closingFolder.id}/mappings/manual") {
+      header(ACTIVE_TENANT_HEADER, tenantId.toString())
+      contentType = MediaType.APPLICATION_JSON
+      content = """{"accountCode":"1000","targetCode":"BS.ASSET.CURRENT_SECTION"}"""
+      with(actorJwt("user-123"))
+    }.andExpect { status { isBadRequest() } }
+  }
+
+  @Test
+  fun `put accepts both legacy v1 and selectable v2 target codes`() {
+    val tenantId = uuid("11111111-1111-1111-1111-111111111111")
+    val closingFolder = seedClosingFolder(tenantId = tenantId)
+    seedMembership("user-123", tenantId, TenantRole.ACCOUNTANT)
+    seedImportVersion(
+      tenantId,
+      closingFolder.id,
+      1,
+      listOf(
+        BalanceImportLine(2, "1000", "Cash", decimal("100.00"), decimal("0.00")),
+        BalanceImportLine(3, "2000", "Revenue", decimal("0.00"), decimal("100.00"))
+      )
+    )
+
+    mockMvc.put("/api/closing-folders/${closingFolder.id}/mappings/manual") {
+      header(ACTIVE_TENANT_HEADER, tenantId.toString())
+      contentType = MediaType.APPLICATION_JSON
+      content = """{"accountCode":"1000","targetCode":"BS.ASSET"}"""
+      with(actorJwt("user-123"))
+    }.andExpect {
+      status { isCreated() }
+      jsonPath("$.targetCode") { value("BS.ASSET") }
+    }
+
+    mockMvc.put("/api/closing-folders/${closingFolder.id}/mappings/manual") {
+      header(ACTIVE_TENANT_HEADER, tenantId.toString())
+      contentType = MediaType.APPLICATION_JSON
+      content = """{"accountCode":"2000","targetCode":"PL.REVENUE.OPERATING_REVENUE"}"""
+      with(actorJwt("user-123"))
+    }.andExpect {
+      status { isCreated() }
+      jsonPath("$.targetCode") { value("PL.REVENUE.OPERATING_REVENUE") }
+    }
+
+    mockMvc.get("/api/closing-folders/${closingFolder.id}/mappings/manual") {
+      header(ACTIVE_TENANT_HEADER, tenantId.toString())
+      with(actorJwt("user-123"))
+    }.andExpect {
+      status { isOk() }
+      jsonPath("$.mappings.length()") { value(2) }
+      jsonPath("$.mappings[0].targetCode") { value("BS.ASSET") }
+      jsonPath("$.mappings[1].targetCode") { value("PL.REVENUE.OPERATING_REVENUE") }
+    }
   }
 
   @Test

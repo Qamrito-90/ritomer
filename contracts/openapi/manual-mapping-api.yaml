@@ -7,6 +7,10 @@ paths:
     get:
       operationId: getManualMappings
       summary: Return the current manual mapping projection for a closing folder
+      description: >
+        Returns the current tenant-scoped manual mapping projection using the published V2 taxonomy
+        from `contracts/reference/manual-mapping-targets-v2.yaml`, while preserving coexistence with
+        legacy V1 codes from `contracts/reference/manual-mapping-targets-v1.yaml`.
       parameters:
         - in: header
           name: X-Tenant-Id
@@ -34,6 +38,10 @@ paths:
     put:
       operationId: upsertManualMapping
       summary: Create or update a manual mapping for a closing folder
+      description: >
+        The write contract remains based on `targetCode`. Selectable legacy V1 codes and selectable
+        V2 leaf codes coexist; non-selectable summary or section codes from
+        `contracts/reference/manual-mapping-targets-v2.yaml` are rejected.
       parameters:
         - in: header
           name: X-Tenant-Id
@@ -63,7 +71,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ManualMappingEntry"
         "400":
-          description: Invalid payload, unknown accountCode in latest import, or unknown targetCode
+          description: Invalid payload, unknown accountCode in latest import, unknown targetCode, or non-selectable targetCode
         "401":
           description: Authentication required
         "403":
@@ -105,9 +113,16 @@ components:
   schemas:
     ManualMappingProjection:
       type: object
-      required: [closingFolderId, targets, lines, mappings, summary]
+      description: >
+        Projection derived from the current mapping taxonomy. `taxonomyVersion` refers to the active
+        published taxonomy in `contracts/reference/manual-mapping-targets-v2.yaml`, with legacy V1
+        code coexistence preserved for backward compatibility.
+      required: [closingFolderId, taxonomyVersion, targets, lines, mappings, summary]
       properties:
         closingFolderId: { type: string, format: uuid }
+        taxonomyVersion:
+          type: integer
+          minimum: 1
         latestImportVersion:
           type: [integer, "null"]
           minimum: 1
@@ -127,10 +142,31 @@ components:
           $ref: "#/components/schemas/ManualMappingSummary"
     ManualMappingTarget:
       type: object
-      required: [code, label]
+      description: >
+        Mapping target published by the active V2 taxonomy in
+        `contracts/reference/manual-mapping-targets-v2.yaml`. Legacy V1 targets remain present as
+        deprecated selectable targets for coexistence compatibility.
+      required:
+        [code, label, statement, summaryBucketCode, sectionCode, normalSide, granularity, deprecated, selectable, displayOrder]
       properties:
         code: { type: string }
         label: { type: string }
+        statement:
+          type: string
+          enum: [BALANCE_SHEET, INCOME_STATEMENT]
+        summaryBucketCode: { type: string }
+        sectionCode: { type: string }
+        normalSide:
+          type: string
+          enum: [DEBIT, CREDIT]
+        granularity:
+          type: string
+          enum: [LEAF, SECTION]
+        deprecated: { type: boolean }
+        selectable: { type: boolean }
+        displayOrder:
+          type: integer
+          minimum: 0
     ManualMappingLine:
       type: object
       required: [accountCode, accountLabel, debit, credit]

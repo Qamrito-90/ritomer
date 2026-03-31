@@ -1,6 +1,7 @@
 package ch.qamwaq.ritomer.mapping.access
 
 import ch.qamwaq.ritomer.imports.access.BalanceImportAccess
+import ch.qamwaq.ritomer.mapping.application.ManualMappingTargetCatalog
 import ch.qamwaq.ritomer.mapping.application.ManualMappingRepository
 import java.math.BigDecimal
 import java.util.UUID
@@ -24,7 +25,8 @@ data class ProjectedManualMappingLine(
 
 data class ProjectedManualMappingEntry(
   val accountCode: String,
-  val targetCode: String
+  val targetCode: String,
+  val summaryBucketCode: String
 )
 
 data class ProjectedManualMappingSummary(
@@ -40,7 +42,8 @@ fun interface ManualMappingAccess {
 @Service
 class DerivedManualMappingAccess(
   private val balanceImportAccess: BalanceImportAccess,
-  private val manualMappingRepository: ManualMappingRepository
+  private val manualMappingRepository: ManualMappingRepository,
+  private val manualMappingTargetCatalog: ManualMappingTargetCatalog
 ) : ManualMappingAccess {
   override fun getCurrentProjection(tenantId: UUID, closingFolderId: UUID): CurrentManualMappingProjection {
     val latestImport = balanceImportAccess.findLatestImportedBalance(tenantId, closingFolderId)
@@ -69,9 +72,12 @@ class DerivedManualMappingAccess(
       .filter { it.accountCode in visibleAccountCodes }
       .sortedBy { it.accountCode }
       .map {
+        val target = manualMappingTargetCatalog.findByCode(it.targetCode)
+          ?: error("Unknown manual mapping target code '${it.targetCode}' persisted for account '${it.accountCode}'.")
         ProjectedManualMappingEntry(
           accountCode = it.accountCode,
-          targetCode = it.targetCode
+          targetCode = it.targetCode,
+          summaryBucketCode = target.summaryBucketCode
         )
       }
 

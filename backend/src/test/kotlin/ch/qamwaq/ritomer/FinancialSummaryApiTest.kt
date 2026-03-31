@@ -339,6 +339,79 @@ class FinancialSummaryApiTest {
   }
 
   @Test
+  fun `financial summary aggregates mixed v1 and v2 mappings through summary bucket`() {
+    val tenantId = uuid("11111111-1111-1111-1111-111111111111")
+    val closingFolder = seedClosingFolder(tenantId)
+    seedMembership("user-123", tenantId, TenantRole.ACCOUNTANT)
+    seedImportVersion(
+      tenantId,
+      closingFolder.id,
+      4,
+      listOf(
+        BalanceImportLine(2, "1000", "Cash", decimal("100.00"), decimal("0.00")),
+        BalanceImportLine(3, "2000", "Revenue", decimal("0.00"), decimal("100.00"))
+      )
+    )
+    manualMappingTestStore.save(manualMapping(tenantId, closingFolder.id, "1000", "BS.ASSET"))
+    manualMappingTestStore.save(manualMapping(tenantId, closingFolder.id, "2000", "PL.REVENUE.OPERATING_REVENUE"))
+
+    mockMvc.get("/api/closing-folders/${closingFolder.id}/financial-summary") {
+      header(ACTIVE_TENANT_HEADER, tenantId.toString())
+      with(actorJwt("user-123"))
+    }.andExpect {
+      status { isOk() }
+      jsonPath("$.readiness") { value("READY") }
+      jsonPath("$.statementState") { value("PREVIEW_READY") }
+      jsonPath("$.coverage.mappedShare") { value("1") }
+      jsonPath("$.balanceSheetSummary.totalAssets") { value("100") }
+      jsonPath("$.balanceSheetSummary.totalLiabilitiesAndEquity") { value("100") }
+      jsonPath("$.incomeStatementSummary.netResult") { value("100") }
+    }
+
+    assertThat(auditTestStore.auditEvents()).isEmpty()
+  }
+
+  @Test
+  fun `financial summary is identical for equivalent v1 and v2 mappings`() {
+    val tenantId = uuid("11111111-1111-1111-1111-111111111111")
+    val closingFolder = seedClosingFolder(tenantId)
+    seedMembership("user-123", tenantId, TenantRole.ACCOUNTANT)
+    seedImportVersion(
+      tenantId,
+      closingFolder.id,
+      5,
+      listOf(
+        BalanceImportLine(2, "1000", "Cash", decimal("100.00"), decimal("0.00")),
+        BalanceImportLine(3, "2000", "Revenue", decimal("0.00"), decimal("100.00"))
+      )
+    )
+
+    manualMappingTestStore.save(manualMapping(tenantId, closingFolder.id, "1000", "BS.ASSET"))
+    manualMappingTestStore.save(manualMapping(tenantId, closingFolder.id, "2000", "PL.REVENUE"))
+    val v1Payload = mockMvc.get("/api/closing-folders/${closingFolder.id}/financial-summary") {
+      header(ACTIVE_TENANT_HEADER, tenantId.toString())
+      with(actorJwt("user-123"))
+    }.andExpect { status { isOk() } }
+      .andReturn()
+      .response
+      .contentAsString
+
+    manualMappingTestStore.reset()
+    manualMappingTestStore.save(manualMapping(tenantId, closingFolder.id, "1000", "BS.ASSET.CASH_AND_EQUIVALENTS"))
+    manualMappingTestStore.save(manualMapping(tenantId, closingFolder.id, "2000", "PL.REVENUE.OPERATING_REVENUE"))
+    val v2Payload = mockMvc.get("/api/closing-folders/${closingFolder.id}/financial-summary") {
+      header(ACTIVE_TENANT_HEADER, tenantId.toString())
+      with(actorJwt("user-123"))
+    }.andExpect { status { isOk() } }
+      .andReturn()
+      .response
+      .contentAsString
+
+    assertThat(v2Payload).isEqualTo(v1Payload)
+    assertThat(auditTestStore.auditEvents()).isEmpty()
+  }
+
+  @Test
   fun `financial summary allows archived closing read and marks next action as not actionable`() {
     val tenantId = uuid("11111111-1111-1111-1111-111111111111")
     val closingFolder = seedClosingFolder(tenantId, status = ClosingFolderStatus.ARCHIVED)

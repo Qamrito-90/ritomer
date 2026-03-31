@@ -32,12 +32,14 @@ Permettre à 5 fiduciaires pilotes d’exécuter un closing complet avec traçab
 - `005-manual-mapping-v1`
 - `006-controls-v1`
 - `007-financial-summary-v1`
+- `008-financial-rubric-taxonomy-v2`
 
 ### Décisions figées
 - Le flux V1 livré reste `closing -> import -> mapping -> controls -> financial-summary`.
 - Les endpoints canoniques restent sous `/api/closing-folders/...`.
 - `controls-v1` et `financial-summary-v1` sont des read-models dérivés, `GET only`, sans persistance de résultat.
 - `financial-summary-v1` est ultra-synthétique, non statutaire, non export final, et non conforme à une présentation CO détaillée.
+- La taxonomie de mapping publiée coexiste désormais en V1 / V2 ; les codes V1 restent legacy et compatibles, et `financial-summary-v1` agrège via `summaryBucketCode`.
 - Les lectures sur `ARCHIVED` restent autorisées si le tenant et le RBAC sont valides.
 - Les lectures `GET` sur `controls` et `financial-summary` n'écrivent aucun `audit_event`.
 - Les tests PostgreSQL réels restent opt-in via `dbIntegrationTest`, sans Docker local requis.

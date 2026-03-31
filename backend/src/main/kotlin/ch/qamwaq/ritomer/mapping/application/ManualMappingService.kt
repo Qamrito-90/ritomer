@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.ResponseStatus
 
 data class ManualMappingProjection(
   val closingFolderId: UUID,
+  val taxonomyVersion: Int,
   val latestImportVersion: Int?,
   val targets: List<ManualMappingTarget>,
   val lines: List<ManualMappingLineProjection>,
@@ -78,6 +79,7 @@ class ManualMappingService(
     val projection = manualMappingAccess.getCurrentProjection(access.tenantId, closingFolderId)
     return ManualMappingProjection(
       closingFolderId = closingFolderId,
+      taxonomyVersion = manualMappingTargetCatalog.taxonomyVersion(),
       latestImportVersion = projection.latestImportVersion,
       targets = targets,
       lines = projection.lines.map {
@@ -125,8 +127,10 @@ class ManualMappingService(
     if (projection.lines.none { it.accountCode == accountCode }) {
       throw ManualMappingBadRequestException("accountCode is not present in the latest import.")
     }
-    if (manualMappingTargetCatalog.all().none { it.code == targetCode }) {
-      throw ManualMappingBadRequestException("targetCode is unknown.")
+    val target = manualMappingTargetCatalog.findByCode(targetCode)
+      ?: throw ManualMappingBadRequestException("targetCode is unknown.")
+    if (!target.selectable) {
+      throw ManualMappingBadRequestException("targetCode is not selectable.")
     }
 
     val existing = manualMappingRepository.findByAccountCode(access.tenantId, closingFolderId, accountCode)

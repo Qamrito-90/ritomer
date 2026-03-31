@@ -37,7 +37,7 @@ class ControlsDbIntegrationTest {
   }
 
   @Test
-  fun `controls endpoint derives blocked state from real PostgreSQL rows without writing audit`() {
+  fun `controls endpoint counts v2 code as mapped from real PostgreSQL rows without writing audit`() {
     val tenantId = UUID.fromString("11111111-1111-1111-1111-111111111111")
     val userId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
     val closingFolderId = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
@@ -50,7 +50,7 @@ class ControlsDbIntegrationTest {
     insertBalanceImport(importId, tenantId, closingFolderId, userId, 1)
     insertBalanceImportLine(importId, tenantId, 3, "2000", "Revenue", "0.00", "100.00")
     insertBalanceImportLine(importId, tenantId, 2, "1000", "Cash", "100.00", "0.00")
-    insertManualMapping(tenantId, closingFolderId, userId, "1000", "BS.ASSET")
+    insertManualMapping(tenantId, closingFolderId, userId, "1000", "BS.ASSET.CASH_AND_EQUIVALENTS")
 
     val auditBefore = countAuditEvents()
 

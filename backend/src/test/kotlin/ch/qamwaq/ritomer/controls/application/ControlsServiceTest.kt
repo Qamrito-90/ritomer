@@ -56,7 +56,7 @@ class ControlsServiceTest {
             ProjectedManualMappingLine(2, "1000", "Cash", decimal("100.00"), decimal("0.00")),
             ProjectedManualMappingLine(3, "2000", "Revenue", decimal("0.00"), decimal("100.00"))
           ),
-          mappings = listOf(ProjectedManualMappingEntry("1000", "BS.ASSET")),
+          mappings = listOf(ProjectedManualMappingEntry("1000", "BS.ASSET", "BS.ASSET")),
           summary = ProjectedManualMappingSummary(total = 2, mapped = 1, unmapped = 1)
         )
       )
@@ -90,6 +90,30 @@ class ControlsServiceTest {
     assertThatThrownBy {
       service.getControls(access(setOf("UNSUPPORTED")), closingFolderId)
     }.isInstanceOf(AccessDeniedException::class.java)
+  }
+
+  @Test
+  fun `detailed v2 target still counts as mapped`() {
+    val closingFolderId = UUID.randomUUID()
+    val service = ControlsService(
+      closingFolderAccess = closingFolderAccess(ClosingFolderAccessStatus.DRAFT),
+      manualMappingAccess = projectionAccess(
+        CurrentManualMappingProjection(
+          closingFolderId = closingFolderId,
+          latestImportVersion = 1,
+          lines = listOf(ProjectedManualMappingLine(2, "1000", "Cash", decimal("100.00"), decimal("0.00"))),
+          mappings = listOf(ProjectedManualMappingEntry("1000", "BS.ASSET.CASH_AND_EQUIVALENTS", "BS.ASSET")),
+          summary = ProjectedManualMappingSummary(total = 1, mapped = 1, unmapped = 0)
+        )
+      )
+    )
+
+    val controls = service.getControls(access(setOf("ACCOUNTANT")), closingFolderId)
+
+    assertThat(controls.readiness).isEqualTo(ClosingReadiness.READY)
+    assertThat(controls.mappingSummary.mapped).isEqualTo(1)
+    assertThat(controls.mappingSummary.unmapped).isZero()
+    assertThat(controls.nextAction).isNull()
   }
 
   private fun access(effectiveRoles: Set<String>) = TenantAccessContext(

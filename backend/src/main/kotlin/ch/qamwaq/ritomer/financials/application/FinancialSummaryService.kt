@@ -85,7 +85,7 @@ class FinancialSummaryService(
   fun getFinancialSummary(access: TenantAccessContext, closingFolderId: UUID): ClosingFinancialSummary {
     val controls = controlsAccess.getSnapshot(access, closingFolderId)
     val projection = manualMappingAccess.getCurrentProjection(access.tenantId, closingFolderId)
-    val mappedTargetsByAccountCode = projection.mappings.associateBy({ it.accountCode }, { it.targetCode })
+    val mappedSummaryBucketsByAccountCode = projection.mappings.associateBy({ it.accountCode }, { it.summaryBucketCode })
 
     val statementState = when {
       projection.latestImportVersion == null -> FinancialSummaryState.NO_DATA
@@ -93,8 +93,8 @@ class FinancialSummaryService(
       else -> FinancialSummaryState.PREVIEW_PARTIAL
     }
 
-    val mappedLines = projection.lines.filter { it.accountCode in mappedTargetsByAccountCode }
-    val unmappedLines = projection.lines.filter { it.accountCode !in mappedTargetsByAccountCode }
+    val mappedLines = projection.lines.filter { it.accountCode in mappedSummaryBucketsByAccountCode }
+    val unmappedLines = projection.lines.filter { it.accountCode !in mappedSummaryBucketsByAccountCode }
     val coverage = FinancialSummaryCoverage(
       totalLines = projection.lines.size,
       mappedLines = mappedLines.size,
@@ -112,7 +112,7 @@ class FinancialSummaryService(
     )
 
     val aggregated = mappedLines.fold(FinancialAmounts.zero()) { totals, line ->
-      totals.add(line, mappedTargetsByAccountCode.getValue(line.accountCode))
+      totals.add(line, mappedSummaryBucketsByAccountCode.getValue(line.accountCode))
     }
     val incomeStatementSummary = if (statementState == FinancialSummaryState.NO_DATA) {
       null
@@ -189,19 +189,25 @@ class FinancialSummaryService(
     val revenue: BigDecimal,
     val expenses: BigDecimal
   ) {
-    fun add(line: ProjectedManualMappingLine, targetCode: String): FinancialAmounts =
-      when (targetCode) {
-        "BS.ASSET" -> copy(assets = assets + (line.debit - line.credit))
-        "BS.LIABILITY" -> copy(liabilities = liabilities + (line.credit - line.debit))
-        "BS.EQUITY" -> copy(equity = equity + (line.credit - line.debit))
-        "PL.REVENUE" -> copy(revenue = revenue + (line.credit - line.debit))
-        "PL.EXPENSE" -> copy(expenses = expenses + (line.debit - line.credit))
-        else -> error("Unsupported mapping target code: $targetCode")
+    fun add(line: ProjectedManualMappingLine, summaryBucketCode: String): FinancialAmounts =
+      when (summaryBucketCode) {
+        SUMMARY_BUCKET_ASSET -> copy(assets = assets + (line.debit - line.credit))
+        SUMMARY_BUCKET_LIABILITY -> copy(liabilities = liabilities + (line.credit - line.debit))
+        SUMMARY_BUCKET_EQUITY -> copy(equity = equity + (line.credit - line.debit))
+        SUMMARY_BUCKET_REVENUE -> copy(revenue = revenue + (line.credit - line.debit))
+        SUMMARY_BUCKET_EXPENSE -> copy(expenses = expenses + (line.debit - line.credit))
+        else -> error("Unsupported summary bucket code: $summaryBucketCode")
       }
 
     fun netResult(): BigDecimal = revenue - expenses
 
     companion object {
+      private const val SUMMARY_BUCKET_ASSET = "BS.ASSET"
+      private const val SUMMARY_BUCKET_LIABILITY = "BS.LIABILITY"
+      private const val SUMMARY_BUCKET_EQUITY = "BS.EQUITY"
+      private const val SUMMARY_BUCKET_REVENUE = "PL.REVENUE"
+      private const val SUMMARY_BUCKET_EXPENSE = "PL.EXPENSE"
+
       fun zero(): FinancialAmounts =
         FinancialAmounts(
           assets = BigDecimal.ZERO,

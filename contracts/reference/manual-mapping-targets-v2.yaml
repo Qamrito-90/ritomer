@@ -1,0 +1,402 @@
+version: 2
+targets:
+  - code: BS.ASSET
+    label: Asset
+    statement: BALANCE_SHEET
+    summaryBucketCode: BS.ASSET
+    sectionCode: BS.ASSET
+    normalSide: DEBIT
+    granularity: LEAF
+    deprecated: true
+    selectable: true
+    displayOrder: 10
+  - code: BS.EQUITY
+    label: Equity
+    statement: BALANCE_SHEET
+    summaryBucketCode: BS.EQUITY
+    sectionCode: BS.EQUITY
+    normalSide: CREDIT
+    granularity: LEAF
+    deprecated: true
+    selectable: true
+    displayOrder: 20
+  - code: BS.LIABILITY
+    label: Liability
+    statement: BALANCE_SHEET
+    summaryBucketCode: BS.LIABILITY
+    sectionCode: BS.LIABILITY
+    normalSide: CREDIT
+    granularity: LEAF
+    deprecated: true
+    selectable: true
+    displayOrder: 30
+  - code: PL.EXPENSE
+    label: Expense
+    statement: INCOME_STATEMENT
+    summaryBucketCode: PL.EXPENSE
+    sectionCode: PL.EXPENSE
+    normalSide: DEBIT
+    granularity: LEAF
+    deprecated: true
+    selectable: true
+    displayOrder: 40
+  - code: PL.REVENUE
+    label: Revenue
+    statement: INCOME_STATEMENT
+    summaryBucketCode: PL.REVENUE
+    sectionCode: PL.REVENUE
+    normalSide: CREDIT
+    granularity: LEAF
+    deprecated: true
+    selectable: true
+    displayOrder: 50
+
+  - code: BS.ASSET.CURRENT_SECTION
+    label: Current assets
+    statement: BALANCE_SHEET
+    summaryBucketCode: BS.ASSET
+    sectionCode: BS.ASSET.CURRENT_SECTION
+    normalSide: DEBIT
+    granularity: SECTION
+    deprecated: false
+    selectable: false
+    displayOrder: 110
+  - code: BS.ASSET.CASH_AND_EQUIVALENTS
+    label: Cash and cash equivalents
+    statement: BALANCE_SHEET
+    summaryBucketCode: BS.ASSET
+    sectionCode: BS.ASSET.CURRENT_SECTION
+    normalSide: DEBIT
+    granularity: LEAF
+    deprecated: false
+    selectable: true
+    displayOrder: 111
+  - code: BS.ASSET.TRADE_RECEIVABLES
+    label: Trade receivables
+    statement: BALANCE_SHEET
+    summaryBucketCode: BS.ASSET
+    sectionCode: BS.ASSET.CURRENT_SECTION
+    normalSide: DEBIT
+    granularity: LEAF
+    deprecated: false
+    selectable: true
+    displayOrder: 112
+  - code: BS.ASSET.OTHER_RECEIVABLES
+    label: Other receivables
+    statement: BALANCE_SHEET
+    summaryBucketCode: BS.ASSET
+    sectionCode: BS.ASSET.CURRENT_SECTION
+    normalSide: DEBIT
+    granularity: LEAF
+    deprecated: false
+    selectable: true
+    displayOrder: 113
+  - code: BS.ASSET.INVENTORIES_AND_WIP
+    label: Inventories and work in progress
+    statement: BALANCE_SHEET
+    summaryBucketCode: BS.ASSET
+    sectionCode: BS.ASSET.CURRENT_SECTION
+    normalSide: DEBIT
+    granularity: LEAF
+    deprecated: false
+    selectable: true
+    displayOrder: 114
+  - code: BS.ASSET.PREPAIDS_AND_OTHER_CURRENT
+    label: Prepaids and other current assets
+    statement: BALANCE_SHEET
+    summaryBucketCode: BS.ASSET
+    sectionCode: BS.ASSET.CURRENT_SECTION
+    normalSide: DEBIT
+    granularity: LEAF
+    deprecated: false
+    selectable: true
+    displayOrder: 115
+
+  - code: BS.ASSET.NON_CURRENT_SECTION
+    label: Non-current assets
+    statement: BALANCE_SHEET
+    summaryBucketCode: BS.ASSET
+    sectionCode: BS.ASSET.NON_CURRENT_SECTION
+    normalSide: DEBIT
+    granularity: SECTION
+    deprecated: false
+    selectable: false
+    displayOrder: 120
+  - code: BS.ASSET.FINANCIAL_FIXED_ASSETS
+    label: Financial fixed assets
+    statement: BALANCE_SHEET
+    summaryBucketCode: BS.ASSET
+    sectionCode: BS.ASSET.NON_CURRENT_SECTION
+    normalSide: DEBIT
+    granularity: LEAF
+    deprecated: false
+    selectable: true
+    displayOrder: 121
+  - code: BS.ASSET.TANGIBLE_FIXED_ASSETS
+    label: Tangible fixed assets
+    statement: BALANCE_SHEET
+    summaryBucketCode: BS.ASSET
+    sectionCode: BS.ASSET.NON_CURRENT_SECTION
+    normalSide: DEBIT
+    granularity: LEAF
+    deprecated: false
+    selectable: true
+    displayOrder: 122
+  - code: BS.ASSET.INTANGIBLE_FIXED_ASSETS
+    label: Intangible fixed assets
+    statement: BALANCE_SHEET
+    summaryBucketCode: BS.ASSET
+    sectionCode: BS.ASSET.NON_CURRENT_SECTION
+    normalSide: DEBIT
+    granularity: LEAF
+    deprecated: false
+    selectable: true
+    displayOrder: 123
+
+  - code: BS.LIABILITY.CURRENT_SECTION
+    label: Current liabilities
+    statement: BALANCE_SHEET
+    summaryBucketCode: BS.LIABILITY
+    sectionCode: BS.LIABILITY.CURRENT_SECTION
+    normalSide: CREDIT
+    granularity: SECTION
+    deprecated: false
+    selectable: false
+    displayOrder: 210
+  - code: BS.LIABILITY.TRADE_PAYABLES
+    label: Trade payables
+    statement: BALANCE_SHEET
+    summaryBucketCode: BS.LIABILITY
+    sectionCode: BS.LIABILITY.CURRENT_SECTION
+    normalSide: CREDIT
+    granularity: LEAF
+    deprecated: false
+    selectable: true
+    displayOrder: 211
+  - code: BS.LIABILITY.OTHER_CURRENT_LIABILITIES
+    label: Other current liabilities
+    statement: BALANCE_SHEET
+    summaryBucketCode: BS.LIABILITY
+    sectionCode: BS.LIABILITY.CURRENT_SECTION
+    normalSide: CREDIT
+    granularity: LEAF
+    deprecated: false
+    selectable: true
+    displayOrder: 212
+  - code: BS.LIABILITY.ACCRUALS_AND_DEFERRED_INCOME
+    label: Accruals and deferred income
+    statement: BALANCE_SHEET
+    summaryBucketCode: BS.LIABILITY
+    sectionCode: BS.LIABILITY.CURRENT_SECTION
+    normalSide: CREDIT
+    granularity: LEAF
+    deprecated: false
+    selectable: true
+    displayOrder: 213
+  - code: BS.LIABILITY.SHORT_TERM_FINANCIAL_DEBT
+    label: Short-term financial debt
+    statement: BALANCE_SHEET
+    summaryBucketCode: BS.LIABILITY
+    sectionCode: BS.LIABILITY.CURRENT_SECTION
+    normalSide: CREDIT
+    granularity: LEAF
+    deprecated: false
+    selectable: true
+    displayOrder: 214
+
+  - code: BS.LIABILITY.NON_CURRENT_SECTION
+    label: Non-current liabilities
+    statement: BALANCE_SHEET
+    summaryBucketCode: BS.LIABILITY
+    sectionCode: BS.LIABILITY.NON_CURRENT_SECTION
+    normalSide: CREDIT
+    granularity: SECTION
+    deprecated: false
+    selectable: false
+    displayOrder: 220
+  - code: BS.LIABILITY.LONG_TERM_FINANCIAL_DEBT
+    label: Long-term financial debt
+    statement: BALANCE_SHEET
+    summaryBucketCode: BS.LIABILITY
+    sectionCode: BS.LIABILITY.NON_CURRENT_SECTION
+    normalSide: CREDIT
+    granularity: LEAF
+    deprecated: false
+    selectable: true
+    displayOrder: 221
+
+  - code: BS.EQUITY.CORE_SECTION
+    label: Equity
+    statement: BALANCE_SHEET
+    summaryBucketCode: BS.EQUITY
+    sectionCode: BS.EQUITY.CORE_SECTION
+    normalSide: CREDIT
+    granularity: SECTION
+    deprecated: false
+    selectable: false
+    displayOrder: 310
+  - code: BS.EQUITY.SHARE_CAPITAL
+    label: Share capital
+    statement: BALANCE_SHEET
+    summaryBucketCode: BS.EQUITY
+    sectionCode: BS.EQUITY.CORE_SECTION
+    normalSide: CREDIT
+    granularity: LEAF
+    deprecated: false
+    selectable: true
+    displayOrder: 311
+  - code: BS.EQUITY.CAPITAL_RESERVES
+    label: Capital reserves
+    statement: BALANCE_SHEET
+    summaryBucketCode: BS.EQUITY
+    sectionCode: BS.EQUITY.CORE_SECTION
+    normalSide: CREDIT
+    granularity: LEAF
+    deprecated: false
+    selectable: true
+    displayOrder: 312
+  - code: BS.EQUITY.RETAINED_EARNINGS
+    label: Retained earnings
+    statement: BALANCE_SHEET
+    summaryBucketCode: BS.EQUITY
+    sectionCode: BS.EQUITY.CORE_SECTION
+    normalSide: CREDIT
+    granularity: LEAF
+    deprecated: false
+    selectable: true
+    displayOrder: 313
+
+  - code: PL.REVENUE.OPERATING_SECTION
+    label: Operating revenue
+    statement: INCOME_STATEMENT
+    summaryBucketCode: PL.REVENUE
+    sectionCode: PL.REVENUE.OPERATING_SECTION
+    normalSide: CREDIT
+    granularity: SECTION
+    deprecated: false
+    selectable: false
+    displayOrder: 410
+  - code: PL.REVENUE.OPERATING_REVENUE
+    label: Operating revenue
+    statement: INCOME_STATEMENT
+    summaryBucketCode: PL.REVENUE
+    sectionCode: PL.REVENUE.OPERATING_SECTION
+    normalSide: CREDIT
+    granularity: LEAF
+    deprecated: false
+    selectable: true
+    displayOrder: 411
+
+  - code: PL.REVENUE.OTHER_SECTION
+    label: Other revenue
+    statement: INCOME_STATEMENT
+    summaryBucketCode: PL.REVENUE
+    sectionCode: PL.REVENUE.OTHER_SECTION
+    normalSide: CREDIT
+    granularity: SECTION
+    deprecated: false
+    selectable: false
+    displayOrder: 420
+  - code: PL.REVENUE.OTHER_REVENUE
+    label: Other revenue
+    statement: INCOME_STATEMENT
+    summaryBucketCode: PL.REVENUE
+    sectionCode: PL.REVENUE.OTHER_SECTION
+    normalSide: CREDIT
+    granularity: LEAF
+    deprecated: false
+    selectable: true
+    displayOrder: 421
+
+  - code: PL.EXPENSE.OPERATING_SECTION
+    label: Operating expenses
+    statement: INCOME_STATEMENT
+    summaryBucketCode: PL.EXPENSE
+    sectionCode: PL.EXPENSE.OPERATING_SECTION
+    normalSide: DEBIT
+    granularity: SECTION
+    deprecated: false
+    selectable: false
+    displayOrder: 510
+  - code: PL.EXPENSE.COST_OF_MATERIALS_AND_SERVICES
+    label: Cost of materials and services
+    statement: INCOME_STATEMENT
+    summaryBucketCode: PL.EXPENSE
+    sectionCode: PL.EXPENSE.OPERATING_SECTION
+    normalSide: DEBIT
+    granularity: LEAF
+    deprecated: false
+    selectable: true
+    displayOrder: 511
+  - code: PL.EXPENSE.PERSONNEL_EXPENSES
+    label: Personnel expenses
+    statement: INCOME_STATEMENT
+    summaryBucketCode: PL.EXPENSE
+    sectionCode: PL.EXPENSE.OPERATING_SECTION
+    normalSide: DEBIT
+    granularity: LEAF
+    deprecated: false
+    selectable: true
+    displayOrder: 512
+  - code: PL.EXPENSE.OTHER_OPERATING_EXPENSES
+    label: Other operating expenses
+    statement: INCOME_STATEMENT
+    summaryBucketCode: PL.EXPENSE
+    sectionCode: PL.EXPENSE.OPERATING_SECTION
+    normalSide: DEBIT
+    granularity: LEAF
+    deprecated: false
+    selectable: true
+    displayOrder: 513
+  - code: PL.EXPENSE.DEPRECIATION_AND_AMORTISATION
+    label: Depreciation and amortisation
+    statement: INCOME_STATEMENT
+    summaryBucketCode: PL.EXPENSE
+    sectionCode: PL.EXPENSE.OPERATING_SECTION
+    normalSide: DEBIT
+    granularity: LEAF
+    deprecated: false
+    selectable: true
+    displayOrder: 514
+
+  - code: PL.EXPENSE.FINANCIAL_SECTION
+    label: Financial expenses
+    statement: INCOME_STATEMENT
+    summaryBucketCode: PL.EXPENSE
+    sectionCode: PL.EXPENSE.FINANCIAL_SECTION
+    normalSide: DEBIT
+    granularity: SECTION
+    deprecated: false
+    selectable: false
+    displayOrder: 520
+  - code: PL.EXPENSE.FINANCIAL_EXPENSES
+    label: Financial expenses
+    statement: INCOME_STATEMENT
+    summaryBucketCode: PL.EXPENSE
+    sectionCode: PL.EXPENSE.FINANCIAL_SECTION
+    normalSide: DEBIT
+    granularity: LEAF
+    deprecated: false
+    selectable: true
+    displayOrder: 521
+
+  - code: PL.EXPENSE.TAX_SECTION
+    label: Income tax
+    statement: INCOME_STATEMENT
+    summaryBucketCode: PL.EXPENSE
+    sectionCode: PL.EXPENSE.TAX_SECTION
+    normalSide: DEBIT
+    granularity: SECTION
+    deprecated: false
+    selectable: false
+    displayOrder: 530
+  - code: PL.EXPENSE.INCOME_TAX
+    label: Income tax
+    statement: INCOME_STATEMENT
+    summaryBucketCode: PL.EXPENSE
+    sectionCode: PL.EXPENSE.TAX_SECTION
+    normalSide: DEBIT
+    granularity: LEAF
+    deprecated: false
+    selectable: true
+    displayOrder: 531
