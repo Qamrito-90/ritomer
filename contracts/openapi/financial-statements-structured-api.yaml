@@ -1,0 +1,326 @@
+openapi: 3.1.1
+info:
+  title: Financial Statements Structured API
+  version: 0.1.0
+paths:
+  /api/closing-folders/{closingFolderId}/financial-statements/structured:
+    get:
+      operationId: getClosingFolderStructuredFinancialStatements
+      summary: Return the derived structured financial statements preview for a closing folder
+      description: >
+        Returns a deterministic backend-only structured preview derived from the latest balance
+        import, the current manual mapping projected on that import, and the existing controls
+        readiness. The payload is explicitly non-statutory and not a final export.
+      parameters:
+        - in: header
+          name: X-Tenant-Id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: closingFolderId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Structured financial statements preview returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StructuredFinancialStatements"
+              examples:
+                noData:
+                  summary: No import is available yet
+                  value:
+                    closingFolderId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+                    closingFolderStatus: DRAFT
+                    readiness: BLOCKED
+                    statementState: NO_DATA
+                    presentationType: STRUCTURED_PREVIEW
+                    isStatutory: false
+                    taxonomyVersion: 2
+                    latestImportVersion: null
+                    coverage:
+                      totalLines: 0
+                      mappedLines: 0
+                      unmappedLines: 0
+                      mappedShare: "0"
+                    blockers:
+                      - code: LATEST_VALID_BALANCE_IMPORT_PRESENT
+                        message: No valid balance import is available.
+                    nextAction:
+                      code: IMPORT_BALANCE
+                      path: /api/closing-folders/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/imports/balance
+                      actionable: true
+                    balanceSheet: null
+                    incomeStatement: null
+                blocked:
+                  summary: Import exists but the closing is not preview-ready yet
+                  value:
+                    closingFolderId: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+                    closingFolderStatus: DRAFT
+                    readiness: BLOCKED
+                    statementState: BLOCKED
+                    presentationType: STRUCTURED_PREVIEW
+                    isStatutory: false
+                    taxonomyVersion: 2
+                    latestImportVersion: 2
+                    coverage:
+                      totalLines: 3
+                      mappedLines: 2
+                      unmappedLines: 1
+                      mappedShare: "0.6667"
+                    blockers:
+                      - code: MANUAL_MAPPING_COMPLETE_ON_LATEST_IMPORT
+                        message: 1 account(s) remain unmapped on the latest import.
+                    nextAction:
+                      code: COMPLETE_MANUAL_MAPPING
+                      path: /api/closing-folders/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb/mappings/manual
+                      actionable: true
+                    balanceSheet: null
+                    incomeStatement: null
+                previewReady:
+                  summary: Preview ready with mixed V1 and V2 mappings
+                  value:
+                    closingFolderId: "cccccccc-cccc-cccc-cccc-cccccccccccc"
+                    closingFolderStatus: DRAFT
+                    readiness: READY
+                    statementState: PREVIEW_READY
+                    presentationType: STRUCTURED_PREVIEW
+                    isStatutory: false
+                    taxonomyVersion: 2
+                    latestImportVersion: 3
+                    coverage:
+                      totalLines: 5
+                      mappedLines: 5
+                      unmappedLines: 0
+                      mappedShare: "1"
+                    blockers: []
+                    nextAction: null
+                    balanceSheet:
+                      groups:
+                        - code: BS.ASSET
+                          label: Asset
+                          total: "250"
+                          breakdowns:
+                            - code: BS.ASSET.LEGACY_BUCKET_FALLBACK
+                              label: Legacy bucket-level mappings
+                              breakdownType: LEGACY_BUCKET_FALLBACK
+                              total: "200"
+                            - code: BS.ASSET.CURRENT_SECTION
+                              label: Current assets
+                              breakdownType: SECTION
+                              total: "50"
+                        - code: BS.LIABILITY
+                          label: Liability
+                          total: "40"
+                          breakdowns:
+                            - code: BS.LIABILITY.CURRENT_SECTION
+                              label: Current liabilities
+                              breakdownType: SECTION
+                              total: "40"
+                        - code: BS.EQUITY
+                          label: Equity
+                          total: "60"
+                          breakdowns:
+                            - code: BS.EQUITY.CORE_SECTION
+                              label: Equity
+                              breakdownType: SECTION
+                              total: "60"
+                      totals:
+                        totalAssets: "250"
+                        totalLiabilities: "40"
+                        totalEquity: "60"
+                        currentPeriodResult: "150"
+                        totalLiabilitiesAndEquity: "250"
+                    incomeStatement:
+                      groups:
+                        - code: PL.REVENUE
+                          label: Revenue
+                          total: "175"
+                          breakdowns:
+                            - code: PL.REVENUE.OPERATING_SECTION
+                              label: Operating revenue
+                              breakdownType: SECTION
+                              total: "175"
+                        - code: PL.EXPENSE
+                          label: Expense
+                          total: "25"
+                          breakdowns:
+                            - code: PL.EXPENSE.OPERATING_SECTION
+                              label: Operating expenses
+                              breakdownType: SECTION
+                              total: "25"
+                      totals:
+                        totalRevenue: "175"
+                        totalExpenses: "25"
+                        netResult: "150"
+        "400":
+          description: Missing, blank or malformed X-Tenant-Id, or invalid closingFolderId
+        "401":
+          description: Authentication required
+        "403":
+          description: Tenant inaccessible or role insufficient
+        "404":
+          description: Closing folder absent or outside tenant
+components:
+  schemas:
+    StructuredFinancialStatements:
+      type: object
+      required:
+        - closingFolderId
+        - closingFolderStatus
+        - readiness
+        - statementState
+        - presentationType
+        - isStatutory
+        - taxonomyVersion
+        - latestImportVersion
+        - coverage
+        - blockers
+        - nextAction
+        - balanceSheet
+        - incomeStatement
+      properties:
+        closingFolderId: { type: string, format: uuid }
+        closingFolderStatus:
+          type: string
+          enum: [DRAFT, ARCHIVED]
+        readiness:
+          type: string
+          enum: [READY, BLOCKED]
+        statementState:
+          type: string
+          enum: [NO_DATA, BLOCKED, PREVIEW_READY]
+        presentationType:
+          type: string
+          enum: [STRUCTURED_PREVIEW]
+        isStatutory:
+          type: boolean
+          enum: [false]
+          description: Always false. This payload is explicitly not statutory.
+        taxonomyVersion:
+          type: integer
+          minimum: 1
+        latestImportVersion:
+          type: [integer, "null"]
+          minimum: 1
+        coverage:
+          $ref: "#/components/schemas/StructuredFinancialCoverage"
+        blockers:
+          description: >
+            Current blockers inherited from controls. Empty when the closing is preview-ready.
+          type: array
+          items:
+            $ref: "#/components/schemas/StructuredFinancialBlocker"
+        nextAction:
+          oneOf:
+            - $ref: "#/components/schemas/StructuredFinancialNextAction"
+            - type: "null"
+        balanceSheet:
+          description: >
+            Present only in PREVIEW_READY. Null otherwise because the structured preview is never
+            exposed partially.
+          oneOf:
+            - $ref: "#/components/schemas/StructuredBalanceSheet"
+            - type: "null"
+        incomeStatement:
+          description: >
+            Present only in PREVIEW_READY. Null otherwise because the structured preview is never
+            exposed partially.
+          oneOf:
+            - $ref: "#/components/schemas/StructuredIncomeStatement"
+            - type: "null"
+    StructuredFinancialCoverage:
+      type: object
+      required: [totalLines, mappedLines, unmappedLines, mappedShare]
+      properties:
+        totalLines: { type: integer, minimum: 0 }
+        mappedLines: { type: integer, minimum: 0 }
+        unmappedLines: { type: integer, minimum: 0 }
+        mappedShare:
+          type: string
+          description: Decimal-string between 0 and 1 derived from mappedLines / totalLines.
+    StructuredFinancialBlocker:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+    StructuredFinancialNextAction:
+      type: object
+      required: [code, path, actionable]
+      properties:
+        code:
+          type: string
+          enum: [IMPORT_BALANCE, COMPLETE_MANUAL_MAPPING]
+        path:
+          type: string
+          description: Fixed canonical path for the action code.
+        actionable: { type: boolean }
+    StructuredBalanceSheet:
+      type: object
+      required: [groups, totals]
+      properties:
+        groups:
+          type: array
+          description: Ordered as `BS.ASSET`, `BS.LIABILITY`, `BS.EQUITY`.
+          items:
+            $ref: "#/components/schemas/StructuredStatementGroup"
+        totals:
+          $ref: "#/components/schemas/StructuredBalanceSheetTotals"
+    StructuredIncomeStatement:
+      type: object
+      required: [groups, totals]
+      properties:
+        groups:
+          type: array
+          description: Ordered as `PL.REVENUE`, then `PL.EXPENSE`.
+          items:
+            $ref: "#/components/schemas/StructuredStatementGroup"
+        totals:
+          $ref: "#/components/schemas/StructuredIncomeStatementTotals"
+    StructuredStatementGroup:
+      type: object
+      required: [code, label, total, breakdowns]
+      properties:
+        code: { type: string }
+        label: { type: string }
+        total: { type: string }
+        breakdowns:
+          type: array
+          description: >
+            Ordered deterministically with legacy fallback first when present, then real sections by
+            taxonomy display order and code.
+          items:
+            $ref: "#/components/schemas/StructuredStatementBreakdown"
+    StructuredStatementBreakdown:
+      type: object
+      required: [code, label, breakdownType, total]
+      properties:
+        code: { type: string }
+        label: { type: string }
+        breakdownType:
+          type: string
+          enum: [SECTION, LEGACY_BUCKET_FALLBACK]
+        total: { type: string }
+    StructuredBalanceSheetTotals:
+      type: object
+      required:
+        - totalAssets
+        - totalLiabilities
+        - totalEquity
+        - currentPeriodResult
+        - totalLiabilitiesAndEquity
+      properties:
+        totalAssets: { type: string }
+        totalLiabilities: { type: string }
+        totalEquity: { type: string }
+        currentPeriodResult: { type: string }
+        totalLiabilitiesAndEquity: { type: string }
+    StructuredIncomeStatementTotals:
+      type: object
+      required: [totalRevenue, totalExpenses, netResult]
+      properties:
+        totalRevenue: { type: string }
+        totalExpenses: { type: string }
+        netResult: { type: string }
