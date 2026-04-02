@@ -53,7 +53,7 @@ class ManualMappingPersistenceIntegrationTest {
   }
 
   @Test
-  fun `flyway applies migrations from scratch through V5 and creates manual_mapping schema`() {
+  fun `flyway applies migrations through manual-mapping baseline and creates manual_mapping schema`() {
     val versions = jdbcTemplate.queryForList(
       """
       select version
@@ -65,7 +65,7 @@ class ManualMappingPersistenceIntegrationTest {
       String::class.java
     )
 
-    assertThat(versions).containsExactly("1", "2", "3", "4", "5")
+    assertThat(versions).containsSubsequence("1", "2", "3", "4", "5")
     assertThat(tableExists("manual_mapping")).isTrue()
     assertThat(columnExists("manual_mapping", "tenant_id")).isTrue()
     assertThat(columnExists("manual_mapping", "account_code")).isTrue()

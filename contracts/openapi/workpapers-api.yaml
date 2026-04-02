@@ -1,0 +1,322 @@
+openapi: 3.1.1
+info:
+  title: Workpapers API
+  version: 0.1.0
+paths:
+  /api/closing-folders/{closingFolderId}/workpapers:
+    get:
+      operationId: getClosingFolderWorkpapers
+      summary: Return the anchor-driven workpapers read-model for a closing folder
+      description: >
+        Returns every current anchor from the financial structure in `items`, even when no workpaper is
+        persisted yet. Persisted workpapers whose anchor is no longer current are exposed separately in
+        `staleWorkpapers` and remain read-only.
+      parameters:
+        - in: header
+          name: X-Tenant-Id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: closingFolderId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Workpapers read-model returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClosingWorkpapers"
+        "400":
+          description: Missing, blank or malformed X-Tenant-Id, or invalid closingFolderId
+        "401":
+          description: Authentication required
+        "403":
+          description: Tenant inaccessible or role insufficient
+        "404":
+          description: Closing folder absent or outside tenant
+  /api/closing-folders/{closingFolderId}/workpapers/{anchorCode}:
+    put:
+      operationId: upsertWorkpaper
+      summary: Create or update a workpaper on a current anchor
+      description: >
+        Maker-side upsert on a current anchor only. Accepted maker statuses are `DRAFT` and
+        `READY_FOR_REVIEW`. Exact no-op requests return `200` and do not append audit events.
+      parameters:
+        - in: header
+          name: X-Tenant-Id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: closingFolderId
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: anchorCode
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkpaperUpsertRequest"
+      responses:
+        "201":
+          description: Workpaper created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkpaperItem"
+        "200":
+          description: Workpaper updated or no-op
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkpaperItem"
+        "400":
+          description: Invalid request payload
+        "401":
+          description: Authentication required
+        "403":
+          description: Tenant inaccessible or role insufficient
+        "404":
+          description: Closing folder absent or outside tenant
+        "409":
+          description: Archived closing, non preview-ready closing, or non-current anchor
+  /api/closing-folders/{closingFolderId}/workpapers/{anchorCode}/review-decision:
+    post:
+      operationId: reviewWorkpaper
+      summary: Apply a review decision to a workpaper on a current anchor
+      description: >
+        Reviewer-side decision on a persisted current-anchor workpaper only. Allowed transitions are
+        `READY_FOR_REVIEW -> CHANGES_REQUESTED` and `READY_FOR_REVIEW -> REVIEWED`. Exact no-op
+        requests return `200` and do not append audit events.
+      parameters:
+        - in: header
+          name: X-Tenant-Id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: closingFolderId
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: anchorCode
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkpaperReviewDecisionRequest"
+      responses:
+        "200":
+          description: Review decision applied or no-op
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkpaperItem"
+        "400":
+          description: Invalid request payload
+        "401":
+          description: Authentication required
+        "403":
+          description: Tenant inaccessible or role insufficient
+        "404":
+          description: Closing folder absent or outside tenant, or current workpaper missing
+        "409":
+          description: Archived closing, non preview-ready closing, or non-current anchor
+components:
+  schemas:
+    ClosingWorkpapers:
+      type: object
+      required:
+        - closingFolderId
+        - closingFolderStatus
+        - readiness
+        - latestImportVersion
+        - blockers
+        - nextAction
+        - summaryCounts
+        - items
+        - staleWorkpapers
+      properties:
+        closingFolderId: { type: string, format: uuid }
+        closingFolderStatus:
+          type: string
+          enum: [DRAFT, ARCHIVED]
+        readiness:
+          type: string
+          enum: [READY, BLOCKED]
+        latestImportVersion:
+          type: [integer, "null"]
+          minimum: 1
+        blockers:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkpaperBlocker"
+        nextAction:
+          oneOf:
+            - $ref: "#/components/schemas/WorkpaperNextAction"
+            - type: "null"
+        summaryCounts:
+          $ref: "#/components/schemas/WorkpaperSummaryCounts"
+        items:
+          type: array
+          description: Current anchors only, returned even when `workpaper` is null.
+          items:
+            $ref: "#/components/schemas/WorkpaperItem"
+        staleWorkpapers:
+          type: array
+          description: Persisted workpapers whose anchor is no longer part of the current structure.
+          items:
+            $ref: "#/components/schemas/WorkpaperItem"
+    WorkpaperSummaryCounts:
+      type: object
+      required: [totalCurrentAnchors, withWorkpaperCount, readyForReviewCount, reviewedCount, staleCount, missingCount]
+      properties:
+        totalCurrentAnchors: { type: integer, minimum: 0 }
+        withWorkpaperCount: { type: integer, minimum: 0 }
+        readyForReviewCount: { type: integer, minimum: 0 }
+        reviewedCount: { type: integer, minimum: 0 }
+        staleCount: { type: integer, minimum: 0 }
+        missingCount: { type: integer, minimum: 0 }
+    WorkpaperBlocker:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+    WorkpaperNextAction:
+      type: object
+      required: [code, path, actionable]
+      properties:
+        code: { type: string }
+        path: { type: string }
+        actionable: { type: boolean }
+    WorkpaperItem:
+      type: object
+      required: [anchorCode, anchorLabel, summaryBucketCode, statementKind, breakdownType, isCurrentStructure, workpaper]
+      properties:
+        anchorCode: { type: string }
+        anchorLabel: { type: string }
+        summaryBucketCode: { type: string }
+        statementKind:
+          type: string
+          enum: [BALANCE_SHEET, INCOME_STATEMENT]
+        breakdownType:
+          type: string
+          enum: [SECTION, LEGACY_BUCKET_FALLBACK]
+        isCurrentStructure: { type: boolean }
+        workpaper:
+          description: Null when no workpaper is yet persisted for the current anchor.
+          oneOf:
+            - $ref: "#/components/schemas/WorkpaperDetails"
+            - type: "null"
+    WorkpaperDetails:
+      type: object
+      required:
+        - id
+        - noteText
+        - status
+        - reviewComment
+        - basisImportVersion
+        - basisTaxonomyVersion
+        - createdAt
+        - createdByUserId
+        - updatedAt
+        - updatedByUserId
+        - reviewedAt
+        - reviewedByUserId
+        - evidences
+      properties:
+        id: { type: string, format: uuid }
+        noteText: { type: string }
+        status:
+          type: string
+          enum: [DRAFT, READY_FOR_REVIEW, CHANGES_REQUESTED, REVIEWED]
+        reviewComment:
+          type: [string, "null"]
+        basisImportVersion: { type: integer, minimum: 1 }
+        basisTaxonomyVersion: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+        createdByUserId: { type: string, format: uuid }
+        updatedAt: { type: string, format: date-time }
+        updatedByUserId: { type: string, format: uuid }
+        reviewedAt:
+          type: [string, "null"]
+          format: date-time
+        reviewedByUserId:
+          type: [string, "null"]
+          format: uuid
+        evidences:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkpaperEvidence"
+    WorkpaperEvidence:
+      type: object
+      required: [id, position, fileName, mediaType, documentDate, sourceLabel, verificationStatus, externalReference, checksumSha256]
+      properties:
+        id: { type: string, format: uuid }
+        position: { type: integer, minimum: 1 }
+        fileName: { type: string }
+        mediaType: { type: string }
+        documentDate:
+          type: [string, "null"]
+          format: date
+        sourceLabel: { type: string }
+        verificationStatus:
+          type: string
+          enum: [UNVERIFIED, VERIFIED, REJECTED]
+        externalReference:
+          type: [string, "null"]
+        checksumSha256:
+          type: [string, "null"]
+    WorkpaperUpsertRequest:
+      type: object
+      description: >
+        Maker-side payload. Status transitions are limited to `DRAFT -> READY_FOR_REVIEW` and
+        `CHANGES_REQUESTED -> DRAFT | READY_FOR_REVIEW`. Content changes while the persisted status is
+        `READY_FOR_REVIEW` or `REVIEWED` are rejected.
+      required: [noteText, status, evidences]
+      properties:
+        noteText: { type: string }
+        status:
+          type: string
+          enum: [DRAFT, READY_FOR_REVIEW]
+        evidences:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkpaperEvidenceInput"
+    WorkpaperReviewDecisionRequest:
+      type: object
+      description: >
+        Reviewer-side payload. `comment` is required when `decision = CHANGES_REQUESTED`. Same
+        decision and same comment is treated as an exact no-op.
+      required: [decision]
+      properties:
+        decision:
+          type: string
+          enum: [CHANGES_REQUESTED, REVIEWED]
+        comment:
+          type: [string, "null"]
+    WorkpaperEvidenceInput:
+      type: object
+      required: [position, fileName, mediaType, sourceLabel, verificationStatus]
+      properties:
+        position: { type: integer, minimum: 1 }
+        fileName: { type: string }
+        mediaType: { type: string }
+        documentDate:
+          type: [string, "null"]
+          format: date
+        sourceLabel: { type: string }
+        verificationStatus:
+          type: string
+          enum: [UNVERIFIED, VERIFIED, REJECTED]
+        externalReference:
+          type: [string, "null"]
+        checksumSha256:
+          type: [string, "null"]

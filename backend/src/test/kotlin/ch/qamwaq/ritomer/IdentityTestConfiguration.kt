@@ -19,6 +19,8 @@ import ch.qamwaq.ritomer.mapping.application.ManualMappingRepository
 import ch.qamwaq.ritomer.mapping.domain.ManualMapping
 import ch.qamwaq.ritomer.shared.application.AuditTrail
 import ch.qamwaq.ritomer.shared.application.AppendAuditEventCommand
+import ch.qamwaq.ritomer.workpapers.application.WorkpaperRepository
+import ch.qamwaq.ritomer.workpapers.domain.Workpaper
 import java.util.UUID
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
@@ -67,6 +69,13 @@ class IdentityTestConfiguration {
   @Bean
   fun manualMappingRepository(manualMappingTestStore: ManualMappingTestStore): ManualMappingRepository =
     InMemoryManualMappingRepository(manualMappingTestStore)
+
+  @Bean
+  fun workpaperTestStore(): WorkpaperTestStore = WorkpaperTestStore()
+
+  @Bean
+  fun workpaperRepository(workpaperTestStore: WorkpaperTestStore): WorkpaperRepository =
+    InMemoryWorkpaperRepository(workpaperTestStore)
 }
 
 class IdentityTestStore {
@@ -250,6 +259,18 @@ class ManualMappingTestStore {
     mappingsById.remove(id)
   }
 
+  fun deleteByAccountCode(tenantId: UUID, closingFolderId: UUID, accountCode: String) {
+    val matchingIds = mappingsById.values
+      .filter {
+        it.tenantId == tenantId &&
+          it.closingFolderId == closingFolderId &&
+          it.accountCode == accountCode
+      }
+      .map { it.id }
+
+    matchingIds.forEach(mappingsById::remove)
+  }
+
   fun mappings(tenantId: UUID, closingFolderId: UUID): List<ManualMapping> =
     mappingsById.values
       .filter { it.tenantId == tenantId && it.closingFolderId == closingFolderId }
@@ -260,6 +281,30 @@ class ManualMappingTestStore {
       it.tenantId == tenantId &&
         it.closingFolderId == closingFolderId &&
         it.accountCode == accountCode
+    }
+}
+
+class WorkpaperTestStore {
+  private val workpapersById = linkedMapOf<UUID, Workpaper>()
+
+  fun reset() {
+    workpapersById.clear()
+  }
+
+  fun save(workpaper: Workpaper) {
+    workpapersById[workpaper.id] = workpaper
+  }
+
+  fun workpapers(tenantId: UUID, closingFolderId: UUID): List<Workpaper> =
+    workpapersById.values
+      .filter { it.tenantId == tenantId && it.closingFolderId == closingFolderId }
+      .sortedBy { it.anchorCode }
+
+  fun findByAnchorCode(tenantId: UUID, closingFolderId: UUID, anchorCode: String): Workpaper? =
+    workpapersById.values.firstOrNull {
+      it.tenantId == tenantId &&
+        it.closingFolderId == closingFolderId &&
+        it.anchorCode == anchorCode
     }
 }
 
@@ -401,5 +446,25 @@ private class InMemoryManualMappingRepository(
 
   override fun delete(tenantId: UUID, mappingId: UUID) {
     manualMappingTestStore.delete(mappingId)
+  }
+}
+
+private class InMemoryWorkpaperRepository(
+  private val workpaperTestStore: WorkpaperTestStore
+) : WorkpaperRepository {
+  override fun findByClosingFolder(tenantId: UUID, closingFolderId: UUID): List<Workpaper> =
+    workpaperTestStore.workpapers(tenantId, closingFolderId)
+
+  override fun findByAnchorCode(tenantId: UUID, closingFolderId: UUID, anchorCode: String): Workpaper? =
+    workpaperTestStore.findByAnchorCode(tenantId, closingFolderId, anchorCode)
+
+  override fun create(workpaper: Workpaper): Workpaper {
+    workpaperTestStore.save(workpaper)
+    return workpaper
+  }
+
+  override fun update(workpaper: Workpaper): Workpaper {
+    workpaperTestStore.save(workpaper)
+    return workpaper
   }
 }
