@@ -15,6 +15,8 @@ import ch.qamwaq.ritomer.shared.application.AppendAuditEventCommand
 import ch.qamwaq.ritomer.shared.application.AuditCorrelationContext
 import ch.qamwaq.ritomer.shared.application.AuditCorrelationContextProvider
 import ch.qamwaq.ritomer.shared.application.AuditTrail
+import ch.qamwaq.ritomer.workpapers.domain.Document
+import ch.qamwaq.ritomer.workpapers.domain.DocumentStorageBackend
 import ch.qamwaq.ritomer.workpapers.domain.Workpaper
 import ch.qamwaq.ritomer.workpapers.domain.WorkpaperBreakdownType
 import ch.qamwaq.ritomer.workpapers.domain.WorkpaperEvidence
@@ -314,12 +316,14 @@ class WorkpaperServiceTest {
     controlsSnapshot: ClosingControlsSnapshot,
     anchorProjection: CurrentWorkpaperAnchorProjection,
     repository: FakeWorkpaperRepository,
+    documentRepository: FakeDocumentRepository = FakeDocumentRepository(),
     auditTrail: RecordingAuditTrail = RecordingAuditTrail()
   ): WorkpaperService =
     WorkpaperService(
       controlsAccess = ControlsAccess { _, _ -> controlsSnapshot },
       workpaperAnchorAccess = WorkpaperAnchorAccess { _, _ -> anchorProjection },
       workpaperRepository = repository,
+      documentRepository = documentRepository,
       auditTrail = auditTrail,
       auditCorrelationContextProvider = AuditCorrelationContextProvider {
         AuditCorrelationContext(requestId = "req-1")
@@ -455,6 +459,28 @@ private class FakeWorkpaperRepository(initial: List<Workpaper> = emptyList()) : 
     workpapers[workpaper.id] = workpaper
     return workpaper
   }
+}
+
+private class FakeDocumentRepository(initial: List<Document> = emptyList()) : DocumentRepository {
+  private val documents = initial.associateBy { it.id }.toMutableMap()
+
+  override fun create(document: Document): Document {
+    documents[document.id] = document
+    return document
+  }
+
+  override fun findByWorkpaper(tenantId: UUID, workpaperId: UUID): List<Document> =
+    documents.values
+      .filter { it.tenantId == tenantId && it.workpaperId == workpaperId }
+      .sortedWith(compareByDescending<Document> { it.createdAt }.thenByDescending { it.id })
+
+  override fun findByClosingFolder(tenantId: UUID, closingFolderId: UUID): Map<UUID, List<Document>> =
+    documents.values
+      .filter { it.tenantId == tenantId }
+      .groupBy { it.workpaperId }
+
+  override fun findByIdWithinClosingFolder(tenantId: UUID, closingFolderId: UUID, documentId: UUID): Document? =
+    documents[documentId]?.takeIf { it.tenantId == tenantId }
 }
 
 private class RecordingAuditTrail : AuditTrail {

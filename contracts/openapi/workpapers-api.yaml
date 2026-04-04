@@ -198,7 +198,7 @@ components:
         actionable: { type: boolean }
     WorkpaperItem:
       type: object
-      required: [anchorCode, anchorLabel, summaryBucketCode, statementKind, breakdownType, isCurrentStructure, workpaper]
+      required: [anchorCode, anchorLabel, summaryBucketCode, statementKind, breakdownType, isCurrentStructure, workpaper, documents]
       properties:
         anchorCode: { type: string }
         anchorLabel: { type: string }
@@ -215,6 +215,13 @@ components:
           oneOf:
             - $ref: "#/components/schemas/WorkpaperDetails"
             - type: "null"
+        documents:
+          type: array
+          description: >
+            Additive metadata-only view of real stored documents. Always present on current items,
+            even when empty, and also present on stale workpapers.
+          items:
+            $ref: "#/components/schemas/DocumentSummary"
     WorkpaperDetails:
       type: object
       required:
@@ -274,6 +281,21 @@ components:
           type: [string, "null"]
         checksumSha256:
           type: [string, "null"]
+    DocumentSummary:
+      type: object
+      required: [id, fileName, mediaType, byteSize, checksumSha256, sourceLabel, documentDate, createdAt, createdByUserId]
+      properties:
+        id: { type: string, format: uuid }
+        fileName: { type: string }
+        mediaType: { type: string }
+        byteSize: { type: integer, minimum: 1 }
+        checksumSha256: { type: string, pattern: "^[0-9a-f]{64}$" }
+        sourceLabel: { type: string }
+        documentDate:
+          type: [string, "null"]
+          format: date
+        createdAt: { type: string, format: date-time }
+        createdByUserId: { type: string, format: uuid }
     WorkpaperUpsertRequest:
       type: object
       description: >

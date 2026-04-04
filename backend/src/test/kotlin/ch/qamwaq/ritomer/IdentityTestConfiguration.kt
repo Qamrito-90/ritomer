@@ -19,11 +19,18 @@ import ch.qamwaq.ritomer.mapping.application.ManualMappingRepository
 import ch.qamwaq.ritomer.mapping.domain.ManualMapping
 import ch.qamwaq.ritomer.shared.application.AuditTrail
 import ch.qamwaq.ritomer.shared.application.AppendAuditEventCommand
+import ch.qamwaq.ritomer.workpapers.application.DocumentRepository
 import ch.qamwaq.ritomer.workpapers.application.WorkpaperRepository
+import ch.qamwaq.ritomer.workpapers.domain.Document
 import ch.qamwaq.ritomer.workpapers.domain.Workpaper
 import java.util.UUID
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
+import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.TransactionDefinition
+import org.springframework.transaction.TransactionStatus
+import org.springframework.transaction.support.SimpleTransactionStatus
+import org.springframework.transaction.support.TransactionTemplate
 
 @TestConfiguration(proxyBeanMethods = false)
 class IdentityTestConfiguration {
@@ -76,6 +83,20 @@ class IdentityTestConfiguration {
   @Bean
   fun workpaperRepository(workpaperTestStore: WorkpaperTestStore): WorkpaperRepository =
     InMemoryWorkpaperRepository(workpaperTestStore)
+
+  @Bean
+  fun documentTestStore(): DocumentTestStore = DocumentTestStore()
+
+  @Bean
+  fun documentRepository(
+    documentTestStore: DocumentTestStore,
+    workpaperTestStore: WorkpaperTestStore
+  ): DocumentRepository =
+    InMemoryDocumentRepository(documentTestStore, workpaperTestStore)
+
+  @Bean
+  fun transactionTemplate(): TransactionTemplate =
+    TransactionTemplate(NoOpPlatformTransactionManager())
 }
 
 class IdentityTestStore {
@@ -306,6 +327,29 @@ class WorkpaperTestStore {
         it.closingFolderId == closingFolderId &&
         it.anchorCode == anchorCode
     }
+
+  fun findById(id: UUID): Workpaper? = workpapersById[id]
+}
+
+class DocumentTestStore {
+  private val documentsById = linkedMapOf<UUID, Document>()
+
+  fun reset() {
+    documentsById.clear()
+  }
+
+  fun save(document: Document) {
+    documentsById[document.id] = document
+  }
+
+  fun documentsForWorkpaper(tenantId: UUID, workpaperId: UUID): List<Document> =
+    documentsById.values
+      .filter { it.tenantId == tenantId && it.workpaperId == workpaperId }
+      .sortedWith(compareByDescending<Document> { it.createdAt }.thenByDescending { it.id })
+
+  fun findById(id: UUID): Document? = documentsById[id]
+
+  fun all(): List<Document> = documentsById.values.toList()
 }
 
 data class RecordedAuditEvent(
@@ -467,4 +511,43 @@ private class InMemoryWorkpaperRepository(
     workpaperTestStore.save(workpaper)
     return workpaper
   }
+}
+
+private class InMemoryDocumentRepository(
+  private val documentTestStore: DocumentTestStore,
+  private val workpaperTestStore: WorkpaperTestStore
+) : DocumentRepository {
+  override fun create(document: Document): Document {
+    documentTestStore.save(document)
+    return document
+  }
+
+  override fun findByWorkpaper(tenantId: UUID, workpaperId: UUID): List<Document> =
+    documentTestStore.documentsForWorkpaper(tenantId, workpaperId)
+
+  override fun findByClosingFolder(tenantId: UUID, closingFolderId: UUID): Map<UUID, List<Document>> =
+    documentTestStore.all()
+      .asSequence()
+      .filter { it.tenantId == tenantId }
+      .filter { document ->
+        workpaperTestStore.findById(document.workpaperId)?.closingFolderId == closingFolderId
+      }
+      .sortedWith(compareBy<Document> { it.workpaperId }.thenByDescending { it.createdAt }.thenByDescending { it.id })
+      .groupBy { it.workpaperId }
+
+  override fun findByIdWithinClosingFolder(tenantId: UUID, closingFolderId: UUID, documentId: UUID): Document? =
+    documentTestStore.findById(documentId)
+      ?.takeIf { it.tenantId == tenantId }
+      ?.takeIf { document ->
+        workpaperTestStore.findById(document.workpaperId)?.closingFolderId == closingFolderId
+      }
+}
+
+private class NoOpPlatformTransactionManager : PlatformTransactionManager {
+  override fun getTransaction(definition: TransactionDefinition?): TransactionStatus =
+    SimpleTransactionStatus()
+
+  override fun commit(status: TransactionStatus) = Unit
+
+  override fun rollback(status: TransactionStatus) = Unit
 }

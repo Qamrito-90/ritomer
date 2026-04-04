@@ -11,6 +11,8 @@ import ch.qamwaq.ritomer.shared.application.ACTIVE_TENANT_HEADER
 import ch.qamwaq.ritomer.workpapers.application.WORKPAPER_CREATED_ACTION
 import ch.qamwaq.ritomer.workpapers.application.WORKPAPER_REVIEW_STATUS_CHANGED_ACTION
 import ch.qamwaq.ritomer.workpapers.application.WORKPAPER_UPDATED_ACTION
+import ch.qamwaq.ritomer.workpapers.domain.Document
+import ch.qamwaq.ritomer.workpapers.domain.DocumentStorageBackend
 import ch.qamwaq.ritomer.workpapers.domain.Workpaper
 import ch.qamwaq.ritomer.workpapers.domain.WorkpaperBreakdownType
 import ch.qamwaq.ritomer.workpapers.domain.WorkpaperEvidence
@@ -21,6 +23,8 @@ import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
+import java.nio.file.Files
+import java.nio.file.Path
 import org.assertj.core.api.Assertions.assertThat
 import org.hamcrest.Matchers.nullValue
 import org.junit.jupiter.api.BeforeEach
@@ -63,6 +67,9 @@ class WorkpapersApiTest {
   @Autowired
   private lateinit var workpaperTestStore: WorkpaperTestStore
 
+  @Autowired
+  private lateinit var documentTestStore: DocumentTestStore
+
   @BeforeEach
   fun resetStores() {
     identityTestStore.reset()
@@ -71,6 +78,8 @@ class WorkpapersApiTest {
     balanceImportTestStore.reset()
     manualMappingTestStore.reset()
     workpaperTestStore.reset()
+    documentTestStore.reset()
+    deleteDirectoryIfExists(Path.of("build", "test-documents"))
   }
 
   @Test
@@ -164,6 +173,7 @@ class WorkpapersApiTest {
       jsonPath("$.items[0].anchorCode") { value("BS.ASSET.CURRENT_SECTION") }
       jsonPath("$.items[0].isCurrentStructure") { value(true) }
       jsonPath("$.items[0].workpaper") { value(nullValue()) }
+      jsonPath("$.items[0].documents.length()") { value(0) }
       jsonPath("$.staleWorkpapers.length()") { value(0) }
     }
 
@@ -193,6 +203,10 @@ class WorkpapersApiTest {
         breakdownType = WorkpaperBreakdownType.LEGACY_BUCKET_FALLBACK
       )
     )
+    val currentWorkpaper = workpaperTestStore.findByAnchorCode(tenantId, closingFolder.id, "BS.ASSET.CURRENT_SECTION")!!
+    val staleWorkpaper = workpaperTestStore.findByAnchorCode(tenantId, closingFolder.id, "BS.ASSET.LEGACY_BUCKET_FALLBACK")!!
+    documentTestStore.save(document(tenantId, currentWorkpaper.id, "current-support.pdf"))
+    documentTestStore.save(document(tenantId, staleWorkpaper.id, "legacy-support.xlsx", mediaType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
 
     mockMvc.get("/api/closing-folders/${closingFolder.id}/workpapers") {
       header(ACTIVE_TENANT_HEADER, tenantId.toString())
@@ -204,8 +218,12 @@ class WorkpapersApiTest {
       jsonPath("$.summaryCounts.staleCount") { value(1) }
       jsonPath("$.items[0].anchorCode") { value("BS.ASSET.CURRENT_SECTION") }
       jsonPath("$.items[0].workpaper.id") { value(org.hamcrest.Matchers.notNullValue()) }
+      jsonPath("$.items[0].documents.length()") { value(1) }
+      jsonPath("$.items[0].documents[0].fileName") { value("current-support.pdf") }
       jsonPath("$.staleWorkpapers[0].anchorCode") { value("BS.ASSET.LEGACY_BUCKET_FALLBACK") }
       jsonPath("$.staleWorkpapers[0].isCurrentStructure") { value(false) }
+      jsonPath("$.staleWorkpapers[0].documents.length()") { value(1) }
+      jsonPath("$.staleWorkpapers[0].documents[0].fileName") { value("legacy-support.xlsx") }
     }
   }
 
@@ -657,9 +675,40 @@ class WorkpapersApiTest {
     )
   }
 
+  private fun document(
+    tenantId: UUID,
+    workpaperId: UUID,
+    fileName: String,
+    mediaType: String = "application/pdf"
+  ) = Document(
+    id = UUID.randomUUID(),
+    tenantId = tenantId,
+    workpaperId = workpaperId,
+    storageBackend = DocumentStorageBackend.LOCAL_FS,
+    storageObjectKey = "tenants/$tenantId/workpapers/$workpaperId/documents/${UUID.randomUUID()}",
+    fileName = fileName,
+    mediaType = mediaType,
+    byteSize = 128,
+    checksumSha256 = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+    sourceLabel = "ERP",
+    documentDate = LocalDate.parse("2024-12-31"),
+    createdAt = OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(2),
+    createdByUserId = UUID.randomUUID()
+  )
+
   private fun decimal(value: String) = java.math.BigDecimal(value)
 
   private fun uuid(value: String): UUID = UUID.fromString(value)
+}
+
+private fun deleteDirectoryIfExists(path: Path) {
+  if (!Files.exists(path)) {
+    return
+  }
+
+  Files.walk(path)
+    .sorted(Comparator.reverseOrder())
+    .forEach(Files::deleteIfExists)
 }
 
 private fun actorJwt(

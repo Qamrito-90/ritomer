@@ -8,3 +8,8 @@ ritomer:
   security:
     jwt:
       hmac-secret: test-only-jwt-hmac-secret-for-spec-001
+  workpapers:
+    documents:
+      storage:
+        backend: LOCAL_FS
+        local-root: ${user.dir}/build/test-documents

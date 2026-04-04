@@ -2,6 +2,7 @@ package ch.qamwaq.ritomer.workpapers.api
 
 import ch.qamwaq.ritomer.identity.access.TenantAccessResolver
 import ch.qamwaq.ritomer.workpapers.application.ClosingWorkpapers
+import ch.qamwaq.ritomer.workpapers.application.DocumentSummary
 import ch.qamwaq.ritomer.workpapers.application.WorkpaperDetails
 import ch.qamwaq.ritomer.workpapers.application.WorkpaperEvidenceCommand
 import ch.qamwaq.ritomer.workpapers.application.WorkpaperEvidenceDetails
@@ -145,7 +146,8 @@ data class WorkpaperItemResponse(
   val statementKind: String,
   val breakdownType: String,
   val isCurrentStructure: Boolean,
-  val workpaper: WorkpaperDetailsResponse?
+  val workpaper: WorkpaperDetailsResponse?,
+  val documents: List<DocumentSummaryResponse>
 )
 
 @JsonInclude(JsonInclude.Include.ALWAYS)
@@ -176,6 +178,18 @@ data class WorkpaperEvidenceResponse(
   val verificationStatus: String,
   val externalReference: String?,
   val checksumSha256: String?
+)
+
+data class DocumentSummaryResponse(
+  val id: String,
+  val fileName: String,
+  val mediaType: String,
+  val byteSize: Long,
+  val checksumSha256: String,
+  val sourceLabel: String,
+  val documentDate: String?,
+  val createdAt: String,
+  val createdByUserId: String
 )
 
 private fun WorkpaperUpsertRequest.toCommand(): WorkpaperUpsertCommand =
@@ -234,7 +248,8 @@ private fun WorkpaperItem.toResponse(): WorkpaperItemResponse =
     statementKind = statementKind,
     breakdownType = breakdownType,
     isCurrentStructure = isCurrentStructure,
-    workpaper = workpaper?.toResponse()
+    workpaper = workpaper?.toResponse(),
+    documents = documents.map { it.toResponse() }
   )
 
 private fun WorkpaperDetails.toResponse(): WorkpaperDetailsResponse =
@@ -265,4 +280,17 @@ private fun WorkpaperEvidenceDetails.toResponse(): WorkpaperEvidenceResponse =
     verificationStatus = verificationStatus.name,
     externalReference = externalReference,
     checksumSha256 = checksumSha256
+  )
+
+private fun DocumentSummary.toResponse(): DocumentSummaryResponse =
+  DocumentSummaryResponse(
+    id = id.toString(),
+    fileName = fileName,
+    mediaType = mediaType,
+    byteSize = byteSize,
+    checksumSha256 = checksumSha256,
+    sourceLabel = sourceLabel,
+    documentDate = documentDate?.toString(),
+    createdAt = createdAt.toString(),
+    createdByUserId = createdByUserId.toString()
   )

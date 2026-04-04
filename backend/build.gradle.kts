@@ -26,7 +26,9 @@ repositories {
 extra["springModulithVersion"] = "1.4.8"
 
 dependencies {
+  implementation(platform("com.google.cloud:libraries-bom:26.71.0"))
   implementation("org.apache.commons:commons-csv:1.13.0")
+  implementation("com.google.cloud:google-cloud-storage")
   implementation("org.springframework.boot:spring-boot-starter-actuator")
   implementation("org.springframework.boot:spring-boot-starter-jdbc")
   implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")

@@ -1,0 +1,7 @@
+ritomer:
+  workpapers:
+    documents:
+      storage:
+        backend: GCS
+        gcs:
+          bucket: ${RITOMER_WORKPAPERS_DOCUMENTS_STORAGE_GCS_BUCKET}

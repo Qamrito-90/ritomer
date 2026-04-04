@@ -8,3 +8,8 @@ ritomer:
   security:
     jwt:
       hmac-secret: ${RITOMER_SECURITY_JWT_HMAC_SECRET:local-dev-only-jwt-hmac-secret-change-me}
+  workpapers:
+    documents:
+      storage:
+        backend: LOCAL_FS
+        local-root: ${RITOMER_WORKPAPERS_DOCUMENTS_STORAGE_LOCAL_ROOT:${java.io.tmpdir}/ritomer-local-documents}

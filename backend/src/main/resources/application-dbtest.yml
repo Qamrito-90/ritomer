@@ -8,3 +8,8 @@ ritomer:
   security:
     jwt:
       hmac-secret: test-only-jwt-hmac-secret-for-db-tests
+  workpapers:
+    documents:
+      storage:
+        backend: LOCAL_FS
+        local-root: ${user.dir}/build/dbtest-documents

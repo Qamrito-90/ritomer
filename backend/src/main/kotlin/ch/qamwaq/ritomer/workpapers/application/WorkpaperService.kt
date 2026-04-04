@@ -15,6 +15,7 @@ import ch.qamwaq.ritomer.identity.access.TenantAccessContext
 import ch.qamwaq.ritomer.shared.application.AppendAuditEventCommand
 import ch.qamwaq.ritomer.shared.application.AuditCorrelationContextProvider
 import ch.qamwaq.ritomer.shared.application.AuditTrail
+import ch.qamwaq.ritomer.workpapers.domain.Document
 import ch.qamwaq.ritomer.workpapers.domain.Workpaper
 import ch.qamwaq.ritomer.workpapers.domain.WorkpaperBreakdownType
 import ch.qamwaq.ritomer.workpapers.domain.WorkpaperEvidence
@@ -59,7 +60,8 @@ data class WorkpaperItem(
   val statementKind: String,
   val breakdownType: String,
   val isCurrentStructure: Boolean,
-  val workpaper: WorkpaperDetails?
+  val workpaper: WorkpaperDetails?,
+  val documents: List<DocumentSummary>
 )
 
 data class WorkpaperDetails(
@@ -139,6 +141,7 @@ class WorkpaperService(
   private val controlsAccess: ControlsAccess,
   private val workpaperAnchorAccess: WorkpaperAnchorAccess,
   private val workpaperRepository: WorkpaperRepository,
+  private val documentRepository: DocumentRepository,
   private val auditTrail: AuditTrail,
   private val auditCorrelationContextProvider: AuditCorrelationContextProvider
 ) {
@@ -149,9 +152,12 @@ class WorkpaperService(
     val currentAnchors = workpaperAnchorAccess.getCurrentAnchors(access.tenantId, closingFolderId)
     val persistedWorkpapers = workpaperRepository.findByClosingFolder(access.tenantId, closingFolderId)
     val persistedByAnchorCode = persistedWorkpapers.associateBy { it.anchorCode }
+    val documentsByWorkpaperId = documentRepository.findByClosingFolder(access.tenantId, closingFolderId)
+      .mapValues { (_, documents) -> documents.map { it.toSummary() } }
     val currentAnchorCodes = currentAnchors.anchors.asSequence().map { it.code }.toSet()
 
     val items = currentAnchors.anchors.map { anchor ->
+      val workpaper = persistedByAnchorCode[anchor.code]
       WorkpaperItem(
         anchorCode = anchor.code,
         anchorLabel = anchor.label,
@@ -159,7 +165,8 @@ class WorkpaperService(
         statementKind = anchor.statementKind.name,
         breakdownType = anchor.breakdownType.name,
         isCurrentStructure = true,
-        workpaper = persistedByAnchorCode[anchor.code]?.toDetails()
+        workpaper = workpaper?.toDetails(),
+        documents = workpaper?.let { documentsByWorkpaperId[it.id].orEmpty() }.orEmpty()
       )
     }
 
@@ -174,7 +181,8 @@ class WorkpaperService(
           statementKind = it.statementKind.name,
           breakdownType = it.breakdownType.name,
           isCurrentStructure = false,
-          workpaper = it.toDetails()
+          workpaper = it.toDetails(),
+          documents = documentsByWorkpaperId[it.id].orEmpty()
         )
       }
 
@@ -228,7 +236,7 @@ class WorkpaperService(
       val created = newWorkpaper(access, closingFolderId, anchorProjection, anchor, normalizedNoteText, command.status, normalizedEvidences)
       val persisted = workpaperRepository.create(created)
       appendCreatedAudit(access, persisted)
-      return WorkpaperMutationResult(persisted.toCurrentItem(anchor), WorkpaperMutationOutcome.CREATED)
+      return WorkpaperMutationResult(persisted.toCurrentItem(anchor, emptyList()), WorkpaperMutationOutcome.CREATED)
     }
 
     val desired = existing.copy(
@@ -237,7 +245,10 @@ class WorkpaperService(
       evidences = normalizedEvidences.toDomainEvidences(access.tenantId, existing.id, existing.evidences)
     )
     if (existing.sameMakerContentAs(desired)) {
-      return WorkpaperMutationResult(existing.toCurrentItem(anchor), WorkpaperMutationOutcome.NOOP)
+      return WorkpaperMutationResult(
+        existing.toCurrentItem(anchor, documentRepository.findByWorkpaper(access.tenantId, existing.id).map { it.toSummary() }),
+        WorkpaperMutationOutcome.NOOP
+      )
     }
     if (existing.status !in MAKER_EDITABLE_STATUSES) {
       throw WorkpaperConflictException("workpaper status does not allow maker-side edits.")
@@ -255,7 +266,10 @@ class WorkpaperService(
       )
     )
     appendUpdatedAudit(access, before = existing, after = updated)
-    return WorkpaperMutationResult(updated.toCurrentItem(anchor), WorkpaperMutationOutcome.UPDATED)
+    return WorkpaperMutationResult(
+      updated.toCurrentItem(anchor, documentRepository.findByWorkpaper(access.tenantId, updated.id).map { it.toSummary() }),
+      WorkpaperMutationOutcome.UPDATED
+    )
   }
 
   @Transactional
@@ -287,7 +301,10 @@ class WorkpaperService(
     val sameStatus = existing.status == command.decision
     val sameComment = existing.reviewComment == normalizedComment
     if (sameStatus && sameComment) {
-      return WorkpaperMutationResult(existing.toCurrentItem(anchor), WorkpaperMutationOutcome.NOOP)
+      return WorkpaperMutationResult(
+        existing.toCurrentItem(anchor, documentRepository.findByWorkpaper(access.tenantId, existing.id).map { it.toSummary() }),
+        WorkpaperMutationOutcome.NOOP
+      )
     }
     if (!sameStatus && !WorkpaperStatusTransitions.isAllowedTransition(existing.status, command.decision)) {
       throw WorkpaperConflictException("workpaper status transition is not allowed.")
@@ -308,7 +325,10 @@ class WorkpaperService(
       )
     )
     appendReviewAudit(access, before = existing, after = updated)
-    return WorkpaperMutationResult(updated.toCurrentItem(anchor), WorkpaperMutationOutcome.UPDATED)
+    return WorkpaperMutationResult(
+      updated.toCurrentItem(anchor, documentRepository.findByWorkpaper(access.tenantId, updated.id).map { it.toSummary() }),
+      WorkpaperMutationOutcome.UPDATED
+    )
   }
 
   private fun newWorkpaper(
@@ -497,7 +517,7 @@ class WorkpaperService(
       status == other.status &&
       evidences == other.evidences
 
-  private fun Workpaper.toCurrentItem(anchor: CurrentWorkpaperAnchor): WorkpaperItem =
+  private fun Workpaper.toCurrentItem(anchor: CurrentWorkpaperAnchor, documents: List<DocumentSummary>): WorkpaperItem =
     WorkpaperItem(
       anchorCode = anchor.code,
       anchorLabel = anchor.label,
@@ -505,7 +525,21 @@ class WorkpaperService(
       statementKind = anchor.statementKind.name,
       breakdownType = anchor.breakdownType.name,
       isCurrentStructure = true,
-      workpaper = toDetails()
+      workpaper = toDetails(),
+      documents = documents
+    )
+
+  private fun Document.toSummary(): DocumentSummary =
+    DocumentSummary(
+      id = id,
+      fileName = fileName,
+      mediaType = mediaType,
+      byteSize = byteSize,
+      checksumSha256 = checksumSha256,
+      sourceLabel = sourceLabel,
+      documentDate = documentDate,
+      createdAt = createdAt,
+      createdByUserId = createdByUserId
     )
 
   private fun Workpaper.toDetails(): WorkpaperDetails =

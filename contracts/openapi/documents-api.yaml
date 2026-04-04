@@ -1,0 +1,172 @@
+openapi: 3.1.1
+info:
+  title: Documents API
+  version: 0.1.0
+paths:
+  /api/closing-folders/{closingFolderId}/workpapers/{anchorCode}/documents:
+    post:
+      operationId: uploadWorkpaperDocument
+      summary: Upload a single immutable document to a persisted workpaper
+      description: >
+        Uploads a single binary document to a persisted current-anchor workpaper. Writes are blocked on
+        archived closings, non preview-ready closings, stale anchors and non-editable workpapers.
+      parameters:
+        - in: header
+          name: X-Tenant-Id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: closingFolderId
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: anchorCode
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, sourceLabel]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                sourceLabel:
+                  type: string
+                documentDate:
+                  type: string
+                  format: date
+      responses:
+        "201":
+          description: Document created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentSummary"
+        "400":
+          description: Invalid multipart payload or media type
+        "401":
+          description: Authentication required
+        "403":
+          description: Tenant inaccessible or role insufficient
+        "404":
+          description: Persisted workpaper missing on anchor, or closing inaccessible
+        "409":
+          description: Archived closing, non preview-ready closing, stale anchor or non-editable workpaper
+        "413":
+          description: File exceeds 25 MiB
+    get:
+      operationId: listWorkpaperDocuments
+      summary: List immutable documents attached to a workpaper
+      description: >
+        Lists metadata-only documents for a persisted workpaper. Reads remain available on current,
+        stale and archived closings and never append audit events.
+      parameters:
+        - in: header
+          name: X-Tenant-Id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: closingFolderId
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: anchorCode
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Documents listed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkpaperDocuments"
+        "400":
+          description: Invalid identifiers
+        "401":
+          description: Authentication required
+        "403":
+          description: Tenant inaccessible or role insufficient
+        "404":
+          description: Persisted workpaper missing on anchor, or closing inaccessible
+  /api/closing-folders/{closingFolderId}/documents/{documentId}/content:
+    get:
+      operationId: downloadDocumentContent
+      summary: Stream immutable document content through the backend
+      description: >
+        Returns binary content through the backend only. Storage keys and object URLs are never
+        exposed to clients. Reads stay silent in `audit_event`.
+      parameters:
+        - in: header
+          name: X-Tenant-Id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: closingFolderId
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: documentId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Binary content returned
+          headers:
+            Content-Disposition:
+              schema: { type: string }
+            Cache-Control:
+              schema: { type: string, example: "private, no-store" }
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Invalid identifiers
+        "401":
+          description: Authentication required
+        "403":
+          description: Tenant inaccessible or role insufficient
+        "404":
+          description: Document absent from tenant or closing
+components:
+  schemas:
+    WorkpaperDocuments:
+      type: object
+      required: [closingFolderId, anchorCode, isCurrentStructure, documents]
+      properties:
+        closingFolderId: { type: string, format: uuid }
+        anchorCode: { type: string }
+        isCurrentStructure: { type: boolean }
+        documents:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocumentSummary"
+    DocumentSummary:
+      type: object
+      required: [id, fileName, mediaType, byteSize, checksumSha256, sourceLabel, documentDate, createdAt, createdByUserId]
+      properties:
+        id: { type: string, format: uuid }
+        fileName: { type: string }
+        mediaType:
+          type: string
+          enum:
+            - application/pdf
+            - image/jpeg
+            - image/png
+            - image/tiff
+            - text/csv
+            - application/vnd.ms-excel
+            - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+        byteSize: { type: integer, minimum: 1, maximum: 26214400 }
+        checksumSha256: { type: string, pattern: "^[0-9a-f]{64}$" }
+        sourceLabel: { type: string }
+        documentDate:
+          type: [string, "null"]
+          format: date
+        createdAt: { type: string, format: date-time }
+        createdByUserId: { type: string, format: uuid }
