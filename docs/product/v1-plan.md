@@ -27,16 +27,16 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 ## Handoff vivant
 
 ### Livre
-- `001-foundation-bootstrap`
-- `002-core-identity-tenancy-closing-audit-v1`
-- `003-import-balance-v1`
-- `005-manual-mapping-v1`
-- `006-controls-v1`
-- `007-financial-summary-v1`
-- `008-financial-rubric-taxonomy-v2`
-- `009-financial-statements-structured-v1`
-- `010-workpapers-v1`
-- `011-document-storage-and-evidence-files-v1`
+- `specs/done/001-foundation-bootstrap.md`
+- `specs/done/002-core-identity-tenancy-closing.md`
+- `specs/done/003-import-balance-v1.md`
+- `specs/done/005-manual-mapping-v1.md`
+- `specs/done/006-controls-v1.md`
+- `specs/done/007-financial-summary-v1.md`
+- `specs/done/008-financial-rubric-taxonomy-v2.md`
+- `specs/done/009-financial-statements-structured-v1.md`
+- `specs/done/010-workpapers-v1.md`
+- `specs/done/011-document-storage-and-evidence-files-v1.md`
 
 ### Decisions figees
 - Le flux V1 livre est maintenant `closing -> import -> mapping -> controls -> financial-summary -> financial-statements-structured -> workpapers -> document-storage-and-evidence-files`.

@@ -16,6 +16,14 @@ Toujours lire dans cet ordre :
 
 Référence UI documentaire : `docs/ui/ui-foundations-v1.md`
 
+## Gouvernance documentaire
+- Le repo Git est la source de verite vivante du projet.
+- Apres chaque spec validee, une mise a jour documentaire minimale obligatoire du repo doit etre faite sur les artefacts impactes.
+- Les documents Word dans `docs/reference-word/` ne sont pas requis pour la fermeture normale d'une spec.
+- Les documents Word ne remplacent jamais la documentation vivante du repo.
+- Les documents Word ne sont modifies que lors d'une tache explicite de realignement documentaire ou de snapshot externe.
+- Reference de gouvernance documentaire : `docs/product/documentation-governance.md`
+
 ## Invariants produit
 - L’utilisateur métier doit garder le contrôle sur toute décision engageante.
 - L’IA suggère, explique, rédige ou prépare ; elle ne valide jamais seule un acte comptable, réglementaire ou financier.

@@ -1,7 +1,11 @@
 openapi: 3.1.1
 info:
-  title: Closing Commands API
+  title: Legacy Closing Commands API
   version: 0.1.0
+  description: >
+    Legacy / superseded contract retained for traceability only. The canonical V1 contracts live in
+    `closing-folders-api.yaml`, `import-balance-api.yaml`, `manual-mapping-api.yaml` and
+    `financial-summary-api.yaml`.
 paths:
   /api/closings/{closingId}/imports/balance:
     post:

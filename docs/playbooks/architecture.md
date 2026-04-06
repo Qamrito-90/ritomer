@@ -6,7 +6,7 @@
 - contrats explicites
 - audit et observabilité dès le départ
 - tenant_id partout
-- signed URLs pour les documents
+- object storage prive + download backend-only en V1, sans signed URL publique
 - logs structurés
 - tracing et métriques
 
@@ -15,7 +15,7 @@
 - REST first / GraphQL later
 - multi-tenant + RLS progressive
 - AI Gateway + structured outputs
-- documents + signed URLs
+- documents + object storage prive + download backend-only en V1
 - cloud target V1
 
 ## Règle de conception

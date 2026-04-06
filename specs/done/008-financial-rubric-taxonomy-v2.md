@@ -19,7 +19,7 @@ Enrichir la taxonomie de mapping pour préparer des restitutions financières pl
 - `docs/adr/0006-postgresql-cloud-sql-no-docker-v1.md`
 - `docs/vision/architecture.md`
 - `specs/done/005-manual-mapping-v1.md`
-- `specs/active/006-controls-v1.md`
+- `specs/done/006-controls-v1.md`
 - `specs/done/007-financial-summary-v1.md`
 - `contracts/reference/manual-mapping-targets-v1.yaml`
 - `contracts/reference/manual-mapping-targets-v2.yaml`
