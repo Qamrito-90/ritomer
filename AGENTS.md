@@ -5,23 +5,32 @@ Construire un SaaS suisse de closing comptable, multi-tenant, sécurisé, audit-
 
 ## Sources à lire avant toute implémentation
 Toujours lire dans cet ordre :
-1. `README.md`
-2. `docs/vision/ux.md`
-3. `docs/vision/architecture.md`
-4. `docs/vision/ai-native.md`
+1. `docs/product/documentation-governance.md`
+2. `docs/present/README.md`
+3. `docs/present/<cadrage>.md` concerne par la mission
+4. `docs/adr/*.md`
 5. `docs/product/v1-plan.md`
-6. `docs/adr/*.md`
-7. `specs/active/<feature>.md`
-8. `contracts/*` impactés
+6. `specs/active/<feature>.md`
+7. `contracts/*` impactes
+8. `runbooks/*` impactes
+9. `docs/ui/ui-foundations-v1.md` si la mission touche une verite UI durable
+10. `README.md`
+11. `docs/vision/*`
+12. `docs/playbooks/*`
 
 Référence UI documentaire : `docs/ui/ui-foundations-v1.md`
 
+Couche canonique du present : `docs/present/README.md` puis les cadrages concernes dans `docs/present/*`
+
 ## Gouvernance documentaire
 - Le repo Git est la source de verite vivante du projet.
+- `docs/present/*` porte la synthese canonique du present UX / architecture / IA pour l'execution.
 - Apres chaque spec validee, une mise a jour documentaire minimale obligatoire du repo doit etre faite sur les artefacts impactes.
 - Les documents Word dans `docs/reference-word/` ne sont pas requis pour la fermeture normale d'une spec.
 - Les documents Word ne remplacent jamais la documentation vivante du repo.
 - Les documents Word ne sont modifies que lors d'une tache explicite de realignement documentaire ou de snapshot externe.
+- En cas d'ecart, `docs/present/*` doit etre realigne sur les artefacts vivants de plus haute priorite du repo ; les Word ne priment jamais.
+- `docs/present/*` n'est mis a jour qu'en cas de changement reel de la verite du present concernee.
 - Reference de gouvernance documentaire : `docs/product/documentation-governance.md`
 
 ## Invariants produit

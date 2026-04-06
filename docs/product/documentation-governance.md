@@ -20,6 +20,16 @@ Faire du repo la documentation vivante du projet, tout en reservant les document
 - `README.md`
 - `docs/product/documentation-governance.md`
 
+### Synthese canonique du present
+
+- `docs/present/README.md`
+- `docs/present/ux-cadrage-v1.md`
+- `docs/present/architecture-cadrage-v1.md`
+- `docs/present/ai-cadrage-v1.md`
+
+Ces documents sont la couche canonique de synthese du present pour l'execution quotidienne.
+Ils doivent rester alignes sur les artefacts vivants plus detailles du repo et ne remplacent ni les ADR, ni les specs, ni les contrats, ni les runbooks.
+
 ### Verite operationnelle de phase
 
 - `docs/product/v1-plan.md`
@@ -83,6 +93,12 @@ Usages non autorises des Word :
 - remplacement de la mise a jour documentaire vivante du repo
 - source unique du present si le repo a deja ete mis a jour
 
+Equivalent markdown canonique dans le repo :
+
+- `docs/present/ux-cadrage-v1.md`
+- `docs/present/architecture-cadrage-v1.md`
+- `docs/present/ai-cadrage-v1.md`
+
 ## Mise a jour minimale obligatoire apres chaque spec validee
 
 Apres validation d'une spec, Codex doit mettre a jour dans le repo, au minimum, ce qui a effectivement change :
@@ -93,6 +109,7 @@ Apres validation d'une spec, Codex doit mettre a jour dans le repo, au minimum, 
 - les contrats impactes si le comportement contractuel a change
 - les runbooks impactes si le demarrage local, l'exploitation ou les incidents changent
 - `docs/ui/ui-foundations-v1.md` si la source de verite UI change durablement
+- les documents `docs/present/*` concernes si la verite du present UX, architecture ou IA change reellement
 - toute documentation de gouvernance impactee si une regle permanente du repo change
 
 La mise a jour minimale attendue est additive et proportionnee : on met a jour ce qui a change, pas tout le corpus.
