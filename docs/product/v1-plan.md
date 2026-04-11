@@ -37,6 +37,7 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `specs/done/009-financial-statements-structured-v1.md`
 - `specs/done/010-workpapers-v1.md`
 - `specs/done/011-document-storage-and-evidence-files-v1.md`
+- `specs/done/012-evidence-review-and-verification-v1.md`
 
 ### Decisions figees
 - Le flux V1 livre est maintenant `closing -> import -> mapping -> controls -> financial-summary -> financial-statements-structured -> workpapers -> document-storage-and-evidence-files`.
@@ -51,10 +52,14 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `workpapers-v1` ne couvre ni upload binaire, ni signed URLs, ni stockage objet, ni PDF, ni export pack final, ni commentaires threades, ni generation automatique.
 - Les lectures `GET` sur `workpapers` n'ecrivent aucun `audit_event`; les lectures sur `ARCHIVED` restent autorisees, et les writes restent bloques hors `PREVIEW_READY` ou sur closing `ARCHIVED`.
 - `workpapers-v1` depend de `financials::access` pour ses anchors courants et n'introduit aucun couplage direct vers `imports` ou `mapping`.
-- `document-storage-and-evidence-files-v1` etend `workpapers-v1` sans creer de module transverse et apporte la premiere vraie couche binaire de pieces justificatives du flux V1.
+- `document-storage-and-evidence-files-v1` et `evidence-review-and-verification-v1` etendent `workpapers-v1` sans creer de module transverse et apportent la premiere vraie couche binaire de pieces justificatives puis la premiere verification reviewer first-class sur ces documents.
 - `document-storage-and-evidence-files-v1` garde `document` comme objet immutable first-class, sans duplication de `closing_folder_id`, derive via `workpaper`; `workpaper_evidence` reste la surface legacy metadata-only de `010-workpapers-v1`.
+- `evidence-review-and-verification-v1` ajoute `document_verification` comme persistant unique `1:1` avec `document`, enrichit les read-models de `documents[]` avec l'etat reviewer et derive un `documentVerificationSummary` par workpaper.
 - `document-storage-and-evidence-files-v1` enrichit `GET /workpapers` de facon additive avec `documents[]`, toujours present sur les anchors courants meme vide, et aussi present dans `staleWorkpapers[]`.
+- `evidence-review-and-verification-v1` garde toutes les lectures `GET` lisibles sur current, stale et `ARCHIVED` sans `audit_event`, mais borne les writes reviewer document et reviewer workpaper a `controls.readiness = READY`, non `ARCHIVED`, current uniquement.
+- `evidence-review-and-verification-v1` garde la decision finale reviewer sur `workpaper`, mais bloque `READY_FOR_REVIEW -> REVIEWED` tant que les documents attaches restent `UNVERIFIED`, sauf quand `documentsCount = 0`.
 - `document-storage-and-evidence-files-v1` autorise les lectures sur current, stale et `ARCHIVED`, sans `audit_event` sur les `GET`; seul l'upload reussi ecrit `DOCUMENT.CREATED`.
+- `evidence-review-and-verification-v1` ajoute `DOCUMENT.VERIFICATION_UPDATED` pour toute mutation reviewer reussie sur `document`, sans audit sur no-op, lecture, backfill ni creation automatique de la ligne initiale.
 - `document-storage-and-evidence-files-v1` persiste les metadata en PostgreSQL, stocke le binaire en object storage prive, et impose un download backend-only sans signed URL publique.
 - Le role de `document-storage-and-evidence-files-v1` dans la sequence V1 est de fermer le noyau evidence-first utile avant les couches futures d'export, d'annexe ou d'IA active.
 - Les lectures sur `ARCHIVED` restent autorisees si le tenant et le RBAC sont valides.

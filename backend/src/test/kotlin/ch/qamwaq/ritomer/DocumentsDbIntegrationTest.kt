@@ -1,6 +1,7 @@
 package ch.qamwaq.ritomer
 
 import ch.qamwaq.ritomer.workpapers.application.DOCUMENT_CREATED_ACTION
+import ch.qamwaq.ritomer.workpapers.application.DOCUMENT_VERIFICATION_UPDATED_ACTION
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
@@ -8,6 +9,7 @@ import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.util.Comparator
 import java.util.UUID
+import org.flywaydb.core.Flyway
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.BeforeEach
@@ -25,6 +27,7 @@ import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequ
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
+import org.springframework.test.web.servlet.post
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart
 
 @SpringBootTest
@@ -43,7 +46,7 @@ class DocumentsDbIntegrationTest {
   @BeforeEach
   fun resetDatabaseState() {
     jdbcTemplate.execute(
-      "truncate table audit_event, document, workpaper_evidence, workpaper, manual_mapping, balance_import_line, balance_import, closing_folder, tenant_membership, app_user, tenant cascade"
+      "truncate table audit_event, document_verification, document, workpaper_evidence, workpaper, manual_mapping, balance_import_line, balance_import, closing_folder, tenant_membership, app_user, tenant cascade"
     )
     deleteDirectoryIfExists(Path.of("build", "dbtest-documents"))
   }
@@ -61,14 +64,19 @@ class DocumentsDbIntegrationTest {
       String::class.java
     )
 
-    assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7")
+    assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8")
     assertThat(tableExists("document")).isTrue()
+    assertThat(tableExists("document_verification")).isTrue()
     assertThat(columnExists("document", "tenant_id")).isTrue()
     assertThat(columnExists("document", "workpaper_id")).isTrue()
+    assertThat(columnExists("document_verification", "document_id")).isTrue()
     assertThat(foreignKeyExists("document", "fk_document_workpaper")).isTrue()
+    assertThat(foreignKeyExists("document_verification", "fk_document_verification_document")).isTrue()
     assertThat(uniqueConstraintExists("document", "uk_document_tenant_storage_object_key")).isTrue()
+    assertThat(uniqueConstraintExists("document", "uk_document_id_tenant")).isTrue()
     assertThat(indexExists("document", "idx_document_tenant_workpaper_created")).isTrue()
     assertThat(indexExists("document", "idx_document_tenant_id")).isTrue()
+    assertThat(indexExists("document_verification", "idx_document_verification_tenant_document")).isTrue()
   }
 
   @Test
@@ -126,6 +134,19 @@ class DocumentsDbIntegrationTest {
     assertThat(documentRows.single()["byte_size"]).isEqualTo(6L)
     assertThat(documentRows.single()["source_label"]).isEqualTo("ERP")
 
+    val verificationRows = jdbcTemplate.queryForList(
+      """
+      select document_id, verification_status, review_comment, reviewed_at, reviewed_by_user_id
+      from document_verification
+      where tenant_id = ?
+      """.trimIndent(),
+      tenantId
+    )
+    assertThat(verificationRows).hasSize(1)
+    assertThat(verificationRows.single()["document_id"].toString()).isEqualTo(documentId)
+    assertThat(verificationRows.single()["verification_status"]).isEqualTo("UNVERIFIED")
+    assertThat(verificationRows.single()["review_comment"]).isNull()
+
     mockMvc.get("/api/closing-folders/$closingFolderId/workpapers") {
       header("X-Tenant-Id", tenantId.toString())
       with(actorJwt("document-user"))
@@ -133,6 +154,8 @@ class DocumentsDbIntegrationTest {
       status { isOk() }
       jsonPath("$.items[0].documents.length()") { value(1) }
       jsonPath("$.items[0].documents[0].fileName") { value("support.pdf") }
+      jsonPath("$.items[0].documents[0].verificationStatus") { value("UNVERIFIED") }
+      jsonPath("$.items[0].documentVerificationSummary.documentsCount") { value(1) }
     }
 
     mockMvc.get("/api/closing-folders/$closingFolderId/workpapers/BS.ASSET.CURRENT_SECTION/documents") {
@@ -142,6 +165,7 @@ class DocumentsDbIntegrationTest {
       status { isOk() }
       jsonPath("$.documents.length()") { value(1) }
       jsonPath("$.documents[0].fileName") { value("support.pdf") }
+      jsonPath("$.documents[0].verificationStatus") { value("UNVERIFIED") }
     }
 
     val currentContent = mockMvc.get("/api/closing-folders/$closingFolderId/documents/$documentId/content") {
@@ -189,6 +213,150 @@ class DocumentsDbIntegrationTest {
 
     assertThat(String(staleContent.response.contentAsByteArray, StandardCharsets.UTF_8)).isEqualTo("db-doc")
     assertThat(countAuditEvents()).isEqualTo(auditBefore + 1)
+  }
+
+  @Test
+  fun `verification endpoint updates state and exact noop stays silent`() {
+    val tenantId = UUID.fromString("11111111-1111-1111-1111-111111111111")
+    val userId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+    val closingFolderId = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+    val importId = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc")
+    val workpaperId = UUID.fromString("dddddddd-dddd-dddd-dddd-dddddddddddd")
+
+    insertTenant(tenantId, "tenant-alpha", "Tenant Alpha")
+    insertUser(userId, "document-user")
+    insertMembership(userId, tenantId, "MANAGER")
+    insertClosingFolder(closingFolderId, tenantId)
+    insertBalanceImport(importId, tenantId, closingFolderId, userId, 2, 2, "100.00", "100.00")
+    insertBalanceImportLine(importId, tenantId, 2, "1000", "Cash", "100.00", "0.00")
+    insertBalanceImportLine(importId, tenantId, 3, "3000", "Revenue", "0.00", "100.00")
+    insertManualMapping(tenantId, closingFolderId, userId, "1000", "BS.ASSET.CASH_AND_EQUIVALENTS")
+    insertManualMapping(tenantId, closingFolderId, userId, "3000", "PL.REVENUE.OPERATING_REVENUE")
+    insertWorkpaper(workpaperId, tenantId, closingFolderId, userId, status = "DRAFT")
+
+    val uploadResult = mockMvc.perform(
+      multipart("/api/closing-folders/$closingFolderId/workpapers/BS.ASSET.CURRENT_SECTION/documents")
+        .file(MockMultipartFile("file", "support.pdf", "application/pdf", "db-doc".toByteArray(StandardCharsets.UTF_8)))
+        .param("sourceLabel", "ERP")
+        .header("X-Tenant-Id", tenantId.toString())
+        .with(actorJwt("document-user"))
+    ).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isCreated)
+      .andReturn()
+
+    val documentId = com.fasterxml.jackson.databind.ObjectMapper()
+      .readTree(uploadResult.response.contentAsString)
+      .get("id")
+      .asText()
+
+    jdbcTemplate.update(
+      "update workpaper set status = 'READY_FOR_REVIEW' where id = ?",
+      workpaperId
+    )
+
+    mockMvc.post("/api/closing-folders/$closingFolderId/documents/$documentId/verification-decision") {
+      header("X-Tenant-Id", tenantId.toString())
+      contentType = MediaType.APPLICATION_JSON
+      content = """{"decision":"REJECTED","comment":"Wrong period"}"""
+      with(actorJwt("document-user"))
+    }.andExpect {
+      status { isOk() }
+      jsonPath("$.verificationStatus") { value("REJECTED") }
+      jsonPath("$.reviewComment") { value("Wrong period") }
+    }
+
+    assertThat(auditActions()).containsExactly(DOCUMENT_CREATED_ACTION, DOCUMENT_VERIFICATION_UPDATED_ACTION)
+
+    val auditBeforeNoop = countAuditEvents()
+    mockMvc.post("/api/closing-folders/$closingFolderId/documents/$documentId/verification-decision") {
+      header("X-Tenant-Id", tenantId.toString())
+      contentType = MediaType.APPLICATION_JSON
+      content = """{"decision":"REJECTED","comment":"Wrong period"}"""
+      with(actorJwt("document-user"))
+    }.andExpect { status { isOk() } }
+
+    assertThat(countAuditEvents()).isEqualTo(auditBeforeNoop)
+  }
+
+  @Test
+  fun `v8 backfills document verification for preexisting documents and enforces 1 to 1`() {
+    val dataSource = jdbcTemplate.dataSource ?: error("DataSource is required for Flyway verification.")
+
+    jdbcTemplate.execute("drop schema if exists public cascade")
+    jdbcTemplate.execute("create schema public")
+
+    Flyway.configure()
+      .dataSource(dataSource)
+      .locations("classpath:db/migration")
+      .target("7")
+      .load()
+      .migrate()
+
+    val tenantId = UUID.fromString("11111111-1111-1111-1111-111111111111")
+    val userId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+    val closingFolderId = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+    val workpaperId = UUID.fromString("dddddddd-dddd-dddd-dddd-dddddddddddd")
+    val documentId = UUID.fromString("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee")
+
+    insertTenant(tenantId, "tenant-alpha", "Tenant Alpha")
+    insertUser(userId, "document-user")
+    insertClosingFolder(closingFolderId, tenantId)
+    insertWorkpaper(workpaperId, tenantId, closingFolderId, userId, status = "DRAFT")
+    jdbcTemplate.update(
+      """
+      insert into document (
+        id, tenant_id, workpaper_id, storage_backend, storage_object_key, file_name, media_type,
+        byte_size, checksum_sha256, source_label, document_date, created_at, created_by_user_id
+      ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      """.trimIndent(),
+      documentId,
+      tenantId,
+      workpaperId,
+      "LOCAL_FS",
+      "tenants/$tenantId/workpapers/$workpaperId/documents/$documentId",
+      "legacy.pdf",
+      "application/pdf",
+      10L,
+      "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+      "ERP",
+      LocalDate.parse("2024-12-31"),
+      OffsetDateTime.parse("2025-01-02T00:00:00Z"),
+      userId
+    )
+
+    Flyway.configure()
+      .dataSource(dataSource)
+      .locations("classpath:db/migration")
+      .load()
+      .migrate()
+
+    val verificationRows = jdbcTemplate.queryForList(
+      """
+      select document_id, verification_status, review_comment, reviewed_at, reviewed_by_user_id
+      from document_verification
+      where tenant_id = ?
+      """.trimIndent(),
+      tenantId
+    )
+    assertThat(verificationRows).hasSize(1)
+    assertThat(verificationRows.single()["document_id"]).isEqualTo(documentId)
+    assertThat(verificationRows.single()["verification_status"]).isEqualTo("UNVERIFIED")
+    assertThat(verificationRows.single()["review_comment"]).isNull()
+
+    assertThatThrownBy {
+      jdbcTemplate.update(
+        """
+        insert into document_verification (
+          document_id, tenant_id, verification_status, review_comment, reviewed_at, reviewed_by_user_id
+        ) values (?, ?, ?, ?, ?, ?)
+        """.trimIndent(),
+        documentId,
+        tenantId,
+        "UNVERIFIED",
+        null,
+        null,
+        null
+      )
+    }.isInstanceOf(DataAccessException::class.java)
   }
 
   @Test
@@ -462,7 +630,13 @@ class DocumentsDbIntegrationTest {
     )
   }
 
-  private fun insertWorkpaper(workpaperId: UUID, tenantId: UUID, closingFolderId: UUID, userId: UUID) {
+  private fun insertWorkpaper(
+    workpaperId: UUID,
+    tenantId: UUID,
+    closingFolderId: UUID,
+    userId: UUID,
+    status: String = "DRAFT"
+  ) {
     jdbcTemplate.update(
       """
       insert into workpaper (
@@ -481,7 +655,7 @@ class DocumentsDbIntegrationTest {
       "BALANCE_SHEET",
       "SECTION",
       "Justification",
-      "DRAFT",
+      status,
       null,
       2,
       2,

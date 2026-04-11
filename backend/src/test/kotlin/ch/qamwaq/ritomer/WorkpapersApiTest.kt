@@ -174,6 +174,7 @@ class WorkpapersApiTest {
       jsonPath("$.items[0].isCurrentStructure") { value(true) }
       jsonPath("$.items[0].workpaper") { value(nullValue()) }
       jsonPath("$.items[0].documents.length()") { value(0) }
+      jsonPath("$.items[0].documentVerificationSummary") { value(nullValue()) }
       jsonPath("$.staleWorkpapers.length()") { value(0) }
     }
 
@@ -220,10 +221,13 @@ class WorkpapersApiTest {
       jsonPath("$.items[0].workpaper.id") { value(org.hamcrest.Matchers.notNullValue()) }
       jsonPath("$.items[0].documents.length()") { value(1) }
       jsonPath("$.items[0].documents[0].fileName") { value("current-support.pdf") }
+      jsonPath("$.items[0].documentVerificationSummary.documentsCount") { value(1) }
+      jsonPath("$.items[0].documentVerificationSummary.unverifiedCount") { value(1) }
       jsonPath("$.staleWorkpapers[0].anchorCode") { value("BS.ASSET.LEGACY_BUCKET_FALLBACK") }
       jsonPath("$.staleWorkpapers[0].isCurrentStructure") { value(false) }
       jsonPath("$.staleWorkpapers[0].documents.length()") { value(1) }
       jsonPath("$.staleWorkpapers[0].documents[0].fileName") { value("legacy-support.xlsx") }
+      jsonPath("$.staleWorkpapers[0].documentVerificationSummary.documentsCount") { value(1) }
     }
   }
 
@@ -454,6 +458,92 @@ class WorkpapersApiTest {
     }.andExpect { status { isOk() } }
 
     assertThat(auditTestStore.auditEvents()).hasSize(1)
+  }
+
+  @Test
+  fun `reviewed gate requires documents to leave unverified and have at least one verified when documents exist`() {
+    val tenantId = uuid("11111111-1111-1111-1111-111111111111")
+    val closingFolder = seedClosingFolder(tenantId)
+    seedMembership("reviewer", tenantId, TenantRole.REVIEWER)
+    seedPreviewReadyStructure(tenantId, closingFolder.id)
+    val persistedWorkpaper = workpaper(
+      tenantId = tenantId,
+      closingFolderId = closingFolder.id,
+      anchorCode = "BS.ASSET.CURRENT_SECTION",
+      anchorLabel = "Current assets",
+      status = WorkpaperStatus.READY_FOR_REVIEW
+    )
+    workpaperTestStore.save(persistedWorkpaper)
+    val unverifiedDocument = document(tenantId, persistedWorkpaper.id, "support.pdf")
+    documentTestStore.save(unverifiedDocument)
+
+    mockMvc.post("/api/closing-folders/${closingFolder.id}/workpapers/BS.ASSET.CURRENT_SECTION/review-decision") {
+      header(ACTIVE_TENANT_HEADER, tenantId.toString())
+      contentType = MediaType.APPLICATION_JSON
+      content = """{"decision":"REVIEWED"}"""
+      with(actorJwt("reviewer"))
+    }.andExpect { status { isConflict() } }
+
+    mockMvc.post("/api/closing-folders/${closingFolder.id}/documents/${unverifiedDocument.id}/verification-decision") {
+      header(ACTIVE_TENANT_HEADER, tenantId.toString())
+      contentType = MediaType.APPLICATION_JSON
+      content = """{"decision":"VERIFIED"}"""
+      with(actorJwt("reviewer"))
+    }.andExpect { status { isOk() } }
+
+    mockMvc.post("/api/closing-folders/${closingFolder.id}/workpapers/BS.ASSET.CURRENT_SECTION/review-decision") {
+      header(ACTIVE_TENANT_HEADER, tenantId.toString())
+      contentType = MediaType.APPLICATION_JSON
+      content = """{"decision":"REVIEWED"}"""
+      with(actorJwt("reviewer"))
+    }.andExpect {
+      status { isOk() }
+      jsonPath("$.workpaper.status") { value("REVIEWED") }
+    }
+  }
+
+  @Test
+  fun `reviewed gate allows rejected documents if at least one verified and none unverified remain`() {
+    val tenantId = uuid("11111111-1111-1111-1111-111111111111")
+    val closingFolder = seedClosingFolder(tenantId)
+    seedMembership("reviewer", tenantId, TenantRole.REVIEWER)
+    seedPreviewReadyStructure(tenantId, closingFolder.id)
+    val persistedWorkpaper = workpaper(
+      tenantId = tenantId,
+      closingFolderId = closingFolder.id,
+      anchorCode = "BS.ASSET.CURRENT_SECTION",
+      anchorLabel = "Current assets",
+      status = WorkpaperStatus.READY_FOR_REVIEW
+    )
+    workpaperTestStore.save(persistedWorkpaper)
+    val firstDocument = document(tenantId, persistedWorkpaper.id, "first.pdf")
+    val secondDocument = document(tenantId, persistedWorkpaper.id, "second.pdf")
+    documentTestStore.save(firstDocument)
+    documentTestStore.save(secondDocument)
+
+    mockMvc.post("/api/closing-folders/${closingFolder.id}/documents/${firstDocument.id}/verification-decision") {
+      header(ACTIVE_TENANT_HEADER, tenantId.toString())
+      contentType = MediaType.APPLICATION_JSON
+      content = """{"decision":"VERIFIED"}"""
+      with(actorJwt("reviewer"))
+    }.andExpect { status { isOk() } }
+
+    mockMvc.post("/api/closing-folders/${closingFolder.id}/documents/${secondDocument.id}/verification-decision") {
+      header(ACTIVE_TENANT_HEADER, tenantId.toString())
+      contentType = MediaType.APPLICATION_JSON
+      content = """{"decision":"REJECTED","comment":"Duplicate"}"""
+      with(actorJwt("reviewer"))
+    }.andExpect { status { isOk() } }
+
+    mockMvc.post("/api/closing-folders/${closingFolder.id}/workpapers/BS.ASSET.CURRENT_SECTION/review-decision") {
+      header(ACTIVE_TENANT_HEADER, tenantId.toString())
+      contentType = MediaType.APPLICATION_JSON
+      content = """{"decision":"REVIEWED"}"""
+      with(actorJwt("reviewer"))
+    }.andExpect {
+      status { isOk() }
+      jsonPath("$.workpaper.status") { value("REVIEWED") }
+    }
   }
 
   @Test

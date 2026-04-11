@@ -502,6 +502,9 @@ private class InMemoryWorkpaperRepository(
   override fun findByAnchorCode(tenantId: UUID, closingFolderId: UUID, anchorCode: String): Workpaper? =
     workpaperTestStore.findByAnchorCode(tenantId, closingFolderId, anchorCode)
 
+  override fun findById(tenantId: UUID, workpaperId: UUID): Workpaper? =
+    workpaperTestStore.findById(workpaperId)?.takeIf { it.tenantId == tenantId }
+
   override fun create(workpaper: Workpaper): Workpaper {
     workpaperTestStore.save(workpaper)
     return workpaper
@@ -518,6 +521,11 @@ private class InMemoryDocumentRepository(
   private val workpaperTestStore: WorkpaperTestStore
 ) : DocumentRepository {
   override fun create(document: Document): Document {
+    documentTestStore.save(document)
+    return document
+  }
+
+  override fun updateVerification(document: Document): Document {
     documentTestStore.save(document)
     return document
   }

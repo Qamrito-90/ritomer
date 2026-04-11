@@ -10,7 +10,7 @@ Il ne remplace ni la vision UX, ni le playbook UX, ni la source de verite UI. Il
 
 - La V1 reste orientee workbench de closing, pas SaaS generique.
 - Le flux reel deja fige dans le repo est : `closing -> import -> mapping -> controls -> financial-summary -> financial-statements-structured -> workpapers -> document-storage-and-evidence-files`.
-- La V1 actuelle reste backend-first dans son execution, mais la verite UX du present inclut deja les surfaces metier et API correspondant aux capacites closes jusqu'a `011`.
+- La V1 actuelle reste backend-first dans son execution, mais la verite UX du present inclut deja les surfaces metier et API correspondant aux capacites closes jusqu'a `012`.
 - La source de verite UI codable reste `docs/ui/ui-foundations-v1.md`.
 - Le produit doit rester clair sous pression : contexte tenant, dossier, statut, blockers, next action et preuves doivent etre explicites.
 - Les lectures sur `ARCHIVED` restent autorisees sur les surfaces closes qui le prevoient ; les writes restent bloques quand le workflow le demande.
@@ -19,6 +19,7 @@ Il ne remplace ni la vision UX, ni le playbook UX, ni la source de verite UI. Il
 - `financial-statements-structured-v1` est une `STRUCTURED_PREVIEW`, non statutaire, disponible seulement en `PREVIEW_READY`.
 - `workpapers-v1` apporte une couche de justification persistante anchor-driven avec maker/checker minimal.
 - `document-storage-and-evidence-files-v1` ajoute de vraies pieces justificatives immutables, stockees en prive, visibles dans le cockpit et telechargees backend-only.
+- `evidence-review-and-verification-v1` ajoute une verification reviewer par document, un resume derive par workpaper, et un gate evidence-aware avant `REVIEWED`.
 
 ## Ce qui est explicitement hors scope maintenant
 
@@ -51,6 +52,7 @@ Il ne remplace ni la vision UX, ni le playbook UX, ni la source de verite UI. Il
 - `specs/done/009-financial-statements-structured-v1.md`
 - `specs/done/010-workpapers-v1.md`
 - `specs/done/011-document-storage-and-evidence-files-v1.md`
+- `specs/done/012-evidence-review-and-verification-v1.md`
 - `contracts/openapi/controls-api.yaml`
 - `contracts/openapi/financial-summary-api.yaml`
 - `contracts/openapi/financial-statements-structured-api.yaml`
@@ -72,7 +74,7 @@ Ne pas y recopier les specs ni la prose des Word.
 
 - `docs/reference-word/1.4-UX-Cadrage-V1.docx`
 
-Le Word `1.4` est un snapshot de cadrage. Ses hors-scope historiques sur `controls`, `financial-summary`, `financial-statements-structured`, `workpapers` et `document-storage-and-evidence-files` ne sont plus valides dans le present du repo vivant.
+Le Word `1.4` est un snapshot de cadrage. Ses hors-scope historiques sur `controls`, `financial-summary`, `financial-statements-structured`, `workpapers`, `document-storage-and-evidence-files` et `evidence-review-and-verification` ne sont plus valides dans le present du repo vivant.
 
 ## Note de precedence
 

@@ -16,6 +16,7 @@ import ch.qamwaq.ritomer.shared.application.AppendAuditEventCommand
 import ch.qamwaq.ritomer.shared.application.AuditCorrelationContextProvider
 import ch.qamwaq.ritomer.shared.application.AuditTrail
 import ch.qamwaq.ritomer.workpapers.domain.Document
+import ch.qamwaq.ritomer.workpapers.domain.DocumentVerificationStatus
 import ch.qamwaq.ritomer.workpapers.domain.Workpaper
 import ch.qamwaq.ritomer.workpapers.domain.WorkpaperBreakdownType
 import ch.qamwaq.ritomer.workpapers.domain.WorkpaperEvidence
@@ -53,6 +54,13 @@ data class WorkpaperSummaryCounts(
   val missingCount: Int
 )
 
+data class DocumentVerificationSummary(
+  val documentsCount: Int,
+  val unverifiedCount: Int,
+  val verifiedCount: Int,
+  val rejectedCount: Int
+)
+
 data class WorkpaperItem(
   val anchorCode: String,
   val anchorLabel: String,
@@ -61,7 +69,8 @@ data class WorkpaperItem(
   val breakdownType: String,
   val isCurrentStructure: Boolean,
   val workpaper: WorkpaperDetails?,
-  val documents: List<DocumentSummary>
+  val documents: List<DocumentSummary>,
+  val documentVerificationSummary: DocumentVerificationSummary?
 )
 
 data class WorkpaperDetails(
@@ -158,6 +167,7 @@ class WorkpaperService(
 
     val items = currentAnchors.anchors.map { anchor ->
       val workpaper = persistedByAnchorCode[anchor.code]
+      val documents = workpaper?.let { documentsByWorkpaperId[it.id].orEmpty() }.orEmpty()
       WorkpaperItem(
         anchorCode = anchor.code,
         anchorLabel = anchor.label,
@@ -166,7 +176,8 @@ class WorkpaperService(
         breakdownType = anchor.breakdownType.name,
         isCurrentStructure = true,
         workpaper = workpaper?.toDetails(),
-        documents = workpaper?.let { documentsByWorkpaperId[it.id].orEmpty() }.orEmpty()
+        documents = documents,
+        documentVerificationSummary = workpaper?.let { summarizeDocuments(documents) }
       )
     }
 
@@ -174,6 +185,7 @@ class WorkpaperService(
       .filter { it.anchorCode !in currentAnchorCodes }
       .sortedWith(compareBy<Workpaper> { SUMMARY_BUCKET_ORDER.indexOf(it.summaryBucketCode).takeIf { index -> index >= 0 } ?: Int.MAX_VALUE }.thenBy { it.anchorCode })
       .map {
+        val documents = documentsByWorkpaperId[it.id].orEmpty()
         WorkpaperItem(
           anchorCode = it.anchorCode,
           anchorLabel = it.anchorLabel,
@@ -182,7 +194,8 @@ class WorkpaperService(
           breakdownType = it.breakdownType.name,
           isCurrentStructure = false,
           workpaper = it.toDetails(),
-          documents = documentsByWorkpaperId[it.id].orEmpty()
+          documents = documents,
+          documentVerificationSummary = summarizeDocuments(documents)
         )
       }
 
@@ -245,8 +258,9 @@ class WorkpaperService(
       evidences = normalizedEvidences.toDomainEvidences(access.tenantId, existing.id, existing.evidences)
     )
     if (existing.sameMakerContentAs(desired)) {
+      val documents = documentRepository.findByWorkpaper(access.tenantId, existing.id).map { it.toSummary() }
       return WorkpaperMutationResult(
-        existing.toCurrentItem(anchor, documentRepository.findByWorkpaper(access.tenantId, existing.id).map { it.toSummary() }),
+        existing.toCurrentItem(anchor, documents),
         WorkpaperMutationOutcome.NOOP
       )
     }
@@ -266,8 +280,9 @@ class WorkpaperService(
       )
     )
     appendUpdatedAudit(access, before = existing, after = updated)
+    val documents = documentRepository.findByWorkpaper(access.tenantId, updated.id).map { it.toSummary() }
     return WorkpaperMutationResult(
-      updated.toCurrentItem(anchor, documentRepository.findByWorkpaper(access.tenantId, updated.id).map { it.toSummary() }),
+      updated.toCurrentItem(anchor, documents),
       WorkpaperMutationOutcome.UPDATED
     )
   }
@@ -297,12 +312,13 @@ class WorkpaperService(
       ?: throw WorkpaperConflictException("anchorCode is not part of the current structure.")
     val existing = workpaperRepository.findByAnchorCode(access.tenantId, closingFolderId, normalizedAnchorCode)
       ?: throw WorkpaperNotFoundException("workpaper not found for current anchor.")
+    val documents = documentRepository.findByWorkpaper(access.tenantId, existing.id).map { it.toSummary() }
 
     val sameStatus = existing.status == command.decision
     val sameComment = existing.reviewComment == normalizedComment
     if (sameStatus && sameComment) {
       return WorkpaperMutationResult(
-        existing.toCurrentItem(anchor, documentRepository.findByWorkpaper(access.tenantId, existing.id).map { it.toSummary() }),
+        existing.toCurrentItem(anchor, documents),
         WorkpaperMutationOutcome.NOOP
       )
     }
@@ -311,6 +327,9 @@ class WorkpaperService(
     }
     if (!sameStatus && existing.status != WorkpaperStatus.READY_FOR_REVIEW) {
       throw WorkpaperConflictException("review decisions require READY_FOR_REVIEW.")
+    }
+    if (!sameStatus && command.decision == WorkpaperStatus.REVIEWED && !documentsSatisfyReviewedGate(documents)) {
+      throw WorkpaperConflictException("workpaper cannot transition to REVIEWED until document verification is complete.")
     }
 
     val reviewedAt = OffsetDateTime.now(ZoneOffset.UTC)
@@ -326,7 +345,7 @@ class WorkpaperService(
     )
     appendReviewAudit(access, before = existing, after = updated)
     return WorkpaperMutationResult(
-      updated.toCurrentItem(anchor, documentRepository.findByWorkpaper(access.tenantId, updated.id).map { it.toSummary() }),
+      updated.toCurrentItem(anchor, documents),
       WorkpaperMutationOutcome.UPDATED
     )
   }
@@ -371,7 +390,7 @@ class WorkpaperService(
       throw WorkpaperConflictException("Closing folder is archived and workpapers cannot be modified.")
     }
     if (controls.readiness != ControlsReadiness.READY) {
-      throw WorkpaperConflictException("Workpapers can only be modified when the closing is PREVIEW_READY.")
+      throw WorkpaperConflictException("Workpapers can only be modified when controls.readiness is READY.")
     }
   }
 
@@ -526,8 +545,26 @@ class WorkpaperService(
       breakdownType = anchor.breakdownType.name,
       isCurrentStructure = true,
       workpaper = toDetails(),
-      documents = documents
+      documents = documents,
+      documentVerificationSummary = summarizeDocuments(documents)
     )
+
+  private fun summarizeDocuments(documents: List<DocumentSummary>): DocumentVerificationSummary =
+    DocumentVerificationSummary(
+      documentsCount = documents.size,
+      unverifiedCount = documents.count { it.verificationStatus == DocumentVerificationStatus.UNVERIFIED },
+      verifiedCount = documents.count { it.verificationStatus == DocumentVerificationStatus.VERIFIED },
+      rejectedCount = documents.count { it.verificationStatus == DocumentVerificationStatus.REJECTED }
+    )
+
+  private fun documentsSatisfyReviewedGate(documents: List<DocumentSummary>): Boolean {
+    if (documents.isEmpty()) {
+      return true
+    }
+
+    val summary = summarizeDocuments(documents)
+    return summary.unverifiedCount == 0 && summary.verifiedCount >= 1
+  }
 
   private fun Document.toSummary(): DocumentSummary =
     DocumentSummary(
@@ -539,7 +576,11 @@ class WorkpaperService(
       sourceLabel = sourceLabel,
       documentDate = documentDate,
       createdAt = createdAt,
-      createdByUserId = createdByUserId
+      createdByUserId = createdByUserId,
+      verificationStatus = verificationStatus,
+      reviewComment = reviewComment,
+      reviewedAt = reviewedAt,
+      reviewedByUserId = reviewedByUserId
     )
 
   private fun Workpaper.toDetails(): WorkpaperDetails =

@@ -8,8 +8,10 @@ import ch.qamwaq.ritomer.imports.domain.BalanceImportLine
 import ch.qamwaq.ritomer.imports.domain.BalanceImportSnapshot
 import ch.qamwaq.ritomer.shared.application.ACTIVE_TENANT_HEADER
 import ch.qamwaq.ritomer.workpapers.application.DOCUMENT_CREATED_ACTION
+import ch.qamwaq.ritomer.workpapers.application.DOCUMENT_VERIFICATION_UPDATED_ACTION
 import ch.qamwaq.ritomer.workpapers.domain.Document
 import ch.qamwaq.ritomer.workpapers.domain.DocumentStorageBackend
+import ch.qamwaq.ritomer.workpapers.domain.DocumentVerificationStatus
 import ch.qamwaq.ritomer.workpapers.domain.Workpaper
 import ch.qamwaq.ritomer.workpapers.domain.WorkpaperBreakdownType
 import ch.qamwaq.ritomer.workpapers.domain.WorkpaperEvidence
@@ -38,6 +40,7 @@ import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequ
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
+import org.springframework.test.web.servlet.post
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart
 
 @SpringBootTest
@@ -104,6 +107,12 @@ class DocumentsApiTest {
     mockMvc.get("/api/closing-folders/$closingFolderId/documents/$documentId/content") {
       header(ACTIVE_TENANT_HEADER, tenantId.toString())
     }.andExpect { status { isUnauthorized() } }
+
+    mockMvc.post("/api/closing-folders/$closingFolderId/documents/$documentId/verification-decision") {
+      header(ACTIVE_TENANT_HEADER, tenantId.toString())
+      contentType = MediaType.APPLICATION_JSON
+      content = """{"decision":"VERIFIED"}"""
+    }.andExpect { status { isUnauthorized() } }
   }
 
   @Test
@@ -147,6 +156,9 @@ class DocumentsApiTest {
       jsonPath("$.items[0].documents.length()") { value(1) }
       jsonPath("$.items[0].documents[0].fileName") { value("support.pdf") }
       jsonPath("$.items[0].documents[0].mediaType") { value("application/pdf") }
+      jsonPath("$.items[0].documents[0].verificationStatus") { value("UNVERIFIED") }
+      jsonPath("$.items[0].documentVerificationSummary.documentsCount") { value(1) }
+      jsonPath("$.items[0].documentVerificationSummary.unverifiedCount") { value(1) }
     }
 
     mockMvc.get("/api/closing-folders/${closingFolder.id}/workpapers/BS.ASSET.CURRENT_SECTION/documents") {
@@ -157,6 +169,7 @@ class DocumentsApiTest {
       jsonPath("$.isCurrentStructure") { value(true) }
       jsonPath("$.documents.length()") { value(1) }
       jsonPath("$.documents[0].fileName") { value("support.pdf") }
+      jsonPath("$.documents[0].verificationStatus") { value("UNVERIFIED") }
     }
 
     val currentContent = mockMvc.get("/api/closing-folders/${closingFolder.id}/documents/$createdDocumentId/content") {
@@ -182,6 +195,7 @@ class DocumentsApiTest {
       status { isOk() }
       jsonPath("$.staleWorkpapers[0].anchorCode") { value("BS.ASSET.CURRENT_SECTION") }
       jsonPath("$.staleWorkpapers[0].documents.length()") { value(1) }
+      jsonPath("$.staleWorkpapers[0].documentVerificationSummary.documentsCount") { value(1) }
     }
 
     mockMvc.get("/api/closing-folders/${closingFolder.id}/workpapers/BS.ASSET.CURRENT_SECTION/documents") {
@@ -200,6 +214,151 @@ class DocumentsApiTest {
 
     assertThat(String(staleContent.response.contentAsByteArray, StandardCharsets.UTF_8)).isEqualTo("hello-pdf")
     assertThat(auditTestStore.auditEvents()).hasSize(1)
+  }
+
+  @Test
+  fun `verification decision is reviewer only supports noop and audits only real mutations`() {
+    val tenantId = uuid("11111111-1111-1111-1111-111111111111")
+    val closingFolder = seedClosingFolder(tenantId)
+    seedMembership("reviewer", tenantId, TenantRole.REVIEWER)
+    seedMembership("accountant", tenantId, TenantRole.ACCOUNTANT)
+    seedPreviewReadyStructure(tenantId, closingFolder.id)
+    val persistedWorkpaper = workpaper(
+      tenantId = tenantId,
+      closingFolderId = closingFolder.id,
+      anchorCode = "BS.ASSET.CURRENT_SECTION",
+      anchorLabel = "Current assets",
+      status = WorkpaperStatus.READY_FOR_REVIEW
+    )
+    workpaperTestStore.save(persistedWorkpaper)
+    val document = storedDocument(tenantId, persistedWorkpaper.id, "support.pdf", "content")
+    documentTestStore.save(document)
+
+    mockMvc.post("/api/closing-folders/${closingFolder.id}/documents/${document.id}/verification-decision") {
+      header(ACTIVE_TENANT_HEADER, tenantId.toString())
+      contentType = MediaType.APPLICATION_JSON
+      content = """{"decision":"VERIFIED"}"""
+      with(actorJwt("accountant"))
+    }.andExpect { status { isForbidden() } }
+
+    mockMvc.post("/api/closing-folders/${closingFolder.id}/documents/${document.id}/verification-decision") {
+      header(ACTIVE_TENANT_HEADER, tenantId.toString())
+      contentType = MediaType.APPLICATION_JSON
+      content = """{"decision":"REJECTED","comment":" Wrong period "}"""
+      with(actorJwt("reviewer"))
+    }.andExpect {
+      status { isOk() }
+      jsonPath("$.verificationStatus") { value("REJECTED") }
+      jsonPath("$.reviewComment") { value("Wrong period") }
+    }
+
+    assertThat(auditTestStore.auditEvents()).hasSize(1)
+    assertThat(auditTestStore.auditEvents().single().command.action).isEqualTo(DOCUMENT_VERIFICATION_UPDATED_ACTION)
+
+    mockMvc.post("/api/closing-folders/${closingFolder.id}/documents/${document.id}/verification-decision") {
+      header(ACTIVE_TENANT_HEADER, tenantId.toString())
+      contentType = MediaType.APPLICATION_JSON
+      content = """{"decision":"REJECTED","comment":"Wrong period"}"""
+      with(actorJwt("reviewer"))
+    }.andExpect {
+      status { isOk() }
+      jsonPath("$.verificationStatus") { value("REJECTED") }
+    }
+
+    assertThat(auditTestStore.auditEvents()).hasSize(1)
+
+    mockMvc.post("/api/closing-folders/${closingFolder.id}/documents/${document.id}/verification-decision") {
+      header(ACTIVE_TENANT_HEADER, tenantId.toString())
+      contentType = MediaType.APPLICATION_JSON
+      content = """{"decision":"REJECTED","comment":"Updated comment"}"""
+      with(actorJwt("reviewer"))
+    }.andExpect {
+      status { isOk() }
+      jsonPath("$.reviewComment") { value("Updated comment") }
+    }
+
+    assertThat(auditTestStore.auditEvents()).hasSize(2)
+    assertThat(auditTestStore.auditEvents().last().command.action).isEqualTo(DOCUMENT_VERIFICATION_UPDATED_ACTION)
+
+    mockMvc.get("/api/closing-folders/${closingFolder.id}/workpapers") {
+      header(ACTIVE_TENANT_HEADER, tenantId.toString())
+      with(actorJwt("reviewer"))
+    }.andExpect {
+      status { isOk() }
+      jsonPath("$.items[0].documents[0].verificationStatus") { value("REJECTED") }
+      jsonPath("$.items[0].documentVerificationSummary.rejectedCount") { value(1) }
+    }
+  }
+
+  @Test
+  fun `verification decision rejects verified comment blocked stale and archived cases`() {
+    val tenantId = uuid("11111111-1111-1111-1111-111111111111")
+    val currentClosing = seedClosingFolder(tenantId)
+    val blockedClosing = seedClosingFolder(tenantId)
+    val staleClosing = seedClosingFolder(tenantId)
+    val archivedClosing = seedClosingFolder(tenantId, status = ClosingFolderStatus.ARCHIVED)
+    seedMembership("reviewer", tenantId, TenantRole.REVIEWER)
+    seedPreviewReadyStructure(tenantId, currentClosing.id)
+    seedPreviewReadyStructure(tenantId, staleClosing.id)
+    seedPreviewReadyStructure(tenantId, archivedClosing.id)
+    seedImportVersion(
+      tenantId,
+      blockedClosing.id,
+      1,
+      listOf(
+        BalanceImportLine(2, "1000", "Cash", decimal("100.00"), decimal("0.00")),
+        BalanceImportLine(3, "3000", "Revenue", decimal("0.00"), decimal("100.00"))
+      )
+    )
+
+    val currentWorkpaper = workpaper(tenantId, currentClosing.id, "BS.ASSET.CURRENT_SECTION", "Current assets", status = WorkpaperStatus.READY_FOR_REVIEW)
+    val blockedWorkpaper = workpaper(tenantId, blockedClosing.id, "BS.ASSET.CURRENT_SECTION", "Current assets", status = WorkpaperStatus.READY_FOR_REVIEW)
+    val staleWorkpaper = workpaper(tenantId, staleClosing.id, "BS.ASSET.CURRENT_SECTION", "Current assets", status = WorkpaperStatus.READY_FOR_REVIEW)
+    val archivedWorkpaper = workpaper(tenantId, archivedClosing.id, "BS.ASSET.CURRENT_SECTION", "Current assets", status = WorkpaperStatus.READY_FOR_REVIEW)
+    workpaperTestStore.save(currentWorkpaper)
+    workpaperTestStore.save(blockedWorkpaper)
+    workpaperTestStore.save(staleWorkpaper)
+    workpaperTestStore.save(archivedWorkpaper)
+
+    val currentDocument = storedDocument(tenantId, currentWorkpaper.id, "current.pdf", "current")
+    val blockedDocument = storedDocument(tenantId, blockedWorkpaper.id, "blocked.pdf", "blocked")
+    val staleDocument = storedDocument(tenantId, staleWorkpaper.id, "stale.pdf", "stale")
+    val archivedDocument = storedDocument(tenantId, archivedWorkpaper.id, "archived.pdf", "archived")
+    documentTestStore.save(currentDocument)
+    documentTestStore.save(blockedDocument)
+    documentTestStore.save(staleDocument)
+    documentTestStore.save(archivedDocument)
+
+    manualMappingTestStore.deleteByAccountCode(tenantId, staleClosing.id, "1000")
+    manualMappingTestStore.save(manualMapping(tenantId, staleClosing.id, "1000", "BS.ASSET"))
+
+    mockMvc.post("/api/closing-folders/${currentClosing.id}/documents/${currentDocument.id}/verification-decision") {
+      header(ACTIVE_TENANT_HEADER, tenantId.toString())
+      contentType = MediaType.APPLICATION_JSON
+      content = """{"decision":"VERIFIED","comment":"not allowed"}"""
+      with(actorJwt("reviewer"))
+    }.andExpect { status { isBadRequest() } }
+
+    mockMvc.post("/api/closing-folders/${blockedClosing.id}/documents/${blockedDocument.id}/verification-decision") {
+      header(ACTIVE_TENANT_HEADER, tenantId.toString())
+      contentType = MediaType.APPLICATION_JSON
+      content = """{"decision":"VERIFIED"}"""
+      with(actorJwt("reviewer"))
+    }.andExpect { status { isConflict() } }
+
+    mockMvc.post("/api/closing-folders/${staleClosing.id}/documents/${staleDocument.id}/verification-decision") {
+      header(ACTIVE_TENANT_HEADER, tenantId.toString())
+      contentType = MediaType.APPLICATION_JSON
+      content = """{"decision":"VERIFIED"}"""
+      with(actorJwt("reviewer"))
+    }.andExpect { status { isConflict() } }
+
+    mockMvc.post("/api/closing-folders/${archivedClosing.id}/documents/${archivedDocument.id}/verification-decision") {
+      header(ACTIVE_TENANT_HEADER, tenantId.toString())
+      contentType = MediaType.APPLICATION_JSON
+      content = """{"decision":"VERIFIED"}"""
+      with(actorJwt("reviewer"))
+    }.andExpect { status { isConflict() } }
   }
 
   @Test

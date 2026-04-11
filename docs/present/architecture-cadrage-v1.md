@@ -18,8 +18,8 @@ Il ne remplace ni les ADRs, ni les specs, ni les contrats, ni les runbooks. Il f
 - `./gradlew test` reste le rail nominal sans PostgreSQL reel ; `dbIntegrationTest` reste opt-in avec configuration explicite.
 - Le multi-tenant est applique par `tenant_id` partout, avec scoping applicatif d'abord et RLS progressive ensuite.
 - L'audit est append-only sur les mutations metier significatives ; les lectures closes en `GET` sur les read-models actuels n'ecrivent pas d'audit.
-- Les capacites closes du present vont jusqu'a `011` : closing, import, mapping, controls, financial previews, workpapers et document storage.
-- `workpapers` reste le module proprietaire pour la justification et les documents ; `011` n'introduit pas de module transverse `documents`.
+- Les capacites closes du present vont jusqu'a `012` : closing, import, mapping, controls, financial previews, workpapers, document storage et verification reviewer de la preuve.
+- `workpapers` reste le module proprietaire pour la justification, les documents et leur verification reviewer ; `011` et `012` n'introduisent pas de module transverse `documents`.
 - Le binaire documentaire est stocke en object storage prive ; le download V1 reste backend-only sans signed URL publique.
 
 ## Ce qui est explicitement hors scope maintenant
@@ -64,6 +64,7 @@ Il ne remplace ni les ADRs, ni les specs, ni les contrats, ni les runbooks. Il f
 - `specs/done/009-financial-statements-structured-v1.md`
 - `specs/done/010-workpapers-v1.md`
 - `specs/done/011-document-storage-and-evidence-files-v1.md`
+- `specs/done/012-evidence-review-and-verification-v1.md`
 - `contracts/db/*`
 - `contracts/openapi/*`
 
@@ -83,7 +84,7 @@ Ne pas y recopier le detail des specs ni des ADRs.
 
 - `docs/reference-word/2.3-Architecture-Cadrage-V1.docx`
 
-Le Word `2.3` est un snapshot de cadrage. Il s'arrete avant les specs closes `006` a `011` et ne reflete plus la verite actuelle sur `controls`, `financial-summary`, `financial-statements-structured`, `workpapers` et `document-storage-and-evidence-files`.
+Le Word `2.3` est un snapshot de cadrage. Il s'arrete avant les specs closes `006` a `012` et ne reflete plus la verite actuelle sur `controls`, `financial-summary`, `financial-statements-structured`, `workpapers`, `document-storage-and-evidence-files` et `evidence-review-and-verification`.
 
 ## Note de precedence
 

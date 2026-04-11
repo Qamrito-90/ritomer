@@ -83,15 +83,16 @@ paths:
         "404":
           description: Closing folder absent or outside tenant
         "409":
-          description: Archived closing, non preview-ready closing, or non-current anchor
+          description: Archived closing, controls.readiness not READY, or non-current anchor
   /api/closing-folders/{closingFolderId}/workpapers/{anchorCode}/review-decision:
     post:
       operationId: reviewWorkpaper
       summary: Apply a review decision to a workpaper on a current anchor
       description: >
         Reviewer-side decision on a persisted current-anchor workpaper only. Allowed transitions are
-        `READY_FOR_REVIEW -> CHANGES_REQUESTED` and `READY_FOR_REVIEW -> REVIEWED`. Exact no-op
-        requests return `200` and do not append audit events.
+        `READY_FOR_REVIEW -> CHANGES_REQUESTED` and `READY_FOR_REVIEW -> REVIEWED`. The transition
+        to `REVIEWED` is allowed only when `documentsCount = 0`, or when `unverifiedCount = 0` and
+        `verifiedCount >= 1`. Exact no-op requests return `200` and do not append audit events.
       parameters:
         - in: header
           name: X-Tenant-Id
@@ -127,7 +128,7 @@ paths:
         "404":
           description: Closing folder absent or outside tenant, or current workpaper missing
         "409":
-          description: Archived closing, non preview-ready closing, or non-current anchor
+          description: Archived closing, controls.readiness not READY, non-current anchor, or REVIEWED gate failed
 components:
   schemas:
     ClosingWorkpapers:
@@ -198,7 +199,8 @@ components:
         actionable: { type: boolean }
     WorkpaperItem:
       type: object
-      required: [anchorCode, anchorLabel, summaryBucketCode, statementKind, breakdownType, isCurrentStructure, workpaper, documents]
+      required:
+        [anchorCode, anchorLabel, summaryBucketCode, statementKind, breakdownType, isCurrentStructure, workpaper, documents, documentVerificationSummary]
       properties:
         anchorCode: { type: string }
         anchorLabel: { type: string }
@@ -222,6 +224,20 @@ components:
             even when empty, and also present on stale workpapers.
           items:
             $ref: "#/components/schemas/DocumentSummary"
+        documentVerificationSummary:
+          description: >
+            Present when `workpaper != null`. Null when the current anchor has no persisted workpaper.
+          oneOf:
+            - $ref: "#/components/schemas/DocumentVerificationSummary"
+            - type: "null"
+    DocumentVerificationSummary:
+      type: object
+      required: [documentsCount, unverifiedCount, verifiedCount, rejectedCount]
+      properties:
+        documentsCount: { type: integer, minimum: 0 }
+        unverifiedCount: { type: integer, minimum: 0 }
+        verifiedCount: { type: integer, minimum: 0 }
+        rejectedCount: { type: integer, minimum: 0 }
     WorkpaperDetails:
       type: object
       required:
@@ -283,7 +299,8 @@ components:
           type: [string, "null"]
     DocumentSummary:
       type: object
-      required: [id, fileName, mediaType, byteSize, checksumSha256, sourceLabel, documentDate, createdAt, createdByUserId]
+      required:
+        [id, fileName, mediaType, byteSize, checksumSha256, sourceLabel, documentDate, createdAt, createdByUserId, verificationStatus, reviewComment, reviewedAt, reviewedByUserId]
       properties:
         id: { type: string, format: uuid }
         fileName: { type: string }
@@ -296,6 +313,17 @@ components:
           format: date
         createdAt: { type: string, format: date-time }
         createdByUserId: { type: string, format: uuid }
+        verificationStatus:
+          type: string
+          enum: [UNVERIFIED, VERIFIED, REJECTED]
+        reviewComment:
+          type: [string, "null"]
+        reviewedAt:
+          type: [string, "null"]
+          format: date-time
+        reviewedByUserId:
+          type: [string, "null"]
+          format: uuid
     WorkpaperUpsertRequest:
       type: object
       description: >

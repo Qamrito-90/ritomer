@@ -11,6 +11,7 @@ import ch.qamwaq.ritomer.shared.application.AuditCorrelationContextProvider
 import ch.qamwaq.ritomer.shared.application.AuditTrail
 import ch.qamwaq.ritomer.workpapers.domain.Document
 import ch.qamwaq.ritomer.workpapers.domain.DocumentStorageBackend
+import ch.qamwaq.ritomer.workpapers.domain.DocumentVerificationStatus
 import ch.qamwaq.ritomer.workpapers.domain.Workpaper
 import ch.qamwaq.ritomer.workpapers.domain.WorkpaperStatus
 import java.io.IOException
@@ -23,6 +24,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.security.access.AccessDeniedException
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.support.TransactionTemplate
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.multipart.MultipartFile
@@ -36,7 +38,11 @@ data class DocumentSummary(
   val sourceLabel: String,
   val documentDate: LocalDate?,
   val createdAt: OffsetDateTime,
-  val createdByUserId: UUID
+  val createdByUserId: UUID,
+  val verificationStatus: DocumentVerificationStatus,
+  val reviewComment: String?,
+  val reviewedAt: OffsetDateTime?,
+  val reviewedByUserId: UUID?
 )
 
 data class WorkpaperDocumentsView(
@@ -49,6 +55,11 @@ data class WorkpaperDocumentsView(
 data class UploadDocumentCommand(
   val sourceLabel: String,
   val documentDate: LocalDate?
+)
+
+data class DocumentVerificationDecisionCommand(
+  val decision: DocumentVerificationStatus,
+  val comment: String?
 )
 
 data class DownloadedDocument(
@@ -176,6 +187,48 @@ class DocumentService(
     }
   }
 
+  @Transactional
+  fun reviewVerificationDecision(
+    access: TenantAccessContext,
+    closingFolderId: UUID,
+    documentId: UUID,
+    command: DocumentVerificationDecisionCommand
+  ): DocumentSummary {
+    requireAnyRole(access, REVIEWER_ROLES, "document verification")
+    if (command.decision !in REVIEWER_ALLOWED_STATUSES) {
+      throw DocumentBadRequestException("decision is not accepted by verification-decision.")
+    }
+
+    val normalizedComment = when (command.decision) {
+      DocumentVerificationStatus.REJECTED -> normalizeRequired(command.comment, "comment")
+      DocumentVerificationStatus.VERIFIED -> {
+        if (normalizeOptional(command.comment) != null) {
+          throw DocumentBadRequestException("comment is not accepted when decision is VERIFIED.")
+        }
+        null
+      }
+      else -> throw DocumentBadRequestException("decision is not accepted by verification-decision.")
+    }
+
+    val target = resolveVerificationTarget(access, closingFolderId, documentId)
+    val existing = target.document
+    if (existing.verificationStatus == command.decision && existing.reviewComment == normalizedComment) {
+      return existing.toSummary()
+    }
+
+    val reviewedAt = OffsetDateTime.now(ZoneOffset.UTC)
+    val updated = documentRepository.updateVerification(
+      existing.copy(
+        verificationStatus = command.decision,
+        reviewComment = normalizedComment,
+        reviewedAt = reviewedAt,
+        reviewedByUserId = access.actorUserId
+      )
+    )
+    appendVerificationUpdatedAudit(access, closingFolderId, target.workpaper, before = existing, after = updated)
+    return updated.toSummary()
+  }
+
   private fun persistUploadedDocument(
     access: TenantAccessContext,
     closingFolderId: UUID,
@@ -227,6 +280,27 @@ class DocumentService(
     return UploadTarget(workpaper)
   }
 
+  private fun resolveVerificationTarget(
+    access: TenantAccessContext,
+    closingFolderId: UUID,
+    documentId: UUID
+  ): VerificationTarget {
+    val controls = controlsAccess.getSnapshot(access, closingFolderId)
+    ensureWritable(controls)
+    val document = documentRepository.findByIdWithinClosingFolder(access.tenantId, closingFolderId, documentId)
+      ?: throw DocumentNotFoundException("document not found.")
+    val workpaper = workpaperRepository.findById(access.tenantId, document.workpaperId)
+      ?: throw DocumentNotFoundException("workpaper not found for document.")
+    val currentAnchorCodes = currentAnchorCodes(access.tenantId, closingFolderId)
+    if (workpaper.anchorCode !in currentAnchorCodes) {
+      throw DocumentConflictException("document belongs to a stale workpaper.")
+    }
+    if (workpaper.status != WorkpaperStatus.READY_FOR_REVIEW) {
+      throw DocumentConflictException("document verification requires a workpaper in READY_FOR_REVIEW.")
+    }
+    return VerificationTarget(document, workpaper)
+  }
+
   private fun currentAnchorCodes(tenantId: UUID, closingFolderId: UUID): Set<String> =
     workpaperAnchorAccess.getCurrentAnchors(tenantId, closingFolderId).anchors.asSequence().map { it.code }.toSet()
 
@@ -235,7 +309,7 @@ class DocumentService(
       throw DocumentConflictException("Closing folder is archived and documents cannot be modified.")
     }
     if (controls.readiness != ControlsReadiness.READY) {
-      throw DocumentConflictException("Documents can only be modified when the closing is PREVIEW_READY.")
+      throw DocumentConflictException("Documents can only be modified when controls.readiness is READY.")
     }
   }
 
@@ -266,6 +340,36 @@ class DocumentService(
           "sourceLabel" to document.sourceLabel,
           "documentDate" to document.documentDate?.toString(),
           "storageBackend" to document.storageBackend.name
+        )
+      )
+    )
+  }
+
+  private fun appendVerificationUpdatedAudit(
+    access: TenantAccessContext,
+    closingFolderId: UUID,
+    workpaper: Workpaper,
+    before: Document,
+    after: Document
+  ) {
+    auditTrail.append(
+      AppendAuditEventCommand(
+        tenantId = access.tenantId,
+        actorUserId = access.actorUserId,
+        actorSubject = access.actorSubject,
+        actorRoles = access.effectiveRoles,
+        correlation = auditCorrelationContextProvider.currentCorrelationContext(),
+        action = DOCUMENT_VERIFICATION_UPDATED_ACTION,
+        resourceType = DOCUMENT_RESOURCE_TYPE,
+        resourceId = after.id.toString(),
+        metadata = mapOf(
+          "closingFolderId" to closingFolderId.toString(),
+          "workpaperId" to workpaper.id.toString(),
+          "anchorCode" to workpaper.anchorCode,
+          "verificationStatus" to mapOf("before" to before.verificationStatus.name, "after" to after.verificationStatus.name),
+          "reviewComment" to mapOf("before" to before.reviewComment, "after" to after.reviewComment),
+          "reviewedAt" to after.reviewedAt?.toString(),
+          "reviewedByUserId" to after.reviewedByUserId?.toString()
         )
       )
     )
@@ -345,6 +449,9 @@ class DocumentService(
     rawValue?.trim()?.takeUnless { it.isEmpty() }
       ?: throw DocumentBadRequestException("$fieldName must not be blank.")
 
+  private fun normalizeOptional(rawValue: String?): String? =
+    rawValue?.trim()?.takeUnless { it.isEmpty() }
+
   private fun requireAnyRole(access: TenantAccessContext, allowedRoles: Set<String>, operation: String) {
     if (access.effectiveRoles.none { it in allowedRoles }) {
       throw AccessDeniedException("Insufficient role for $operation.")
@@ -361,10 +468,19 @@ class DocumentService(
       sourceLabel = sourceLabel,
       documentDate = documentDate,
       createdAt = createdAt,
-      createdByUserId = createdByUserId
+      createdByUserId = createdByUserId,
+      verificationStatus = verificationStatus,
+      reviewComment = reviewComment,
+      reviewedAt = reviewedAt,
+      reviewedByUserId = reviewedByUserId
     )
 
   private data class UploadTarget(
+    val workpaper: Workpaper
+  )
+
+  private data class VerificationTarget(
+    val document: Document,
     val workpaper: Workpaper
   )
 
@@ -376,7 +492,9 @@ class DocumentService(
     private val WHITESPACE_REGEX = Regex("\\s+")
     private val READ_ROLES = setOf("ACCOUNTANT", "REVIEWER", "MANAGER", "ADMIN")
     private val MAKER_ROLES = setOf("ACCOUNTANT", "MANAGER", "ADMIN")
+    private val REVIEWER_ROLES = setOf("REVIEWER", "MANAGER", "ADMIN")
     private val MAKER_EDITABLE_STATUSES = setOf(WorkpaperStatus.DRAFT, WorkpaperStatus.CHANGES_REQUESTED)
+    private val REVIEWER_ALLOWED_STATUSES = setOf(DocumentVerificationStatus.VERIFIED, DocumentVerificationStatus.REJECTED)
     private val ALLOWED_MEDIA_TYPES = setOf(
       "application/pdf",
       "image/jpeg",

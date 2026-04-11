@@ -17,6 +17,7 @@ import ch.qamwaq.ritomer.shared.application.AuditCorrelationContextProvider
 import ch.qamwaq.ritomer.shared.application.AuditTrail
 import ch.qamwaq.ritomer.workpapers.domain.Document
 import ch.qamwaq.ritomer.workpapers.domain.DocumentStorageBackend
+import ch.qamwaq.ritomer.workpapers.domain.DocumentVerificationStatus
 import ch.qamwaq.ritomer.workpapers.domain.Workpaper
 import ch.qamwaq.ritomer.workpapers.domain.WorkpaperBreakdownType
 import ch.qamwaq.ritomer.workpapers.domain.WorkpaperEvidence
@@ -104,6 +105,12 @@ class WorkpaperServiceTest {
     assertThat(response.summaryCounts.totalCurrentAnchors).isEqualTo(1)
     assertThat(response.summaryCounts.withWorkpaperCount).isEqualTo(1)
     assertThat(response.summaryCounts.staleCount).isEqualTo(1)
+    assertThat(response.items.single().documentVerificationSummary).isEqualTo(
+      DocumentVerificationSummary(documentsCount = 0, unverifiedCount = 0, verifiedCount = 0, rejectedCount = 0)
+    )
+    assertThat(response.staleWorkpapers.single().documentVerificationSummary).isEqualTo(
+      DocumentVerificationSummary(documentsCount = 0, unverifiedCount = 0, verifiedCount = 0, rejectedCount = 0)
+    )
   }
 
   @Test
@@ -312,6 +319,92 @@ class WorkpaperServiceTest {
     }.isInstanceOf(WorkpaperBadRequestException::class.java)
   }
 
+  @Test
+  fun `reviewed transition is blocked when documents remain unverified`() {
+    val existing = persistedWorkpaper(status = WorkpaperStatus.READY_FOR_REVIEW)
+    val repository = FakeWorkpaperRepository(listOf(existing))
+    val documentRepository = FakeDocumentRepository(
+      listOf(
+        persistedDocument(existing.id, verificationStatus = DocumentVerificationStatus.UNVERIFIED)
+      )
+    )
+    val service = service(
+      controlsSnapshot = readyControls(),
+      anchorProjection = anchorProjection(currentAnchor(existing.anchorCode)),
+      repository = repository,
+      documentRepository = documentRepository
+    )
+
+    assertThatThrownBy {
+      service.reviewDecision(
+        reviewerAccess(),
+        closingFolderId,
+        existing.anchorCode,
+        WorkpaperReviewDecisionCommand(
+          decision = WorkpaperStatus.REVIEWED,
+          comment = null
+        )
+      )
+    }.isInstanceOf(WorkpaperConflictException::class.java)
+  }
+
+  @Test
+  fun `reviewed transition is allowed when no documents exist`() {
+    val existing = persistedWorkpaper(status = WorkpaperStatus.READY_FOR_REVIEW)
+    val repository = FakeWorkpaperRepository(listOf(existing))
+    val auditTrail = RecordingAuditTrail()
+    val service = service(
+      controlsSnapshot = readyControls(),
+      anchorProjection = anchorProjection(currentAnchor(existing.anchorCode)),
+      repository = repository,
+      documentRepository = FakeDocumentRepository(),
+      auditTrail = auditTrail
+    )
+
+    val result = service.reviewDecision(
+      reviewerAccess(),
+      closingFolderId,
+      existing.anchorCode,
+      WorkpaperReviewDecisionCommand(
+        decision = WorkpaperStatus.REVIEWED,
+        comment = null
+      )
+    )
+
+    assertThat(result.item.workpaper?.status).isEqualTo(WorkpaperStatus.REVIEWED)
+    assertThat(auditTrail.commands.single().action).isEqualTo(WORKPAPER_REVIEW_STATUS_CHANGED_ACTION)
+  }
+
+  @Test
+  fun `reviewed transition is allowed with verified and rejected documents once none are unverified`() {
+    val existing = persistedWorkpaper(status = WorkpaperStatus.READY_FOR_REVIEW)
+    val repository = FakeWorkpaperRepository(listOf(existing))
+    val documentRepository = FakeDocumentRepository(
+      listOf(
+        persistedDocument(existing.id, verificationStatus = DocumentVerificationStatus.VERIFIED, reviewComment = null),
+        persistedDocument(existing.id, verificationStatus = DocumentVerificationStatus.REJECTED, reviewComment = "Superseded")
+      )
+    )
+    val service = service(
+      controlsSnapshot = readyControls(),
+      anchorProjection = anchorProjection(currentAnchor(existing.anchorCode)),
+      repository = repository,
+      documentRepository = documentRepository
+    )
+
+    val result = service.reviewDecision(
+      reviewerAccess(),
+      closingFolderId,
+      existing.anchorCode,
+      WorkpaperReviewDecisionCommand(
+        decision = WorkpaperStatus.REVIEWED,
+        comment = null
+      )
+    )
+
+    assertThat(result.item.workpaper?.status).isEqualTo(WorkpaperStatus.REVIEWED)
+  }
+
   private fun service(
     controlsSnapshot: ClosingControlsSnapshot,
     anchorProjection: CurrentWorkpaperAnchorProjection,
@@ -433,6 +526,31 @@ class WorkpaperServiceTest {
       externalReference = null,
       checksumSha256 = null
     )
+
+  private fun persistedDocument(
+    workpaperId: UUID,
+    verificationStatus: DocumentVerificationStatus,
+    reviewComment: String? = null
+  ): Document =
+    Document(
+      id = UUID.randomUUID(),
+      tenantId = tenantId,
+      workpaperId = workpaperId,
+      storageBackend = DocumentStorageBackend.LOCAL_FS,
+      storageObjectKey = "tenants/$tenantId/workpapers/$workpaperId/documents/${UUID.randomUUID()}",
+      fileName = "support.pdf",
+      mediaType = "application/pdf",
+      byteSize = 64,
+      checksumSha256 = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+      sourceLabel = "ERP",
+      documentDate = LocalDate.parse("2024-12-31"),
+      createdAt = OffsetDateTime.parse("2025-01-02T00:00:00Z"),
+      createdByUserId = actorUserId,
+      verificationStatus = verificationStatus,
+      reviewComment = reviewComment,
+      reviewedAt = if (verificationStatus == DocumentVerificationStatus.UNVERIFIED) null else OffsetDateTime.parse("2025-01-03T00:00:00Z"),
+      reviewedByUserId = if (verificationStatus == DocumentVerificationStatus.UNVERIFIED) null else actorUserId
+    )
 }
 
 private class FakeWorkpaperRepository(initial: List<Workpaper> = emptyList()) : WorkpaperRepository {
@@ -450,6 +568,9 @@ private class FakeWorkpaperRepository(initial: List<Workpaper> = emptyList()) : 
         it.anchorCode == anchorCode
     }
 
+  override fun findById(tenantId: UUID, workpaperId: UUID): Workpaper? =
+    workpapers[workpaperId]?.takeIf { it.tenantId == tenantId }
+
   override fun create(workpaper: Workpaper): Workpaper {
     workpapers[workpaper.id] = workpaper
     return workpaper
@@ -465,6 +586,11 @@ private class FakeDocumentRepository(initial: List<Document> = emptyList()) : Do
   private val documents = initial.associateBy { it.id }.toMutableMap()
 
   override fun create(document: Document): Document {
+    documents[document.id] = document
+    return document
+  }
+
+  override fun updateVerification(document: Document): Document {
     documents[document.id] = document
     return document
   }

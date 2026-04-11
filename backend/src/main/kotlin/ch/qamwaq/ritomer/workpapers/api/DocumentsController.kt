@@ -2,10 +2,13 @@ package ch.qamwaq.ritomer.workpapers.api
 
 import ch.qamwaq.ritomer.identity.access.TenantAccessResolver
 import ch.qamwaq.ritomer.workpapers.application.DocumentPayloadTooLargeException
+import ch.qamwaq.ritomer.workpapers.application.DocumentVerificationDecisionCommand
 import ch.qamwaq.ritomer.workpapers.application.DocumentSummary
 import ch.qamwaq.ritomer.workpapers.application.DocumentService
 import ch.qamwaq.ritomer.workpapers.application.UploadDocumentCommand
 import ch.qamwaq.ritomer.workpapers.application.WorkpaperDocumentsView
+import ch.qamwaq.ritomer.workpapers.domain.DocumentVerificationStatus
+import jakarta.validation.Valid
 import java.net.URI
 import java.time.LocalDate
 import java.util.UUID
@@ -17,6 +20,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.validation.annotation.Validated
+import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -94,6 +98,19 @@ class DocumentsController(
       .body(InputStreamResource(downloaded.inputStream))
   }
 
+  @PostMapping("/documents/{documentId}/verification-decision")
+  fun reviewDecision(
+    @PathVariable closingFolderId: UUID,
+    @PathVariable documentId: UUID,
+    @Valid @RequestBody request: DocumentVerificationDecisionRequest
+  ): DocumentSummaryResponse =
+    documentService.reviewVerificationDecision(
+      tenantAccessResolver.resolveRequiredTenantAccess(),
+      closingFolderId,
+      documentId,
+      request.toCommand()
+    ).toResponse()
+
   @ExceptionHandler(MaxUploadSizeExceededException::class)
   fun handleMaxUploadSizeExceeded(): ResponseEntity<DocumentErrorResponse> =
     ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(
@@ -118,6 +135,17 @@ data class DocumentErrorResponse(
   val message: String
 )
 
+data class DocumentVerificationDecisionRequest(
+  val decision: DocumentVerificationStatus,
+  val comment: String?
+)
+
+private fun DocumentVerificationDecisionRequest.toCommand(): DocumentVerificationDecisionCommand =
+  DocumentVerificationDecisionCommand(
+    decision = decision,
+    comment = comment
+  )
+
 private fun WorkpaperDocumentsView.toResponse(): WorkpaperDocumentsResponse =
   WorkpaperDocumentsResponse(
     closingFolderId = closingFolderId.toString(),
@@ -136,5 +164,9 @@ private fun DocumentSummary.toResponse(): DocumentSummaryResponse =
     sourceLabel = sourceLabel,
     documentDate = documentDate?.toString(),
     createdAt = createdAt.toString(),
-    createdByUserId = createdByUserId.toString()
+    createdByUserId = createdByUserId.toString(),
+    verificationStatus = verificationStatus.name,
+    reviewComment = reviewComment,
+    reviewedAt = reviewedAt?.toString(),
+    reviewedByUserId = reviewedByUserId?.toString()
   )

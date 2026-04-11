@@ -17,10 +17,20 @@ data class Document(
   val sourceLabel: String,
   val documentDate: LocalDate?,
   val createdAt: OffsetDateTime,
-  val createdByUserId: UUID
+  val createdByUserId: UUID,
+  val verificationStatus: DocumentVerificationStatus = DocumentVerificationStatus.UNVERIFIED,
+  val reviewComment: String? = null,
+  val reviewedAt: OffsetDateTime? = null,
+  val reviewedByUserId: UUID? = null
 )
 
 enum class DocumentStorageBackend {
   LOCAL_FS,
   GCS
+}
+
+enum class DocumentVerificationStatus {
+  UNVERIFIED,
+  VERIFIED,
+  REJECTED
 }

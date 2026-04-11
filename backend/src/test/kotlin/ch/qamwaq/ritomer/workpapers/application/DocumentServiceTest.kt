@@ -16,6 +16,7 @@ import ch.qamwaq.ritomer.shared.application.AuditCorrelationContextProvider
 import ch.qamwaq.ritomer.shared.application.AuditTrail
 import ch.qamwaq.ritomer.workpapers.domain.Document
 import ch.qamwaq.ritomer.workpapers.domain.DocumentStorageBackend
+import ch.qamwaq.ritomer.workpapers.domain.DocumentVerificationStatus
 import ch.qamwaq.ritomer.workpapers.domain.Workpaper
 import ch.qamwaq.ritomer.workpapers.domain.WorkpaperBreakdownType
 import ch.qamwaq.ritomer.workpapers.domain.WorkpaperEvidence
@@ -67,6 +68,10 @@ class DocumentServiceTest {
     assertThat(result.byteSize).isEqualTo(5)
     assertThat(result.checksumSha256).isEqualTo(sha256("hello".toByteArray()))
     assertThat(result.sourceLabel).isEqualTo("ERP")
+    assertThat(result.verificationStatus).isEqualTo(DocumentVerificationStatus.UNVERIFIED)
+    assertThat(result.reviewComment).isNull()
+    assertThat(result.reviewedAt).isNull()
+    assertThat(result.reviewedByUserId).isNull()
     assertThat(documentRepository.createdDocuments()).hasSize(1)
     assertThat(auditTrail.commands.single().action).isEqualTo(DOCUMENT_CREATED_ACTION)
   }
@@ -244,6 +249,160 @@ class DocumentServiceTest {
     assertThat(documentRepository.createdDocuments()).isEmpty()
   }
 
+  @Test
+  fun `verification rejects blank comment on rejected decision`() {
+    val workpaper = persistedWorkpaper(status = WorkpaperStatus.READY_FOR_REVIEW)
+    val documentRepository = DocumentServiceFakeDocumentRepository().also {
+      it.create(
+        storedDocument(
+          workpaperId = workpaper.id,
+          verificationStatus = DocumentVerificationStatus.UNVERIFIED
+        )
+      )
+    }
+    val service = service(
+      workpaperRepository = DocumentServiceFakeWorkpaperRepository(listOf(workpaper)),
+      repository = documentRepository,
+      binaryObjectStore = RecordingBinaryObjectStore()
+    )
+
+    assertThatThrownBy {
+      service.reviewVerificationDecision(
+        reviewerAccess(),
+        closingFolderId,
+        documentRepository.createdDocuments().single().id,
+        DocumentVerificationDecisionCommand(
+          decision = DocumentVerificationStatus.REJECTED,
+          comment = "   "
+        )
+      )
+    }.isInstanceOf(DocumentBadRequestException::class.java)
+  }
+
+  @Test
+  fun `verification rejects comment on verified decision`() {
+    val workpaper = persistedWorkpaper(status = WorkpaperStatus.READY_FOR_REVIEW)
+    val documentRepository = DocumentServiceFakeDocumentRepository().also {
+      it.create(
+        storedDocument(
+          workpaperId = workpaper.id,
+          verificationStatus = DocumentVerificationStatus.REJECTED,
+          reviewComment = "Wrong file"
+        )
+      )
+    }
+    val service = service(
+      workpaperRepository = DocumentServiceFakeWorkpaperRepository(listOf(workpaper)),
+      repository = documentRepository,
+      binaryObjectStore = RecordingBinaryObjectStore()
+    )
+
+    assertThatThrownBy {
+      service.reviewVerificationDecision(
+        reviewerAccess(),
+        closingFolderId,
+        documentRepository.createdDocuments().single().id,
+        DocumentVerificationDecisionCommand(
+          decision = DocumentVerificationStatus.VERIFIED,
+          comment = "Should be rejected"
+        )
+      )
+    }.isInstanceOf(DocumentBadRequestException::class.java)
+  }
+
+  @Test
+  fun `verification exact noop stays silent in audit`() {
+    val workpaper = persistedWorkpaper(status = WorkpaperStatus.READY_FOR_REVIEW)
+    val document = storedDocument(
+      workpaperId = workpaper.id,
+      verificationStatus = DocumentVerificationStatus.REJECTED,
+      reviewComment = "Need signed version",
+      reviewedAt = OffsetDateTime.parse("2025-01-03T00:00:00Z"),
+      reviewedByUserId = actorUserId
+    )
+    val documentRepository = DocumentServiceFakeDocumentRepository().also { it.create(document) }
+    val auditTrail = DocumentServiceRecordingAuditTrail()
+    val service = service(
+      workpaperRepository = DocumentServiceFakeWorkpaperRepository(listOf(workpaper)),
+      repository = documentRepository,
+      binaryObjectStore = RecordingBinaryObjectStore(),
+      auditTrail = auditTrail
+    )
+
+    val result = service.reviewVerificationDecision(
+      reviewerAccess(),
+      closingFolderId,
+      document.id,
+      DocumentVerificationDecisionCommand(
+        decision = DocumentVerificationStatus.REJECTED,
+        comment = " Need signed version "
+      )
+    )
+
+    assertThat(result.verificationStatus).isEqualTo(DocumentVerificationStatus.REJECTED)
+    assertThat(result.reviewComment).isEqualTo("Need signed version")
+    assertThat(auditTrail.commands).isEmpty()
+  }
+
+  @Test
+  fun `verification updates rejected comment and audits real mutation`() {
+    val workpaper = persistedWorkpaper(status = WorkpaperStatus.READY_FOR_REVIEW)
+    val document = storedDocument(
+      workpaperId = workpaper.id,
+      verificationStatus = DocumentVerificationStatus.REJECTED,
+      reviewComment = "Old comment",
+      reviewedAt = OffsetDateTime.parse("2025-01-03T00:00:00Z"),
+      reviewedByUserId = UUID.randomUUID()
+    )
+    val documentRepository = DocumentServiceFakeDocumentRepository().also { it.create(document) }
+    val auditTrail = DocumentServiceRecordingAuditTrail()
+    val service = service(
+      workpaperRepository = DocumentServiceFakeWorkpaperRepository(listOf(workpaper)),
+      repository = documentRepository,
+      binaryObjectStore = RecordingBinaryObjectStore(),
+      auditTrail = auditTrail
+    )
+
+    val result = service.reviewVerificationDecision(
+      reviewerAccess(),
+      closingFolderId,
+      document.id,
+      DocumentVerificationDecisionCommand(
+        decision = DocumentVerificationStatus.REJECTED,
+        comment = "Updated comment"
+      )
+    )
+
+    assertThat(result.reviewComment).isEqualTo("Updated comment")
+    assertThat(result.reviewedByUserId).isEqualTo(actorUserId)
+    assertThat(auditTrail.commands.single().action).isEqualTo(DOCUMENT_VERIFICATION_UPDATED_ACTION)
+  }
+
+  @Test
+  fun `verification requires current ready non archived and workpaper ready for review`() {
+    val workpaper = persistedWorkpaper(status = WorkpaperStatus.DRAFT)
+    val documentRepository = DocumentServiceFakeDocumentRepository().also {
+      it.create(storedDocument(workpaperId = workpaper.id))
+    }
+    val service = service(
+      workpaperRepository = DocumentServiceFakeWorkpaperRepository(listOf(workpaper)),
+      repository = documentRepository,
+      binaryObjectStore = RecordingBinaryObjectStore()
+    )
+
+    assertThatThrownBy {
+      service.reviewVerificationDecision(
+        reviewerAccess(),
+        closingFolderId,
+        documentRepository.createdDocuments().single().id,
+        DocumentVerificationDecisionCommand(
+          decision = DocumentVerificationStatus.VERIFIED,
+          comment = null
+        )
+      )
+    }.isInstanceOf(DocumentConflictException::class.java)
+  }
+
   private fun service(
     controlsSnapshot: ClosingControlsSnapshot = readyControls(),
     anchorProjection: CurrentWorkpaperAnchorProjection = anchorProjection(currentAnchor("BS.ASSET.CURRENT_SECTION")),
@@ -297,6 +456,14 @@ class DocumentServiceTest {
       effectiveRoles = setOf("ACCOUNTANT")
     )
 
+  private fun reviewerAccess(): TenantAccessContext =
+    TenantAccessContext(
+      actorUserId = actorUserId,
+      actorSubject = "reviewer",
+      tenantId = tenantId,
+      effectiveRoles = setOf("REVIEWER")
+    )
+
   private fun persistedWorkpaper(
     anchorCode: String = "BS.ASSET.CURRENT_SECTION",
     status: WorkpaperStatus = WorkpaperStatus.DRAFT
@@ -324,6 +491,33 @@ class DocumentServiceTest {
       evidences = emptyList()
     )
 
+  private fun storedDocument(
+    workpaperId: UUID,
+    verificationStatus: DocumentVerificationStatus = DocumentVerificationStatus.UNVERIFIED,
+    reviewComment: String? = null,
+    reviewedAt: OffsetDateTime? = null,
+    reviewedByUserId: UUID? = null
+  ): Document =
+    Document(
+      id = UUID.randomUUID(),
+      tenantId = tenantId,
+      workpaperId = workpaperId,
+      storageBackend = DocumentStorageBackend.LOCAL_FS,
+      storageObjectKey = "tenants/$tenantId/workpapers/$workpaperId/documents/${UUID.randomUUID()}",
+      fileName = "support.pdf",
+      mediaType = "application/pdf",
+      byteSize = 32,
+      checksumSha256 = sha256("support".toByteArray()),
+      sourceLabel = "ERP",
+      documentDate = LocalDate.parse("2024-12-31"),
+      createdAt = OffsetDateTime.parse("2025-01-02T00:00:00Z"),
+      createdByUserId = actorUserId,
+      verificationStatus = verificationStatus,
+      reviewComment = reviewComment,
+      reviewedAt = reviewedAt,
+      reviewedByUserId = reviewedByUserId
+    )
+
   private fun sha256(bytes: ByteArray): String =
     java.security.MessageDigest.getInstance("SHA-256")
       .digest(bytes)
@@ -345,6 +539,9 @@ private class DocumentServiceFakeWorkpaperRepository(
         it.anchorCode == anchorCode
     }
 
+  override fun findById(tenantId: UUID, workpaperId: UUID): Workpaper? =
+    workpapersById[workpaperId]?.takeIf { it.tenantId == tenantId }
+
   override fun create(workpaper: Workpaper): Workpaper {
     workpapersById[workpaper.id] = workpaper
     return workpaper
@@ -365,6 +562,11 @@ private class DocumentServiceFakeDocumentRepository(
     if (failOnCreate) {
       throw IllegalStateException("intentional document create failure")
     }
+    documentsById[document.id] = document
+    return document
+  }
+
+  override fun updateVerification(document: Document): Document {
     documentsById[document.id] = document
     return document
   }

@@ -3,6 +3,7 @@ package ch.qamwaq.ritomer.workpapers.api
 import ch.qamwaq.ritomer.identity.access.TenantAccessResolver
 import ch.qamwaq.ritomer.workpapers.application.ClosingWorkpapers
 import ch.qamwaq.ritomer.workpapers.application.DocumentSummary
+import ch.qamwaq.ritomer.workpapers.application.DocumentVerificationSummary
 import ch.qamwaq.ritomer.workpapers.application.WorkpaperDetails
 import ch.qamwaq.ritomer.workpapers.application.WorkpaperEvidenceCommand
 import ch.qamwaq.ritomer.workpapers.application.WorkpaperEvidenceDetails
@@ -147,7 +148,15 @@ data class WorkpaperItemResponse(
   val breakdownType: String,
   val isCurrentStructure: Boolean,
   val workpaper: WorkpaperDetailsResponse?,
-  val documents: List<DocumentSummaryResponse>
+  val documents: List<DocumentSummaryResponse>,
+  val documentVerificationSummary: DocumentVerificationSummaryResponse?
+)
+
+data class DocumentVerificationSummaryResponse(
+  val documentsCount: Int,
+  val unverifiedCount: Int,
+  val verifiedCount: Int,
+  val rejectedCount: Int
 )
 
 @JsonInclude(JsonInclude.Include.ALWAYS)
@@ -189,7 +198,11 @@ data class DocumentSummaryResponse(
   val sourceLabel: String,
   val documentDate: String?,
   val createdAt: String,
-  val createdByUserId: String
+  val createdByUserId: String,
+  val verificationStatus: String,
+  val reviewComment: String?,
+  val reviewedAt: String?,
+  val reviewedByUserId: String?
 )
 
 private fun WorkpaperUpsertRequest.toCommand(): WorkpaperUpsertCommand =
@@ -249,7 +262,16 @@ private fun WorkpaperItem.toResponse(): WorkpaperItemResponse =
     breakdownType = breakdownType,
     isCurrentStructure = isCurrentStructure,
     workpaper = workpaper?.toResponse(),
-    documents = documents.map { it.toResponse() }
+    documents = documents.map { it.toResponse() },
+    documentVerificationSummary = documentVerificationSummary?.toResponse()
+  )
+
+private fun DocumentVerificationSummary.toResponse(): DocumentVerificationSummaryResponse =
+  DocumentVerificationSummaryResponse(
+    documentsCount = documentsCount,
+    unverifiedCount = unverifiedCount,
+    verifiedCount = verifiedCount,
+    rejectedCount = rejectedCount
   )
 
 private fun WorkpaperDetails.toResponse(): WorkpaperDetailsResponse =
@@ -292,5 +314,9 @@ private fun DocumentSummary.toResponse(): DocumentSummaryResponse =
     sourceLabel = sourceLabel,
     documentDate = documentDate?.toString(),
     createdAt = createdAt.toString(),
-    createdByUserId = createdByUserId.toString()
+    createdByUserId = createdByUserId.toString(),
+    verificationStatus = verificationStatus.name,
+    reviewComment = reviewComment,
+    reviewedAt = reviewedAt?.toString(),
+    reviewedByUserId = reviewedByUserId?.toString()
   )

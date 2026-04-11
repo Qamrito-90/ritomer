@@ -100,6 +100,43 @@ class JdbcWorkpaperRepository(
     return workpaper.copy(evidences = queryEvidencesByWorkpaperId(tenantId, workpaper.id))
   }
 
+  override fun findById(tenantId: UUID, workpaperId: UUID): Workpaper? {
+    val workpaper = jdbcClient.sql(
+      """
+      select id,
+             tenant_id,
+             closing_folder_id,
+             anchor_code,
+             anchor_label,
+             summary_bucket_code,
+             statement_kind,
+             breakdown_type,
+             note_text,
+             status,
+             review_comment,
+             basis_import_version,
+             basis_taxonomy_version,
+             created_at,
+             created_by_user_id,
+             updated_at,
+             updated_by_user_id,
+             reviewed_at,
+             reviewed_by_user_id
+      from workpaper
+      where tenant_id = :tenantId
+        and id = :workpaperId
+      """.trimIndent()
+    )
+      .param("tenantId", tenantId)
+      .param("workpaperId", workpaperId)
+      .query(WORKPAPER_ROW_MAPPER)
+      .optional()
+      .orElse(null)
+      ?: return null
+
+    return workpaper.copy(evidences = queryEvidencesByWorkpaperId(tenantId, workpaper.id))
+  }
+
   override fun create(workpaper: Workpaper): Workpaper {
     jdbcClient.sql(
       """

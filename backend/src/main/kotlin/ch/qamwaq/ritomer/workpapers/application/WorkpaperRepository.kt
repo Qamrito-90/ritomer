@@ -8,6 +8,8 @@ interface WorkpaperRepository {
 
   fun findByAnchorCode(tenantId: UUID, closingFolderId: UUID, anchorCode: String): Workpaper?
 
+  fun findById(tenantId: UUID, workpaperId: UUID): Workpaper?
+
   fun create(workpaper: Workpaper): Workpaper
 
   fun update(workpaper: Workpaper): Workpaper

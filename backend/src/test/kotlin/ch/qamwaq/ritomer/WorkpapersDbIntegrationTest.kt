@@ -49,12 +49,12 @@ class WorkpapersDbIntegrationTest {
   @BeforeEach
   fun resetDatabaseState() {
     jdbcTemplate.execute(
-      "truncate table audit_event, workpaper_evidence, workpaper, manual_mapping, balance_import_line, balance_import, closing_folder, tenant_membership, app_user, tenant cascade"
+      "truncate table audit_event, document_verification, document, workpaper_evidence, workpaper, manual_mapping, balance_import_line, balance_import, closing_folder, tenant_membership, app_user, tenant cascade"
     )
   }
 
   @Test
-  fun `flyway applies migrations from scratch through V7 and keeps workpaper schema intact`() {
+  fun `flyway applies migrations from scratch through V8 and keeps workpaper schema intact`() {
     val versions = jdbcTemplate.queryForList(
       """
       select version
@@ -66,10 +66,11 @@ class WorkpapersDbIntegrationTest {
       String::class.java
     )
 
-    assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7")
+    assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8")
     assertThat(tableExists("workpaper")).isTrue()
     assertThat(tableExists("workpaper_evidence")).isTrue()
     assertThat(tableExists("document")).isTrue()
+    assertThat(tableExists("document_verification")).isTrue()
     assertThat(uniqueConstraintExists("workpaper", "uk_workpaper_tenant_closing_anchor")).isTrue()
     assertThat(foreignKeyExists("workpaper", "fk_workpaper_closing_folder")).isTrue()
     assertThat(foreignKeyExists("workpaper_evidence", "fk_workpaper_evidence_workpaper")).isTrue()
@@ -317,6 +318,62 @@ class WorkpapersDbIntegrationTest {
     assertThat(countWorkpapers(tenantId)).isZero()
     assertThat(countWorkpaperEvidences(tenantId)).isZero()
     assertThat(countAuditEvents()).isZero()
+  }
+
+  @Test
+  fun `reviewed gate enforces verified document rule and allows rejected plus verified mix`() {
+    val tenantId = UUID.fromString("11111111-1111-1111-1111-111111111111")
+    val userId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+    val closingFolderId = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+    val importId = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc")
+    val workpaperId = UUID.fromString("dddddddd-dddd-dddd-dddd-dddddddddddd")
+    val firstDocumentId = UUID.fromString("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee")
+    val secondDocumentId = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff")
+
+    insertTenant(tenantId, "tenant-alpha", "Tenant Alpha")
+    insertUser(userId, "workpaper-user")
+    insertMembership(userId, tenantId, "MANAGER")
+    insertClosingFolder(closingFolderId, tenantId)
+    insertBalanceImport(importId, tenantId, closingFolderId, userId, 2, 2, "100.00", "100.00")
+    insertBalanceImportLine(importId, tenantId, 2, "1000", "Cash", "100.00", "0.00")
+    insertBalanceImportLine(importId, tenantId, 3, "3000", "Revenue", "0.00", "100.00")
+    insertManualMapping(tenantId, closingFolderId, userId, "1000", "BS.ASSET.CASH_AND_EQUIVALENTS")
+    insertManualMapping(tenantId, closingFolderId, userId, "3000", "PL.REVENUE.OPERATING_REVENUE")
+    insertWorkpaper(workpaperId, tenantId, closingFolderId, userId, status = "READY_FOR_REVIEW")
+    insertDocument(firstDocumentId, tenantId, workpaperId, userId, "first.pdf")
+    insertDocumentVerification(firstDocumentId, tenantId, "UNVERIFIED", null, null, null)
+
+    mockMvc.post("/api/closing-folders/$closingFolderId/workpapers/BS.ASSET.CURRENT_SECTION/review-decision") {
+      header("X-Tenant-Id", tenantId.toString())
+      contentType = org.springframework.http.MediaType.APPLICATION_JSON
+      content = """{"decision":"REVIEWED"}"""
+      with(actorJwt("workpaper-user"))
+    }.andExpect { status { isConflict() } }
+
+    mockMvc.post("/api/closing-folders/$closingFolderId/documents/$firstDocumentId/verification-decision") {
+      header("X-Tenant-Id", tenantId.toString())
+      contentType = org.springframework.http.MediaType.APPLICATION_JSON
+      content = """{"decision":"VERIFIED"}"""
+      with(actorJwt("workpaper-user"))
+    }.andExpect { status { isOk() } }
+
+    mockMvc.post("/api/closing-folders/$closingFolderId/workpapers/BS.ASSET.CURRENT_SECTION/review-decision") {
+      header("X-Tenant-Id", tenantId.toString())
+      contentType = org.springframework.http.MediaType.APPLICATION_JSON
+      content = """{"decision":"REVIEWED"}"""
+      with(actorJwt("workpaper-user"))
+    }.andExpect { status { isOk() } }
+
+    jdbcTemplate.update("update workpaper set status = 'READY_FOR_REVIEW', review_comment = null, reviewed_at = null, reviewed_by_user_id = null where id = ?", workpaperId)
+    insertDocument(secondDocumentId, tenantId, workpaperId, userId, "second.pdf")
+    insertDocumentVerification(secondDocumentId, tenantId, "REJECTED", "Duplicate", OffsetDateTime.parse("2025-01-03T00:00:00Z"), userId)
+
+    mockMvc.post("/api/closing-folders/$closingFolderId/workpapers/BS.ASSET.CURRENT_SECTION/review-decision") {
+      header("X-Tenant-Id", tenantId.toString())
+      contentType = org.springframework.http.MediaType.APPLICATION_JSON
+      content = """{"decision":"REVIEWED"}"""
+      with(actorJwt("workpaper-user"))
+    }.andExpect { status { isOk() } }
   }
 
   private fun tableExists(tableName: String): Boolean =
@@ -573,6 +630,97 @@ class WorkpapersDbIntegrationTest {
       OffsetDateTime.parse("2025-01-02T00:00:00Z"),
       userId,
       userId
+    )
+  }
+
+  private fun insertWorkpaper(
+    workpaperId: UUID,
+    tenantId: UUID,
+    closingFolderId: UUID,
+    userId: UUID,
+    status: String = "DRAFT"
+  ) {
+    jdbcTemplate.update(
+      """
+      insert into workpaper (
+        id, tenant_id, closing_folder_id, anchor_code, anchor_label, summary_bucket_code,
+        statement_kind, breakdown_type, note_text, status, review_comment, basis_import_version,
+        basis_taxonomy_version, created_at, created_by_user_id, updated_at, updated_by_user_id,
+        reviewed_at, reviewed_by_user_id
+      ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      """.trimIndent(),
+      workpaperId,
+      tenantId,
+      closingFolderId,
+      "BS.ASSET.CURRENT_SECTION",
+      "Current assets",
+      "BS.ASSET",
+      "BALANCE_SHEET",
+      "SECTION",
+      "Justification",
+      status,
+      null,
+      2,
+      2,
+      OffsetDateTime.parse("2025-01-02T00:00:00Z"),
+      userId,
+      OffsetDateTime.parse("2025-01-02T00:00:00Z"),
+      userId,
+      null,
+      null
+    )
+  }
+
+  private fun insertDocument(
+    documentId: UUID,
+    tenantId: UUID,
+    workpaperId: UUID,
+    userId: UUID,
+    fileName: String
+  ) {
+    jdbcTemplate.update(
+      """
+      insert into document (
+        id, tenant_id, workpaper_id, storage_backend, storage_object_key, file_name, media_type,
+        byte_size, checksum_sha256, source_label, document_date, created_at, created_by_user_id
+      ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      """.trimIndent(),
+      documentId,
+      tenantId,
+      workpaperId,
+      "LOCAL_FS",
+      "tenants/$tenantId/workpapers/$workpaperId/documents/$documentId",
+      fileName,
+      "application/pdf",
+      10L,
+      "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+      "ERP",
+      LocalDate.parse("2024-12-31"),
+      OffsetDateTime.parse("2025-01-02T00:00:00Z"),
+      userId
+    )
+  }
+
+  private fun insertDocumentVerification(
+    documentId: UUID,
+    tenantId: UUID,
+    verificationStatus: String,
+    reviewComment: String?,
+    reviewedAt: OffsetDateTime?,
+    reviewedByUserId: UUID?
+  ) {
+    jdbcTemplate.update(
+      """
+      insert into document_verification (
+        document_id, tenant_id, verification_status, review_comment, reviewed_at, reviewed_by_user_id
+      ) values (?, ?, ?, ?, ?, ?)
+      """.trimIndent(),
+      documentId,
+      tenantId,
+      verificationStatus,
+      reviewComment,
+      reviewedAt,
+      reviewedByUserId
     )
   }
 }

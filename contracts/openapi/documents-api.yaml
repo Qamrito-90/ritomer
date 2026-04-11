@@ -9,7 +9,8 @@ paths:
       summary: Upload a single immutable document to a persisted workpaper
       description: >
         Uploads a single binary document to a persisted current-anchor workpaper. Writes are blocked on
-        archived closings, non preview-ready closings, stale anchors and non-editable workpapers.
+        archived closings, closings whose `controls.readiness` is not `READY`, stale anchors and
+        non-editable workpapers.
       parameters:
         - in: header
           name: X-Tenant-Id
@@ -55,7 +56,7 @@ paths:
         "404":
           description: Persisted workpaper missing on anchor, or closing inaccessible
         "409":
-          description: Archived closing, non preview-ready closing, stale anchor or non-editable workpaper
+          description: Archived closing, controls.readiness not READY, stale anchor or non-editable workpaper
         "413":
           description: File exceeds 25 MiB
     get:
@@ -92,6 +93,51 @@ paths:
           description: Tenant inaccessible or role insufficient
         "404":
           description: Persisted workpaper missing on anchor, or closing inaccessible
+  /api/closing-folders/{closingFolderId}/documents/{documentId}/verification-decision:
+    post:
+      operationId: reviewDocumentVerification
+      summary: Apply a reviewer verification decision to a document
+      description: >
+        Reviewer-side verification on a persisted document only. Writes are allowed only when the
+        parent workpaper is current, the closing is not archived, `controls.readiness = READY`, and
+        the parent workpaper status is `READY_FOR_REVIEW`. Exact no-op requests return `200` and do
+        not append audit events.
+      parameters:
+        - in: header
+          name: X-Tenant-Id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: closingFolderId
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: documentId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentVerificationDecisionRequest"
+      responses:
+        "200":
+          description: Verification decision applied or exact no-op
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentSummary"
+        "400":
+          description: Invalid request payload, including missing comment for REJECTED or comment present for VERIFIED
+        "401":
+          description: Authentication required
+        "403":
+          description: Tenant inaccessible or role insufficient
+        "404":
+          description: Document absent from tenant or closing
+        "409":
+          description: Archived closing, controls.readiness not READY, stale workpaper or workpaper not READY_FOR_REVIEW
   /api/closing-folders/{closingFolderId}/documents/{documentId}/content:
     get:
       operationId: downloadDocumentContent
@@ -148,7 +194,8 @@ components:
             $ref: "#/components/schemas/DocumentSummary"
     DocumentSummary:
       type: object
-      required: [id, fileName, mediaType, byteSize, checksumSha256, sourceLabel, documentDate, createdAt, createdByUserId]
+      required:
+        [id, fileName, mediaType, byteSize, checksumSha256, sourceLabel, documentDate, createdAt, createdByUserId, verificationStatus, reviewComment, reviewedAt, reviewedByUserId]
       properties:
         id: { type: string, format: uuid }
         fileName: { type: string }
@@ -170,3 +217,26 @@ components:
           format: date
         createdAt: { type: string, format: date-time }
         createdByUserId: { type: string, format: uuid }
+        verificationStatus:
+          type: string
+          enum: [UNVERIFIED, VERIFIED, REJECTED]
+        reviewComment:
+          type: [string, "null"]
+        reviewedAt:
+          type: [string, "null"]
+          format: date-time
+        reviewedByUserId:
+          type: [string, "null"]
+          format: uuid
+    DocumentVerificationDecisionRequest:
+      type: object
+      description: >
+        Reviewer-side payload. `comment` is required when `decision = REJECTED`, forbidden when
+        `decision = VERIFIED`, and exact same decision plus same normalized comment is a no-op.
+      required: [decision]
+      properties:
+        decision:
+          type: string
+          enum: [VERIFIED, REJECTED]
+        comment:
+          type: [string, "null"]
