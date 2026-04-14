@@ -1,0 +1,186 @@
+openapi: 3.1.1
+info:
+  title: Exports API
+  version: 0.1.0
+paths:
+  /api/closing-folders/{closingFolderId}/export-packs:
+    post:
+      operationId: createExportPack
+      summary: Generate an immutable audit-ready export pack
+      description: >
+        Generates a synchronous ZIP snapshot for the closing folder. `Idempotency-Key` is required.
+        Replays return the same `exportPackId` only when the persisted logical intention still matches
+        the server-side `source_fingerprint`.
+      parameters:
+        - in: header
+          name: X-Tenant-Id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - in: path
+          name: closingFolderId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "201":
+          description: First logical generation succeeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportPack"
+        "200":
+          description: Successful replay returned the already persisted pack
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportPack"
+        "400":
+          description: Missing, blank or malformed X-Tenant-Id, invalid closingFolderId, or blank Idempotency-Key
+        "401":
+          description: Authentication required
+        "403":
+          description: Tenant inaccessible or role insufficient
+        "404":
+          description: Closing folder absent or outside tenant
+        "409":
+          description: Predictable business refusal or same key with a different persisted logical intention
+    get:
+      operationId: listExportPacks
+      summary: List persisted export packs for a closing folder
+      parameters:
+        - in: header
+          name: X-Tenant-Id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: closingFolderId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Export packs returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportPackList"
+        "400":
+          description: Missing, blank or malformed X-Tenant-Id, or invalid closingFolderId
+        "401":
+          description: Authentication required
+        "403":
+          description: Tenant inaccessible or role insufficient
+        "404":
+          description: Closing folder absent or outside tenant
+  /api/closing-folders/{closingFolderId}/export-packs/{exportPackId}:
+    get:
+      operationId: getExportPack
+      summary: Return persisted metadata for an export pack
+      parameters:
+        - in: header
+          name: X-Tenant-Id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: closingFolderId
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: exportPackId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Export pack metadata returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportPack"
+        "400":
+          description: Missing, blank or malformed X-Tenant-Id, or invalid UUID path parameters
+        "401":
+          description: Authentication required
+        "403":
+          description: Tenant inaccessible or role insufficient
+        "404":
+          description: Closing folder absent or outside tenant, or export pack missing
+  /api/closing-folders/{closingFolderId}/export-packs/{exportPackId}/content:
+    get:
+      operationId: downloadExportPack
+      summary: Download the persisted export pack archive through the backend
+      parameters:
+        - in: header
+          name: X-Tenant-Id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: closingFolderId
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: exportPackId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Export pack ZIP returned
+          headers:
+            Content-Disposition:
+              schema: { type: string }
+            Cache-Control:
+              schema: { type: string, enum: ["private, no-store"] }
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Missing, blank or malformed X-Tenant-Id, or invalid UUID path parameters
+        "401":
+          description: Authentication required
+        "403":
+          description: Tenant inaccessible or role insufficient
+        "404":
+          description: Closing folder absent or outside tenant, or export pack missing
+components:
+  schemas:
+    ExportPackList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExportPack"
+    ExportPack:
+      type: object
+      required:
+        - exportPackId
+        - closingFolderId
+        - fileName
+        - mediaType
+        - byteSize
+        - checksumSha256
+        - basisImportVersion
+        - basisTaxonomyVersion
+        - createdAt
+        - createdByUserId
+      properties:
+        exportPackId: { type: string, format: uuid }
+        closingFolderId: { type: string, format: uuid }
+        fileName: { type: string }
+        mediaType:
+          type: string
+          enum: [application/zip]
+        byteSize: { type: integer, minimum: 1 }
+        checksumSha256:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
+        basisImportVersion: { type: integer, minimum: 1 }
+        basisTaxonomyVersion: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+        createdByUserId: { type: string, format: uuid }
