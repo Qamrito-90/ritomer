@@ -38,9 +38,10 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `specs/done/010-workpapers-v1.md`
 - `specs/done/011-document-storage-and-evidence-files-v1.md`
 - `specs/done/012-evidence-review-and-verification-v1.md`
+- `specs/done/013-exports-audit-ready-v1.md`
 
 ### Decisions figees
-- Le flux V1 livre est maintenant `closing -> import -> mapping -> controls -> financial-summary -> financial-statements-structured -> workpapers -> document-storage-and-evidence-files`.
+- Le flux V1 livre est maintenant `closing -> import -> mapping -> controls -> financial-summary -> financial-statements-structured -> workpapers -> document-storage-and-evidence-files -> exports-audit-ready`.
 - Les endpoints canoniques restent sous `/api/closing-folders/...`.
 - `controls-v1`, `financial-summary-v1` et `financial-statements-structured-v1` sont des read-models derives, `GET only`, sans persistance de resultat.
 - `financial-summary-v1` reste une preview ultra-synthetique, non statutaire, non export final, non conforme a une presentation CO detaillee, et peut rester partielle tant que le closing n'est pas `PREVIEW_READY`.
@@ -49,7 +50,7 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `workpapers-v1` est la premiere couche de justification persistante du flux V1. Elle s'appuie sur les anchors courants de `financial-statements-structured-v1`, sans recalculer la finance ni persister de resultat financier.
 - `workpapers-v1` reste backend-only, REST-only, anchor-driven, tenant-scoped et audit-ready, avec un noyau borne a `workpaper + evidence metadata + maker/checker minimal`.
 - `GET /workpapers` expose tous les anchors courants meme sans workpaper persiste, et separe les persistences stale dans `staleWorkpapers[]`.
-- `workpapers-v1` ne couvre ni upload binaire, ni signed URLs, ni stockage objet, ni PDF, ni export pack final, ni commentaires threades, ni generation automatique.
+- `workpapers-v1` ne couvre ni upload binaire, ni signed URLs, ni stockage objet, ni PDF, ni export pack final, ni commentaires threades, ni generation automatique ; `013-exports-audit-ready-v1` ferme ensuite le pack `ZIP` immutable, prive et telecharge backend-only.
 - Les lectures `GET` sur `workpapers` n'ecrivent aucun `audit_event`; les lectures sur `ARCHIVED` restent autorisees, et les writes restent bloques hors `PREVIEW_READY` ou sur closing `ARCHIVED`.
 - `workpapers-v1` depend de `financials::access` pour ses anchors courants et n'introduit aucun couplage direct vers `imports` ou `mapping`.
 - `document-storage-and-evidence-files-v1` et `evidence-review-and-verification-v1` etendent `workpapers-v1` sans creer de module transverse et apportent la premiere vraie couche binaire de pieces justificatives puis la premiere verification reviewer first-class sur ces documents.
@@ -62,6 +63,8 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `evidence-review-and-verification-v1` ajoute `DOCUMENT.VERIFICATION_UPDATED` pour toute mutation reviewer reussie sur `document`, sans audit sur no-op, lecture, backfill ni creation automatique de la ligne initiale.
 - `document-storage-and-evidence-files-v1` persiste les metadata en PostgreSQL, stocke le binaire en object storage prive, et impose un download backend-only sans signed URL publique.
 - Le role de `document-storage-and-evidence-files-v1` dans la sequence V1 est de fermer le noyau evidence-first utile avant les couches futures d'export, d'annexe ou d'IA active.
+- `exports-audit-ready-v1` ajoute le module proprietaire `exports`, une persistance immutable `export_pack`, un `ZIP` strictement deterministe et un replay idempotent durable borne par `export_pack` seul en V1.
+- `exports-audit-ready-v1` assemble `controls`, `financial-summary`, `financial-statements-structured`, les current workpapers persistants et leurs documents visibles, sans exposition de `storage_object_key`, sans signed URL publique et sans audit sur les lectures.
 - Les lectures sur `ARCHIVED` restent autorisees si le tenant et le RBAC sont valides.
 - Les lectures `GET` sur `controls`, `financial-summary`, `financial-statements-structured` et `workpapers` n'ecrivent aucun `audit_event`.
 - Les tests PostgreSQL reels restent opt-in via `dbIntegrationTest`, sans Docker local requis.

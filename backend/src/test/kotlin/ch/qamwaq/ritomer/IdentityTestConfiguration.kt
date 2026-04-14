@@ -5,6 +5,9 @@ import ch.qamwaq.ritomer.closing.access.ClosingFolderAccessNotFoundException
 import ch.qamwaq.ritomer.closing.access.ClosingFolderAccessStatus
 import ch.qamwaq.ritomer.closing.access.ClosingFolderAccessView
 import ch.qamwaq.ritomer.closing.application.ClosingFolderRepository
+import ch.qamwaq.ritomer.exports.application.ExportPackAlreadyExistsException
+import ch.qamwaq.ritomer.exports.application.ExportPackRepository
+import ch.qamwaq.ritomer.exports.domain.ExportPack
 import ch.qamwaq.ritomer.closing.domain.ClosingFolder
 import ch.qamwaq.ritomer.identity.application.AppUserRepository
 import ch.qamwaq.ritomer.identity.application.TenantMembershipRepository
@@ -97,6 +100,13 @@ class IdentityTestConfiguration {
   @Bean
   fun transactionTemplate(): TransactionTemplate =
     TransactionTemplate(NoOpPlatformTransactionManager())
+
+  @Bean
+  fun exportPackTestStore(): ExportPackTestStore = ExportPackTestStore()
+
+  @Bean
+  fun exportPackRepository(exportPackTestStore: ExportPackTestStore): ExportPackRepository =
+    InMemoryExportPackRepository(exportPackTestStore)
 }
 
 class IdentityTestStore {
@@ -352,6 +362,50 @@ class DocumentTestStore {
   fun all(): List<Document> = documentsById.values.toList()
 }
 
+class ExportPackTestStore {
+  private val exportPacksById = linkedMapOf<UUID, ExportPack>()
+
+  @Synchronized
+  fun reset() {
+    exportPacksById.clear()
+  }
+
+  @Synchronized
+  fun create(exportPack: ExportPack): ExportPack {
+    val duplicate = exportPacksById.values.any {
+      it.tenantId == exportPack.tenantId &&
+        it.closingFolderId == exportPack.closingFolderId &&
+        it.idempotencyKey == exportPack.idempotencyKey
+    }
+    if (duplicate) {
+      throw ExportPackAlreadyExistsException("export_pack already exists for the same idempotency key.")
+    }
+    exportPacksById[exportPack.id] = exportPack
+    return exportPack
+  }
+
+  @Synchronized
+  fun findByIdempotencyKey(tenantId: UUID, closingFolderId: UUID, idempotencyKey: String): ExportPack? =
+    exportPacksById.values.firstOrNull {
+      it.tenantId == tenantId &&
+        it.closingFolderId == closingFolderId &&
+        it.idempotencyKey == idempotencyKey
+    }
+
+  @Synchronized
+  fun findById(tenantId: UUID, closingFolderId: UUID, exportPackId: UUID): ExportPack? =
+    exportPacksById[exportPackId]?.takeIf {
+      it.tenantId == tenantId &&
+        it.closingFolderId == closingFolderId
+    }
+
+  @Synchronized
+  fun findByClosingFolder(tenantId: UUID, closingFolderId: UUID): List<ExportPack> =
+    exportPacksById.values
+      .filter { it.tenantId == tenantId && it.closingFolderId == closingFolderId }
+      .sortedWith(compareByDescending<ExportPack> { it.createdAt }.thenByDescending { it.id })
+}
+
 data class RecordedAuditEvent(
   val id: UUID,
   val command: AppendAuditEventCommand
@@ -549,6 +603,22 @@ private class InMemoryDocumentRepository(
       ?.takeIf { document ->
         workpaperTestStore.findById(document.workpaperId)?.closingFolderId == closingFolderId
       }
+}
+
+private class InMemoryExportPackRepository(
+  private val exportPackTestStore: ExportPackTestStore
+) : ExportPackRepository {
+  override fun findByIdempotencyKey(tenantId: UUID, closingFolderId: UUID, idempotencyKey: String): ExportPack? =
+    exportPackTestStore.findByIdempotencyKey(tenantId, closingFolderId, idempotencyKey)
+
+  override fun findById(tenantId: UUID, closingFolderId: UUID, exportPackId: UUID): ExportPack? =
+    exportPackTestStore.findById(tenantId, closingFolderId, exportPackId)
+
+  override fun findByClosingFolder(tenantId: UUID, closingFolderId: UUID): List<ExportPack> =
+    exportPackTestStore.findByClosingFolder(tenantId, closingFolderId)
+
+  override fun create(exportPack: ExportPack): ExportPack =
+    exportPackTestStore.create(exportPack)
 }
 
 private class NoOpPlatformTransactionManager : PlatformTransactionManager {

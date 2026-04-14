@@ -9,8 +9,8 @@ Il ne remplace ni la vision UX, ni le playbook UX, ni la source de verite UI. Il
 ## Ce qui est vrai maintenant
 
 - La V1 reste orientee workbench de closing, pas SaaS generique.
-- Le flux reel deja fige dans le repo est : `closing -> import -> mapping -> controls -> financial-summary -> financial-statements-structured -> workpapers -> document-storage-and-evidence-files`.
-- La V1 actuelle reste backend-first dans son execution, mais la verite UX du present inclut deja les surfaces metier et API correspondant aux capacites closes jusqu'a `012`.
+- Le flux reel deja fige dans le repo est : `closing -> import -> mapping -> controls -> financial-summary -> financial-statements-structured -> workpapers -> document-storage-and-evidence-files -> exports-audit-ready`.
+- La V1 actuelle reste backend-first dans son execution, mais la verite UX du present inclut deja les surfaces metier et API correspondant aux capacites closes jusqu'a `013`.
 - La source de verite UI codable reste `docs/ui/ui-foundations-v1.md`.
 - Le produit doit rester clair sous pression : contexte tenant, dossier, statut, blockers, next action et preuves doivent etre explicites.
 - Les lectures sur `ARCHIVED` restent autorisees sur les surfaces closes qui le prevoient ; les writes restent bloques quand le workflow le demande.
@@ -20,6 +20,7 @@ Il ne remplace ni la vision UX, ni le playbook UX, ni la source de verite UI. Il
 - `workpapers-v1` apporte une couche de justification persistante anchor-driven avec maker/checker minimal.
 - `document-storage-and-evidence-files-v1` ajoute de vraies pieces justificatives immutables, stockees en prive, visibles dans le cockpit et telechargees backend-only.
 - `evidence-review-and-verification-v1` ajoute une verification reviewer par document, un resume derive par workpaper, et un gate evidence-aware avant `REVIEWED`.
+- `exports-audit-ready-v1` ajoute un pack `ZIP` immutable, prive, idempotent et telecharge backend-only pour handoff audit-ready du closing.
 
 ## Ce qui est explicitement hors scope maintenant
 
@@ -27,7 +28,7 @@ Il ne remplace ni la vision UX, ni le playbook UX, ni la source de verite UI. Il
 - une interface conversationnelle comme point d'entree primaire
 - GraphQL
 - une experience mobile profonde ou mobile-first
-- le pack final d'export audit-ready
+- une surface frontend riche de pilotage d'export audit-ready
 - l'annexe minimale
 - une IA active au centre de l'experience courante
 - les commentaires threades, la generation automatique et les signed URLs publiques pour les documents
@@ -53,11 +54,13 @@ Il ne remplace ni la vision UX, ni le playbook UX, ni la source de verite UI. Il
 - `specs/done/010-workpapers-v1.md`
 - `specs/done/011-document-storage-and-evidence-files-v1.md`
 - `specs/done/012-evidence-review-and-verification-v1.md`
+- `specs/done/013-exports-audit-ready-v1.md`
 - `contracts/openapi/controls-api.yaml`
 - `contracts/openapi/financial-summary-api.yaml`
 - `contracts/openapi/financial-statements-structured-api.yaml`
 - `contracts/openapi/workpapers-api.yaml`
 - `contracts/openapi/documents-api.yaml`
+- `contracts/openapi/exports-api.yaml`
 
 ## Regle de maintenance
 
@@ -74,7 +77,7 @@ Ne pas y recopier les specs ni la prose des Word.
 
 - `docs/reference-word/1.4-UX-Cadrage-V1.docx`
 
-Le Word `1.4` est un snapshot de cadrage. Ses hors-scope historiques sur `controls`, `financial-summary`, `financial-statements-structured`, `workpapers`, `document-storage-and-evidence-files` et `evidence-review-and-verification` ne sont plus valides dans le present du repo vivant.
+Le Word `1.4` est un snapshot de cadrage. Ses hors-scope historiques sur `controls`, `financial-summary`, `financial-statements-structured`, `workpapers`, `document-storage-and-evidence-files`, `evidence-review-and-verification` et `exports-audit-ready` ne sont plus valides dans le present du repo vivant.
 
 ## Note de precedence
 
