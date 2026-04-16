@@ -56,8 +56,8 @@ La V1 a donc besoin d'un pack d'export backend-only, REST-first, tenant-scoped e
 - Les chemins d'archive et les fichiers JSON inclus dans le `ZIP` sont tries lexicographiquement.
 - Aucune partie du pack ne depend de l'ordre naturel d'une map, d'un listing storage ou d'une requete non ordonnee.
 - La V1 n'introduit ni GraphQL, ni PDF statutaire, ni annexe generative, ni IA runtime.
-- La future implementation ne modifie pas `V6`, `V7` ni `V8` ; une migration `V9` dediee sera necessaire.
-- Une couture modulaire propre `workpapers::access` sera necessaire pour cette spec, mais n'est pas implemente par cette mission.
+- L'implementation livree n'a pas modifie `V6`, `V7` ni `V8` ; la migration dediee est `V9__spec_013_exports_audit_ready_v1.sql`.
+- La couture modulaire `workpapers::access` requise par cette spec est livree dans le repo.
 - Les vocabulaires RBAC et `storage_backend` reutilisent strictement les enums canoniques deja existants du repo au moment de l'implementation ; aucun vocabulaire parallele n'est autorise.
 - Les roles canoniques reutilises par cette spec sont ceux de `TenantRole` :
   - `ACCOUNTANT`
@@ -73,10 +73,10 @@ La V1 a donc besoin d'un pack d'export backend-only, REST-first, tenant-scoped e
 - Pour `POST /api/closing-folders/{closingFolderId}/export-packs`, `(tenantId, closingFolderId, Idempotency-Key)` identifie une seule generation logique cote serveur.
 - L'idempotence de `POST /api/closing-folders/{closingFolderId}/export-packs` est persistee durablement en base ; aucune idempotence en memoire seule n'a de valeur contractuelle en V1.
 - En V1, `export_pack` est la seule memoire durable d'idempotence.
-- Le mecanisme minimal V1 repose sur la future persistance `export_pack` elle-meme, avec `idempotency_key` et `source_fingerprint` non nuls.
+- Le mecanisme minimal V1 repose sur la persistance `export_pack` elle-meme, avec `idempotency_key` et `source_fingerprint` non nuls.
 - `source_fingerprint` represente l'intention logique figee et est derive au minimum de l'ensemble source gele, `basisImportVersion` et `basisTaxonomyVersion`.
 - `source_fingerprint` reste un artefact interne d'idempotence ; il n'est pas expose par le contrat API V1.
-- Une contrainte d'unicite future existe sur `(tenant_id, closing_folder_id, idempotency_key)`.
+- Une contrainte d'unicite existe sur `(tenant_id, closing_folder_id, idempotency_key)`.
 - Apres validation de `auth`, `X-Tenant-Id`, RBAC et resolution tenant-safe du closing folder, le serveur verifie d'abord s'il existe deja une generation logique reussie pour `(tenant_id, closing_folder_id, idempotency_key)`.
 - L'intention logique associee a cette cle est celle de la premiere generation acceptee pour ce triplet, incluant l'ensemble source fige et la paire `basisImportVersion` / `basisTaxonomyVersion` du pack.
 - Une premiere generation logique reussie cree exactement un export pack immutable distinct.
@@ -107,7 +107,7 @@ La V1 a donc besoin d'un pack d'export backend-only, REST-first, tenant-scoped e
   - `financial-statements-structured`
   - `workpapers` courants persistants uniquement
 - inclusion des binaires documentaires visibles depuis les current workpapers
-- persistance future des metadata d'export pack, tenant-scopees
+- persistance des metadata d'export pack, tenant-scopees
 - storage prive et download backend-only
 - audit `EXPORT_PACK.CREATED` sur generation reussie uniquement
 - tests unitaires, API, storage, PostgreSQL optionnels et verification Modulith
@@ -160,7 +160,7 @@ La V1 a donc besoin d'un pack d'export backend-only, REST-first, tenant-scoped e
 
 ## Invariants securite / tenancy / audit
 
-- Toute persistance future est tenant-scopee avec `tenant_id` obligatoire.
+- La persistance `export_pack` est tenant-scopee avec `tenant_id` obligatoire.
 - Aucun acces cross-tenant n'est autorise.
 - Aucun repository ne contourne le scoping tenant.
 - Le closing folder et l'export pack doivent toujours etre resolves dans le meme tenant.
@@ -186,30 +186,29 @@ La V1 a donc besoin d'un pack d'export backend-only, REST-first, tenant-scoped e
 ## Boundaries modulaires / acces inter-modules
 
 - `exports` reste un module proprietaire distinct.
-- L'implementation future reste compatible avec le monolithe modulaire et `ApplicationModules.verify()`.
+- L'implementation livree reste compatible avec le monolithe modulaire et `ApplicationModules.verify()`.
 - `exports` ne doit pas appeler d'endpoint HTTP interne.
 - `exports` ne doit pas acceder directement aux repositories d'autres modules.
 - Les lectures de gating doivent passer par `controls::access`, deja present.
 - Les lectures des read-models financiers doivent passer par des coutures explicites cote `financials`, pas par HTTP ni par repository cross-module.
-- La couture `financials::access` existante pour `WorkpaperAnchorAccess` ne suffit pas a elle seule pour exposer les read-models financiers du pack ; l'implementation future devra rester dans une couture explicite.
 - Une couture modulaire propre `workpapers::access` est requise pour exposer au module `exports` :
   - les current workpapers persistants uniquement
   - leurs `documents[]` visibles
   - leur `documentVerificationSummary`
   - un acces backend-safe au contenu binaire uniquement pour les `documentId` selectionnes dans l'ensemble source fige
   - jamais de `storage_object_key` expose hors du module proprietaire du storage
-- Cette spec constate ce besoin et le fige, sans l'implementer maintenant.
-- Les dependances modulaires futures attendues pour `exports` sont bornees a :
+- Cette spec constate ce besoin, le fige et s'aligne sur la couture livree dans le repo.
+- Les dependances modulaires de `exports` sont bornees a :
   - `shared::application`
   - `identity::access`
   - `closing::access`
   - `controls::access`
   - coutures explicites cote `financials`
-  - future couture explicite `workpapers::access`
+  - `workpapers::access`
 
-## API a introduire plus tard
+## API V1 livree
 
-Les contrats OpenAPI ne sont pas ecrits par cette mission. L'intention V1 a introduire plus tard est :
+Le contrat OpenAPI de reference livre par cette mission est `contracts/openapi/exports-api.yaml`. Les regles V1 documentees ci-dessous restent normatives :
 
 - `POST /api/closing-folders/{closingFolderId}/export-packs`
   - genere synchronement un nouveau pack immutable
@@ -250,11 +249,11 @@ Les contrats OpenAPI ne sont pas ecrits par cette mission. L'intention V1 a intr
   - contenu `application/zip`
   - aucun audit
 
-## DB a introduire plus tard
+## DB V1 livree
 
-Les contrats DB et la migration Flyway ne sont pas ecrits par cette mission. L'intention V1 a introduire plus tard est :
+Les artefacts DB de reference livres par cette mission sont `contracts/db/exports-v1.md` et `backend/src/main/resources/db/migration/V9__spec_013_exports_audit_ready_v1.sql`. Les regles V1 documentees ci-dessous restent normatives :
 
-- une migration dediee `V9__spec_013_exports_audit_ready_v1.sql`
+- la migration dediee `V9__spec_013_exports_audit_ready_v1.sql`
 - une seule nouvelle table metier immutable `export_pack`
 - aucun changement sur `V6`, `V7` ou `V8`
 
@@ -591,7 +590,7 @@ Regles de manifest supplementaires :
 - la spec fixe `400 Bad Request` si `Idempotency-Key` est absent ou vide
 - la spec fixe `meme tenant + meme closingFolderId + meme Idempotency-Key + meme intention logique = une seule generation logique`
 - la spec impose que cette idempotence soit persistee durablement en base, jamais en memoire seule
-- la spec fixe `idempotency_key` non nul et `source_fingerprint` non nul dans la future persistance `export_pack`
+- la spec fixe `idempotency_key` non nul et `source_fingerprint` non nul dans la persistance `export_pack`
 - la spec fixe `source_fingerprint` comme representation de l'intention logique figee, au minimum fondee sur l'ensemble source gele, `basisImportVersion` et `basisTaxonomyVersion`
 - la spec fixe `source_fingerprint` comme artefact interne d'idempotence et non comme champ expose du contrat API
 - la spec fixe une contrainte d'unicite sur `(tenant_id, closing_folder_id, idempotency_key)`
@@ -613,7 +612,7 @@ Regles de manifest supplementaires :
 - la spec impose l'exposition explicite du `verificationStatus` des documents dans le manifest
 - la spec fixe la source canonique et la coherence de `basisImportVersion` / `basisTaxonomyVersion` au niveau `export_pack`, `manifest.json` et current workpapers inclus
 - la spec impose une convention stable et backend-agnostic pour `archivePath`
-- la spec impose `tenant_id` partout cote persistance future et interdit tout cross-tenant
+- la spec impose `tenant_id` partout cote persistance `export_pack` et interdit tout cross-tenant
 - la spec impose qu'aucune generation n'ecrive sur `workpapers` ou `documents`
 - la spec ferme la semantique d'echec partiel storage / DB sans succes, sans audit et avec objet orphelin inatteignable via l'API
 - la spec fixe `same key + different logical intention = 409 Conflict` seulement si un `export_pack` reussi existe deja pour cette cle, ou si une requete concurrente persiste cette cle avant resolution
@@ -622,5 +621,5 @@ Regles de manifest supplementaires :
 - la spec impose que des requetes concurrentes equivalentes avec la meme cle et le meme `source_fingerprint` ne produisent jamais plus d'une ligne `export_pack` persistee, plus d'un objet storage ni plus d'un `EXPORT_PACK.CREATED`
 - la spec fixe que ces requetes concurrentes equivalentes se resolvent en `200 OK` avec le meme `exportPackId` une fois le succes du gagnant persiste
 - la spec fixe `exactly one successful logical generation = exactly one EXPORT_PACK.CREATED`
-- la spec prevoit une future migration `V9` dediee sans modifier `V6` a `V8`
-- la spec mentionne explicitement la future couture modulaire `workpapers::access` et son contrat comportemental minimal
+- la spec s'aligne sur la migration livree `V9__spec_013_exports_audit_ready_v1.sql` sans modifier `V6` a `V8`
+- la spec mentionne explicitement la couture modulaire `workpapers::access` et son contrat comportemental minimal
