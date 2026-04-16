@@ -14,6 +14,9 @@ Conventions actives :
 - voir `contracts/db/core-persistence-foundation.md`
 - voir `contracts/db/import-balance-v1.md`
 - voir `contracts/db/manual-mapping-v1.md`
+- voir `contracts/db/workpapers-v1.md`
+- voir `contracts/db/documents-v1.md`
+- voir `contracts/db/exports-v1.md`
 
 Rappel :
 - PostgreSQL est la source de vérité backend
