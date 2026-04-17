@@ -1,0 +1,41 @@
+@import "./tokens.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+    min-height: 100vh;
+    background-image:
+      radial-gradient(circle at top left, hsla(221, 83%, 53%, 0.08), transparent 28%),
+      linear-gradient(180deg, hsla(213, 42%, 96%, 0.96), hsl(var(--surface-default)));
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+
+  a {
+    @apply text-[hsl(var(--text-link))] underline-offset-4 transition-colors hover:underline;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply rounded-lg border bg-card text-card-foreground shadow-surface;
+  }
+
+  .label-eyebrow {
+    @apply text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground;
+  }
+}

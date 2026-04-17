@@ -260,6 +260,8 @@ Contient :
 - Tabs
 - Drawer / Side Panel
 
+Derogation 004 AppShell : dans `004`, AppShell conserve `header`, `sidebar`, `breadcrumb`, `sticky action zone` et contexte tenant visible en lecture seule ; aucun tenant switch interactif n'est autorise.
+
 ### Actions et feedback
 - Button / Icon Button
 - Toast + Undo
@@ -308,6 +310,11 @@ Aucun composant ne passe en production sans :
 - token mapping explicite
 - story + test + référence token avant merge
 
+Exception explicite `004` :
+- Storybook est `OUT` pour `specs/active/004-frontend-foundation-design-system.md`
+- la preuve remplacante obligatoire est : route `/` de demonstration interne + tests `Vitest + React Testing Library + axe-core` + mapping token explicite
+- aucun package `@storybook/*` ni dossier `.storybook/` n'est autorise dans `004`
+
 ### Règle de gouvernance
 
 Toute nouvelle décision structurante frontend crée ou modifie un ADR dans `docs/adr/`.
@@ -317,7 +324,7 @@ Toute nouvelle décision structurante frontend crée ou modifie un ADR dans `doc
 ### Documentation
 - `docs/ui/ui-foundations-v1.md` -> source de vérité UI
 - `docs/adr/0005-front-ui-stack-and-design-system.md` -> décision structurante
-- `specs/backlog/004-frontend-foundation-design-system.md` -> implémentation ultérieure
+- `specs/active/004-frontend-foundation-design-system.md` -> verite normative de `004`
 
 ### Frontend
 - `frontend/src/styles/tokens.css`
@@ -337,4 +344,4 @@ Ce document :
 
 - **À intégrer immédiatement dans le repo comme source de vérité documentaire**
 - **À utiliser dès maintenant comme contrainte de langage produit**
-- **À implémenter techniquement dans une spec frontend dédiée, après la spec 002**
+- **A implementer techniquement via `specs/active/004-frontend-foundation-design-system.md` comme tranche d'enablement frontend differee**
