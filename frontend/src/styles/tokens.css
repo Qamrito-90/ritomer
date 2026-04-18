@@ -1,0 +1,44 @@
+:root {
+  --surface-canvas: 213 42% 96%;
+  --surface-default: 210 40% 99%;
+  --surface-sunken: 214 36% 94%;
+  --surface-elevated: 0 0% 100%;
+  --surface-overlay: 216 33% 14%;
+
+  --text-default: 218 33% 15%;
+  --text-muted: 217 16% 39%;
+  --text-soft: 216 14% 55%;
+  --text-inverse: 210 40% 98%;
+  --text-link: 221 83% 53%;
+
+  --border-default: 214 25% 84%;
+  --border-strong: 216 23% 69%;
+  --border-focus: 221 83% 53%;
+  --border-critical: 0 72% 51%;
+
+  --state-selected: 214 87% 95%;
+  --state-disabled: 214 18% 88%;
+  --state-loading: 214 16% 64%;
+
+  --primary-default: 221 83% 53%;
+  --primary-foreground: 210 40% 98%;
+  --success-default: 160 84% 27%;
+  --success-foreground: 152 81% 96%;
+  --warning-default: 36 100% 44%;
+  --warning-foreground: 48 100% 98%;
+  --error-default: 0 72% 51%;
+  --error-foreground: 0 86% 97%;
+  --info-default: 201 96% 32%;
+  --info-foreground: 204 100% 97%;
+
+  --workflow-draft: 220 70% 52%;
+  --workflow-review: 36 100% 44%;
+  --workflow-validated: 160 84% 27%;
+  --workflow-finalized: 262 71% 47%;
+  --workflow-exported: 198 93% 33%;
+
+  --radius-lg: 1rem;
+  --radius-md: 0.75rem;
+  --radius-sm: 0.5rem;
+  --shadow-surface: 0 18px 40px -24px hsla(220, 35%, 18%, 0.32);
+}
