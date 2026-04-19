@@ -1,7 +1,7 @@
 # 016 - Frontend import balance v1
 
 ## Status
-Active
+Done
 
 ## Role de cette spec
 
@@ -690,7 +690,7 @@ Rendu exact :
 
 ## Criteres d'acceptation frontend
 
-- `specs/active/016-frontend-import-balance-v1.md` existe
+- `specs/done/016-frontend-import-balance-v1.md` existe
 - `/closing-folders/:closingFolderId` reste l'unique route produit enrichie par `016`
 - aucun autre endpoint que les quatre endpoints autorises n'est consomme
 - le bloc `Import balance` est visible sur `/closing-folders/:closingFolderId` seulement quand le dossier est dans l'etat nominal de `004`
