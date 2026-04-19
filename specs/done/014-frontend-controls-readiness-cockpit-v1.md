@@ -1,7 +1,7 @@
 # 014 - Frontend controls readiness cockpit v1
 
 ## Status
-Active
+Done
 
 ## Role de cette spec
 

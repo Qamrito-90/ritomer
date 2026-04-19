@@ -46,9 +46,9 @@ export function AppShell({
             <div className="grid gap-2">
               <p className="label-eyebrow">Ritomer</p>
               <div>
-                <h1 className="text-xl font-semibold text-foreground">Frontend foundation 004</h1>
+                <h1 className="text-xl font-semibold text-foreground">Closing workbench</h1>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Shell lecture seule et design system minimal.
+                  Shell lecture seule du frontend V1.
                 </p>
               </div>
             </div>

@@ -1,19 +1,13 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import { Controller, useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import type { ColumnDef } from "@tanstack/react-table";
-import { z } from "zod";
 import { Link, createBrowserRouter, createMemoryRouter, useParams } from "react-router-dom";
 import { AppShell } from "../components/workbench/app-shell";
 import { Button } from "../components/ui/button";
-import { DataTable } from "../components/ui/data-table";
-import { Input } from "../components/ui/input";
-import { Select } from "../components/ui/select";
-import { ToastUndo } from "../components/ui/toast-undo";
 import { WorkflowBadge } from "../components/ui/workflow-badge";
 import {
   loadClosingFolderShellState,
+  loadClosingFoldersListState,
+  type ClosingFolderListItem,
   type ClosingFolderSummary
 } from "../lib/api/closing-folders";
 import {
@@ -26,12 +20,24 @@ import { loadMeShellState, type ActiveTenant } from "../lib/api/me";
 import { formatLocalDate } from "../lib/format/date";
 import { formatOptionalText } from "../lib/format/text";
 
-const demoFormSchema = z.object({
-  closingFolderId: z.string().min(1, "identifiant requis"),
-  density: z.enum(["comfortable", "default", "compact"])
-});
+type EntrypointListState =
+  | { kind: "list_loading"; activeTenant: ActiveTenant }
+  | { kind: "list_auth_required"; activeTenant: ActiveTenant }
+  | { kind: "list_forbidden"; activeTenant: ActiveTenant }
+  | { kind: "list_unavailable"; activeTenant: ActiveTenant }
+  | { kind: "list_empty"; activeTenant: ActiveTenant }
+  | {
+      kind: "list_ready";
+      activeTenant: ActiveTenant;
+      closingFolders: ClosingFolderListItem[];
+    };
 
-type DemoFormValues = z.infer<typeof demoFormSchema>;
+type EntrypointRouteState =
+  | { kind: "loading" }
+  | { kind: "auth_required" }
+  | { kind: "tenant_context_required" }
+  | { kind: "profile_unavailable" }
+  | EntrypointListState;
 
 type ClosingRouteState =
   | { kind: "loading" }
@@ -50,33 +56,13 @@ type ClosingRouteState =
       controlsState: ControlsShellState;
     };
 
-interface DemoRow {
-  item: string;
-  owner: string;
-  status: string;
-}
-
-const demoRows: DemoRow[] = [
-  { item: "Checklist dossier", owner: "Maker", status: "DRAFT" },
-  { item: "Revue evidence", owner: "Checker", status: "REVIEW" },
-  { item: "Pack export", owner: "Manager", status: "FINALIZED" }
-];
-
-const demoColumns: Array<ColumnDef<DemoRow>> = [
-  {
-    accessorKey: "item",
-    header: "Element"
-  },
-  {
-    accessorKey: "owner",
-    header: "Responsable"
-  },
-  {
-    accessorKey: "status",
-    header: "Statut",
-    cell: ({ row }) => <WorkflowBadge status={row.original.status} />
-  }
-];
+const localDateTimeFormatter = new Intl.DateTimeFormat("fr-CH", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit"
+});
 
 const controlLabelByCode = {
   LATEST_VALID_BALANCE_IMPORT_PRESENT: "dernier import valide",
@@ -94,142 +80,131 @@ const nextActionLabelByCode = {
   COMPLETE_MANUAL_MAPPING: "completer le mapping manuel"
 } as const;
 
-function DemoRoute() {
-  const [toastOpen, setToastOpen] = useState(false);
-  const form = useForm<DemoFormValues>({
-    resolver: zodResolver(demoFormSchema),
-    defaultValues: {
-      closingFolderId: "11111111-1111-1111-1111-111111111111",
-      density: "default"
+function ClosingFoldersEntrypointRoute() {
+  const [state, setState] = useState<EntrypointRouteState>({ kind: "loading" });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadEntrypointState() {
+      setState({ kind: "loading" });
+
+      const meState = await loadMeShellState();
+
+      if (cancelled) {
+        return;
+      }
+
+      if (meState.kind === "auth_required") {
+        setState({ kind: "auth_required" });
+        return;
+      }
+
+      if (meState.kind === "tenant_context_required") {
+        setState({ kind: "tenant_context_required" });
+        return;
+      }
+
+      if (meState.kind === "profile_unavailable") {
+        setState({ kind: "profile_unavailable" });
+        return;
+      }
+
+      setState({
+        kind: "list_loading",
+        activeTenant: meState.activeTenant
+      });
+
+      const listState = await loadClosingFoldersListState(meState.activeTenant);
+
+      if (cancelled) {
+        return;
+      }
+
+      switch (listState.kind) {
+        case "auth_required":
+          setState({ kind: "list_auth_required", activeTenant: meState.activeTenant });
+          return;
+        case "forbidden":
+          setState({ kind: "list_forbidden", activeTenant: meState.activeTenant });
+          return;
+        case "unavailable":
+          setState({ kind: "list_unavailable", activeTenant: meState.activeTenant });
+          return;
+        case "ready": {
+          const visibleClosingFolders = listState.closingFolders.filter(
+            (closingFolder) => closingFolder.tenantId === meState.activeTenant.tenantId
+          );
+
+          if (visibleClosingFolders.length === 0) {
+            setState({ kind: "list_empty", activeTenant: meState.activeTenant });
+            return;
+          }
+
+          setState({
+            kind: "list_ready",
+            activeTenant: meState.activeTenant,
+            closingFolders: visibleClosingFolders
+          });
+          return;
+        }
+      }
     }
-  });
-  const closingFolderId = form.watch("closingFolderId");
-  const density = form.watch("density");
+
+    void loadEntrypointState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const tenant = hasActiveTenant(state)
+    ? {
+        tenantName: state.activeTenant.tenantName,
+        tenantSlug: state.activeTenant.tenantSlug
+      }
+    : undefined;
 
   return (
     <AppShell
       actionZone={
         <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
           <div>
-            <p className="font-medium text-foreground">Surface de demonstration interne</p>
-            <p className="text-muted-foreground">Aucun appel API n est autorise sur cette route.</p>
+            <p className="font-medium text-foreground">Zone d action</p>
+            <p className="text-muted-foreground">lecture seule</p>
           </div>
-          <Button asChild size="sm">
-            <Link to={`/closing-folders/${closingFolderId}`}>Ouvrir le shell dossier</Link>
-          </Button>
+          <p className="text-muted-foreground">Aucune mutation dossier en V1.</p>
         </div>
       }
-      breadcrumb={[{ label: "Demonstration" }]}
-      description="Preuve locale des composants exacts 004, des tokens et des etats sans frontend metier riche."
-      eyebrow="Route interne"
-      sidebarItems={[
-        { href: "/", label: "Demonstration" },
-        { href: `/closing-folders/${closingFolderId}`, label: "Shell dossier" }
-      ]}
-      title="Design system minimal"
+      breadcrumb={[{ label: "Dossiers de closing" }]}
+      description="Entree produit read-only borne a GET /api/me puis GET /api/closing-folders."
+      eyebrow="Entree produit V1"
+      sidebarItems={[{ href: "/", label: "Dossiers" }]}
+      tenant={tenant}
+      title="Entree dossiers de closing"
     >
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+      {hasActiveTenant(state) ? (
         <section className="panel p-6">
           <div className="grid gap-6">
             <div className="grid gap-2">
-              <p className="label-eyebrow">Formulaire local</p>
-              <h3 className="text-xl font-semibold">Input, Select et Button</h3>
-              <p className="text-sm text-muted-foreground">
-                Le formulaire reste purement local et pilote seulement la navigation SPA.
-              </p>
+              <p className="label-eyebrow">Dossiers de closing</p>
+              <h3 className="text-xl font-semibold text-foreground">Liste read-only</h3>
             </div>
-            <form
-              className="grid gap-4"
-              onSubmit={form.handleSubmit(() => {
-                setToastOpen(true);
-              })}
-            >
-              <div className="grid gap-2">
-                <label className="text-sm font-medium text-foreground" htmlFor="closing-folder-id">
-                  Closing folder id
-                </label>
-                <Input
-                  id="closing-folder-id"
-                  {...form.register("closingFolderId")}
-                  aria-invalid={form.formState.errors.closingFolderId ? "true" : "false"}
-                  placeholder="uuid du dossier"
-                />
-                {form.formState.errors.closingFolderId ? (
-                  <p className="text-sm text-[hsl(var(--error-default))]">
-                    {form.formState.errors.closingFolderId.message}
-                  </p>
-                ) : null}
-              </div>
-              <Controller
-                control={form.control}
-                name="density"
-                render={({ field }) => (
-                  <Select
-                    description="Lecture locale de la densite d affichage du workbench."
-                    label="Densite"
-                    name="density"
-                    onValueChange={field.onChange}
-                    options={[
-                      { label: "Comfortable", value: "comfortable" },
-                      { label: "Default", value: "default" },
-                      { label: "Compact", value: "compact" }
-                    ]}
-                    value={field.value}
-                  />
-                )}
-              />
-              <div className="flex flex-wrap gap-3">
-                <Button type="submit">Afficher ToastUndo</Button>
-                <Button type="button" variant="secondary">
-                  lecture seule
-                </Button>
-              </div>
-            </form>
+            <ClosingFoldersSlot state={state} />
           </div>
         </section>
-
+      ) : (
         <section className="panel p-6">
-          <div className="grid gap-4">
-            <div>
-              <p className="label-eyebrow">WorkflowBadge</p>
-              <h3 className="text-xl font-semibold">Statuts codables</h3>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {["DRAFT", "REVIEW", "VALIDATED", "FINALIZED", "EXPORTED"].map((status) => (
-                <WorkflowBadge key={status} status={status} />
-              ))}
-            </div>
-            <dl className="grid gap-2 rounded-lg border bg-muted/40 p-4 text-sm">
-              <div className="flex items-center justify-between gap-4">
-                <dt className="text-muted-foreground">Densite</dt>
-                <dd className="font-medium text-foreground">{density}</dd>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <dt className="text-muted-foreground">Route shell cible</dt>
-                <dd className="font-medium text-foreground">{closingFolderId}</dd>
-              </div>
-            </dl>
-          </div>
+          {state.kind === "loading" ? <StateMessage text="chargement dossiers" /> : null}
+          {state.kind === "auth_required" ? <StateMessage text="authentification requise" /> : null}
+          {state.kind === "tenant_context_required" ? (
+            <StateMessage text="contexte tenant requis" />
+          ) : null}
+          {state.kind === "profile_unavailable" ? (
+            <StateMessage text="profil indisponible" />
+          ) : null}
         </section>
-
-        <section className="xl:col-span-2">
-          <DataTable
-            caption="Table de demonstration interne"
-            columns={demoColumns}
-            data={demoRows}
-            emptyMessage="Aucune ligne de demonstration."
-          />
-        </section>
-      </div>
-
-      <ToastUndo
-        actionLabel="Annuler"
-        description="Aucune mutation backend n a eu lieu sur la route de demonstration."
-        onOpenChange={setToastOpen}
-        onUndo={() => setToastOpen(false)}
-        open={toastOpen}
-        title="ToastUndo actif"
-      />
+      )}
     </AppShell>
   );
 }
@@ -340,22 +315,22 @@ function ClosingFolderRoute() {
             <p className="text-muted-foreground">lecture seule</p>
           </div>
           <Button asChild size="sm" variant="outline">
-            <Link to="/">Retour demonstration</Link>
+            <Link to="/">Retour dossiers</Link>
           </Button>
         </div>
       }
       breadcrumb={[
-        { label: "Closing folders", href: "/" },
+        { label: "Dossiers de closing", href: "/" },
         { label: "Dossier" }
       ]}
       description="Shell produit read-only borne a GET /api/me, GET /api/closing-folders/{id} puis GET /api/closing-folders/{closingFolderId}/controls."
       eyebrow="Route shell produit"
       sidebarItems={[
-        { href: "/", label: "Demonstration" },
+        { href: "/", label: "Dossiers" },
         { href: `/closing-folders/${closingFolderId}`, label: "Dossier" }
       ]}
       tenant={tenant}
-      title="Closing folder shell"
+      title="Dossier de closing"
     >
       {state.kind === "closing_ready" ? (
         <div className="grid gap-6">
@@ -394,18 +369,14 @@ function ClosingFolderRoute() {
         </div>
       ) : (
         <section className="panel p-6">
-          {state.kind === "loading" ? (
-            <div aria-live="polite" className="grid gap-2">
-              <p className="label-eyebrow">Chargement</p>
-              <p className="text-lg font-semibold text-foreground">chargement dossier</p>
-            </div>
-          ) : null}
-
+          {state.kind === "loading" ? <StateMessage text="chargement dossier" /> : null}
           {state.kind === "auth_required" ? <StateMessage text="authentification requise" /> : null}
           {state.kind === "tenant_context_required" ? (
             <StateMessage text="contexte tenant requis" />
           ) : null}
-          {state.kind === "profile_unavailable" ? <StateMessage text="profil indisponible" /> : null}
+          {state.kind === "profile_unavailable" ? (
+            <StateMessage text="profil indisponible" />
+          ) : null}
           {state.kind === "closing_auth_required" ? (
             <StateMessage text="authentification requise" />
           ) : null}
@@ -422,6 +393,73 @@ function ClosingFolderRoute() {
         </section>
       )}
     </AppShell>
+  );
+}
+
+function ClosingFoldersSlot({ state }: { state: EntrypointListState }) {
+  if (state.kind === "list_loading") {
+    return <StateMessage text="chargement dossiers" />;
+  }
+
+  if (state.kind === "list_auth_required") {
+    return <StateMessage text="authentification requise" />;
+  }
+
+  if (state.kind === "list_forbidden") {
+    return <StateMessage text="acces dossiers refuse" />;
+  }
+
+  if (state.kind === "list_unavailable") {
+    return <StateMessage text="dossiers indisponibles" />;
+  }
+
+  if (state.kind === "list_empty") {
+    return <StateMessage text="aucun dossier de closing" />;
+  }
+
+  return (
+    <ul className="grid gap-4" aria-label="liste dossiers">
+      {state.closingFolders.map((closingFolder) => (
+        <li key={closingFolder.id}>
+          <ClosingFolderListCard closingFolder={closingFolder} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function ClosingFolderListCard({ closingFolder }: { closingFolder: ClosingFolderListItem }) {
+  return (
+    <article className="rounded-xl border bg-background/80 p-5">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+        <div className="grid gap-4">
+          <div className="grid gap-2">
+            <p className="text-lg font-semibold text-foreground">{closingFolder.name}</p>
+          </div>
+          <dl className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <DetailItem label="Statut">
+              <WorkflowBadge status={closingFolder.status} />
+            </DetailItem>
+            <DetailItem label="Periode">
+              <span>{formatClosingPeriod(closingFolder.periodStartOn, closingFolder.periodEndOn)}</span>
+            </DetailItem>
+            <DetailItem label="Reference externe">
+              <span>{formatClosingFolderExternalRef(closingFolder.externalRef)}</span>
+            </DetailItem>
+            {closingFolder.archivedAt !== null ? (
+              <DetailItem label="Archive">
+                <span>{formatArchivedAt(closingFolder.archivedAt)}</span>
+              </DetailItem>
+            ) : null}
+          </dl>
+        </div>
+        <div className="flex items-start lg:justify-end">
+          <Button asChild size="sm" variant="outline">
+            <Link to={`/closing-folders/${closingFolder.id}`}>Ouvrir</Link>
+          </Button>
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -491,9 +529,7 @@ function ControlsNominalBlocks({ controls }: { controls: ClosingControlsSummary 
             <li className="rounded-lg border bg-muted/20 p-4" key={control.code}>
               <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div className="grid gap-1">
-                  <p className="text-sm font-semibold text-foreground">
-                    {controlLabelByCode[control.code]}
-                  </p>
+                  <p className="text-sm font-semibold text-foreground">{controlLabelByCode[control.code]}</p>
                   <p className="text-sm text-muted-foreground">{control.message}</p>
                 </div>
                 <ControlStatusBadge status={control.status} />
@@ -513,11 +549,7 @@ function ControlsNominalBlocks({ controls }: { controls: ClosingControlsSummary 
             </p>
             <dl className="grid gap-3 md:grid-cols-2">
               <MetricItem label="action possible" value={controls.nextAction.actionable ? "oui" : "non"} />
-              <MetricItem
-                label="cible technique"
-                mono
-                value={controls.nextAction.path}
-              />
+              <MetricItem label="cible technique" mono value={controls.nextAction.path} />
             </dl>
           </div>
         )}
@@ -630,10 +662,32 @@ function DetailItem({ label, children }: { label: string; children: ReactNode })
   );
 }
 
+function formatClosingPeriod(periodStartOn: string, periodEndOn: string) {
+  return `${formatLocalDate(periodStartOn)} au ${formatLocalDate(periodEndOn)}`;
+}
+
+function formatClosingFolderExternalRef(externalRef: string | null) {
+  return externalRef ?? "aucune";
+}
+
+function formatArchivedAt(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return localDateTimeFormatter.format(date);
+}
+
+function hasActiveTenant(state: EntrypointRouteState): state is EntrypointListState {
+  return "activeTenant" in state;
+}
+
 const routeDefinitions = [
   {
     path: "/",
-    element: <DemoRoute />
+    element: <ClosingFoldersEntrypointRoute />
   },
   {
     path: "/closing-folders/:closingFolderId",
