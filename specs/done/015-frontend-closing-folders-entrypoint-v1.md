@@ -1,7 +1,7 @@
 # 015 - Frontend closing folders entrypoint v1
 
 ## Status
-Active
+Done
 
 ## Role de cette spec
 
@@ -390,7 +390,7 @@ Rendu exact :
 
 ## Criteres d'acceptation
 
-- `specs/active/015-frontend-closing-folders-entrypoint-v1.md` existe
+- `specs/done/015-frontend-closing-folders-entrypoint-v1.md` existe
 - `specs/active/014-frontend-controls-readiness-cockpit-v1.md` n'existe plus
 - `specs/done/014-frontend-controls-readiness-cockpit-v1.md` existe avec statut `Done`
 - `/` charge uniquement `GET /api/me` puis eventuellement `GET /api/closing-folders`

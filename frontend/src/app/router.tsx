@@ -1,8 +1,9 @@
-import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import type { ChangeEvent, ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, createBrowserRouter, createMemoryRouter, useParams } from "react-router-dom";
 import { AppShell } from "../components/workbench/app-shell";
 import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
 import { WorkflowBadge } from "../components/ui/workflow-badge";
 import {
   loadClosingFolderShellState,
@@ -16,6 +17,10 @@ import {
   type ControlsShellState,
   type ControlStatus
 } from "../lib/api/controls";
+import {
+  uploadBalanceImport,
+  type BalanceImportValidationError
+} from "../lib/api/import-balance";
 import { loadMeShellState, type ActiveTenant } from "../lib/api/me";
 import { formatLocalDate } from "../lib/format/date";
 import { formatOptionalText } from "../lib/format/text";
@@ -39,6 +44,27 @@ type EntrypointRouteState =
   | { kind: "profile_unavailable" }
   | EntrypointListState;
 
+type ImportBalanceState =
+  | { kind: "idle" }
+  | { kind: "uploading"; requestId: number }
+  | {
+      kind: "success";
+      requestId: number;
+      version: number;
+      rowCount: number;
+      refreshStatus: "complete" | "closing_failed" | "controls_failed";
+    }
+  | { kind: "bad_request"; message: string; errors: BalanceImportValidationError[] }
+  | { kind: "auth_required" }
+  | { kind: "forbidden" }
+  | { kind: "not_found" }
+  | { kind: "conflict_archived" }
+  | { kind: "server_error" }
+  | { kind: "network_error" }
+  | { kind: "timeout" }
+  | { kind: "invalid_payload" }
+  | { kind: "unexpected" };
+
 type ClosingRouteState =
   | { kind: "loading" }
   | { kind: "auth_required" }
@@ -54,6 +80,8 @@ type ClosingRouteState =
       activeTenant: ActiveTenant;
       closingFolder: ClosingFolderSummary;
       controlsState: ControlsShellState;
+      importState: ImportBalanceState;
+      selectedImportFile: File | null;
     };
 
 const localDateTimeFormatter = new Intl.DateTimeFormat("fr-CH", {
@@ -212,6 +240,8 @@ function ClosingFoldersEntrypointRoute() {
 function ClosingFolderRoute() {
   const { closingFolderId = "" } = useParams();
   const [state, setState] = useState<ClosingRouteState>({ kind: "loading" });
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const importRequestIdRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -267,7 +297,9 @@ function ClosingFolderRoute() {
             kind: "closing_ready",
             activeTenant: meState.activeTenant,
             closingFolder: closingFolderState.closingFolder,
-            controlsState: { kind: "loading" }
+            controlsState: { kind: "loading" },
+            importState: { kind: "idle" },
+            selectedImportFile: null
           });
 
           const controlsState = await loadControlsShellState(
@@ -280,11 +312,15 @@ function ClosingFolderRoute() {
             return;
           }
 
-          setState({
-            kind: "closing_ready",
-            activeTenant: meState.activeTenant,
-            closingFolder: closingFolderState.closingFolder,
-            controlsState
+          setState((currentState) => {
+            if (currentState.kind !== "closing_ready") {
+              return currentState;
+            }
+
+            return {
+              ...currentState,
+              controlsState
+            };
           });
           return;
         }
@@ -297,6 +333,182 @@ function ClosingFolderRoute() {
       cancelled = true;
     };
   }, [closingFolderId]);
+
+  async function handleImportBalance() {
+    if (state.kind !== "closing_ready") {
+      return;
+    }
+
+    const { activeTenant, closingFolder, selectedImportFile } = state;
+    const importBlocked =
+      closingFolder.status === "ARCHIVED" || state.importState.kind === "conflict_archived";
+
+    if (
+      selectedImportFile === null ||
+      !hasCsvFileExtension(selectedImportFile.name) ||
+      importBlocked
+    ) {
+      return;
+    }
+
+    const requestId = importRequestIdRef.current + 1;
+    importRequestIdRef.current = requestId;
+
+    setState((currentState) => {
+      if (currentState.kind !== "closing_ready") {
+        return currentState;
+      }
+
+      return {
+        ...currentState,
+        importState: { kind: "uploading", requestId }
+      };
+    });
+
+    const importState = await uploadBalanceImport(closingFolderId, activeTenant, selectedImportFile);
+
+    if (importState.kind === "created") {
+      if (!isBalanceImportCoherent(importState.balanceImport, closingFolderId, closingFolder)) {
+        setState((currentState) => {
+          if (currentState.kind !== "closing_ready") {
+            return currentState;
+          }
+
+          return {
+            ...currentState,
+            importState: { kind: "invalid_payload" }
+          };
+        });
+        return;
+      }
+
+      const successState = {
+        kind: "success" as const,
+        requestId,
+        version: importState.balanceImport.version,
+        rowCount: importState.balanceImport.rowCount,
+        refreshStatus: "complete" as const
+      };
+
+      if (fileInputRef.current !== null) {
+        fileInputRef.current.value = "";
+      }
+
+      setState((currentState) => {
+        if (currentState.kind !== "closing_ready") {
+          return currentState;
+        }
+
+        return {
+          ...currentState,
+          importState: successState,
+          selectedImportFile: null
+        };
+      });
+
+      const refreshedClosingFolderState = await loadClosingFolderShellState(closingFolderId, activeTenant);
+
+      if (refreshedClosingFolderState.kind !== "ready") {
+        setState((currentState) => {
+          if (currentState.kind !== "closing_ready") {
+            return currentState;
+          }
+
+          return {
+            ...currentState,
+            importState: updateImportSuccessRefreshStatus(
+              currentState.importState,
+              requestId,
+              "closing_failed"
+            )
+          };
+        });
+        return;
+      }
+
+      setState((currentState) => {
+        if (currentState.kind !== "closing_ready") {
+          return currentState;
+        }
+
+        return {
+          ...currentState,
+          closingFolder: refreshedClosingFolderState.closingFolder
+        };
+      });
+
+      const refreshedControlsState = await loadControlsShellState(
+        closingFolderId,
+        refreshedClosingFolderState.closingFolder,
+        activeTenant
+      );
+
+      if (refreshedControlsState.kind !== "ready") {
+        setState((currentState) => {
+          if (currentState.kind !== "closing_ready") {
+            return currentState;
+          }
+
+          return {
+            ...currentState,
+            importState: updateImportSuccessRefreshStatus(
+              currentState.importState,
+              requestId,
+              "controls_failed"
+            )
+          };
+        });
+        return;
+      }
+
+      setState((currentState) => {
+        if (currentState.kind !== "closing_ready") {
+          return currentState;
+        }
+
+        return {
+          ...currentState,
+          controlsState: refreshedControlsState,
+          importState: updateImportSuccessRefreshStatus(
+            currentState.importState,
+            requestId,
+            "complete"
+          )
+        };
+      });
+      return;
+    }
+
+    setState((currentState) => {
+      if (currentState.kind !== "closing_ready") {
+        return currentState;
+      }
+
+      return {
+        ...currentState,
+        importState: mapUploadResultToImportState(importState)
+      };
+    });
+  }
+
+  function handleImportFileSelection(event: ChangeEvent<HTMLInputElement>) {
+    const nextSelectedFile = getSingleSelectedFile(event.currentTarget.files);
+
+    setState((currentState) => {
+      if (currentState.kind !== "closing_ready") {
+        return currentState;
+      }
+
+      return {
+        ...currentState,
+        selectedImportFile: nextSelectedFile,
+        importState:
+          currentState.importState.kind === "conflict_archived"
+            ? currentState.importState
+            : { kind: "idle" }
+      };
+    });
+  }
 
   const tenant =
     "activeTenant" in state
@@ -312,7 +524,7 @@ function ClosingFolderRoute() {
         <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
           <div>
             <p className="font-medium text-foreground">Zone d action</p>
-            <p className="text-muted-foreground">lecture seule</p>
+            <p className="text-muted-foreground">import CSV borne</p>
           </div>
           <Button asChild size="sm" variant="outline">
             <Link to="/">Retour dossiers</Link>
@@ -323,7 +535,7 @@ function ClosingFolderRoute() {
         { label: "Dossiers de closing", href: "/" },
         { label: "Dossier" }
       ]}
-      description="Shell produit read-only borne a GET /api/me, GET /api/closing-folders/{id} puis GET /api/closing-folders/{closingFolderId}/controls."
+      description="Shell produit borne a GET /api/me, GET /api/closing-folders/{id}, GET /api/closing-folders/{closingFolderId}/controls puis POST /api/closing-folders/{closingFolderId}/imports/balance."
       eyebrow="Route shell produit"
       sidebarItems={[
         { href: "/", label: "Dossiers" },
@@ -354,6 +566,51 @@ function ClosingFolderRoute() {
                   <span>{formatLocalDate(state.closingFolder.periodEndOn)}</span>
                 </DetailItem>
               </dl>
+            </div>
+          </section>
+
+          <section className="panel p-6">
+            <div className="grid gap-6">
+              <div className="grid gap-2">
+                <p className="label-eyebrow">Import balance</p>
+                <h3 className="text-xl font-semibold text-foreground">Upload CSV</h3>
+              </div>
+              <div className="grid gap-4">
+                <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+                  <div className="grid gap-2">
+                    <label className="text-sm font-medium text-foreground" htmlFor="balance-import-file">
+                      Fichier CSV
+                    </label>
+                    <Input
+                      accept=".csv,text/csv"
+                      disabled={
+                        state.closingFolder.status === "ARCHIVED" ||
+                        state.importState.kind === "uploading" ||
+                        state.importState.kind === "conflict_archived"
+                      }
+                      id="balance-import-file"
+                      onChange={handleImportFileSelection}
+                      ref={fileInputRef}
+                      type="file"
+                    />
+                  </div>
+                  <Button
+                    disabled={!canImportBalance(state)}
+                    onClick={() => {
+                      void handleImportBalance();
+                    }}
+                    type="button"
+                  >
+                    Importer la balance
+                  </Button>
+                </div>
+                <p className="text-sm text-muted-foreground">CSV uniquement</p>
+                <ImportBalanceStatus
+                  closingFolder={state.closingFolder}
+                  importState={state.importState}
+                  selectedImportFile={state.selectedImportFile}
+                />
+              </div>
             </div>
           </section>
 
@@ -501,6 +758,105 @@ function ControlsSlot({ state }: { state: ControlsShellState }) {
   }
 
   return <ControlsNominalBlocks controls={state.controls} />;
+}
+
+function ImportBalanceStatus({
+  closingFolder,
+  importState,
+  selectedImportFile
+}: {
+  closingFolder: ClosingFolderSummary;
+  importState: ImportBalanceState;
+  selectedImportFile: File | null;
+}) {
+  const archived =
+    closingFolder.status === "ARCHIVED" || importState.kind === "conflict_archived";
+
+  if (archived) {
+    return <StateMessage text="dossier archive, import impossible" />;
+  }
+
+  if (importState.kind === "uploading") {
+    return <StateMessage text="import balance en cours" />;
+  }
+
+  if (importState.kind === "success") {
+    return (
+      <div aria-live="polite" className="grid gap-2">
+        <p className="label-eyebrow">Etat visible</p>
+        <p className="text-lg font-semibold text-foreground">balance importee avec succes</p>
+        <p className="text-sm font-medium text-foreground">version import : {importState.version}</p>
+        <p className="text-sm font-medium text-foreground">lignes importees : {importState.rowCount}</p>
+        {importState.refreshStatus === "closing_failed" ? (
+          <p className="text-sm font-medium text-foreground">rafraichissement dossier impossible</p>
+        ) : null}
+        {importState.refreshStatus === "controls_failed" ? (
+          <p className="text-sm font-medium text-foreground">rafraichissement controls impossible</p>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (importState.kind === "bad_request") {
+    return (
+      <div aria-live="polite" className="grid gap-2">
+        <p className="label-eyebrow">Etat visible</p>
+        <p className="text-lg font-semibold text-foreground">import invalide</p>
+        <p className="text-sm font-medium text-foreground">{importState.message}</p>
+        {importState.errors.length > 0 ? (
+          <ul className="grid gap-1">
+            {importState.errors.map((error, index) => (
+              <li className="text-sm text-foreground" key={`${index}-${error.message}`}>
+                {formatImportValidationError(error)}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (importState.kind === "auth_required") {
+    return <StateMessage text="authentification requise" />;
+  }
+
+  if (importState.kind === "forbidden") {
+    return <StateMessage text="acces import refuse" />;
+  }
+
+  if (importState.kind === "not_found") {
+    return <StateMessage text="dossier introuvable" />;
+  }
+
+  if (importState.kind === "server_error") {
+    return <StateMessage text="erreur serveur import" />;
+  }
+
+  if (importState.kind === "network_error") {
+    return <StateMessage text="erreur reseau import" />;
+  }
+
+  if (importState.kind === "timeout") {
+    return <StateMessage text="timeout import" />;
+  }
+
+  if (importState.kind === "invalid_payload") {
+    return <StateMessage text="payload import invalide" />;
+  }
+
+  if (importState.kind === "unexpected") {
+    return <StateMessage text="import indisponible" />;
+  }
+
+  if (selectedImportFile === null) {
+    return <StateMessage text="aucun fichier selectionne" />;
+  }
+
+  if (!hasCsvFileExtension(selectedImportFile.name)) {
+    return <StateMessage text="fichier CSV requis" />;
+  }
+
+  return <StateMessage text={`fichier pret : ${selectedImportFile.name}`} />;
 }
 
 function ControlsNominalBlocks({ controls }: { controls: ClosingControlsSummary }) {
@@ -682,6 +1038,121 @@ function formatArchivedAt(value: string) {
 
 function hasActiveTenant(state: EntrypointRouteState): state is EntrypointListState {
   return "activeTenant" in state;
+}
+
+function canImportBalance(state: Extract<ClosingRouteState, { kind: "closing_ready" }>) {
+  const importBlocked =
+    state.closingFolder.status === "ARCHIVED" || state.importState.kind === "conflict_archived";
+
+  if (importBlocked || state.importState.kind === "uploading") {
+    return false;
+  }
+
+  if (state.selectedImportFile === null) {
+    return false;
+  }
+
+  return hasCsvFileExtension(state.selectedImportFile.name);
+}
+
+function getSingleSelectedFile(files: FileList | null) {
+  if (files === null || files.length !== 1) {
+    return null;
+  }
+
+  return files[0] ?? null;
+}
+
+function hasCsvFileExtension(fileName: string) {
+  return fileName.toLowerCase().endsWith(".csv");
+}
+
+function mapUploadResultToImportState(
+  importState: Exclude<Awaited<ReturnType<typeof uploadBalanceImport>>, { kind: "created" }>
+): ImportBalanceState {
+  if (importState.kind === "bad_request") {
+    return {
+      kind: "bad_request",
+      message: importState.error.message,
+      errors: importState.error.errors
+    };
+  }
+
+  if (importState.kind === "auth_required") {
+    return { kind: "auth_required" };
+  }
+
+  if (importState.kind === "forbidden") {
+    return { kind: "forbidden" };
+  }
+
+  if (importState.kind === "not_found") {
+    return { kind: "not_found" };
+  }
+
+  if (importState.kind === "conflict_archived") {
+    return { kind: "conflict_archived" };
+  }
+
+  if (importState.kind === "server_error") {
+    return { kind: "server_error" };
+  }
+
+  if (importState.kind === "network_error") {
+    return { kind: "network_error" };
+  }
+
+  if (importState.kind === "timeout") {
+    return { kind: "timeout" };
+  }
+
+  if (importState.kind === "invalid_payload") {
+    return { kind: "invalid_payload" };
+  }
+
+  return { kind: "unexpected" };
+}
+
+function updateImportSuccessRefreshStatus(
+  importState: ImportBalanceState,
+  requestId: number,
+  refreshStatus: Extract<ImportBalanceState, { kind: "success" }>["refreshStatus"]
+) {
+  if (importState.kind !== "success" || importState.requestId !== requestId) {
+    return importState;
+  }
+
+  return {
+    ...importState,
+    refreshStatus
+  };
+}
+
+function isBalanceImportCoherent(
+  balanceImport: { closingFolderId: string },
+  routeClosingFolderId: string,
+  closingFolder: ClosingFolderSummary
+) {
+  return (
+    balanceImport.closingFolderId === routeClosingFolderId &&
+    balanceImport.closingFolderId === closingFolder.id
+  );
+}
+
+function formatImportValidationError(error: BalanceImportValidationError) {
+  if (error.line !== null && error.field !== null) {
+    return `ligne ${error.line} - ${error.field} : ${error.message}`;
+  }
+
+  if (error.line !== null) {
+    return `ligne ${error.line} : ${error.message}`;
+  }
+
+  if (error.field !== null) {
+    return `${error.field} : ${error.message}`;
+  }
+
+  return error.message;
 }
 
 const routeDefinitions = [
