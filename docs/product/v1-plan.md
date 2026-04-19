@@ -41,9 +41,10 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `specs/done/012-evidence-review-and-verification-v1.md`
 - `specs/done/013-exports-audit-ready-v1.md`
 - `specs/done/014-frontend-controls-readiness-cockpit-v1.md`
+- `specs/done/015-frontend-closing-folders-entrypoint-v1.md`
 
 ### Active
-- `specs/active/015-frontend-closing-folders-entrypoint-v1.md`
+- `specs/active/016-frontend-import-balance-v1.md`
 
 ### Decisions figees
 - Le flux V1 livre est maintenant `closing -> import -> mapping -> controls -> financial-summary -> financial-statements-structured -> workpapers -> document-storage-and-evidence-files -> exports-audit-ready`.
