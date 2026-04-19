@@ -1,7 +1,7 @@
 # 017 - Frontend manual mapping v1
 
 ## Status
-Active
+Done
 
 ## Role de cette spec
 

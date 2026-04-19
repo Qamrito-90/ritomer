@@ -142,6 +142,36 @@ const INITIAL_MANUAL_MAPPING = {
   ]
 };
 
+const INITIAL_FINANCIAL_SUMMARY = {
+  closingFolderId: CLOSING_FOLDER.id,
+  statementState: "PREVIEW_PARTIAL",
+  latestImportVersion: 2,
+  coverage: {
+    totalLines: 3,
+    mappedLines: 1,
+    unmappedLines: 2,
+    mappedShare: "0.3333"
+  },
+  unmappedBalanceImpact: {
+    debitTotal: "100",
+    creditTotal: "100",
+    netDebitMinusCredit: "0"
+  },
+  balanceSheetSummary: {
+    assets: "100",
+    liabilities: "0",
+    equity: "0",
+    currentPeriodResult: "0",
+    totalAssets: "100",
+    totalLiabilitiesAndEquity: "0"
+  },
+  incomeStatementSummary: {
+    revenue: "0",
+    expenses: "0",
+    netResult: "0"
+  }
+};
+
 const CLOSING_ROUTE = `/closing-folders/${CLOSING_FOLDER.id}`;
 
 function jsonResponse(status: number, payload: unknown) {
@@ -167,7 +197,8 @@ function primeReadyClosingRoute(
     .mockResolvedValueOnce(jsonResponse(200, { activeTenant: ACTIVE_TENANT }))
     .mockResolvedValueOnce(jsonResponse(200, closingFolder))
     .mockResolvedValueOnce(jsonResponse(200, controls))
-    .mockResolvedValueOnce(jsonResponse(200, INITIAL_MANUAL_MAPPING));
+    .mockResolvedValueOnce(jsonResponse(200, INITIAL_MANUAL_MAPPING))
+    .mockResolvedValueOnce(jsonResponse(200, INITIAL_FINANCIAL_SUMMARY));
 }
 
 async function waitForClosingRouteReady() {
@@ -175,6 +206,7 @@ async function waitForClosingRouteReady() {
   expect(await screen.findByText("Import balance")).toBeInTheDocument();
   expect(await screen.findByText("Mapping manuel")).toBeInTheDocument();
   expect(await screen.findByText("Cockpit read-only")).toBeInTheDocument();
+  expect(await screen.findByText("Financial summary")).toBeInTheDocument();
 }
 
 function getImportInput() {
@@ -189,9 +221,17 @@ function getRequestPaths(fetchMock: ReturnType<typeof vi.fn>) {
   return fetchMock.mock.calls.map((call) => String(call[0]));
 }
 
-function expectNoForbiddenImportCalls(paths: string[]) {
+function expectNoForbiddenImportCalls(paths: string[], expectedFinancialSummaryCalls = 1) {
+  expect(paths.filter((path) => path.includes("/financial-summary"))).toHaveLength(
+    expectedFinancialSummaryCalls
+  );
   expect(paths.some((path) => path.includes("/imports/balance/versions"))).toBe(false);
   expect(paths.some((path) => path.includes("/diff-previous"))).toBe(false);
+  expect(paths.some((path) => path.includes("/financial-statements-structured"))).toBe(false);
+  expect(paths.some((path) => path.includes("/workpapers"))).toBe(false);
+  expect(paths.some((path) => path.includes("/documents"))).toBe(false);
+  expect(paths.some((path) => path.includes("/exports"))).toBe(false);
+  expect(paths.some((path) => path.includes("/ai"))).toBe(false);
 }
 
 function expectDefinitionValue(container: HTMLElement, label: string, value: string) {
@@ -221,7 +261,7 @@ describe("router import balance", () => {
 
     expect(await screen.findByText("aucun fichier selectionne")).toBeInTheDocument();
     expect(getImportButton()).toBeDisabled();
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock).toHaveBeenCalledTimes(5);
     expectNoForbiddenImportCalls(getRequestPaths(fetchMock));
   });
 
@@ -237,7 +277,7 @@ describe("router import balance", () => {
 
     expect(await screen.findByText("fichier pret : balance.csv")).toBeInTheDocument();
     expect(getImportButton()).toBeEnabled();
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock).toHaveBeenCalledTimes(5);
   });
 
   it("accepts a .CSV file locally", async () => {
@@ -252,7 +292,7 @@ describe("router import balance", () => {
 
     expect(await screen.findByText("fichier pret : balance.CSV")).toBeInTheDocument();
     expect(getImportButton()).toBeEnabled();
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock).toHaveBeenCalledTimes(5);
   });
 
   it("rejects a non-CSV file locally and never posts", async () => {
@@ -267,7 +307,7 @@ describe("router import balance", () => {
 
     expect(await screen.findByText("fichier CSV requis")).toBeInTheDocument();
     expect(getImportButton()).toBeDisabled();
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock).toHaveBeenCalledTimes(5);
   });
 
   it("does not perform any local MIME validation for a *.csv file", async () => {
@@ -286,8 +326,8 @@ describe("router import balance", () => {
     await user.click(getImportButton());
 
     expect(await screen.findByText("authentification requise")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(5);
-    expect(fetchMock.mock.calls[4]?.[0]).toBe(
+    expect(fetchMock).toHaveBeenCalledTimes(6);
+    expect(fetchMock.mock.calls[5]?.[0]).toBe(
       `/api/closing-folders/${CLOSING_FOLDER.id}/imports/balance`
     );
   });
@@ -302,7 +342,7 @@ describe("router import balance", () => {
     expect(await screen.findByText("dossier archive, import impossible")).toBeInTheDocument();
     expect(getImportInput()).toBeDisabled();
     expect(getImportButton()).toBeDisabled();
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock).toHaveBeenCalledTimes(5);
   });
 
   it("shows import balance en cours while the POST is pending", async () => {
@@ -318,7 +358,7 @@ describe("router import balance", () => {
     await user.click(getImportButton());
 
     expect(screen.getByText("import balance en cours")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock).toHaveBeenCalledTimes(6);
   });
 
   it("renders timeout import on a timeout failure", async () => {
@@ -334,7 +374,7 @@ describe("router import balance", () => {
     await user.click(getImportButton());
 
     expect(await screen.findByText("timeout import")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock).toHaveBeenCalledTimes(6);
   });
 
   it("keeps the success visible and refreshes dossier then controls after a valid 201", async () => {
@@ -369,6 +409,7 @@ describe("router import balance", () => {
     expectDefinitionValue(readinessBlock as HTMLElement, "version d import", "4");
     expect(screen.getByText("Latest valid balance import version 4 is available.")).toBeInTheDocument();
     expect(screen.queryByText("Latest valid balance import version 2 is available.")).not.toBeInTheDocument();
+    expect(screen.getByText("etat preview : preview partielle")).toBeInTheDocument();
 
     const paths = getRequestPaths(fetchMock);
     expect(paths).toEqual([
@@ -376,11 +417,12 @@ describe("router import balance", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/controls`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/manual`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/financial-summary`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/imports/balance`,
       `/api/closing-folders/${CLOSING_FOLDER.id}`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/controls`
     ]);
-    expectNoForbiddenImportCalls(paths);
+    expectNoForbiddenImportCalls(paths, 1);
   });
 
   it("keeps the import success visible and preserves the last dossier and controls render when the dossier refresh fails", async () => {
@@ -408,7 +450,9 @@ describe("router import balance", () => {
     expect(screen.getByText("Closing FY26")).toBeInTheDocument();
     expect(screen.queryByText("Closing FY26 refreshed")).not.toBeInTheDocument();
     expect(screen.getByText("Latest valid balance import version 2 is available.")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(6);
+    expect(screen.getByText("etat preview : preview partielle")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(7);
+    expectNoForbiddenImportCalls(getRequestPaths(fetchMock), 1);
   });
 
   it("keeps the import success visible, refreshes the dossier, and preserves the last controls render when the controls refresh fails", async () => {
@@ -438,7 +482,9 @@ describe("router import balance", () => {
     expect(screen.getByText("EXT-26-R")).toBeInTheDocument();
     expect(screen.getByText("Latest valid balance import version 2 is available.")).toBeInTheDocument();
     expect(screen.queryByText("Latest valid balance import version 4 is available.")).not.toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(7);
+    expect(screen.getByText("etat preview : preview partielle")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(8);
+    expectNoForbiddenImportCalls(getRequestPaths(fetchMock), 1);
   });
 
   it("renders payload import invalide on an invalid 201 payload, keeps the selected file, and skips refreshs", async () => {
@@ -463,7 +509,7 @@ describe("router import balance", () => {
     expect(await screen.findByText("payload import invalide")).toBeInTheDocument();
     expect(getImportInput().files?.[0]?.name).toBe("balance.csv");
     expect(getImportButton()).toBeEnabled();
-    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock).toHaveBeenCalledTimes(6);
   });
 
   it("renders import invalide, the backend message, and ordered 400 errors on a structured bad request", async () => {
@@ -516,7 +562,7 @@ describe("router import balance", () => {
       "accountLabel : label missing",
       "totals mismatch"
     ]);
-    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock).toHaveBeenCalledTimes(6);
   });
 
   it("renders import indisponible on an unusable 400 payload", async () => {
@@ -536,7 +582,7 @@ describe("router import balance", () => {
     await user.click(getImportButton());
 
     expect(await screen.findByText("import indisponible")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock).toHaveBeenCalledTimes(6);
   });
 
   it.each([
@@ -559,6 +605,6 @@ describe("router import balance", () => {
     await user.click(getImportButton());
 
     expect(await screen.findByText(text)).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock).toHaveBeenCalledTimes(6);
   });
 });

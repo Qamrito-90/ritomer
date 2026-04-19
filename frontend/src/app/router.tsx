@@ -18,6 +18,11 @@ import {
   type ControlStatus
 } from "../lib/api/controls";
 import {
+  loadFinancialSummaryShellState,
+  type FinancialSummaryPreview,
+  type FinancialSummaryShellState
+} from "../lib/api/financial-summary";
+import {
   uploadBalanceImport,
   type BalanceImportValidationError
 } from "../lib/api/import-balance";
@@ -121,6 +126,7 @@ type ClosingRouteState =
       effectiveRoles: EffectiveRolesHint;
       closingFolder: ClosingFolderSummary;
       controlsState: ControlsShellState;
+      financialSummaryState: FinancialSummaryShellState;
       manualMappingState: ManualMappingShellState;
       manualMappingSelectedTargets: Record<string, string | undefined>;
       manualMappingMutationState: ManualMappingMutationState;
@@ -346,6 +352,7 @@ function ClosingFolderRoute() {
             effectiveRoles: meState.effectiveRoles,
             closingFolder: closingFolderState.closingFolder,
             controlsState: { kind: "loading" },
+            financialSummaryState: { kind: "loading" },
             manualMappingState: { kind: "loading" },
             manualMappingSelectedTargets: {},
             manualMappingMutationState: { kind: "idle" },
@@ -354,13 +361,18 @@ function ClosingFolderRoute() {
             selectedImportFile: null
           });
 
-          const [controlsState, manualMappingState] = await Promise.all([
+          const [controlsState, manualMappingState, financialSummaryState] = await Promise.all([
             loadControlsShellState(
               closingFolderId,
               closingFolderState.closingFolder,
               meState.activeTenant
             ),
             loadManualMappingShellState(
+              closingFolderId,
+              closingFolderState.closingFolder,
+              meState.activeTenant
+            ),
+            loadFinancialSummaryShellState(
               closingFolderId,
               closingFolderState.closingFolder,
               meState.activeTenant
@@ -379,6 +391,7 @@ function ClosingFolderRoute() {
             return {
               ...currentState,
               controlsState,
+              financialSummaryState,
               manualMappingState,
               manualMappingSelectedTargets:
                 manualMappingState.kind === "ready"
@@ -807,7 +820,7 @@ function ClosingFolderRoute() {
         { label: "Dossiers de closing", href: "/" },
         { label: "Dossier" }
       ]}
-      description="Shell produit borne a GET /api/me, GET /api/closing-folders/{id}, GET /api/closing-folders/{closingFolderId}/controls puis POST /api/closing-folders/{closingFolderId}/imports/balance."
+      description="Shell produit borne a GET /api/me, GET /api/closing-folders/{id}, GET /api/closing-folders/{closingFolderId}/controls, GET /api/closing-folders/{closingFolderId}/mappings/manual, GET /api/closing-folders/{closingFolderId}/financial-summary puis POST /api/closing-folders/{closingFolderId}/imports/balance."
       eyebrow="Route shell produit"
       sidebarItems={[
         { href: "/", label: "Dossiers" },
@@ -913,6 +926,16 @@ function ClosingFolderRoute() {
                 <h3 className="text-xl font-semibold text-foreground">Cockpit read-only</h3>
               </div>
               <ControlsSlot state={state.controlsState} />
+            </div>
+          </section>
+
+          <section className="panel p-6">
+            <div className="grid gap-6">
+              <div className="grid gap-2">
+                <p className="label-eyebrow">Financial summary</p>
+                <h3 className="text-xl font-semibold text-foreground">Preview read-only</h3>
+              </div>
+              <FinancialSummarySlot state={state.financialSummaryState} />
             </div>
           </section>
         </div>
@@ -1050,6 +1073,46 @@ function ControlsSlot({ state }: { state: ControlsShellState }) {
   }
 
   return <ControlsNominalBlocks controls={state.controls} />;
+}
+
+function FinancialSummarySlot({ state }: { state: FinancialSummaryShellState }) {
+  if (state.kind === "loading") {
+    return <StateMessage text="chargement financial summary" />;
+  }
+
+  if (state.kind === "auth_required") {
+    return <StateMessage text="authentification requise" />;
+  }
+
+  if (state.kind === "forbidden") {
+    return <StateMessage text="acces financial summary refuse" />;
+  }
+
+  if (state.kind === "not_found") {
+    return <StateMessage text="financial summary introuvable" />;
+  }
+
+  if (state.kind === "server_error") {
+    return <StateMessage text="erreur serveur financial summary" />;
+  }
+
+  if (state.kind === "network_error") {
+    return <StateMessage text="erreur reseau financial summary" />;
+  }
+
+  if (state.kind === "timeout") {
+    return <StateMessage text="timeout financial summary" />;
+  }
+
+  if (state.kind === "invalid_payload") {
+    return <StateMessage text="payload financial summary invalide" />;
+  }
+
+  if (state.kind === "bad_request" || state.kind === "unexpected") {
+    return <StateMessage text="financial summary indisponible" />;
+  }
+
+  return <FinancialSummaryNominalBlocks summary={state.summary} />;
 }
 
 function ImportBalanceStatus({
@@ -1465,6 +1528,87 @@ function ControlsNominalBlocks({ controls }: { controls: ClosingControlsSummary 
         )}
       </ControlsBlock>
     </div>
+  );
+}
+
+function FinancialSummaryNominalBlocks({ summary }: { summary: FinancialSummaryPreview }) {
+  const previewStateLabel =
+    summary.statementState === "NO_DATA"
+      ? "aucune donnee"
+      : summary.statementState === "PREVIEW_PARTIAL"
+        ? "preview partielle"
+        : "preview prete";
+
+  const previewLines = [
+    `etat preview : ${previewStateLabel}`,
+    `version d import : ${summary.latestImportVersion === null ? "aucune" : String(summary.latestImportVersion)}`,
+    `lignes total : ${summary.coverage.totalLines}`,
+    `lignes mappees : ${summary.coverage.mappedLines}`,
+    `lignes non mappees : ${summary.coverage.unmappedLines}`,
+    `part mappee : ${summary.coverage.mappedShare}`,
+    `impact non mappe debit : ${summary.unmappedBalanceImpact.debitTotal}`,
+    `impact non mappe credit : ${summary.unmappedBalanceImpact.creditTotal}`,
+    `impact non mappe net : ${summary.unmappedBalanceImpact.netDebitMinusCredit}`
+  ];
+
+  return (
+    <div className="grid gap-4">
+      <p className="rounded-lg border bg-background/80 p-4 text-sm font-medium text-foreground">
+        Preview non statutaire. Ne pas utiliser comme export final, annexe officielle ou
+        document CO.
+      </p>
+
+      <ControlsBlock title="Etat preview">
+        <FinancialSummaryLineList lines={previewLines} />
+        {summary.statementState === "NO_DATA" ? (
+          <p className="text-sm font-medium text-foreground">
+            aucune preview financiere disponible
+          </p>
+        ) : null}
+      </ControlsBlock>
+
+      {summary.balanceSheetSummary !== null ? (
+        <ControlsBlock title="Bilan synthetique">
+          <FinancialSummaryLineList
+            lines={[
+              `actifs : ${summary.balanceSheetSummary.assets}`,
+              `passifs : ${summary.balanceSheetSummary.liabilities}`,
+              `capitaux propres : ${summary.balanceSheetSummary.equity}`,
+              `resultat de la periode : ${summary.balanceSheetSummary.currentPeriodResult}`,
+              `total actifs : ${summary.balanceSheetSummary.totalAssets}`,
+              `total passifs et capitaux propres : ${summary.balanceSheetSummary.totalLiabilitiesAndEquity}`
+            ]}
+          />
+        </ControlsBlock>
+      ) : null}
+
+      {summary.incomeStatementSummary !== null ? (
+        <ControlsBlock title="Compte de resultat synthetique">
+          <FinancialSummaryLineList
+            lines={[
+              `produits : ${summary.incomeStatementSummary.revenue}`,
+              `charges : ${summary.incomeStatementSummary.expenses}`,
+              `resultat net : ${summary.incomeStatementSummary.netResult}`
+            ]}
+          />
+        </ControlsBlock>
+      ) : null}
+    </div>
+  );
+}
+
+function FinancialSummaryLineList({ lines }: { lines: string[] }) {
+  return (
+    <ul className="grid gap-3">
+      {lines.map((line) => (
+        <li
+          className="rounded-lg border bg-background/80 p-4 text-sm font-medium tabular-nums text-foreground"
+          key={line}
+        >
+          {line}
+        </li>
+      ))}
+    </ul>
   );
 }
 
