@@ -30,6 +30,7 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `specs/done/001-foundation-bootstrap.md`
 - `specs/done/002-core-identity-tenancy-closing.md`
 - `specs/done/003-import-balance-v1.md`
+- `specs/done/004-frontend-foundation-design-system.md`
 - `specs/done/005-manual-mapping-v1.md`
 - `specs/done/006-controls-v1.md`
 - `specs/done/007-financial-summary-v1.md`
@@ -39,6 +40,9 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `specs/done/011-document-storage-and-evidence-files-v1.md`
 - `specs/done/012-evidence-review-and-verification-v1.md`
 - `specs/done/013-exports-audit-ready-v1.md`
+
+### Active
+- `specs/active/014-frontend-controls-readiness-cockpit-v1.md`
 
 ### Decisions figees
 - Le flux V1 livre est maintenant `closing -> import -> mapping -> controls -> financial-summary -> financial-statements-structured -> workpapers -> document-storage-and-evidence-files -> exports-audit-ready`.

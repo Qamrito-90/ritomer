@@ -1,11 +1,11 @@
 # 004 - Frontend foundation design system
 
 ## Status
-Active
+Done
 
 ## Override de sequencage
 
-Override de sequencage 004 : cette spec active est autorisee comme tranche d'enablement frontend differee apres les specs backend 006 a 013 deja livrees. Elle ne reouvre aucune vague controls/readiness, n'ajoute aucun frontend metier riche, et ne modifie pas le present backend-first de docs/present/*.
+Override de sequencage 004 : cette spec est close comme tranche d'enablement frontend differee livree apres les specs backend 006 a 013 deja livrees. Elle n'a reouvert aucune vague controls/readiness, n'a ajoute aucun frontend metier riche, et n'a pas modifie le present backend-first de docs/present/*.
 
 ## Role de cette spec
 
@@ -368,7 +368,7 @@ Rendu exact :
 
 ## Criteres d'acceptation
 
-- `specs/active/004-frontend-foundation-design-system.md` est la seule spec normative de `004`
+- `specs/done/004-frontend-foundation-design-system.md` est la seule spec normative de `004`
 - la liste des composants de `004` est exactement celle de cette spec, sans extension implicite
 - `/` existe comme surface de demonstration interne sans appel API
 - `/closing-folders/:closingFolderId` est la seule route shell produit de `004`
