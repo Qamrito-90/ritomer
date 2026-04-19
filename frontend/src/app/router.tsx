@@ -21,7 +21,18 @@ import {
   uploadBalanceImport,
   type BalanceImportValidationError
 } from "../lib/api/import-balance";
-import { loadMeShellState, type ActiveTenant } from "../lib/api/me";
+import {
+  deleteManualMapping,
+  loadManualMappingShellState,
+  upsertManualMapping,
+  type ManualMappingProjection,
+  type ManualMappingShellState
+} from "../lib/api/manual-mapping";
+import {
+  loadMeShellState,
+  type ActiveTenant,
+  type EffectiveRolesHint
+} from "../lib/api/me";
 import { formatLocalDate } from "../lib/format/date";
 import { formatOptionalText } from "../lib/format/text";
 
@@ -65,6 +76,35 @@ type ImportBalanceState =
   | { kind: "invalid_payload" }
   | { kind: "unexpected" };
 
+type ManualMappingMutationState =
+  | { kind: "idle" }
+  | { kind: "put_submitting" }
+  | { kind: "delete_submitting" }
+  | {
+      kind: "put_success";
+      refreshMappingFailed: boolean;
+      refreshControlsFailed: boolean;
+    }
+  | {
+      kind: "delete_success";
+      refreshMappingFailed: boolean;
+      refreshControlsFailed: boolean;
+    }
+  | { kind: "bad_request_account_absent" }
+  | { kind: "bad_request_target_invalid" }
+  | { kind: "bad_request" }
+  | { kind: "auth_required" }
+  | { kind: "forbidden" }
+  | { kind: "not_found" }
+  | { kind: "conflict_archived" }
+  | { kind: "conflict_import_required" }
+  | { kind: "conflict_other" }
+  | { kind: "server_error" }
+  | { kind: "network_error" }
+  | { kind: "timeout" }
+  | { kind: "invalid_payload" }
+  | { kind: "unexpected" };
+
 type ClosingRouteState =
   | { kind: "loading" }
   | { kind: "auth_required" }
@@ -78,8 +118,13 @@ type ClosingRouteState =
   | {
       kind: "closing_ready";
       activeTenant: ActiveTenant;
+      effectiveRoles: EffectiveRolesHint;
       closingFolder: ClosingFolderSummary;
       controlsState: ControlsShellState;
+      manualMappingState: ManualMappingShellState;
+      manualMappingSelectedTargets: Record<string, string | undefined>;
+      manualMappingMutationState: ManualMappingMutationState;
+      manualMappingRefreshPending: boolean;
       importState: ImportBalanceState;
       selectedImportFile: File | null;
     };
@@ -107,6 +152,8 @@ const nextActionLabelByCode = {
   IMPORT_BALANCE: "importer la balance",
   COMPLETE_MANUAL_MAPPING: "completer le mapping manuel"
 } as const;
+
+const manualMappingWritableRoles = new Set(["ACCOUNTANT", "MANAGER", "ADMIN"]);
 
 function ClosingFoldersEntrypointRoute() {
   const [state, setState] = useState<EntrypointRouteState>({ kind: "loading" });
@@ -296,17 +343,29 @@ function ClosingFolderRoute() {
           setState({
             kind: "closing_ready",
             activeTenant: meState.activeTenant,
+            effectiveRoles: meState.effectiveRoles,
             closingFolder: closingFolderState.closingFolder,
             controlsState: { kind: "loading" },
+            manualMappingState: { kind: "loading" },
+            manualMappingSelectedTargets: {},
+            manualMappingMutationState: { kind: "idle" },
+            manualMappingRefreshPending: false,
             importState: { kind: "idle" },
             selectedImportFile: null
           });
 
-          const controlsState = await loadControlsShellState(
-            closingFolderId,
-            closingFolderState.closingFolder,
-            meState.activeTenant
-          );
+          const [controlsState, manualMappingState] = await Promise.all([
+            loadControlsShellState(
+              closingFolderId,
+              closingFolderState.closingFolder,
+              meState.activeTenant
+            ),
+            loadManualMappingShellState(
+              closingFolderId,
+              closingFolderState.closingFolder,
+              meState.activeTenant
+            )
+          ]);
 
           if (cancelled) {
             return;
@@ -319,7 +378,12 @@ function ClosingFolderRoute() {
 
             return {
               ...currentState,
-              controlsState
+              controlsState,
+              manualMappingState,
+              manualMappingSelectedTargets:
+                manualMappingState.kind === "ready"
+                  ? createManualMappingSelectedTargets(manualMappingState.projection)
+                  : {}
             };
           });
           return;
@@ -510,6 +574,214 @@ function ClosingFolderRoute() {
     });
   }
 
+  function handleManualMappingTargetChange(accountCode: string, targetCode: string) {
+    setState((currentState) => {
+      if (currentState.kind !== "closing_ready") {
+        return currentState;
+      }
+
+      return {
+        ...currentState,
+        manualMappingSelectedTargets: {
+          ...currentState.manualMappingSelectedTargets,
+          [accountCode]: targetCode === "" ? undefined : targetCode
+        }
+      };
+    });
+  }
+
+  async function handleSaveManualMapping(accountCode: string) {
+    if (state.kind !== "closing_ready" || state.manualMappingState.kind !== "ready") {
+      return;
+    }
+
+    const selectedTargetCode = state.manualMappingSelectedTargets[accountCode];
+    const currentMapping = findManualMappingForAccount(state.manualMappingState.projection, accountCode);
+
+    if (
+      selectedTargetCode === undefined ||
+      !canWriteManualMapping(state) ||
+      !state.manualMappingState.projection.lines.some((line) => line.accountCode === accountCode) ||
+      !getSelectableTargetCodes(state.manualMappingState.projection).has(selectedTargetCode) ||
+      currentMapping?.targetCode === selectedTargetCode
+    ) {
+      return;
+    }
+
+    setState((currentState) => {
+      if (currentState.kind !== "closing_ready") {
+        return currentState;
+      }
+
+      return {
+        ...currentState,
+        manualMappingMutationState: { kind: "put_submitting" },
+        manualMappingRefreshPending: true
+      };
+    });
+
+    const result = await upsertManualMapping(
+      closingFolderId,
+      state.activeTenant,
+      {
+        accountCode,
+        targetCode: selectedTargetCode
+      }
+    );
+
+    if (result.kind === "success") {
+      if (
+        result.mapping.accountCode !== accountCode ||
+        result.mapping.targetCode !== selectedTargetCode
+      ) {
+        setState((currentState) => {
+          if (currentState.kind !== "closing_ready") {
+            return currentState;
+          }
+
+          return {
+            ...currentState,
+            manualMappingMutationState: { kind: "invalid_payload" },
+            manualMappingRefreshPending: false
+          };
+        });
+        return;
+      }
+
+      setState((currentState) => {
+        if (currentState.kind !== "closing_ready") {
+          return currentState;
+        }
+
+        return {
+          ...currentState,
+          manualMappingMutationState: {
+            kind: "put_success",
+            refreshMappingFailed: false,
+            refreshControlsFailed: false
+          }
+        };
+      });
+
+      await refreshManualMappingAndControls(state.activeTenant, state.closingFolder, "put_success");
+      return;
+    }
+
+    setState((currentState) => {
+      if (currentState.kind !== "closing_ready") {
+        return currentState;
+      }
+
+      return {
+        ...currentState,
+        manualMappingMutationState: mapManualMappingMutationResult(result),
+        manualMappingRefreshPending: false
+      };
+    });
+  }
+
+  async function handleDeleteManualMapping(accountCode: string) {
+    if (state.kind !== "closing_ready" || state.manualMappingState.kind !== "ready") {
+      return;
+    }
+
+    if (
+      !canWriteManualMapping(state) ||
+      findManualMappingForAccount(state.manualMappingState.projection, accountCode) === undefined
+    ) {
+      return;
+    }
+
+    setState((currentState) => {
+      if (currentState.kind !== "closing_ready") {
+        return currentState;
+      }
+
+      return {
+        ...currentState,
+        manualMappingMutationState: { kind: "delete_submitting" },
+        manualMappingRefreshPending: true
+      };
+    });
+
+    const result = await deleteManualMapping(closingFolderId, state.activeTenant, accountCode);
+
+    if (result.kind === "success") {
+      setState((currentState) => {
+        if (currentState.kind !== "closing_ready") {
+          return currentState;
+        }
+
+        return {
+          ...currentState,
+          manualMappingMutationState: {
+            kind: "delete_success",
+            refreshMappingFailed: false,
+            refreshControlsFailed: false
+          }
+        };
+      });
+
+      await refreshManualMappingAndControls(
+        state.activeTenant,
+        state.closingFolder,
+        "delete_success"
+      );
+      return;
+    }
+
+    setState((currentState) => {
+      if (currentState.kind !== "closing_ready") {
+        return currentState;
+      }
+
+      return {
+        ...currentState,
+        manualMappingMutationState: mapManualMappingMutationResult(result),
+        manualMappingRefreshPending: false
+      };
+    });
+  }
+
+  async function refreshManualMappingAndControls(
+    activeTenant: ActiveTenant,
+    closingFolder: ClosingFolderSummary,
+    successKind: Extract<ManualMappingMutationState, { kind: "put_success" | "delete_success" }>["kind"]
+  ) {
+    const [refreshedManualMappingState, refreshedControlsState] = await Promise.all([
+      loadManualMappingShellState(closingFolderId, closingFolder, activeTenant),
+      loadControlsShellState(closingFolderId, closingFolder, activeTenant)
+    ]);
+
+    setState((currentState) => {
+      if (currentState.kind !== "closing_ready") {
+        return currentState;
+      }
+
+      return {
+        ...currentState,
+        controlsState:
+          refreshedControlsState.kind === "ready"
+            ? refreshedControlsState
+            : currentState.controlsState,
+        manualMappingState:
+          refreshedManualMappingState.kind === "ready"
+            ? refreshedManualMappingState
+            : currentState.manualMappingState,
+        manualMappingSelectedTargets:
+          refreshedManualMappingState.kind === "ready"
+            ? createManualMappingSelectedTargets(refreshedManualMappingState.projection)
+            : currentState.manualMappingSelectedTargets,
+        manualMappingMutationState: {
+          kind: successKind,
+          refreshMappingFailed: refreshedManualMappingState.kind !== "ready",
+          refreshControlsFailed: refreshedControlsState.kind !== "ready"
+        },
+        manualMappingRefreshPending: false
+      };
+    });
+  }
+
   const tenant =
     "activeTenant" in state
       ? {
@@ -611,6 +883,26 @@ function ClosingFolderRoute() {
                   selectedImportFile={state.selectedImportFile}
                 />
               </div>
+            </div>
+          </section>
+
+          <section className="panel p-6">
+            <div className="grid gap-6">
+              <div className="grid gap-2">
+                <p className="label-eyebrow">Mapping manuel</p>
+                <h3 className="text-xl font-semibold text-foreground">Projection du dernier import</h3>
+              </div>
+              <ManualMappingSlot
+                closingFolder={state.closingFolder}
+                effectiveRoles={state.effectiveRoles}
+                manualMappingMutationState={state.manualMappingMutationState}
+                manualMappingRefreshPending={state.manualMappingRefreshPending}
+                selectedTargets={state.manualMappingSelectedTargets}
+                state={state.manualMappingState}
+                onDelete={handleDeleteManualMapping}
+                onSave={handleSaveManualMapping}
+                onTargetChange={handleManualMappingTargetChange}
+              />
             </div>
           </section>
 
@@ -859,6 +1151,229 @@ function ImportBalanceStatus({
   return <StateMessage text={`fichier pret : ${selectedImportFile.name}`} />;
 }
 
+function ManualMappingSlot({
+  closingFolder,
+  effectiveRoles,
+  state,
+  selectedTargets,
+  manualMappingMutationState,
+  manualMappingRefreshPending,
+  onTargetChange,
+  onSave,
+  onDelete
+}: {
+  closingFolder: ClosingFolderSummary;
+  effectiveRoles: EffectiveRolesHint;
+  state: ManualMappingShellState;
+  selectedTargets: Record<string, string | undefined>;
+  manualMappingMutationState: ManualMappingMutationState;
+  manualMappingRefreshPending: boolean;
+  onTargetChange: (accountCode: string, targetCode: string) => void;
+  onSave: (accountCode: string) => void;
+  onDelete: (accountCode: string) => void;
+}) {
+  if (state.kind === "loading") {
+    return <StateMessage text="chargement mapping manuel" />;
+  }
+
+  if (state.kind === "auth_required") {
+    return <StateMessage text="authentification requise" />;
+  }
+
+  if (state.kind === "forbidden") {
+    return <StateMessage text="acces mapping refuse" />;
+  }
+
+  if (state.kind === "not_found") {
+    return <StateMessage text="mapping introuvable" />;
+  }
+
+  if (state.kind === "server_error") {
+    return <StateMessage text="erreur serveur mapping" />;
+  }
+
+  if (state.kind === "network_error") {
+    return <StateMessage text="erreur reseau mapping" />;
+  }
+
+  if (state.kind === "timeout") {
+    return <StateMessage text="timeout mapping" />;
+  }
+
+  if (state.kind === "invalid_payload") {
+    return <StateMessage text="payload mapping invalide" />;
+  }
+
+  if (state.kind === "unexpected") {
+    return <StateMessage text="mapping indisponible" />;
+  }
+
+  const mappingReadOnlyMessage = getManualMappingReadOnlyMessage(
+    closingFolder,
+    effectiveRoles,
+    state.projection
+  );
+  const writable = isManualMappingWritable(closingFolder, effectiveRoles, state.projection);
+  const controlsDisabled = !writable || manualMappingRefreshPending;
+  const targetLabelByCode = createTargetLabelByCode(state.projection);
+  const selectableTargets = state.projection.targets.filter((target) => target.selectable);
+
+  return (
+    <div className="grid gap-4">
+      <ControlsBlock title="Resume mapping">
+        <dl className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <MetricItem
+            label="version d import"
+            value={
+              state.projection.latestImportVersion === null
+                ? "aucune"
+                : String(state.projection.latestImportVersion)
+            }
+          />
+          <MetricItem label="comptes total" value={String(state.projection.summary.total)} />
+          <MetricItem label="comptes mappes" value={String(state.projection.summary.mapped)} />
+          <MetricItem
+            label="comptes non mappes"
+            value={String(state.projection.summary.unmapped)}
+          />
+        </dl>
+      </ControlsBlock>
+
+      {mappingReadOnlyMessage !== null ? (
+        <p className="text-sm font-medium text-foreground">{mappingReadOnlyMessage}</p>
+      ) : null}
+
+      <ManualMappingMutationStatus state={manualMappingMutationState} />
+
+      <ControlsBlock title="Lignes a mapper">
+        {state.projection.lines.length === 0 ? (
+          <p className="text-sm font-medium text-foreground">aucune ligne a mapper</p>
+        ) : (
+          <ul className="grid gap-4">
+            {state.projection.lines.map((line) => {
+              const currentMapping = findManualMappingForAccount(state.projection, line.accountCode);
+              const selectedTargetCode = selectedTargets[line.accountCode] ?? "";
+              const saveDisabled =
+                controlsDisabled ||
+                selectedTargetCode === "" ||
+                currentMapping?.targetCode === selectedTargetCode;
+              const deleteDisabled = controlsDisabled || currentMapping === undefined;
+
+              return (
+                <li key={line.accountCode}>
+                  <article
+                    aria-label={`ligne mapping ${line.accountCode}`}
+                    className="rounded-lg border bg-background/80 p-4"
+                  >
+                    <div className="grid gap-4">
+                      <dl className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                        <DetailItem label="Compte">
+                          <span className="tabular-nums">{line.accountCode}</span>
+                        </DetailItem>
+                        <DetailItem label="Libelle">
+                          <span>{line.accountLabel}</span>
+                        </DetailItem>
+                        <DetailItem label="Debit">
+                          <span className="tabular-nums">{line.debit}</span>
+                        </DetailItem>
+                        <DetailItem label="Credit">
+                          <span className="tabular-nums">{line.credit}</span>
+                        </DetailItem>
+                        <DetailItem label="Mapping courant">
+                          <span>
+                            {currentMapping === undefined
+                              ? "aucun"
+                              : `${targetLabelByCode.get(currentMapping.targetCode)} (${currentMapping.targetCode})`}
+                          </span>
+                        </DetailItem>
+                      </dl>
+
+                      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto_auto] lg:items-end">
+                        <div className="grid gap-2">
+                          <label
+                            className="text-sm font-medium text-foreground"
+                            htmlFor={`mapping-target-${line.accountCode}`}
+                          >
+                            Cible
+                          </label>
+                          <select
+                            className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground disabled:cursor-not-allowed disabled:bg-muted"
+                            disabled={controlsDisabled}
+                            id={`mapping-target-${line.accountCode}`}
+                            onChange={(event) => {
+                              onTargetChange(line.accountCode, event.currentTarget.value);
+                            }}
+                            value={selectedTargetCode}
+                          >
+                            <option value="">Choisir une cible</option>
+                            {selectableTargets.map((target) => (
+                              <option key={target.code} value={target.code}>
+                                {formatManualMappingTargetOption(target.label, target.code)}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <Button
+                          disabled={saveDisabled}
+                          onClick={() => {
+                            void onSave(line.accountCode);
+                          }}
+                          type="button"
+                        >
+                          Enregistrer le mapping
+                        </Button>
+
+                        <Button
+                          disabled={deleteDisabled}
+                          onClick={() => {
+                            void onDelete(line.accountCode);
+                          }}
+                          type="button"
+                          variant="outline"
+                        >
+                          Supprimer le mapping
+                        </Button>
+                      </div>
+                    </div>
+                  </article>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </ControlsBlock>
+    </div>
+  );
+}
+
+function ManualMappingMutationStatus({ state }: { state: ManualMappingMutationState }) {
+  if (state.kind === "idle") {
+    return null;
+  }
+
+  if (state.kind === "put_success" || state.kind === "delete_success") {
+    return (
+      <div aria-live="polite" className="grid gap-2">
+        <p className="label-eyebrow">Etat visible</p>
+        <p className="text-lg font-semibold text-foreground">
+          {state.kind === "put_success"
+            ? "mapping enregistre avec succes"
+            : "mapping supprime avec succes"}
+        </p>
+        {state.refreshMappingFailed ? (
+          <p className="text-sm font-medium text-foreground">rafraichissement mapping impossible</p>
+        ) : null}
+        {state.refreshControlsFailed ? (
+          <p className="text-sm font-medium text-foreground">rafraichissement controls impossible</p>
+        ) : null}
+      </div>
+    );
+  }
+
+  return <StateMessage text={formatManualMappingMutationState(state)} />;
+}
+
 function ControlsNominalBlocks({ controls }: { controls: ClosingControlsSummary }) {
   return (
     <div className="grid gap-4">
@@ -1067,6 +1582,85 @@ function hasCsvFileExtension(fileName: string) {
   return fileName.toLowerCase().endsWith(".csv");
 }
 
+function canWriteManualMapping(state: Extract<ClosingRouteState, { kind: "closing_ready" }>) {
+  return isManualMappingWritable(
+    state.closingFolder,
+    state.effectiveRoles,
+    state.manualMappingState.kind === "ready" ? state.manualMappingState.projection : null
+  );
+}
+
+function isManualMappingWritable(
+  closingFolder: ClosingFolderSummary,
+  effectiveRoles: EffectiveRolesHint,
+  projection: ManualMappingProjection | null
+) {
+  return (
+    projection !== null &&
+    closingFolder.status !== "ARCHIVED" &&
+    projection.latestImportVersion !== null &&
+    hasManualMappingWritableRole(effectiveRoles)
+  );
+}
+
+function hasManualMappingWritableRole(effectiveRoles: EffectiveRolesHint) {
+  return effectiveRoles?.some((role) => manualMappingWritableRoles.has(role)) ?? false;
+}
+
+function getManualMappingReadOnlyMessage(
+  closingFolder: ClosingFolderSummary,
+  effectiveRoles: EffectiveRolesHint,
+  projection: ManualMappingProjection
+) {
+  if (closingFolder.status === "ARCHIVED") {
+    return "dossier archive, mapping en lecture seule";
+  }
+
+  if (projection.latestImportVersion === null) {
+    return "import requis";
+  }
+
+  if (!hasManualMappingWritableRole(effectiveRoles)) {
+    return "lecture seule";
+  }
+
+  return null;
+}
+
+function createManualMappingSelectedTargets(projection: ManualMappingProjection) {
+  const selectableTargetCodes = getSelectableTargetCodes(projection);
+
+  return Object.fromEntries(
+    projection.lines.map((line) => {
+      const mapping = findManualMappingForAccount(projection, line.accountCode);
+      const selectedTargetCode =
+        mapping !== undefined && selectableTargetCodes.has(mapping.targetCode)
+          ? mapping.targetCode
+          : undefined;
+
+      return [line.accountCode, selectedTargetCode];
+    })
+  ) as Record<string, string | undefined>;
+}
+
+function createTargetLabelByCode(projection: ManualMappingProjection) {
+  return new Map(projection.targets.map((target) => [target.code, target.label]));
+}
+
+function getSelectableTargetCodes(projection: ManualMappingProjection) {
+  return new Set(
+    projection.targets.filter((target) => target.selectable).map((target) => target.code)
+  );
+}
+
+function findManualMappingForAccount(projection: ManualMappingProjection, accountCode: string) {
+  return projection.mappings.find((mapping) => mapping.accountCode === accountCode);
+}
+
+function formatManualMappingTargetOption(label: string, code: string) {
+  return `${label} (${code})`;
+}
+
 function mapUploadResultToImportState(
   importState: Exclude<Awaited<ReturnType<typeof uploadBalanceImport>>, { kind: "created" }>
 ): ImportBalanceState {
@@ -1111,6 +1705,135 @@ function mapUploadResultToImportState(
   }
 
   return { kind: "unexpected" };
+}
+
+function mapManualMappingMutationResult(
+  result:
+    | Exclude<Awaited<ReturnType<typeof upsertManualMapping>>, { kind: "success" }>
+    | Exclude<Awaited<ReturnType<typeof deleteManualMapping>>, { kind: "success" }>
+): ManualMappingMutationState {
+  if (result.kind === "bad_request_account_absent") {
+    return { kind: "bad_request_account_absent" };
+  }
+
+  if (result.kind === "bad_request_target_invalid") {
+    return { kind: "bad_request_target_invalid" };
+  }
+
+  if (result.kind === "bad_request") {
+    return { kind: "bad_request" };
+  }
+
+  if (result.kind === "auth_required") {
+    return { kind: "auth_required" };
+  }
+
+  if (result.kind === "forbidden") {
+    return { kind: "forbidden" };
+  }
+
+  if (result.kind === "not_found") {
+    return { kind: "not_found" };
+  }
+
+  if (result.kind === "conflict_archived") {
+    return { kind: "conflict_archived" };
+  }
+
+  if (result.kind === "conflict_import_required") {
+    return { kind: "conflict_import_required" };
+  }
+
+  if (result.kind === "conflict_other") {
+    return { kind: "conflict_other" };
+  }
+
+  if (result.kind === "server_error") {
+    return { kind: "server_error" };
+  }
+
+  if (result.kind === "network_error") {
+    return { kind: "network_error" };
+  }
+
+  if (result.kind === "timeout") {
+    return { kind: "timeout" };
+  }
+
+  if (result.kind === "invalid_payload") {
+    return { kind: "invalid_payload" };
+  }
+
+  return { kind: "unexpected" };
+}
+
+function formatManualMappingMutationState(
+  state: Exclude<
+    ManualMappingMutationState,
+    { kind: "idle" | "put_success" | "delete_success" }
+  >
+) {
+  if (state.kind === "put_submitting") {
+    return "enregistrement mapping en cours";
+  }
+
+  if (state.kind === "delete_submitting") {
+    return "suppression mapping en cours";
+  }
+
+  if (state.kind === "bad_request_account_absent") {
+    return "compte absent du dernier import";
+  }
+
+  if (state.kind === "bad_request_target_invalid") {
+    return "target invalide";
+  }
+
+  if (state.kind === "bad_request") {
+    return "mapping invalide";
+  }
+
+  if (state.kind === "auth_required") {
+    return "authentification requise";
+  }
+
+  if (state.kind === "forbidden") {
+    return "acces mapping refuse";
+  }
+
+  if (state.kind === "not_found") {
+    return "dossier introuvable";
+  }
+
+  if (state.kind === "conflict_archived") {
+    return "dossier archive, mapping impossible";
+  }
+
+  if (state.kind === "conflict_import_required") {
+    return "import requis";
+  }
+
+  if (state.kind === "conflict_other") {
+    return "mapping impossible";
+  }
+
+  if (state.kind === "server_error") {
+    return "erreur serveur mapping";
+  }
+
+  if (state.kind === "network_error") {
+    return "erreur reseau mapping";
+  }
+
+  if (state.kind === "timeout") {
+    return "timeout mapping";
+  }
+
+  if (state.kind === "invalid_payload") {
+    return "payload mapping invalide";
+  }
+
+  return "mapping indisponible";
 }
 
 function updateImportSuccessRefreshStatus(
