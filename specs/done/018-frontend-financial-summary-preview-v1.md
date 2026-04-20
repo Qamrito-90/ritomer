@@ -1,7 +1,7 @@
 # 018 - Frontend financial summary preview v1
 
 ## Status
-Active
+Done
 
 ## Role de cette spec
 

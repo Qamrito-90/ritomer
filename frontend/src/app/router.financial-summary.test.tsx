@@ -1,5 +1,5 @@
 import { RouterProvider } from "react-router-dom";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { createAppMemoryRouter } from "./router";
 
@@ -195,6 +195,22 @@ const FINANCIAL_SUMMARY_PREVIEW_READY = {
   }
 };
 
+const FINANCIAL_STATEMENTS_STRUCTURED_BLOCKED = {
+  closingFolderId: CLOSING_FOLDER.id,
+  statementState: "BLOCKED",
+  presentationType: "STRUCTURED_PREVIEW",
+  isStatutory: false,
+  latestImportVersion: 2,
+  coverage: {
+    totalLines: 2,
+    mappedLines: 1,
+    unmappedLines: 1,
+    mappedShare: "0.5"
+  },
+  balanceSheet: null,
+  incomeStatement: null
+};
+
 const CLOSING_ROUTE = `/closing-folders/${CLOSING_FOLDER.id}`;
 
 type ResponseFactory = () => Response | Promise<Response>;
@@ -227,11 +243,14 @@ function primeNominalRoute(
   {
     controls = () => jsonResponse(200, READY_CONTROLS),
     manualMapping = () => jsonResponse(200, READY_MANUAL_MAPPING),
-    financialSummary = () => jsonResponse(200, FINANCIAL_SUMMARY_PREVIEW_PARTIAL)
+    financialSummary = () => jsonResponse(200, FINANCIAL_SUMMARY_PREVIEW_PARTIAL),
+    financialStatementsStructured = () =>
+      jsonResponse(200, FINANCIAL_STATEMENTS_STRUCTURED_BLOCKED)
   }: {
     controls?: ResponseFactory;
     manualMapping?: ResponseFactory;
     financialSummary?: ResponseFactory;
+    financialStatementsStructured?: ResponseFactory;
   } = {}
 ) {
   fetchMock
@@ -239,7 +258,8 @@ function primeNominalRoute(
     .mockResolvedValueOnce(jsonResponse(200, CLOSING_FOLDER))
     .mockImplementationOnce(() => Promise.resolve(controls()))
     .mockImplementationOnce(() => Promise.resolve(manualMapping()))
-    .mockImplementationOnce(() => Promise.resolve(financialSummary()));
+    .mockImplementationOnce(() => Promise.resolve(financialSummary()))
+    .mockImplementationOnce(() => Promise.resolve(financialStatementsStructured()));
 }
 
 async function waitForNominalShell() {
@@ -248,6 +268,7 @@ async function waitForNominalShell() {
   expect(await screen.findByText("Mapping manuel")).toBeInTheDocument();
   expect(await screen.findByRole("heading", { name: "Cockpit read-only" })).toBeInTheDocument();
   expect(await screen.findByText("Financial summary")).toBeInTheDocument();
+  expect(await screen.findByText("Financial statements structured")).toBeInTheDocument();
 }
 
 function getRequestPaths(fetchMock: ReturnType<typeof vi.fn>) {
@@ -257,6 +278,7 @@ function getRequestPaths(fetchMock: ReturnType<typeof vi.fn>) {
 function expectNoForbiddenPaths(paths: string[]) {
   expect(paths.some((path) => path.includes("/imports/balance/versions"))).toBe(false);
   expect(paths.some((path) => path.includes("/diff-previous"))).toBe(false);
+  expect(paths.filter((path) => path.includes("/financial-statements/structured"))).toHaveLength(1);
   expect(paths.some((path) => path.includes("/financial-statements-structured"))).toBe(false);
   expect(paths.some((path) => path.includes("/workpapers"))).toBe(false);
   expect(paths.some((path) => path.includes("/documents"))).toBe(false);
@@ -270,6 +292,7 @@ function expectExistingBlocksVisible() {
   expect(screen.getByText("Mapping manuel")).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "Cockpit read-only" })).toBeInTheDocument();
   expect(screen.getByText("Financial summary")).toBeInTheDocument();
+  expect(screen.getByText("Financial statements structured")).toBeInTheDocument();
 }
 
 describe("router financial summary", () => {
@@ -290,11 +313,11 @@ describe("router financial summary", () => {
     await waitForNominalShell();
 
     const controlsHeading = screen.getByRole("heading", { name: "Cockpit read-only" });
-    const financialSummaryHeading = screen.getByRole("heading", { name: "Preview read-only" });
+    const financialSummaryLabel = screen.getByText("Financial summary");
 
     expect(
       Boolean(
-        controlsHeading.compareDocumentPosition(financialSummaryHeading) &
+        controlsHeading.compareDocumentPosition(financialSummaryLabel) &
           Node.DOCUMENT_POSITION_FOLLOWING
       )
     ).toBe(true);
@@ -305,7 +328,8 @@ describe("router financial summary", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/controls`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/manual`,
-      `/api/closing-folders/${CLOSING_FOLDER.id}/financial-summary`
+      `/api/closing-folders/${CLOSING_FOLDER.id}/financial-summary`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`
     ]);
     expect(paths.filter((path) => path.includes("/financial-summary"))).toHaveLength(1);
     expectNoForbiddenPaths(paths);
@@ -327,7 +351,7 @@ describe("router financial summary", () => {
         "Preview non statutaire. Ne pas utiliser comme export final, annexe officielle ou document CO."
       )
     ).not.toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock).toHaveBeenCalledTimes(6);
   });
 
   it.each([
@@ -470,31 +494,34 @@ describe("router financial summary", () => {
 
     renderClosingRoute();
     await waitForNominalShell();
+    const financialSummarySection = screen.getByText("Financial summary").closest("section");
+    expect(financialSummarySection).not.toBeNull();
+    const summary = within(financialSummarySection as HTMLElement);
 
     expect(
-      await screen.findByText(
+      await summary.findByText(
         "Preview non statutaire. Ne pas utiliser comme export final, annexe officielle ou document CO."
       )
     ).toBeInTheDocument();
-    expect(screen.getByText("etat preview : preview partielle")).toBeInTheDocument();
-    expect(screen.getByText("version d import : 2")).toBeInTheDocument();
-    expect(screen.getByText("lignes total : 3")).toBeInTheDocument();
-    expect(screen.getByText("lignes mappees : 2")).toBeInTheDocument();
-    expect(screen.getByText("lignes non mappees : 1")).toBeInTheDocument();
-    expect(screen.getByText("part mappee : 0.6667")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Bilan synthetique" })).toBeInTheDocument();
+    expect(summary.getByText("etat preview : preview partielle")).toBeInTheDocument();
+    expect(summary.getByText("version d import : 2")).toBeInTheDocument();
+    expect(summary.getByText("lignes total : 3")).toBeInTheDocument();
+    expect(summary.getByText("lignes mappees : 2")).toBeInTheDocument();
+    expect(summary.getByText("lignes non mappees : 1")).toBeInTheDocument();
+    expect(summary.getByText("part mappee : 0.6667")).toBeInTheDocument();
+    expect(summary.getByRole("heading", { name: "Bilan synthetique" })).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Compte de resultat synthetique" })
+      summary.getByRole("heading", { name: "Compte de resultat synthetique" })
     ).toBeInTheDocument();
-    expect(screen.getByText("actifs : 100")).toBeInTheDocument();
-    expect(screen.getByText("passifs : 0")).toBeInTheDocument();
-    expect(screen.getByText("capitaux propres : 0")).toBeInTheDocument();
-    expect(screen.getByText("resultat de la periode : 175")).toBeInTheDocument();
-    expect(screen.getByText("total actifs : 100")).toBeInTheDocument();
-    expect(screen.getByText("total passifs et capitaux propres : 175")).toBeInTheDocument();
-    expect(screen.getByText("produits : 175")).toBeInTheDocument();
-    expect(screen.getByText("charges : 0")).toBeInTheDocument();
-    expect(screen.getByText("resultat net : 175")).toBeInTheDocument();
+    expect(summary.getByText("actifs : 100")).toBeInTheDocument();
+    expect(summary.getByText("passifs : 0")).toBeInTheDocument();
+    expect(summary.getByText("capitaux propres : 0")).toBeInTheDocument();
+    expect(summary.getByText("resultat de la periode : 175")).toBeInTheDocument();
+    expect(summary.getByText("total actifs : 100")).toBeInTheDocument();
+    expect(summary.getByText("total passifs et capitaux propres : 175")).toBeInTheDocument();
+    expect(summary.getByText("produits : 175")).toBeInTheDocument();
+    expect(summary.getByText("charges : 0")).toBeInTheDocument();
+    expect(summary.getByText("resultat net : 175")).toBeInTheDocument();
     expect(
       screen.queryByText(FINANCIAL_SUMMARY_PREVIEW_PARTIAL.nextAction.path)
     ).not.toBeInTheDocument();
@@ -514,24 +541,27 @@ describe("router financial summary", () => {
 
     renderClosingRoute();
     await waitForNominalShell();
+    const financialSummarySection = screen.getByText("Financial summary").closest("section");
+    expect(financialSummarySection).not.toBeNull();
+    const summary = within(financialSummarySection as HTMLElement);
 
     expect(
-      await screen.findByText(
+      await summary.findByText(
         "Preview non statutaire. Ne pas utiliser comme export final, annexe officielle ou document CO."
       )
     ).toBeInTheDocument();
-    expect(screen.getByText("etat preview : preview prete")).toBeInTheDocument();
-    expect(screen.getByText("version d import : 2")).toBeInTheDocument();
-    expect(screen.getByText("lignes total : 2")).toBeInTheDocument();
-    expect(screen.getByText("lignes mappees : 2")).toBeInTheDocument();
-    expect(screen.getByText("lignes non mappees : 0")).toBeInTheDocument();
-    expect(screen.getByText("part mappee : 1")).toBeInTheDocument();
-    expect(screen.getByText("impact non mappe debit : 0")).toBeInTheDocument();
-    expect(screen.getByText("impact non mappe credit : 0")).toBeInTheDocument();
-    expect(screen.getByText("impact non mappe net : 0")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Bilan synthetique" })).toBeInTheDocument();
+    expect(summary.getByText("etat preview : preview prete")).toBeInTheDocument();
+    expect(summary.getByText("version d import : 2")).toBeInTheDocument();
+    expect(summary.getByText("lignes total : 2")).toBeInTheDocument();
+    expect(summary.getByText("lignes mappees : 2")).toBeInTheDocument();
+    expect(summary.getByText("lignes non mappees : 0")).toBeInTheDocument();
+    expect(summary.getByText("part mappee : 1")).toBeInTheDocument();
+    expect(summary.getByText("impact non mappe debit : 0")).toBeInTheDocument();
+    expect(summary.getByText("impact non mappe credit : 0")).toBeInTheDocument();
+    expect(summary.getByText("impact non mappe net : 0")).toBeInTheDocument();
+    expect(summary.getByRole("heading", { name: "Bilan synthetique" })).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Compte de resultat synthetique" })
+      summary.getByRole("heading", { name: "Compte de resultat synthetique" })
     ).toBeInTheDocument();
   });
 });
