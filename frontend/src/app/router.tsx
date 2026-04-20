@@ -18,6 +18,11 @@ import {
   type ControlStatus
 } from "../lib/api/controls";
 import {
+  loadFinancialStatementsStructuredShellState,
+  type FinancialStatementsStructuredShellState,
+  type StructuredFinancialStatementsPreview
+} from "../lib/api/financial-statements-structured";
+import {
   loadFinancialSummaryShellState,
   type FinancialSummaryPreview,
   type FinancialSummaryShellState
@@ -127,6 +132,7 @@ type ClosingRouteState =
       closingFolder: ClosingFolderSummary;
       controlsState: ControlsShellState;
       financialSummaryState: FinancialSummaryShellState;
+      financialStatementsStructuredState: FinancialStatementsStructuredShellState;
       manualMappingState: ManualMappingShellState;
       manualMappingSelectedTargets: Record<string, string | undefined>;
       manualMappingMutationState: ManualMappingMutationState;
@@ -353,6 +359,7 @@ function ClosingFolderRoute() {
             closingFolder: closingFolderState.closingFolder,
             controlsState: { kind: "loading" },
             financialSummaryState: { kind: "loading" },
+            financialStatementsStructuredState: { kind: "loading" },
             manualMappingState: { kind: "loading" },
             manualMappingSelectedTargets: {},
             manualMappingMutationState: { kind: "idle" },
@@ -361,7 +368,12 @@ function ClosingFolderRoute() {
             selectedImportFile: null
           });
 
-          const [controlsState, manualMappingState, financialSummaryState] = await Promise.all([
+          const [
+            controlsState,
+            manualMappingState,
+            financialSummaryState,
+            financialStatementsStructuredState
+          ] = await Promise.all([
             loadControlsShellState(
               closingFolderId,
               closingFolderState.closingFolder,
@@ -373,6 +385,11 @@ function ClosingFolderRoute() {
               meState.activeTenant
             ),
             loadFinancialSummaryShellState(
+              closingFolderId,
+              closingFolderState.closingFolder,
+              meState.activeTenant
+            ),
+            loadFinancialStatementsStructuredShellState(
               closingFolderId,
               closingFolderState.closingFolder,
               meState.activeTenant
@@ -392,6 +409,7 @@ function ClosingFolderRoute() {
               ...currentState,
               controlsState,
               financialSummaryState,
+              financialStatementsStructuredState,
               manualMappingState,
               manualMappingSelectedTargets:
                 manualMappingState.kind === "ready"
@@ -820,7 +838,7 @@ function ClosingFolderRoute() {
         { label: "Dossiers de closing", href: "/" },
         { label: "Dossier" }
       ]}
-      description="Shell produit borne a GET /api/me, GET /api/closing-folders/{id}, GET /api/closing-folders/{closingFolderId}/controls, GET /api/closing-folders/{closingFolderId}/mappings/manual, GET /api/closing-folders/{closingFolderId}/financial-summary puis POST /api/closing-folders/{closingFolderId}/imports/balance."
+      description="Shell produit borne a GET /api/me, GET /api/closing-folders/{id}, GET /api/closing-folders/{closingFolderId}/controls, GET /api/closing-folders/{closingFolderId}/mappings/manual, GET /api/closing-folders/{closingFolderId}/financial-summary, GET /api/closing-folders/{closingFolderId}/financial-statements/structured puis POST /api/closing-folders/{closingFolderId}/imports/balance."
       eyebrow="Route shell produit"
       sidebarItems={[
         { href: "/", label: "Dossiers" },
@@ -936,6 +954,18 @@ function ClosingFolderRoute() {
                 <h3 className="text-xl font-semibold text-foreground">Preview read-only</h3>
               </div>
               <FinancialSummarySlot state={state.financialSummaryState} />
+            </div>
+          </section>
+
+          <section className="panel p-6">
+            <div className="grid gap-6">
+              <div className="grid gap-2">
+                <p className="label-eyebrow">Financial statements structured</p>
+                <h3 className="text-xl font-semibold text-foreground">Preview read-only</h3>
+              </div>
+              <FinancialStatementsStructuredSlot
+                state={state.financialStatementsStructuredState}
+              />
             </div>
           </section>
         </div>
@@ -1113,6 +1143,54 @@ function FinancialSummarySlot({ state }: { state: FinancialSummaryShellState }) 
   }
 
   return <FinancialSummaryNominalBlocks summary={state.summary} />;
+}
+
+function FinancialStatementsStructuredSlot({
+  state
+}: {
+  state: FinancialStatementsStructuredShellState;
+}) {
+  if (state.kind === "loading") {
+    return <StateMessage text="chargement structured preview" />;
+  }
+
+  if (state.kind === "auth_required") {
+    return <StateMessage text="authentification requise" />;
+  }
+
+  if (state.kind === "forbidden") {
+    return <StateMessage text="acces financial statements structured refuse" />;
+  }
+
+  if (state.kind === "not_found") {
+    return <StateMessage text="financial statements structured introuvable" />;
+  }
+
+  if (state.kind === "server_error") {
+    return <StateMessage text="erreur serveur financial statements structured" />;
+  }
+
+  if (state.kind === "network_error") {
+    return <StateMessage text="erreur reseau financial statements structured" />;
+  }
+
+  if (state.kind === "timeout") {
+    return <StateMessage text="timeout financial statements structured" />;
+  }
+
+  if (state.kind === "invalid_payload") {
+    return <StateMessage text="payload financial statements structured invalide" />;
+  }
+
+  if (state.kind === "bad_request" || state.kind === "unexpected") {
+    return <StateMessage text="financial statements structured indisponible" />;
+  }
+
+  return (
+    <FinancialStatementsStructuredNominalBlocks
+      financialStatements={state.financialStatements}
+    />
+  );
 }
 
 function ImportBalanceStatus({
@@ -1559,7 +1637,7 @@ function FinancialSummaryNominalBlocks({ summary }: { summary: FinancialSummaryP
       </p>
 
       <ControlsBlock title="Etat preview">
-        <FinancialSummaryLineList lines={previewLines} />
+        <ReadonlyLineList lines={previewLines} />
         {summary.statementState === "NO_DATA" ? (
           <p className="text-sm font-medium text-foreground">
             aucune preview financiere disponible
@@ -1569,7 +1647,7 @@ function FinancialSummaryNominalBlocks({ summary }: { summary: FinancialSummaryP
 
       {summary.balanceSheetSummary !== null ? (
         <ControlsBlock title="Bilan synthetique">
-          <FinancialSummaryLineList
+          <ReadonlyLineList
             lines={[
               `actifs : ${summary.balanceSheetSummary.assets}`,
               `passifs : ${summary.balanceSheetSummary.liabilities}`,
@@ -1584,7 +1662,7 @@ function FinancialSummaryNominalBlocks({ summary }: { summary: FinancialSummaryP
 
       {summary.incomeStatementSummary !== null ? (
         <ControlsBlock title="Compte de resultat synthetique">
-          <FinancialSummaryLineList
+          <ReadonlyLineList
             lines={[
               `produits : ${summary.incomeStatementSummary.revenue}`,
               `charges : ${summary.incomeStatementSummary.expenses}`,
@@ -1597,13 +1675,120 @@ function FinancialSummaryNominalBlocks({ summary }: { summary: FinancialSummaryP
   );
 }
 
-function FinancialSummaryLineList({ lines }: { lines: string[] }) {
+function FinancialStatementsStructuredNominalBlocks({
+  financialStatements
+}: {
+  financialStatements: StructuredFinancialStatementsPreview;
+}) {
+  const previewStateLabel =
+    financialStatements.statementState === "NO_DATA"
+      ? "aucune donnee"
+      : financialStatements.statementState === "BLOCKED"
+        ? "bloquee"
+        : "preview prete";
+
+  const previewLines = [
+    `etat structured preview : ${previewStateLabel}`,
+    `version d import : ${financialStatements.latestImportVersion === null ? "aucune" : String(financialStatements.latestImportVersion)}`,
+    `lignes total : ${financialStatements.coverage.totalLines}`,
+    `lignes mappees : ${financialStatements.coverage.mappedLines}`,
+    `lignes non mappees : ${financialStatements.coverage.unmappedLines}`,
+    `part mappee : ${financialStatements.coverage.mappedShare}`
+  ];
+
+  return (
+    <div className="grid gap-4">
+      <p className="rounded-lg border bg-background/80 p-4 text-sm font-medium text-foreground">
+        Preview structuree non statutaire. Ne pas utiliser comme export final, annexe
+        officielle ou document CO.
+      </p>
+
+      <ControlsBlock title="Etat structured preview">
+        <ReadonlyLineList lines={previewLines} />
+        {financialStatements.statementState === "NO_DATA" ? (
+          <p className="text-sm font-medium text-foreground">
+            aucune preview structuree disponible
+          </p>
+        ) : null}
+        {financialStatements.statementState === "BLOCKED" ? (
+          <p className="text-sm font-medium text-foreground">preview structuree bloquee</p>
+        ) : null}
+      </ControlsBlock>
+
+      {financialStatements.statementState === "PREVIEW_READY" ? (
+        <>
+          <ControlsBlock title="Bilan structure">
+            <StructuredStatementGroupList groups={financialStatements.balanceSheet.groups} />
+            <ReadonlyLineList
+              lines={[
+                `total actifs : ${financialStatements.balanceSheet.totals.totalAssets}`,
+                `total passifs : ${financialStatements.balanceSheet.totals.totalLiabilities}`,
+                `total capitaux propres : ${financialStatements.balanceSheet.totals.totalEquity}`,
+                `resultat de la periode : ${financialStatements.balanceSheet.totals.currentPeriodResult}`,
+                `total passifs et capitaux propres : ${financialStatements.balanceSheet.totals.totalLiabilitiesAndEquity}`
+              ]}
+            />
+          </ControlsBlock>
+
+          <ControlsBlock title="Compte de resultat structure">
+            <StructuredStatementGroupList groups={financialStatements.incomeStatement.groups} />
+            <ReadonlyLineList
+              lines={[
+                `total produits : ${financialStatements.incomeStatement.totals.totalRevenue}`,
+                `total charges : ${financialStatements.incomeStatement.totals.totalExpenses}`,
+                `resultat net : ${financialStatements.incomeStatement.totals.netResult}`
+              ]}
+            />
+          </ControlsBlock>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function StructuredStatementGroupList({
+  groups
+}: {
+  groups: ReadonlyArray<{
+    code: string;
+    label: string;
+    total: string;
+    breakdowns: ReadonlyArray<{
+      code: string;
+      label: string;
+      breakdownType: string;
+      total: string;
+    }>;
+  }>;
+}) {
+  return (
+    <ul className="grid gap-4">
+      {groups.map((group) => (
+        <li key={group.code}>
+          <article className="rounded-lg border bg-background/80 p-4">
+            <div className="grid gap-4">
+              <p className="text-sm font-semibold text-foreground">{group.label}</p>
+              <ReadonlyLineList
+                lines={[
+                  `total groupe : ${group.total}`,
+                  ...group.breakdowns.map((breakdown) => `${breakdown.label} : ${breakdown.total}`)
+                ]}
+              />
+            </div>
+          </article>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function ReadonlyLineList({ lines }: { lines: string[] }) {
   return (
     <ul className="grid gap-3">
-      {lines.map((line) => (
+      {lines.map((line, index) => (
         <li
           className="rounded-lg border bg-background/80 p-4 text-sm font-medium tabular-nums text-foreground"
-          key={line}
+          key={`${index}-${line}`}
         >
           {line}
         </li>
