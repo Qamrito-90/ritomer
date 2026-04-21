@@ -250,6 +250,20 @@ const STRUCTURED_PREVIEW_READY = {
   }
 };
 
+const INITIAL_WORKPAPERS = {
+  closingFolderId: CLOSING_FOLDER.id,
+  summaryCounts: {
+    totalCurrentAnchors: 0,
+    withWorkpaperCount: 0,
+    readyForReviewCount: 0,
+    reviewedCount: 0,
+    staleCount: 0,
+    missingCount: 0
+  },
+  items: [],
+  staleWorkpapers: []
+};
+
 const CLOSING_ROUTE = `/closing-folders/${CLOSING_FOLDER.id}`;
 
 type ResponseFactory = () => Response | Promise<Response>;
@@ -283,12 +297,14 @@ function primeNominalRoute(
     controls = () => jsonResponse(200, READY_CONTROLS),
     manualMapping = () => jsonResponse(200, READY_MANUAL_MAPPING),
     financialSummary = () => jsonResponse(200, READY_FINANCIAL_SUMMARY),
-    financialStatementsStructured = () => jsonResponse(200, STRUCTURED_BLOCKED)
+    financialStatementsStructured = () => jsonResponse(200, STRUCTURED_BLOCKED),
+    workpapers = () => jsonResponse(200, INITIAL_WORKPAPERS)
   }: {
     controls?: ResponseFactory;
     manualMapping?: ResponseFactory;
     financialSummary?: ResponseFactory;
     financialStatementsStructured?: ResponseFactory;
+    workpapers?: ResponseFactory;
   } = {}
 ) {
   fetchMock
@@ -297,7 +313,8 @@ function primeNominalRoute(
     .mockImplementationOnce(() => Promise.resolve(controls()))
     .mockImplementationOnce(() => Promise.resolve(manualMapping()))
     .mockImplementationOnce(() => Promise.resolve(financialSummary()))
-    .mockImplementationOnce(() => Promise.resolve(financialStatementsStructured()));
+    .mockImplementationOnce(() => Promise.resolve(financialStatementsStructured()))
+    .mockImplementationOnce(() => Promise.resolve(workpapers()));
 }
 
 async function waitForNominalShell() {
@@ -307,6 +324,7 @@ async function waitForNominalShell() {
   expect(await screen.findByRole("heading", { name: "Cockpit read-only" })).toBeInTheDocument();
   expect(await screen.findByText("Financial summary")).toBeInTheDocument();
   expect(await screen.findByText("Financial statements structured")).toBeInTheDocument();
+  expect(await screen.findByText("Workpapers")).toBeInTheDocument();
 }
 
 function getRequestPaths(fetchMock: ReturnType<typeof vi.fn>) {
@@ -318,7 +336,8 @@ function expectNoForbiddenPaths(paths: string[]) {
   expect(paths.some((path) => path.includes("/imports/balance/versions"))).toBe(false);
   expect(paths.some((path) => path.includes("/diff-previous"))).toBe(false);
   expect(paths.some((path) => path.includes("/financial-statements-structured"))).toBe(false);
-  expect(paths.some((path) => path.includes("/workpapers"))).toBe(false);
+  expect(paths.filter((path) => path.includes("/workpapers"))).toHaveLength(1);
+  expect(paths.some((path) => /\/workpapers\/[^/]+/.test(path))).toBe(false);
   expect(paths.some((path) => path.includes("/documents"))).toBe(false);
   expect(paths.some((path) => path.includes("/exports"))).toBe(false);
   expect(paths.some((path) => path.includes("/ai"))).toBe(false);
@@ -331,6 +350,7 @@ function expectExistingBlocksVisible() {
   expect(screen.getByRole("heading", { name: "Cockpit read-only" })).toBeInTheDocument();
   expect(screen.getByText("Financial summary")).toBeInTheDocument();
   expect(screen.getByText("Financial statements structured")).toBeInTheDocument();
+  expect(screen.getByText("Workpapers")).toBeInTheDocument();
 }
 
 function getFinancialStatementsStructuredSection() {
@@ -376,7 +396,8 @@ describe("router financial statements structured", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/controls`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/manual`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-summary`,
-      `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`
+      `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`
     ]);
     expectNoForbiddenPaths(paths);
   });
@@ -397,7 +418,7 @@ describe("router financial statements structured", () => {
         "Preview structuree non statutaire. Ne pas utiliser comme export final, annexe officielle ou document CO."
       )
     ).not.toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(6);
+    expect(fetchMock).toHaveBeenCalledTimes(7);
   });
 
   it.each([
