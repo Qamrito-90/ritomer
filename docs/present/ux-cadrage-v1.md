@@ -10,8 +10,8 @@ Il ne remplace ni la vision UX, ni le playbook UX, ni la source de verite UI. Il
 
 - La V1 reste orientee workbench de closing, pas SaaS generique.
 - Le flux reel deja fige dans le repo est : `closing -> import -> mapping -> controls -> financial-summary -> financial-statements-structured -> workpapers -> document-storage-and-evidence-files -> exports-audit-ready`.
-- Le present UX inclut maintenant un frontend borne sur `/` et `/closing-folders/:closingFolderId`, avec entree dossiers, detail dossier, import balance CSV borne, mapping manuel unitaire borne, cockpit controls/readiness read-only et preview `Financial summary` read-only.
-- Au-dela de ces surfaces bornees, la V1 reste backend-first dans son execution ; la verite UX du present couvre les capacites closes jusqu'a `018`.
+- Le present UX inclut maintenant un frontend borne sur `/` et `/closing-folders/:closingFolderId`, avec entree dossiers, detail dossier, import balance CSV borne, mapping manuel unitaire borne, cockpit controls/readiness read-only, preview `Financial summary` read-only et preview `Financial statements structured` read-only.
+- Au-dela de ces surfaces bornees, la V1 reste backend-first dans son execution ; la verite UX du present couvre les capacites closes jusqu'a `019`.
 - La source de verite UI codable reste `docs/ui/ui-foundations-v1.md`.
 - Le produit doit rester clair sous pression : contexte tenant, dossier, statut, blockers, next action et preuves doivent etre explicites.
 - Les lectures sur `ARCHIVED` restent autorisees sur les surfaces closes qui le prevoient ; les writes restent bloques quand le workflow le demande.
@@ -54,6 +54,7 @@ Il ne remplace ni la vision UX, ni le playbook UX, ni la source de verite UI. Il
 - `specs/done/016-frontend-import-balance-v1.md`
 - `specs/done/017-frontend-manual-mapping-v1.md`
 - `specs/done/018-frontend-financial-summary-preview-v1.md`
+- `specs/done/019-frontend-financial-statements-structured-preview-v1.md`
 - `specs/done/006-controls-v1.md`
 - `specs/done/007-financial-summary-v1.md`
 - `specs/done/009-financial-statements-structured-v1.md`

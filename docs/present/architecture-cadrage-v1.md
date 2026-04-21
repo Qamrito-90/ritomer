@@ -18,7 +18,7 @@ Il ne remplace ni les ADRs, ni les specs, ni les contrats, ni les runbooks. Il f
 - `./gradlew test` reste le rail nominal sans PostgreSQL reel ; `dbIntegrationTest` reste opt-in avec configuration explicite.
 - Le multi-tenant est applique par `tenant_id` partout, avec scoping applicatif d'abord et RLS progressive ensuite.
 - L'audit est append-only sur les mutations metier significatives ; les lectures closes en `GET` sur les read-models actuels n'ecrivent pas d'audit.
-- Les capacites closes du present vont jusqu'a `018` : closing, import, mapping, controls, financial previews, workpapers, document storage, verification reviewer de la preuve, export pack audit-ready, et un frontend borne sur `/` puis `/closing-folders/:closingFolderId` pour l'entree dossiers, le detail dossier, l'import balance CSV, le mapping manuel unitaire, le cockpit controls et la preview `Financial summary` read-only.
+- Les capacites closes du present vont jusqu'a `019` : closing, import, mapping, controls, financial previews, workpapers, document storage, verification reviewer de la preuve, export pack audit-ready, et un frontend borne sur `/` puis `/closing-folders/:closingFolderId` pour l'entree dossiers, le detail dossier, l'import balance CSV, le mapping manuel unitaire, le cockpit controls, la preview `Financial summary` read-only et la preview `Financial statements structured` read-only.
 - `workpapers` reste le module proprietaire pour la justification, les documents et leur verification reviewer ; `011` et `012` n'introduisent pas de module transverse `documents`.
 - Le binaire documentaire est stocke en object storage prive ; le download V1 reste backend-only sans signed URL publique.
 - `exports` est maintenant un module proprietaire distinct qui persiste un `export_pack` immutable, assemble un `ZIP` synchrone et deterministe, et telecharge ce pack via le backend uniquement.
@@ -62,6 +62,7 @@ Il ne remplace ni les ADRs, ni les specs, ni les contrats, ni les runbooks. Il f
 - `specs/done/006-controls-v1.md`
 - `specs/done/007-financial-summary-v1.md`
 - `specs/done/018-frontend-financial-summary-preview-v1.md`
+- `specs/done/019-frontend-financial-statements-structured-preview-v1.md`
 - `specs/done/008-financial-rubric-taxonomy-v2.md`
 - `specs/done/009-financial-statements-structured-v1.md`
 - `specs/done/010-workpapers-v1.md`

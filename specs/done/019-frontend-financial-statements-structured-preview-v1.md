@@ -1,7 +1,7 @@
 # 019 - Frontend financial statements structured preview v1
 
 ## Status
-Active
+Done
 
 ## Role de cette spec
 

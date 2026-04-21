@@ -28,6 +28,12 @@ import {
   type FinancialSummaryShellState
 } from "../lib/api/financial-summary";
 import {
+  loadWorkpapersShellState,
+  type ClosingWorkpapersReadModel,
+  type WorkpaperReadModelItem,
+  type WorkpapersShellState
+} from "../lib/api/workpapers";
+import {
   uploadBalanceImport,
   type BalanceImportValidationError
 } from "../lib/api/import-balance";
@@ -133,6 +139,7 @@ type ClosingRouteState =
       controlsState: ControlsShellState;
       financialSummaryState: FinancialSummaryShellState;
       financialStatementsStructuredState: FinancialStatementsStructuredShellState;
+      workpapersState: WorkpapersShellState;
       manualMappingState: ManualMappingShellState;
       manualMappingSelectedTargets: Record<string, string | undefined>;
       manualMappingMutationState: ManualMappingMutationState;
@@ -360,6 +367,7 @@ function ClosingFolderRoute() {
             controlsState: { kind: "loading" },
             financialSummaryState: { kind: "loading" },
             financialStatementsStructuredState: { kind: "loading" },
+            workpapersState: { kind: "loading" },
             manualMappingState: { kind: "loading" },
             manualMappingSelectedTargets: {},
             manualMappingMutationState: { kind: "idle" },
@@ -372,7 +380,8 @@ function ClosingFolderRoute() {
             controlsState,
             manualMappingState,
             financialSummaryState,
-            financialStatementsStructuredState
+            financialStatementsStructuredState,
+            workpapersState
           ] = await Promise.all([
             loadControlsShellState(
               closingFolderId,
@@ -393,6 +402,11 @@ function ClosingFolderRoute() {
               closingFolderId,
               closingFolderState.closingFolder,
               meState.activeTenant
+            ),
+            loadWorkpapersShellState(
+              closingFolderId,
+              closingFolderState.closingFolder,
+              meState.activeTenant
             )
           ]);
 
@@ -410,6 +424,7 @@ function ClosingFolderRoute() {
               controlsState,
               financialSummaryState,
               financialStatementsStructuredState,
+              workpapersState,
               manualMappingState,
               manualMappingSelectedTargets:
                 manualMappingState.kind === "ready"
@@ -838,7 +853,7 @@ function ClosingFolderRoute() {
         { label: "Dossiers de closing", href: "/" },
         { label: "Dossier" }
       ]}
-      description="Shell produit borne a GET /api/me, GET /api/closing-folders/{id}, GET /api/closing-folders/{closingFolderId}/controls, GET /api/closing-folders/{closingFolderId}/mappings/manual, GET /api/closing-folders/{closingFolderId}/financial-summary, GET /api/closing-folders/{closingFolderId}/financial-statements/structured puis POST /api/closing-folders/{closingFolderId}/imports/balance."
+      description="Shell produit borne a GET /api/me, GET /api/closing-folders/{id}, GET /api/closing-folders/{closingFolderId}/controls, GET /api/closing-folders/{closingFolderId}/mappings/manual, GET /api/closing-folders/{closingFolderId}/financial-summary, GET /api/closing-folders/{closingFolderId}/financial-statements/structured, GET /api/closing-folders/{closingFolderId}/workpapers puis POST /api/closing-folders/{closingFolderId}/imports/balance."
       eyebrow="Route shell produit"
       sidebarItems={[
         { href: "/", label: "Dossiers" },
@@ -966,6 +981,16 @@ function ClosingFolderRoute() {
               <FinancialStatementsStructuredSlot
                 state={state.financialStatementsStructuredState}
               />
+            </div>
+          </section>
+
+          <section className="panel p-6">
+            <div className="grid gap-6">
+              <div className="grid gap-2">
+                <p className="label-eyebrow">Workpapers</p>
+                <h3 className="text-xl font-semibold text-foreground">Read-only</h3>
+              </div>
+              <WorkpapersSlot state={state.workpapersState} />
             </div>
           </section>
         </div>
@@ -1191,6 +1216,46 @@ function FinancialStatementsStructuredSlot({
       financialStatements={state.financialStatements}
     />
   );
+}
+
+function WorkpapersSlot({ state }: { state: WorkpapersShellState }) {
+  if (state.kind === "loading") {
+    return <StateMessage text="chargement workpapers" />;
+  }
+
+  if (state.kind === "auth_required") {
+    return <StateMessage text="authentification requise" />;
+  }
+
+  if (state.kind === "forbidden") {
+    return <StateMessage text="acces workpapers refuse" />;
+  }
+
+  if (state.kind === "not_found") {
+    return <StateMessage text="workpapers introuvables" />;
+  }
+
+  if (state.kind === "server_error") {
+    return <StateMessage text="erreur serveur workpapers" />;
+  }
+
+  if (state.kind === "network_error") {
+    return <StateMessage text="erreur reseau workpapers" />;
+  }
+
+  if (state.kind === "timeout") {
+    return <StateMessage text="timeout workpapers" />;
+  }
+
+  if (state.kind === "invalid_payload") {
+    return <StateMessage text="payload workpapers invalide" />;
+  }
+
+  if (state.kind === "bad_request" || state.kind === "unexpected") {
+    return <StateMessage text="workpapers indisponibles" />;
+  }
+
+  return <WorkpapersNominalBlocks workpapers={state.workpapers} />;
 }
 
 function ImportBalanceStatus({
@@ -1743,6 +1808,116 @@ function FinancialStatementsStructuredNominalBlocks({
         </>
       ) : null}
     </div>
+  );
+}
+
+function WorkpapersNominalBlocks({
+  workpapers
+}: {
+  workpapers: ClosingWorkpapersReadModel;
+}) {
+  const summaryLines = [
+    `anchors courants total : ${workpapers.summaryCounts.totalCurrentAnchors}`,
+    `anchors avec workpaper : ${workpapers.summaryCounts.withWorkpaperCount}`,
+    `workpapers prets pour revue : ${workpapers.summaryCounts.readyForReviewCount}`,
+    `workpapers revus : ${workpapers.summaryCounts.reviewedCount}`,
+    `workpapers stale : ${workpapers.summaryCounts.staleCount}`,
+    `anchors sans workpaper : ${workpapers.summaryCounts.missingCount}`
+  ];
+
+  return (
+    <div className="grid gap-4">
+      <p className="rounded-lg border bg-background/80 p-4 text-sm font-medium text-foreground">
+        Workpapers en lecture seule dans cette version.
+      </p>
+
+      <ControlsBlock title="Resume workpapers">
+        <ReadonlyLineList lines={summaryLines} />
+      </ControlsBlock>
+
+      {workpapers.items.length === 0 && workpapers.staleWorkpapers.length === 0 ? (
+        <p className="text-sm font-medium text-foreground">aucun workpaper disponible</p>
+      ) : null}
+
+      <ControlsBlock title="Workpapers courants">
+        {workpapers.items.length === 0 ? (
+          <p className="text-sm font-medium text-foreground">aucun workpaper courant</p>
+        ) : (
+          <ul className="grid gap-4">
+            {workpapers.items.map((item) => (
+              <li key={`${item.anchorCode}-current`}>
+                <WorkpaperCard item={item} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </ControlsBlock>
+
+      <ControlsBlock title="Workpapers stale">
+        {workpapers.staleWorkpapers.length === 0 ? (
+          <p className="text-sm font-medium text-foreground">aucun workpaper stale</p>
+        ) : (
+          <ul className="grid gap-4">
+            {workpapers.staleWorkpapers.map((item) => (
+              <li key={`${item.anchorCode}-stale`}>
+                <WorkpaperCard item={item} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </ControlsBlock>
+    </div>
+  );
+}
+
+function WorkpaperCard({ item }: { item: WorkpaperReadModelItem }) {
+  const lines = [
+    `anchor code : ${item.anchorCode}`,
+    `statement kind : ${item.statementKind}`,
+    `breakdown type : ${item.breakdownType}`,
+    `etat workpaper : ${item.workpaper === null ? "aucun" : item.workpaper.status}`
+  ];
+
+  if (item.workpaper !== null) {
+    lines.push(`note workpaper : ${item.workpaper.noteText}`);
+  }
+
+  return (
+    <article
+      aria-label={`workpaper ${item.anchorCode}`}
+      className="rounded-lg border bg-background/80 p-4"
+    >
+      <div className="grid gap-4">
+        <p className="text-sm font-semibold text-foreground">{item.anchorLabel}</p>
+        <ReadonlyLineList lines={lines} />
+
+        <ControlsBlock title="Documents inclus">
+          {item.documents.length === 0 ? (
+            <p className="text-sm font-medium text-foreground">aucun document inclus</p>
+          ) : (
+            <ReadonlyLineList
+              lines={item.documents.map(
+                (document) =>
+                  `${document.fileName} | ${document.mediaType} | ${document.sourceLabel} | verification : ${document.verificationStatus}`
+              )}
+            />
+          )}
+        </ControlsBlock>
+
+        {item.documentVerificationSummary !== null ? (
+          <ControlsBlock title="Verification documents">
+            <ReadonlyLineList
+              lines={[
+                `documents total : ${item.documentVerificationSummary.documentsCount}`,
+                `documents non verifies : ${item.documentVerificationSummary.unverifiedCount}`,
+                `documents verifies : ${item.documentVerificationSummary.verifiedCount}`,
+                `documents rejetes : ${item.documentVerificationSummary.rejectedCount}`
+              ]}
+            />
+          </ControlsBlock>
+        ) : null}
+      </div>
+    </article>
   );
 }
 
