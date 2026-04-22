@@ -28,10 +28,14 @@ import {
   type FinancialSummaryShellState
 } from "../lib/api/financial-summary";
 import {
+  DOCUMENT_UPLOAD_ALLOWED_MEDIA_TYPES,
+  DOCUMENT_UPLOAD_MAX_BYTES,
   loadWorkpapersShellState,
+  uploadWorkpaperDocument,
   upsertWorkpaper,
   type ClosingWorkpapersReadModel,
   type MakerWorkpaperStatus,
+  type UploadWorkpaperDocumentState,
   type WorkpaperEvidence,
   type WorkpaperReadModelItem,
   type WorkpapersShellState
@@ -129,6 +133,13 @@ type WorkpaperDraft = {
   status: MakerWorkpaperStatus;
 };
 
+type DocumentUploadDraft = {
+  file: File | null;
+  selectedFileCount: number;
+  sourceLabel: string;
+  documentDate: string;
+};
+
 type WorkpaperMutationState =
   | { kind: "idle" }
   | { kind: "submitting" }
@@ -152,6 +163,29 @@ type WorkpaperMutationState =
   | { kind: "invalid_workpapers_payload" }
   | { kind: "unexpected" };
 
+type DocumentUploadState =
+  | { kind: "idle" }
+  | { kind: "submitting"; anchorCode: string }
+  | { kind: "success"; anchorCode: string; refreshFailed: boolean }
+  | { kind: "bad_request"; anchorCode: string }
+  | { kind: "bad_request_invalid_media_type"; anchorCode: string }
+  | { kind: "bad_request_empty_file"; anchorCode: string }
+  | { kind: "bad_request_source_required"; anchorCode: string }
+  | { kind: "auth_required"; anchorCode: string }
+  | { kind: "forbidden"; anchorCode: string }
+  | { kind: "not_found"; anchorCode: string }
+  | { kind: "conflict_archived"; anchorCode: string }
+  | { kind: "conflict_not_ready"; anchorCode: string }
+  | { kind: "conflict_stale"; anchorCode: string }
+  | { kind: "conflict_workpaper_read_only"; anchorCode: string }
+  | { kind: "conflict_other"; anchorCode: string }
+  | { kind: "payload_too_large"; anchorCode: string }
+  | { kind: "server_error"; anchorCode: string }
+  | { kind: "network_error"; anchorCode: string }
+  | { kind: "timeout"; anchorCode: string }
+  | { kind: "invalid_payload"; anchorCode: string }
+  | { kind: "unexpected"; anchorCode: string };
+
 type ClosingRouteState =
   | { kind: "loading" }
   | { kind: "auth_required" }
@@ -172,7 +206,9 @@ type ClosingRouteState =
       financialStatementsStructuredState: FinancialStatementsStructuredShellState;
       workpapersState: WorkpapersShellState;
       workpaperDrafts: Record<string, WorkpaperDraft>;
+      documentUploadDrafts: Record<string, DocumentUploadDraft>;
       workpaperMutationState: WorkpaperMutationState;
+      documentUploadState: DocumentUploadState;
       manualMappingState: ManualMappingShellState;
       manualMappingSelectedTargets: Record<string, string | undefined>;
       manualMappingMutationState: ManualMappingMutationState;
@@ -207,6 +243,21 @@ const nextActionLabelByCode = {
 
 const manualMappingWritableRoles = new Set(["ACCOUNTANT", "MANAGER", "ADMIN"]);
 const workpaperWritableRoles = new Set(["ACCOUNTANT", "MANAGER", "ADMIN"]);
+const documentUploadAllowedExtensions = new Set([
+  ".pdf",
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".tif",
+  ".tiff",
+  ".csv",
+  ".xls",
+  ".xlsx"
+]);
+const documentUploadInputAccept = [
+  ...DOCUMENT_UPLOAD_ALLOWED_MEDIA_TYPES,
+  ...documentUploadAllowedExtensions
+].join(",");
 
 function ClosingFoldersEntrypointRoute() {
   const [state, setState] = useState<EntrypointRouteState>({ kind: "loading" });
@@ -343,10 +394,12 @@ function ClosingFolderRoute() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importRequestIdRef = useRef(0);
   const workpaperMutationInFlightRef = useRef(false);
+  const documentUploadInFlightRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
     workpaperMutationInFlightRef.current = false;
+    documentUploadInFlightRef.current = false;
 
     async function loadShellState() {
       setState({ kind: "loading" });
@@ -405,7 +458,9 @@ function ClosingFolderRoute() {
             financialStatementsStructuredState: { kind: "loading" },
             workpapersState: { kind: "loading" },
             workpaperDrafts: {},
+            documentUploadDrafts: {},
             workpaperMutationState: { kind: "idle" },
+            documentUploadState: { kind: "idle" },
             manualMappingState: { kind: "loading" },
             manualMappingSelectedTargets: {},
             manualMappingMutationState: { kind: "idle" },
@@ -467,6 +522,10 @@ function ClosingFolderRoute() {
                 workpapersState.kind === "ready"
                   ? createWorkpaperDrafts(workpapersState.workpapers)
                   : {},
+              documentUploadDrafts:
+                workpapersState.kind === "ready"
+                  ? createDocumentUploadDrafts(workpapersState.workpapers)
+                  : {},
               manualMappingState,
               manualMappingSelectedTargets:
                 manualMappingState.kind === "ready"
@@ -484,6 +543,7 @@ function ClosingFolderRoute() {
     return () => {
       cancelled = true;
       workpaperMutationInFlightRef.current = false;
+      documentUploadInFlightRef.current = false;
     };
   }, [closingFolderId]);
 
@@ -896,8 +956,122 @@ function ClosingFolderRoute() {
     });
   }
 
+  function handleDocumentUploadFileChange(
+    anchorCode: string,
+    event: ChangeEvent<HTMLInputElement>
+  ) {
+    const files = event.currentTarget.files;
+    const selectedFileCount = files?.length ?? 0;
+    const selectedFile = selectedFileCount === 1 ? (files?.[0] ?? null) : null;
+
+    setState((currentState) => {
+      if (
+        currentState.kind !== "closing_ready" ||
+        currentState.workpapersState.kind !== "ready"
+      ) {
+        return currentState;
+      }
+
+      const item = currentState.workpapersState.workpapers.items.find(
+        (candidate) => candidate.anchorCode === anchorCode
+      );
+
+      if (item === undefined) {
+        return currentState;
+      }
+
+      return {
+        ...currentState,
+        documentUploadDrafts: {
+          ...currentState.documentUploadDrafts,
+          [anchorCode]: {
+            ...getDocumentUploadDraft(currentState.documentUploadDrafts, item),
+            file: selectedFile,
+            selectedFileCount
+          }
+        },
+        documentUploadState: clearDocumentUploadStateForAnchor(
+          currentState.documentUploadState,
+          anchorCode
+        )
+      };
+    });
+  }
+
+  function handleDocumentUploadSourceLabelChange(anchorCode: string, sourceLabel: string) {
+    setState((currentState) => {
+      if (
+        currentState.kind !== "closing_ready" ||
+        currentState.workpapersState.kind !== "ready"
+      ) {
+        return currentState;
+      }
+
+      const item = currentState.workpapersState.workpapers.items.find(
+        (candidate) => candidate.anchorCode === anchorCode
+      );
+
+      if (item === undefined) {
+        return currentState;
+      }
+
+      return {
+        ...currentState,
+        documentUploadDrafts: {
+          ...currentState.documentUploadDrafts,
+          [anchorCode]: {
+            ...getDocumentUploadDraft(currentState.documentUploadDrafts, item),
+            sourceLabel
+          }
+        },
+        documentUploadState: clearDocumentUploadStateForAnchor(
+          currentState.documentUploadState,
+          anchorCode
+        )
+      };
+    });
+  }
+
+  function handleDocumentUploadDateChange(anchorCode: string, documentDate: string) {
+    setState((currentState) => {
+      if (
+        currentState.kind !== "closing_ready" ||
+        currentState.workpapersState.kind !== "ready"
+      ) {
+        return currentState;
+      }
+
+      const item = currentState.workpapersState.workpapers.items.find(
+        (candidate) => candidate.anchorCode === anchorCode
+      );
+
+      if (item === undefined) {
+        return currentState;
+      }
+
+      return {
+        ...currentState,
+        documentUploadDrafts: {
+          ...currentState.documentUploadDrafts,
+          [anchorCode]: {
+            ...getDocumentUploadDraft(currentState.documentUploadDrafts, item),
+            documentDate
+          }
+        },
+        documentUploadState: clearDocumentUploadStateForAnchor(
+          currentState.documentUploadState,
+          anchorCode
+        )
+      };
+    });
+  }
+
   async function handleSaveWorkpaper(anchorCode: string) {
     if (state.kind !== "closing_ready" || state.workpapersState.kind !== "ready") {
+      return;
+    }
+
+    if (documentUploadInFlightRef.current) {
       return;
     }
 
@@ -1065,7 +1239,7 @@ function ClosingFolderRoute() {
         };
       });
 
-      await refreshWorkpapers(state.activeTenant, state.closingFolder);
+      await refreshWorkpapersAfterWorkpaperMutation(state.activeTenant, state.closingFolder);
       return;
     }
 
@@ -1083,7 +1257,115 @@ function ClosingFolderRoute() {
     });
   }
 
-  async function refreshWorkpapers(activeTenant: ActiveTenant, closingFolder: ClosingFolderSummary) {
+  async function handleDocumentUpload(anchorCode: string) {
+    if (state.kind !== "closing_ready" || state.workpapersState.kind !== "ready") {
+      return;
+    }
+
+    if (workpaperMutationInFlightRef.current || documentUploadInFlightRef.current) {
+      return;
+    }
+
+    const workpapers = state.workpapersState.workpapers;
+    const currentItem = workpapers.items.find((item) => item.anchorCode === anchorCode);
+
+    if (currentItem === undefined || !currentItem.isCurrentStructure) {
+      setState((currentState) => {
+        if (currentState.kind !== "closing_ready") {
+          return currentState;
+        }
+
+        return {
+          ...currentState,
+          documentUploadState: { kind: "unexpected", anchorCode }
+        };
+      });
+      return;
+    }
+
+    if (currentItem.workpaper === null) {
+      return;
+    }
+
+    if (!isWorkpaperDocumentUploadEditable(currentItem)) {
+      setState((currentState) => {
+        if (currentState.kind !== "closing_ready") {
+          return currentState;
+        }
+
+        return {
+          ...currentState,
+          documentUploadState: { kind: "conflict_workpaper_read_only", anchorCode }
+        };
+      });
+      return;
+    }
+
+    const draft = getDocumentUploadDraft(state.documentUploadDrafts, currentItem);
+    const validation = validateDocumentUploadDraft(draft);
+
+    if (validation.kind !== "valid") {
+      return;
+    }
+
+    documentUploadInFlightRef.current = true;
+
+    setState((currentState) => {
+      if (currentState.kind !== "closing_ready") {
+        return currentState;
+      }
+
+      return {
+        ...currentState,
+        documentUploadState: { kind: "submitting", anchorCode }
+      };
+    });
+
+    const result = await uploadWorkpaperDocument(closingFolderId, state.activeTenant, {
+      anchorCode,
+      file: validation.file,
+      sourceLabel: validation.sourceLabel,
+      documentDate: validation.documentDate
+    });
+
+    if (result.kind === "success") {
+      setState((currentState) => {
+        if (currentState.kind !== "closing_ready") {
+          return currentState;
+        }
+
+        return {
+          ...currentState,
+          documentUploadState: { kind: "success", anchorCode, refreshFailed: false }
+        };
+      });
+
+      await refreshWorkpapersAfterDocumentUpload(
+        state.activeTenant,
+        state.closingFolder,
+        anchorCode
+      );
+      return;
+    }
+
+    documentUploadInFlightRef.current = false;
+
+    setState((currentState) => {
+      if (currentState.kind !== "closing_ready") {
+        return currentState;
+      }
+
+      return {
+        ...currentState,
+        documentUploadState: mapDocumentUploadResult(result, anchorCode)
+      };
+    });
+  }
+
+  async function refreshWorkpapersAfterWorkpaperMutation(
+    activeTenant: ActiveTenant,
+    closingFolder: ClosingFolderSummary
+  ) {
     const refreshedWorkpapersState = await loadWorkpapersShellState(
       closingFolderId,
       closingFolder,
@@ -1108,7 +1390,44 @@ function ClosingFolderRoute() {
         ...currentState,
         workpapersState: refreshedWorkpapersState,
         workpaperDrafts: createWorkpaperDrafts(refreshedWorkpapersState.workpapers),
-        workpaperMutationState: { kind: "success", refreshFailed: false }
+        documentUploadDrafts: createDocumentUploadDrafts(refreshedWorkpapersState.workpapers),
+        workpaperMutationState: { kind: "success", refreshFailed: false },
+        documentUploadState: { kind: "idle" }
+      };
+    });
+  }
+
+  async function refreshWorkpapersAfterDocumentUpload(
+    activeTenant: ActiveTenant,
+    closingFolder: ClosingFolderSummary,
+    anchorCode: string
+  ) {
+    const refreshedWorkpapersState = await loadWorkpapersShellState(
+      closingFolderId,
+      closingFolder,
+      activeTenant
+    );
+
+    documentUploadInFlightRef.current = false;
+
+    setState((currentState) => {
+      if (currentState.kind !== "closing_ready") {
+        return currentState;
+      }
+
+      if (refreshedWorkpapersState.kind !== "ready") {
+        return {
+          ...currentState,
+          documentUploadState: { kind: "success", anchorCode, refreshFailed: true }
+        };
+      }
+
+      return {
+        ...currentState,
+        workpapersState: refreshedWorkpapersState,
+        workpaperDrafts: createWorkpaperDrafts(refreshedWorkpapersState.workpapers),
+        documentUploadDrafts: createDocumentUploadDrafts(refreshedWorkpapersState.workpapers),
+        documentUploadState: { kind: "success", anchorCode, refreshFailed: false }
       };
     });
   }
@@ -1177,7 +1496,7 @@ function ClosingFolderRoute() {
         { label: "Dossiers de closing", href: "/" },
         { label: "Dossier" }
       ]}
-      description="Shell produit borne a GET /api/me, GET /api/closing-folders/{id}, GET /api/closing-folders/{closingFolderId}/controls, GET /api/closing-folders/{closingFolderId}/mappings/manual, GET /api/closing-folders/{closingFolderId}/financial-summary, GET /api/closing-folders/{closingFolderId}/financial-statements/structured, GET /api/closing-folders/{closingFolderId}/workpapers, PUT /api/closing-folders/{closingFolderId}/workpapers/{anchorCode} puis POST /api/closing-folders/{closingFolderId}/imports/balance."
+      description="Shell produit borne a GET /api/me, GET /api/closing-folders/{id}, GET /api/closing-folders/{closingFolderId}/controls, GET /api/closing-folders/{closingFolderId}/mappings/manual, GET /api/closing-folders/{closingFolderId}/financial-summary, GET /api/closing-folders/{closingFolderId}/financial-statements/structured, GET /api/closing-folders/{closingFolderId}/workpapers, PUT /api/closing-folders/{closingFolderId}/workpapers/{anchorCode}, POST /api/closing-folders/{closingFolderId}/workpapers/{anchorCode}/documents puis POST /api/closing-folders/{closingFolderId}/imports/balance."
       eyebrow="Route shell produit"
       sidebarItems={[
         { href: "/", label: "Dossiers" },
@@ -1315,8 +1634,14 @@ function ClosingFolderRoute() {
                 <h3 className="text-xl font-semibold text-foreground">Maker update unitaire</h3>
               </div>
               <WorkpapersSlot
+                documentUploadDrafts={state.documentUploadDrafts}
+                documentUploadState={state.documentUploadState}
                 effectiveRoles={state.effectiveRoles}
                 mutationState={state.workpaperMutationState}
+                onDocumentDateChange={handleDocumentUploadDateChange}
+                onDocumentFileChange={handleDocumentUploadFileChange}
+                onDocumentUpload={handleDocumentUpload}
+                onDocumentUploadSourceLabelChange={handleDocumentUploadSourceLabelChange}
                 onNoteChange={handleWorkpaperNoteChange}
                 onSave={handleSaveWorkpaper}
                 onStatusChange={handleWorkpaperStatusChange}
@@ -1551,18 +1876,30 @@ function FinancialStatementsStructuredSlot({
 }
 
 function WorkpapersSlot({
+  documentUploadDrafts,
+  documentUploadState,
   effectiveRoles,
   state,
   workpaperDrafts,
   mutationState,
+  onDocumentDateChange,
+  onDocumentFileChange,
+  onDocumentUpload,
+  onDocumentUploadSourceLabelChange,
   onNoteChange,
   onStatusChange,
   onSave
 }: {
+  documentUploadDrafts: Record<string, DocumentUploadDraft>;
+  documentUploadState: DocumentUploadState;
   effectiveRoles: EffectiveRolesHint;
   state: WorkpapersShellState;
   workpaperDrafts: Record<string, WorkpaperDraft>;
   mutationState: WorkpaperMutationState;
+  onDocumentDateChange: (anchorCode: string, documentDate: string) => void;
+  onDocumentFileChange: (anchorCode: string, event: ChangeEvent<HTMLInputElement>) => void;
+  onDocumentUpload: (anchorCode: string) => void;
+  onDocumentUploadSourceLabelChange: (anchorCode: string, sourceLabel: string) => void;
   onNoteChange: (anchorCode: string, noteText: string) => void;
   onStatusChange: (anchorCode: string, status: string) => void;
   onSave: (anchorCode: string) => void;
@@ -1605,8 +1942,14 @@ function WorkpapersSlot({
 
   return (
     <WorkpapersNominalBlocks
+      documentUploadDrafts={documentUploadDrafts}
+      documentUploadState={documentUploadState}
       effectiveRoles={effectiveRoles}
       mutationState={mutationState}
+      onDocumentDateChange={onDocumentDateChange}
+      onDocumentFileChange={onDocumentFileChange}
+      onDocumentUpload={onDocumentUpload}
+      onDocumentUploadSourceLabelChange={onDocumentUploadSourceLabelChange}
       onNoteChange={onNoteChange}
       onSave={onSave}
       onStatusChange={onStatusChange}
@@ -2196,16 +2539,28 @@ function FinancialStatementsStructuredNominalBlocks({
 }
 
 function WorkpapersNominalBlocks({
+  documentUploadDrafts,
+  documentUploadState,
   effectiveRoles,
   mutationState,
+  onDocumentDateChange,
+  onDocumentFileChange,
+  onDocumentUpload,
+  onDocumentUploadSourceLabelChange,
   onNoteChange,
   onSave,
   onStatusChange,
   workpaperDrafts,
   workpapers
 }: {
+  documentUploadDrafts: Record<string, DocumentUploadDraft>;
+  documentUploadState: DocumentUploadState;
   effectiveRoles: EffectiveRolesHint;
   mutationState: WorkpaperMutationState;
+  onDocumentDateChange: (anchorCode: string, documentDate: string) => void;
+  onDocumentFileChange: (anchorCode: string, event: ChangeEvent<HTMLInputElement>) => void;
+  onDocumentUpload: (anchorCode: string) => void;
+  onDocumentUploadSourceLabelChange: (anchorCode: string, sourceLabel: string) => void;
   onNoteChange: (anchorCode: string, noteText: string) => void;
   onSave: (anchorCode: string) => void;
   onStatusChange: (anchorCode: string, status: string) => void;
@@ -2221,7 +2576,8 @@ function WorkpapersNominalBlocks({
     `anchors sans workpaper : ${workpapers.summaryCounts.missingCount}`
   ];
   const globalReadOnlyMessage = getWorkpapersGlobalReadOnlyMessage(workpapers, effectiveRoles);
-  const controlsDisabled = mutationState.kind === "submitting";
+  const controlsDisabled =
+    mutationState.kind === "submitting" || documentUploadState.kind === "submitting";
 
   return (
     <div className="grid gap-4">
@@ -2250,20 +2606,41 @@ function WorkpapersNominalBlocks({
           <ul className="grid gap-4">
             {workpapers.items.map((item) => {
               const draft = getWorkpaperDraft(workpaperDrafts, item);
+              const documentUploadDraft = getDocumentUploadDraft(documentUploadDrafts, item);
               const itemReadOnlyMessage = getCurrentWorkpaperReadOnlyMessage(
+                item,
+                globalReadOnlyMessage
+              );
+              const uploadAvailabilityMessage = getCurrentWorkpaperUploadAvailabilityMessage(
                 item,
                 globalReadOnlyMessage
               );
               const showMakerForm =
                 globalReadOnlyMessage === null && itemReadOnlyMessage === null;
+              const showDocumentUploadSection =
+                globalReadOnlyMessage === null && isWorkpaperDocumentUploadEditable(item);
 
               return (
                 <li key={`${item.anchorCode}-current`}>
                   <WorkpaperCard
                     controlsDisabled={controlsDisabled}
+                    documentUploadDraft={showDocumentUploadSection ? documentUploadDraft : null}
+                    documentUploadState={documentUploadState}
                     draft={showMakerForm ? draft : null}
                     item={item}
                     makerReadOnlyMessage={itemReadOnlyMessage}
+                    onDocumentDateChange={
+                      showDocumentUploadSection ? onDocumentDateChange : undefined
+                    }
+                    onDocumentFileChange={
+                      showDocumentUploadSection ? onDocumentFileChange : undefined
+                    }
+                    onDocumentUpload={showDocumentUploadSection ? onDocumentUpload : undefined}
+                    onDocumentUploadSourceLabelChange={
+                      showDocumentUploadSection
+                        ? onDocumentUploadSourceLabelChange
+                        : undefined
+                    }
                     onNoteChange={showMakerForm ? onNoteChange : undefined}
                     onSave={showMakerForm ? onSave : undefined}
                     onStatusChange={showMakerForm ? onStatusChange : undefined}
@@ -2275,6 +2652,18 @@ function WorkpapersNominalBlocks({
                         item,
                         draft,
                         mutationState
+                      )
+                    }
+                    uploadAvailabilityMessage={uploadAvailabilityMessage}
+                    uploadDisabled={
+                      !showDocumentUploadSection ||
+                      !canUploadDocumentItem(
+                        workpapers,
+                        effectiveRoles,
+                        item,
+                        documentUploadDraft,
+                        mutationState,
+                        documentUploadState
                       )
                     }
                   />
@@ -2308,22 +2697,38 @@ function WorkpapersNominalBlocks({
 
 function WorkpaperCard({
   controlsDisabled = false,
+  documentUploadDraft = null,
+  documentUploadState = { kind: "idle" },
   draft = null,
   item,
   makerReadOnlyMessage = null,
+  onDocumentDateChange,
+  onDocumentFileChange,
+  onDocumentUpload,
+  onDocumentUploadSourceLabelChange,
   onNoteChange,
   onSave,
   onStatusChange,
-  saveDisabled = true
+  saveDisabled = true,
+  uploadAvailabilityMessage = null,
+  uploadDisabled = true
 }: {
   controlsDisabled?: boolean;
+  documentUploadDraft?: DocumentUploadDraft | null;
+  documentUploadState?: DocumentUploadState;
   draft?: WorkpaperDraft | null;
   item: WorkpaperReadModelItem;
   makerReadOnlyMessage?: string | null;
+  onDocumentDateChange?: (anchorCode: string, documentDate: string) => void;
+  onDocumentFileChange?: (anchorCode: string, event: ChangeEvent<HTMLInputElement>) => void;
+  onDocumentUpload?: (anchorCode: string) => void;
+  onDocumentUploadSourceLabelChange?: (anchorCode: string, sourceLabel: string) => void;
   onNoteChange?: (anchorCode: string, noteText: string) => void;
   onSave?: (anchorCode: string) => void;
   onStatusChange?: (anchorCode: string, status: string) => void;
   saveDisabled?: boolean;
+  uploadAvailabilityMessage?: string | null;
+  uploadDisabled?: boolean;
 }) {
   const lines = [
     `anchor code : ${item.anchorCode}`,
@@ -2337,6 +2742,15 @@ function WorkpaperCard({
     onNoteChange !== undefined &&
     onSave !== undefined &&
     onStatusChange !== undefined;
+  const canRenderDocumentUploadSection =
+    documentUploadDraft !== null &&
+    onDocumentDateChange !== undefined &&
+    onDocumentFileChange !== undefined &&
+    onDocumentUpload !== undefined &&
+    onDocumentUploadSourceLabelChange !== undefined;
+  const documentUploadStatusLines = canRenderDocumentUploadSection
+    ? getDocumentUploadStatusLines(item.anchorCode, documentUploadDraft, documentUploadState)
+    : [];
 
   if (item.workpaper !== null) {
     lines.push(`note workpaper : ${item.workpaper.noteText}`);
@@ -2363,10 +2777,10 @@ function WorkpaperCard({
                 htmlFor={`workpaper-note-${item.anchorCode}`}
               >
                 Note workpaper
-              </label>
-              <textarea
-                className="min-h-28 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground disabled:cursor-not-allowed disabled:bg-muted"
-                disabled={controlsDisabled}
+                </label>
+                <textarea
+                  className="min-h-28 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground disabled:cursor-not-allowed disabled:bg-muted"
+                  disabled={controlsDisabled}
                 id={`workpaper-note-${item.anchorCode}`}
                 onChange={(event) => {
                   onNoteChange(item.anchorCode, event.currentTarget.value);
@@ -2398,7 +2812,7 @@ function WorkpaperCard({
               </div>
 
               <Button
-                disabled={saveDisabled}
+                disabled={controlsDisabled || saveDisabled}
                 onClick={() => {
                   void onSave(item.anchorCode);
                 }}
@@ -2408,6 +2822,90 @@ function WorkpaperCard({
               </Button>
             </div>
           </div>
+        ) : null}
+
+        {uploadAvailabilityMessage !== null ? (
+          <p className="text-sm font-medium text-foreground">{uploadAvailabilityMessage}</p>
+        ) : null}
+
+        {canRenderDocumentUploadSection ? (
+          <ControlsBlock title="Upload document">
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <label
+                  className="text-sm font-medium text-foreground"
+                  htmlFor={`workpaper-document-file-${item.anchorCode}`}
+                >
+                  Fichier document
+                </label>
+                <Input
+                  accept={documentUploadInputAccept}
+                  disabled={controlsDisabled}
+                  id={`workpaper-document-file-${item.anchorCode}`}
+                  onChange={(event) => {
+                    onDocumentFileChange(item.anchorCode, event);
+                  }}
+                  type="file"
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <label
+                  className="text-sm font-medium text-foreground"
+                  htmlFor={`workpaper-document-source-${item.anchorCode}`}
+                >
+                  Source document
+                </label>
+                <Input
+                  disabled={controlsDisabled}
+                  id={`workpaper-document-source-${item.anchorCode}`}
+                  onChange={(event) => {
+                    onDocumentUploadSourceLabelChange(item.anchorCode, event.currentTarget.value);
+                  }}
+                  type="text"
+                  value={documentUploadDraft.sourceLabel}
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <label
+                  className="text-sm font-medium text-foreground"
+                  htmlFor={`workpaper-document-date-${item.anchorCode}`}
+                >
+                  Date document
+                </label>
+                <Input
+                  disabled={controlsDisabled}
+                  id={`workpaper-document-date-${item.anchorCode}`}
+                  onChange={(event) => {
+                    onDocumentDateChange(item.anchorCode, event.currentTarget.value);
+                  }}
+                  type="date"
+                  value={documentUploadDraft.documentDate}
+                />
+              </div>
+
+              <div aria-live="polite" className="grid gap-2">
+                {documentUploadStatusLines.map((line) => (
+                  <p className="text-sm font-medium text-foreground" key={`${item.anchorCode}-${line}`}>
+                    {line}
+                  </p>
+                ))}
+              </div>
+
+              <div>
+                <Button
+                  disabled={controlsDisabled || uploadDisabled}
+                  onClick={() => {
+                    void onDocumentUpload(item.anchorCode);
+                  }}
+                  type="button"
+                >
+                  Uploader le document
+                </Button>
+              </div>
+            </div>
+          </ControlsBlock>
         ) : null}
 
         <ControlsBlock title="Documents inclus">
@@ -2656,6 +3154,12 @@ function createWorkpaperDrafts(workpapers: ClosingWorkpapersReadModel) {
   ) as Record<string, WorkpaperDraft>;
 }
 
+function createDocumentUploadDrafts(workpapers: ClosingWorkpapersReadModel) {
+  return Object.fromEntries(
+    workpapers.items.map((item) => [item.anchorCode, createDocumentUploadDraft()])
+  ) as Record<string, DocumentUploadDraft>;
+}
+
 function createWorkpaperDraft(item: WorkpaperReadModelItem): WorkpaperDraft {
   if (item.workpaper === null) {
     return {
@@ -2677,11 +3181,27 @@ function createWorkpaperDraft(item: WorkpaperReadModelItem): WorkpaperDraft {
   };
 }
 
+function createDocumentUploadDraft(): DocumentUploadDraft {
+  return {
+    file: null,
+    selectedFileCount: 0,
+    sourceLabel: "",
+    documentDate: ""
+  };
+}
+
 function getWorkpaperDraft(
   drafts: Record<string, WorkpaperDraft>,
   item: WorkpaperReadModelItem
 ) {
   return drafts[item.anchorCode] ?? createWorkpaperDraft(item);
+}
+
+function getDocumentUploadDraft(
+  drafts: Record<string, DocumentUploadDraft>,
+  item: WorkpaperReadModelItem
+) {
+  return drafts[item.anchorCode] ?? createDocumentUploadDraft();
 }
 
 function hasWorkpaperWritableRole(effectiveRoles: EffectiveRolesHint) {
@@ -2697,6 +3217,14 @@ function isWorkpaperMakerEditable(item: WorkpaperReadModelItem) {
     item.workpaper === null ||
     item.workpaper.status === "DRAFT" ||
     item.workpaper.status === "CHANGES_REQUESTED"
+  );
+}
+
+function isWorkpaperDocumentUploadEditable(item: WorkpaperReadModelItem) {
+  return (
+    item.isCurrentStructure &&
+    item.workpaper !== null &&
+    (item.workpaper.status === "DRAFT" || item.workpaper.status === "CHANGES_REQUESTED")
   );
 }
 
@@ -2719,6 +3247,21 @@ function getWorkpapersGlobalReadOnlyMessage(
   return null;
 }
 
+function getCurrentWorkpaperUploadAvailabilityMessage(
+  item: WorkpaperReadModelItem,
+  globalReadOnlyMessage: string | null
+) {
+  if (globalReadOnlyMessage !== null) {
+    return null;
+  }
+
+  if (item.workpaper === null) {
+    return "upload disponible apres creation du workpaper";
+  }
+
+  return null;
+}
+
 function getCurrentWorkpaperReadOnlyMessage(
   item: WorkpaperReadModelItem,
   globalReadOnlyMessage: string | null
@@ -2735,6 +3278,54 @@ function getCurrentWorkpaperReadOnlyMessage(
   }
 
   return null;
+}
+
+function validateDocumentUploadDraft(
+  draft: DocumentUploadDraft
+):
+  | {
+      kind: "valid";
+      file: File;
+      sourceLabel: string;
+      documentDate: string | null;
+    }
+  | { kind: "invalid"; message: string } {
+  if (draft.selectedFileCount > 1) {
+    return { kind: "invalid", message: "un seul fichier est autorise" };
+  }
+
+  if (draft.file === null) {
+    return { kind: "invalid", message: "selectionner un fichier" };
+  }
+
+  if (!isDocumentUploadFileAllowed(draft.file)) {
+    return { kind: "invalid", message: "format de fichier non autorise" };
+  }
+
+  if (draft.file.size <= 0) {
+    return { kind: "invalid", message: "fichier vide" };
+  }
+
+  if (draft.file.size > DOCUMENT_UPLOAD_MAX_BYTES) {
+    return { kind: "invalid", message: "fichier trop volumineux (25 MiB max)" };
+  }
+
+  const trimmedSourceLabel = draft.sourceLabel.trim();
+
+  if (trimmedSourceLabel.length === 0) {
+    return { kind: "invalid", message: "source du document requise" };
+  }
+
+  if (draft.documentDate !== "" && !isIsoDateOnly(draft.documentDate)) {
+    return { kind: "invalid", message: "date document invalide" };
+  }
+
+  return {
+    kind: "valid",
+    file: draft.file,
+    sourceLabel: trimmedSourceLabel,
+    documentDate: draft.documentDate === "" ? null : draft.documentDate
+  };
 }
 
 function createWorkpaperEvidencePayload(item: WorkpaperReadModelItem): WorkpaperEvidence[] | null {
@@ -2786,6 +3377,29 @@ function hasWorkpaperDraftChanges(item: WorkpaperReadModelItem, draft: Workpaper
   );
 }
 
+function canUploadDocumentItem(
+  workpapers: ClosingWorkpapersReadModel,
+  effectiveRoles: EffectiveRolesHint,
+  item: WorkpaperReadModelItem,
+  draft: DocumentUploadDraft,
+  mutationState: WorkpaperMutationState,
+  documentUploadState: DocumentUploadState
+) {
+  if (mutationState.kind === "submitting" || documentUploadState.kind === "submitting") {
+    return false;
+  }
+
+  if (getWorkpapersGlobalReadOnlyMessage(workpapers, effectiveRoles) !== null) {
+    return false;
+  }
+
+  if (!isWorkpaperDocumentUploadEditable(item)) {
+    return false;
+  }
+
+  return validateDocumentUploadDraft(draft).kind === "valid";
+}
+
 function canSaveWorkpaperItem(
   workpapers: ClosingWorkpapersReadModel,
   effectiveRoles: EffectiveRolesHint,
@@ -2818,6 +3432,99 @@ function canSaveWorkpaperItem(
   }
 
   return true;
+}
+
+function getDocumentUploadStatusLines(
+  anchorCode: string,
+  draft: DocumentUploadDraft,
+  state: DocumentUploadState
+) {
+  if (state.kind !== "idle" && state.anchorCode === anchorCode) {
+    if (state.kind === "submitting") {
+      return ["upload document en cours"];
+    }
+
+    if (state.kind === "success") {
+      return state.refreshFailed
+        ? ["document uploade avec succes", "rafraichissement workpapers impossible"]
+        : ["document uploade avec succes"];
+    }
+
+    if (state.kind === "bad_request") {
+      return ["document invalide"];
+    }
+
+    if (state.kind === "bad_request_invalid_media_type") {
+      return ["format de fichier non autorise"];
+    }
+
+    if (state.kind === "bad_request_empty_file") {
+      return ["fichier vide"];
+    }
+
+    if (state.kind === "bad_request_source_required") {
+      return ["source du document requise"];
+    }
+
+    if (state.kind === "auth_required") {
+      return ["authentification requise"];
+    }
+
+    if (state.kind === "forbidden") {
+      return ["acces documents refuse"];
+    }
+
+    if (state.kind === "not_found") {
+      return ["workpaper introuvable pour upload document"];
+    }
+
+    if (state.kind === "conflict_archived") {
+      return ["dossier archive, document non modifiable"];
+    }
+
+    if (state.kind === "conflict_not_ready") {
+      return ["document non modifiable tant que les controles ne sont pas READY"];
+    }
+
+    if (state.kind === "conflict_stale") {
+      return ["document indisponible sur un workpaper stale"];
+    }
+
+    if (state.kind === "conflict_workpaper_read_only") {
+      return ["document non modifiable pour ce workpaper"];
+    }
+
+    if (state.kind === "conflict_other") {
+      return ["upload document impossible"];
+    }
+
+    if (state.kind === "payload_too_large") {
+      return ["fichier trop volumineux (25 MiB max)"];
+    }
+
+    if (state.kind === "server_error") {
+      return ["erreur serveur documents"];
+    }
+
+    if (state.kind === "network_error") {
+      return ["erreur reseau documents"];
+    }
+
+    if (state.kind === "timeout") {
+      return ["timeout documents"];
+    }
+
+    if (state.kind === "invalid_payload") {
+      return ["payload upload document invalide"];
+    }
+
+    return ["upload document indisponible"];
+  }
+
+  const validation = validateDocumentUploadDraft(draft);
+  return [
+    validation.kind === "valid" ? "fichier pret pour upload" : validation.message
+  ];
 }
 
 function createManualMappingSelectedTargets(projection: ManualMappingProjection) {
@@ -2902,6 +3609,16 @@ function mapWorkpaperMutationResult(
   }
 
   return { kind: "unexpected" };
+}
+
+function mapDocumentUploadResult(
+  result: Exclude<UploadWorkpaperDocumentState, { kind: "success" }>,
+  anchorCode: string
+): DocumentUploadState {
+  return {
+    ...result,
+    anchorCode
+  };
 }
 
 function mapUploadResultToImportState(
@@ -3155,6 +3872,66 @@ function formatWorkpaperMutationState(
   }
 
   return "workpaper indisponible";
+}
+
+function clearDocumentUploadStateForAnchor(
+  state: DocumentUploadState,
+  anchorCode: string
+): DocumentUploadState {
+  if (state.kind === "idle" || state.kind === "submitting" || state.anchorCode !== anchorCode) {
+    return state;
+  }
+
+  return { kind: "idle" };
+}
+
+function isDocumentUploadFileAllowed(file: File) {
+  const normalizedMediaType = normalizeDocumentUploadMediaType(file.type);
+
+  if (
+    normalizedMediaType !== null &&
+    !DOCUMENT_UPLOAD_ALLOWED_MEDIA_TYPES.some(
+      (allowedMediaType) => allowedMediaType === normalizedMediaType
+    )
+  ) {
+    return false;
+  }
+
+  if (normalizedMediaType !== null) {
+    return true;
+  }
+
+  const extension = getLowercaseDocumentUploadExtension(file.name);
+  return extension !== null && documentUploadAllowedExtensions.has(extension);
+}
+
+function normalizeDocumentUploadMediaType(value: string) {
+  const normalized = value.trim().toLowerCase();
+
+  if (normalized.length === 0) {
+    return null;
+  }
+
+  return normalized.split(";")[0]?.trim() ?? null;
+}
+
+function getLowercaseDocumentUploadExtension(fileName: string) {
+  const lastDotIndex = fileName.lastIndexOf(".");
+
+  if (lastDotIndex < 0 || lastDotIndex === fileName.length - 1) {
+    return null;
+  }
+
+  return fileName.slice(lastDotIndex).toLowerCase();
+}
+
+function isIsoDateOnly(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
 function updateImportSuccessRefreshStatus(
