@@ -3,6 +3,16 @@ import type { ClosingFolderSummary } from "./closing-folders";
 import { requestJson, type Fetcher } from "./http";
 import type { ActiveTenant } from "./me";
 
+const uploadedDocumentMediaTypes = [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/tiff",
+  "text/csv",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+] as const;
+
 const closingFolderStatusSchema = z.enum(["DRAFT", "ARCHIVED"]);
 const workpaperReadinessSchema = z.enum(["READY", "BLOCKED"]);
 const workpaperStatusSchema = z.enum([
@@ -12,6 +22,7 @@ const workpaperStatusSchema = z.enum([
   "REVIEWED"
 ]);
 const makerWorkpaperStatusSchema = z.enum(["DRAFT", "READY_FOR_REVIEW"]);
+const uploadedDocumentMediaTypeSchema = z.enum(uploadedDocumentMediaTypes);
 
 const documentVerificationStatusSchema = z.enum(["UNVERIFIED", "VERIFIED", "REJECTED"]);
 
@@ -85,6 +96,25 @@ const workpaperMutationSuccessSchema = z.object({
   })
 });
 
+const documentUploadSuccessSchema = z.object({
+  id: z.string().uuid(),
+  fileName: z.string().min(1),
+  mediaType: uploadedDocumentMediaTypeSchema,
+  byteSize: z.number().int().positive().max(25 * 1024 * 1024),
+  checksumSha256: z.string().regex(/^[0-9a-f]{64}$/),
+  sourceLabel: z.string(),
+  documentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+  createdAt: z.string().min(1),
+  createdByUserId: z.string().uuid(),
+  verificationStatus: z.literal("UNVERIFIED"),
+  reviewComment: z.null(),
+  reviewedAt: z.null(),
+  reviewedByUserId: z.null()
+});
+
+export const DOCUMENT_UPLOAD_ALLOWED_MEDIA_TYPES = uploadedDocumentMediaTypes;
+export const DOCUMENT_UPLOAD_MAX_BYTES = 25 * 1024 * 1024;
+
 export type ClosingFolderWorkpaperStatus = z.infer<typeof closingFolderStatusSchema>;
 export type WorkpaperReadiness = z.infer<typeof workpaperReadinessSchema>;
 export type WorkpaperStatus = z.infer<typeof workpaperStatusSchema>;
@@ -102,6 +132,12 @@ export type UpsertWorkpaperRequest = {
   noteText: string;
   status: MakerWorkpaperStatus;
   evidences: WorkpaperEvidence[];
+};
+export type UploadWorkpaperDocumentRequest = {
+  anchorCode: string;
+  file: File;
+  sourceLabel: string;
+  documentDate: string | null;
 };
 
 export type WorkpapersShellState =
@@ -126,6 +162,27 @@ export type UpsertWorkpaperState =
   | { kind: "conflict_archived" }
   | { kind: "conflict_not_ready" }
   | { kind: "conflict_other" }
+  | { kind: "server_error" }
+  | { kind: "timeout" }
+  | { kind: "network_error" }
+  | { kind: "invalid_payload" }
+  | { kind: "unexpected" };
+
+export type UploadWorkpaperDocumentState =
+  | { kind: "success" }
+  | { kind: "bad_request" }
+  | { kind: "bad_request_invalid_media_type" }
+  | { kind: "bad_request_empty_file" }
+  | { kind: "bad_request_source_required" }
+  | { kind: "auth_required" }
+  | { kind: "forbidden" }
+  | { kind: "not_found" }
+  | { kind: "conflict_archived" }
+  | { kind: "conflict_not_ready" }
+  | { kind: "conflict_stale" }
+  | { kind: "conflict_workpaper_read_only" }
+  | { kind: "conflict_other" }
+  | { kind: "payload_too_large" }
   | { kind: "server_error" }
   | { kind: "timeout" }
   | { kind: "network_error" }
@@ -276,6 +333,86 @@ export async function upsertWorkpaper(
   }
 }
 
+export async function uploadWorkpaperDocument(
+  closingFolderId: string,
+  activeTenant: ActiveTenant,
+  request: UploadWorkpaperDocumentRequest,
+  fetcher: Fetcher = fetch
+): Promise<UploadWorkpaperDocumentState> {
+  try {
+    const formData = new FormData();
+    formData.append("file", request.file);
+    formData.append("sourceLabel", request.sourceLabel);
+    if (request.documentDate !== null) {
+      formData.append("documentDate", request.documentDate);
+    }
+
+    const response = await requestJson(
+      `/api/closing-folders/${encodeURIComponent(closingFolderId)}/workpapers/${encodeURIComponent(request.anchorCode)}/documents`,
+      {
+        method: "POST",
+        headers: {
+          "X-Tenant-Id": activeTenant.tenantId
+        },
+        body: formData
+      },
+      fetcher
+    );
+
+    if (response.status === 201) {
+      const payload = await readJsonBody(response);
+
+      if (payload === undefined) {
+        return { kind: "invalid_payload" };
+      }
+
+      const parsed = documentUploadSuccessSchema.safeParse(payload);
+
+      if (!parsed.success || !isUploadedDocumentCoherent(parsed.data, request)) {
+        return { kind: "invalid_payload" };
+      }
+
+      return { kind: "success" };
+    }
+
+    if (response.status === 400) {
+      return refineBadRequestForUpload(await readErrorMessage(response));
+    }
+
+    if (response.status === 401) {
+      return { kind: "auth_required" };
+    }
+
+    if (response.status === 403) {
+      return { kind: "forbidden" };
+    }
+
+    if (response.status === 404) {
+      return { kind: "not_found" };
+    }
+
+    if (response.status === 409) {
+      return refineConflictForUpload(await readErrorMessage(response));
+    }
+
+    if (response.status === 413) {
+      return { kind: "payload_too_large" };
+    }
+
+    if (response.status >= 500 && response.status <= 599) {
+      return { kind: "server_error" };
+    }
+
+    return { kind: "unexpected" };
+  } catch (error) {
+    if (error instanceof Error && error.message === "timeout") {
+      return { kind: "timeout" };
+    }
+
+    return { kind: "network_error" };
+  }
+}
+
 function isClosingWorkpapersCoherent(
   workpapers: ClosingWorkpapersReadModel,
   closingFolderId: string,
@@ -345,6 +482,21 @@ function isUpsertWorkpaperSuccessCoherent(
     payload.workpaper.status === request.status &&
     payload.workpaper.noteText === request.noteText &&
     areWorkpaperEvidenceListsEqual(payload.workpaper.evidences, request.evidences)
+  );
+}
+
+function isUploadedDocumentCoherent(
+  payload: z.infer<typeof documentUploadSuccessSchema>,
+  request: UploadWorkpaperDocumentRequest
+) {
+  const normalizedFileType = normalizeUploadedDocumentMediaType(request.file.type);
+
+  return (
+    payload.byteSize === request.file.size &&
+    payload.sourceLabel === request.sourceLabel &&
+    payload.documentDate === request.documentDate &&
+    (normalizedFileType === null || payload.mediaType === normalizedFileType) &&
+    isDateTimeString(payload.createdAt)
   );
 }
 
@@ -437,8 +589,58 @@ function refineConflictForUpsert(message: string | undefined): UpsertWorkpaperSt
   return { kind: "conflict_other" };
 }
 
+function refineBadRequestForUpload(message: string | undefined): UploadWorkpaperDocumentState {
+  if (message === "file.mediaType is not allowed.") {
+    return { kind: "bad_request_invalid_media_type" };
+  }
+
+  if (message === "file must not be empty.") {
+    return { kind: "bad_request_empty_file" };
+  }
+
+  if (message === "sourceLabel must not be blank.") {
+    return { kind: "bad_request_source_required" };
+  }
+
+  return { kind: "bad_request" };
+}
+
+function refineConflictForUpload(message: string | undefined): UploadWorkpaperDocumentState {
+  if (message === "Closing folder is archived and documents cannot be modified.") {
+    return { kind: "conflict_archived" };
+  }
+
+  if (message === "Documents can only be modified when controls.readiness is READY.") {
+    return { kind: "conflict_not_ready" };
+  }
+
+  if (message === "anchorCode is not part of the current structure.") {
+    return { kind: "conflict_stale" };
+  }
+
+  if (message === "workpaper status does not allow document uploads.") {
+    return { kind: "conflict_workpaper_read_only" };
+  }
+
+  return { kind: "conflict_other" };
+}
+
 async function readErrorMessage(response: Response) {
   const payload = await readJsonBody(response);
   const parsed = z.object({ message: z.string().min(1) }).safeParse(payload);
   return parsed.success ? parsed.data.message : undefined;
+}
+
+function normalizeUploadedDocumentMediaType(value: string) {
+  const normalized = value.trim().toLowerCase();
+
+  if (normalized.length === 0) {
+    return null;
+  }
+
+  return normalized.split(";")[0]?.trim() ?? null;
+}
+
+function isDateTimeString(value: string) {
+  return !Number.isNaN(Date.parse(value));
 }

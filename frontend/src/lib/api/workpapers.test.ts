@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   loadWorkpapersShellState,
+  uploadWorkpaperDocument,
   upsertWorkpaper,
   type ClosingWorkpapersReadModel,
   type WorkpaperEvidence
@@ -130,6 +131,40 @@ function jsonResponse(status: number, payload: unknown) {
 
 function cloneValue<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function createUploadFile(
+  fileName = "support.pdf",
+  type = "application/pdf",
+  contents = "pdf-content"
+) {
+  return new File([contents], fileName, { type });
+}
+
+function createDocumentUploadSuccessPayload(
+  request: {
+    file: File;
+    sourceLabel: string;
+    documentDate: string | null;
+  },
+  overrides: Record<string, unknown> = {}
+) {
+  return {
+    id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    fileName: request.file.name,
+    mediaType: request.file.type,
+    byteSize: request.file.size,
+    checksumSha256: "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+    sourceLabel: request.sourceLabel,
+    documentDate: request.documentDate,
+    createdAt: "2026-02-01T10:00:00Z",
+    createdByUserId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+    verificationStatus: "UNVERIFIED",
+    reviewComment: null,
+    reviewedAt: null,
+    reviewedByUserId: null,
+    ...overrides
+  };
 }
 
 describe("workpapers api", () => {
@@ -675,6 +710,210 @@ describe("workpapers api", () => {
         },
         fetcher
       )
+    ).resolves.toEqual({ kind: "invalid_payload" });
+  });
+
+  it("calls the exact POST /documents path with Accept and X-Tenant-Id, never sends Content-Type manually, and appends FormData in the exact order with date", async () => {
+    const request = {
+      anchorCode: "BS.ASSET.CURRENT_SECTION",
+      file: createUploadFile(),
+      sourceLabel: "ERP",
+      documentDate: "2026-02-15"
+    };
+    const fetcher = vi.fn().mockResolvedValue(
+      jsonResponse(201, createDocumentUploadSuccessPayload(request))
+    );
+
+    await expect(
+      uploadWorkpaperDocument(CLOSING_FOLDER.id, ACTIVE_TENANT, request, fetcher)
+    ).resolves.toEqual({ kind: "success" });
+
+    const [path, init] = fetcher.mock.calls[0] as [string, RequestInit];
+    const headers = init.headers as Record<string, string>;
+    const formData = init.body as FormData;
+    const entries = Array.from(formData.entries());
+
+    expect(path).toBe(
+      `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers/${request.anchorCode}/documents`
+    );
+    expect(init.method).toBe("POST");
+    expect(headers).toEqual(
+      expect.objectContaining({
+        Accept: "application/json",
+        "X-Tenant-Id": ACTIVE_TENANT.tenantId
+      })
+    );
+    expect(headers["Content-Type"]).toBeUndefined();
+    expect(formData).toBeInstanceOf(FormData);
+    expect(entries).toHaveLength(3);
+    expect(entries.map(([key]) => key)).toEqual(["file", "sourceLabel", "documentDate"]);
+    expect(entries[0]?.[1]).toBe(request.file);
+    expect(entries[1]?.[1]).toBe(request.sourceLabel);
+    expect(entries[2]?.[1]).toBe(request.documentDate);
+  });
+
+  it("omits documentDate from FormData when it is absent and still uses the exact request scope", async () => {
+    const request = {
+      anchorCode: "BS.ASSET.CURRENT_SECTION",
+      file: createUploadFile("support.csv", "text/csv", "a,b"),
+      sourceLabel: "Bank portal",
+      documentDate: null
+    };
+    const fetcher = vi.fn().mockResolvedValue(
+      jsonResponse(201, createDocumentUploadSuccessPayload(request, { mediaType: "text/csv" }))
+    );
+
+    await expect(
+      uploadWorkpaperDocument(CLOSING_FOLDER.id, ACTIVE_TENANT, request, fetcher)
+    ).resolves.toEqual({ kind: "success" });
+
+    const [, init] = fetcher.mock.calls[0] as [string, RequestInit];
+    const entries = Array.from((init.body as FormData).entries());
+
+    expect(entries).toHaveLength(2);
+    expect(entries.map(([key]) => key)).toEqual(["file", "sourceLabel"]);
+    expect(entries.some(([key]) => key === "documentDate")).toBe(false);
+  });
+
+  it.each([
+    { status: 200, response: () => jsonResponse(200, {}), kind: "unexpected" },
+    { status: 400, response: () => jsonResponse(400, {}), kind: "bad_request" },
+    {
+      status: 400,
+      response: () => jsonResponse(400, { message: "file.mediaType is not allowed." }),
+      kind: "bad_request_invalid_media_type"
+    },
+    {
+      status: 400,
+      response: () => jsonResponse(400, { message: "file must not be empty." }),
+      kind: "bad_request_empty_file"
+    },
+    {
+      status: 400,
+      response: () => jsonResponse(400, { message: "sourceLabel must not be blank." }),
+      kind: "bad_request_source_required"
+    },
+    { status: 401, response: () => jsonResponse(401, {}), kind: "auth_required" },
+    { status: 403, response: () => jsonResponse(403, {}), kind: "forbidden" },
+    { status: 404, response: () => jsonResponse(404, {}), kind: "not_found" },
+    {
+      status: 409,
+      response: () =>
+        jsonResponse(409, {
+          message: "Closing folder is archived and documents cannot be modified."
+        }),
+      kind: "conflict_archived"
+    },
+    {
+      status: 409,
+      response: () =>
+        jsonResponse(409, {
+          message: "Documents can only be modified when controls.readiness is READY."
+        }),
+      kind: "conflict_not_ready"
+    },
+    {
+      status: 409,
+      response: () =>
+        jsonResponse(409, {
+          message: "anchorCode is not part of the current structure."
+        }),
+      kind: "conflict_stale"
+    },
+    {
+      status: 409,
+      response: () =>
+        jsonResponse(409, {
+          message: "workpaper status does not allow document uploads."
+        }),
+      kind: "conflict_workpaper_read_only"
+    },
+    {
+      status: 409,
+      response: () => jsonResponse(409, { message: "other conflict" }),
+      kind: "conflict_other"
+    },
+    { status: 413, response: () => jsonResponse(413, {}), kind: "payload_too_large" },
+    { status: 500, response: () => jsonResponse(500, {}), kind: "server_error" },
+    { status: 418, response: () => jsonResponse(418, {}), kind: "unexpected" }
+  ])("maps POST /documents HTTP $status to $kind", async ({ response, kind }) => {
+    const fetcher = vi.fn().mockResolvedValue(response());
+
+    await expect(
+      uploadWorkpaperDocument(
+        CLOSING_FOLDER.id,
+        ACTIVE_TENANT,
+        {
+          anchorCode: "BS.ASSET.CURRENT_SECTION",
+          file: createUploadFile(),
+          sourceLabel: "ERP",
+          documentDate: null
+        },
+        fetcher
+      )
+    ).resolves.toEqual({ kind });
+  });
+
+  it("maps POST /documents timeout and network failures", async () => {
+    const timeoutFetcher = vi.fn().mockRejectedValue(new Error("timeout"));
+    const networkFetcher = vi.fn().mockRejectedValue(new Error("network"));
+    const request = {
+      anchorCode: "BS.ASSET.CURRENT_SECTION",
+      file: createUploadFile(),
+      sourceLabel: "ERP",
+      documentDate: null
+    };
+
+    await expect(
+      uploadWorkpaperDocument(CLOSING_FOLDER.id, ACTIVE_TENANT, request, timeoutFetcher)
+    ).resolves.toEqual({ kind: "timeout" });
+    await expect(
+      uploadWorkpaperDocument(CLOSING_FOLDER.id, ACTIVE_TENANT, request, networkFetcher)
+    ).resolves.toEqual({ kind: "network_error" });
+  });
+
+  it.each([
+    {
+      label: "invalid uuid",
+      payload: (request: { file: File; sourceLabel: string; documentDate: string | null }) =>
+        createDocumentUploadSuccessPayload(request, { id: "not-a-uuid" })
+    },
+    {
+      label: "mediaType mismatch",
+      payload: (request: { file: File; sourceLabel: string; documentDate: string | null }) =>
+        createDocumentUploadSuccessPayload(request, { mediaType: "image/png" })
+    },
+    {
+      label: "byteSize mismatch",
+      payload: (request: { file: File; sourceLabel: string; documentDate: string | null }) =>
+        createDocumentUploadSuccessPayload(request, { byteSize: request.file.size + 1 })
+    },
+    {
+      label: "sourceLabel mismatch",
+      payload: (request: { file: File; sourceLabel: string; documentDate: string | null }) =>
+        createDocumentUploadSuccessPayload(request, { sourceLabel: "Other source" })
+    },
+    {
+      label: "documentDate mismatch",
+      payload: (request: { file: File; sourceLabel: string; documentDate: string | null }) =>
+        createDocumentUploadSuccessPayload(request, { documentDate: "2026-03-31" })
+    },
+    {
+      label: "createdAt invalid",
+      payload: (request: { file: File; sourceLabel: string; documentDate: string | null }) =>
+        createDocumentUploadSuccessPayload(request, { createdAt: "not-a-date-time" })
+    }
+  ])("returns invalid_payload on POST /documents success payload $label", async ({ payload }) => {
+    const request = {
+      anchorCode: "BS.ASSET.CURRENT_SECTION",
+      file: createUploadFile(),
+      sourceLabel: "ERP",
+      documentDate: "2026-02-15"
+    };
+    const fetcher = vi.fn().mockResolvedValue(jsonResponse(201, payload(request)));
+
+    await expect(
+      uploadWorkpaperDocument(CLOSING_FOLDER.id, ACTIVE_TENANT, request, fetcher)
     ).resolves.toEqual({ kind: "invalid_payload" });
   });
 });

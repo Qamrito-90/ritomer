@@ -1,5 +1,5 @@
 import { RouterProvider } from "react-router-dom";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { createAppMemoryRouter } from "./router";
@@ -254,6 +254,22 @@ type WorkpapersModel = {
 
 type ResponseFactory = () => Response | Promise<Response>;
 
+type DocumentUploadSuccessPayload = {
+  id: string;
+  fileName: string;
+  mediaType: string;
+  byteSize: number;
+  checksumSha256: string;
+  sourceLabel: string;
+  documentDate: string | null;
+  createdAt: string;
+  createdByUserId: string;
+  verificationStatus: "UNVERIFIED";
+  reviewComment: null;
+  reviewedAt: null;
+  reviewedByUserId: null;
+};
+
 function createEvidence(overrides: Partial<WorkpaperEvidence> = {}): WorkpaperEvidence {
   return {
     position: 1,
@@ -386,6 +402,40 @@ function jsonResponse(status: number, payload: unknown) {
   });
 }
 
+function createUploadFile(
+  fileName = "support.pdf",
+  type = "application/pdf",
+  contents = "pdf-content"
+) {
+  return new File([contents], fileName, { type });
+}
+
+function createDocumentUploadSuccessPayload({
+  file,
+  sourceLabel,
+  documentDate
+}: {
+  file: File;
+  sourceLabel: string;
+  documentDate: string | null;
+}): DocumentUploadSuccessPayload {
+  return {
+    id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    fileName: file.name,
+    mediaType: file.type,
+    byteSize: file.size,
+    checksumSha256: "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+    sourceLabel,
+    documentDate,
+    createdAt: "2026-02-15T10:00:00Z",
+    createdByUserId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+    verificationStatus: "UNVERIFIED",
+    reviewComment: null,
+    reviewedAt: null,
+    reviewedByUserId: null
+  };
+}
+
 function renderClosingRoute() {
   const router = createAppMemoryRouter([CLOSING_ROUTE]);
   return render(<RouterProvider router={router} />);
@@ -452,6 +502,18 @@ function getWorkpapersPutCalls(fetchMock: ReturnType<typeof vi.fn>) {
   ) as Array<[string, RequestInit]>;
 }
 
+function getWorkpaperDocumentPostCalls(fetchMock: ReturnType<typeof vi.fn>) {
+  return fetchMock.mock.calls.filter(([path, init]) => {
+    const requestPath = String(path);
+    const requestInit = init as RequestInit | undefined;
+
+    return (
+      /\/api\/closing-folders\/[^/]+\/workpapers\/[^/]+\/documents$/.test(requestPath) &&
+      requestInit?.method === "POST"
+    );
+  }) as Array<[string, RequestInit]>;
+}
+
 function expectNoOutOfScopePaths(
   paths: string[],
   {
@@ -468,6 +530,43 @@ function expectNoOutOfScopePaths(
   ).toHaveLength(workpapersPuts);
   expect(paths.some((path) => path.includes("/review-decision"))).toBe(false);
   expect(paths.some((path) => path.includes("/documents"))).toBe(false);
+  expect(paths.some((path) => path.includes("/exports"))).toBe(false);
+  expect(paths.some((path) => path.includes("/imports/balance/versions"))).toBe(false);
+  expect(paths.some((path) => path.includes("/diff-previous"))).toBe(false);
+  expect(paths.some((path) => path.includes("/ai"))).toBe(false);
+}
+
+function expectNoOutOfScopePathsAllowingDocumentUploads(
+  fetchMock: ReturnType<typeof vi.fn>,
+  {
+    workpapersGets,
+    workpapersPuts,
+    workpaperDocumentPosts
+  }: {
+    workpapersGets: number;
+    workpapersPuts: number;
+    workpaperDocumentPosts: number;
+  }
+) {
+  const paths = getRequestPaths(fetchMock);
+
+  expect(paths.filter((path) => path.endsWith("/workpapers"))).toHaveLength(workpapersGets);
+  expect(getWorkpapersPutCalls(fetchMock)).toHaveLength(workpapersPuts);
+  expect(getWorkpaperDocumentPostCalls(fetchMock)).toHaveLength(workpaperDocumentPosts);
+  expect(
+    fetchMock.mock.calls.some(([path, init]) => {
+      const requestPath = String(path);
+      const requestInit = init as RequestInit | undefined;
+
+      return (
+        /\/api\/closing-folders\/[^/]+\/workpapers\/[^/]+\/documents$/.test(requestPath) &&
+        requestInit?.method !== "POST"
+      );
+    })
+  ).toBe(false);
+  expect(paths.some((path) => /\/documents\/[^/]+\/content$/.test(path))).toBe(false);
+  expect(paths.some((path) => /\/documents\/[^/]+\/verification-decision$/.test(path))).toBe(false);
+  expect(paths.some((path) => path.includes("/review-decision"))).toBe(false);
   expect(paths.some((path) => path.includes("/exports"))).toBe(false);
   expect(paths.some((path) => path.includes("/imports/balance/versions"))).toBe(false);
   expect(paths.some((path) => path.includes("/diff-previous"))).toBe(false);
@@ -609,17 +708,36 @@ describe("router workpapers", () => {
     expect(within(newCard).getByLabelText("Note workpaper")).toHaveValue("");
     expect(within(newCard).getByLabelText("Statut maker")).toHaveValue("DRAFT");
     expect(
+      within(newCard).getByText("upload disponible apres creation du workpaper")
+    ).toBeInTheDocument();
+    expect(within(newCard).queryByText("Upload document")).not.toBeInTheDocument();
+    expect(
+      within(newCard).queryByRole("button", { name: "Uploader le document" })
+    ).not.toBeInTheDocument();
+    expect(
       within(newCard).getByRole("button", { name: "Enregistrer le workpaper" })
     ).toBeDisabled();
 
     expect(within(draftCard).getByLabelText("Note workpaper")).toHaveValue("Draft note");
     expect(within(draftCard).getByLabelText("Statut maker")).toHaveValue("DRAFT");
+    expect(within(draftCard).getByText("Upload document")).toBeInTheDocument();
+    expect(within(draftCard).getByLabelText("Fichier document")).toBeInTheDocument();
+    expect(within(draftCard).getByLabelText("Source document")).toHaveValue("");
+    expect(within(draftCard).getByLabelText("Date document")).toHaveValue("");
+    expect(within(draftCard).getByText("selectionner un fichier")).toBeInTheDocument();
+    expect(
+      within(draftCard).getByRole("button", { name: "Uploader le document" })
+    ).toBeDisabled();
     expect(
       within(draftCard).getByRole("button", { name: "Enregistrer le workpaper" })
     ).toBeDisabled();
 
     expect(within(changesCard).getByLabelText("Note workpaper")).toHaveValue("Needs update");
     expect(within(changesCard).getByLabelText("Statut maker")).toHaveValue("DRAFT");
+    expect(within(changesCard).getByText("Upload document")).toBeInTheDocument();
+    expect(
+      within(changesCard).getByRole("button", { name: "Uploader le document" })
+    ).toBeDisabled();
     expect(
       within(changesCard).getByRole("button", { name: "Enregistrer le workpaper" })
     ).toBeEnabled();
@@ -630,6 +748,9 @@ describe("router workpapers", () => {
     expect(
       within(readyCard).queryByRole("button", { name: "Enregistrer le workpaper" })
     ).not.toBeInTheDocument();
+    expect(
+      within(readyCard).queryByRole("button", { name: "Uploader le document" })
+    ).not.toBeInTheDocument();
 
     expect(within(reviewedCard).getByText("workpaper en lecture seule")).toBeInTheDocument();
     expect(within(reviewedCard).queryByLabelText("Note workpaper")).not.toBeInTheDocument();
@@ -637,11 +758,17 @@ describe("router workpapers", () => {
     expect(
       within(reviewedCard).queryByRole("button", { name: "Enregistrer le workpaper" })
     ).not.toBeInTheDocument();
+    expect(
+      within(reviewedCard).queryByRole("button", { name: "Uploader le document" })
+    ).not.toBeInTheDocument();
 
     expect(within(staleCard).queryByLabelText("Note workpaper")).not.toBeInTheDocument();
     expect(within(staleCard).queryByLabelText("Statut maker")).not.toBeInTheDocument();
     expect(
       within(staleCard).queryByRole("button", { name: "Enregistrer le workpaper" })
+    ).not.toBeInTheDocument();
+    expect(
+      within(staleCard).queryByRole("button", { name: "Uploader le document" })
     ).not.toBeInTheDocument();
   });
 
@@ -871,8 +998,14 @@ describe("router workpapers", () => {
     expect(section.getAllByText("lecture seule")).toHaveLength(1);
     expect(section.queryByLabelText("Note workpaper")).not.toBeInTheDocument();
     expect(section.queryByLabelText("Statut maker")).not.toBeInTheDocument();
+    expect(section.queryByLabelText("Fichier document")).not.toBeInTheDocument();
+    expect(section.queryByLabelText("Source document")).not.toBeInTheDocument();
+    expect(section.queryByLabelText("Date document")).not.toBeInTheDocument();
     expect(
       section.queryByRole("button", { name: "Enregistrer le workpaper" })
+    ).not.toBeInTheDocument();
+    expect(
+      section.queryByRole("button", { name: "Uploader le document" })
     ).not.toBeInTheDocument();
     expect(getWorkpapersPutCalls(fetchMock)).toHaveLength(0);
   });
@@ -905,8 +1038,12 @@ describe("router workpapers", () => {
     ).toBeInTheDocument();
     expect(section.queryByLabelText("Note workpaper")).not.toBeInTheDocument();
     expect(section.queryByLabelText("Statut maker")).not.toBeInTheDocument();
+    expect(section.queryByLabelText("Fichier document")).not.toBeInTheDocument();
     expect(
       section.queryByRole("button", { name: "Enregistrer le workpaper" })
+    ).not.toBeInTheDocument();
+    expect(
+      section.queryByRole("button", { name: "Uploader le document" })
     ).not.toBeInTheDocument();
     expect(getWorkpapersPutCalls(fetchMock)).toHaveLength(0);
   });
@@ -936,10 +1073,590 @@ describe("router workpapers", () => {
     ).toBeInTheDocument();
     expect(section.queryByLabelText("Note workpaper")).not.toBeInTheDocument();
     expect(section.queryByLabelText("Statut maker")).not.toBeInTheDocument();
+    expect(section.queryByLabelText("Fichier document")).not.toBeInTheDocument();
     expect(
       section.queryByRole("button", { name: "Enregistrer le workpaper" })
     ).not.toBeInTheDocument();
+    expect(
+      section.queryByRole("button", { name: "Uploader le document" })
+    ).not.toBeInTheDocument();
     expect(getWorkpapersPutCalls(fetchMock)).toHaveLength(0);
+  });
+
+  it("does not emit any upload request on file or metadata changes, then posts the exact FormData payload and refreshes only GET /workpapers after a valid success", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    const user = userEvent.setup();
+    const selectedFile = createUploadFile();
+    const initialWorkpapers = createWorkpapersModel({
+      items: [
+        createCurrentItem({
+          anchorCode: "BS.ASSET.DRAFT",
+          anchorLabel: "Current assets draft",
+          workpaper: createWorkpaperDetails({
+            status: "DRAFT",
+            noteText: "Draft note"
+          }),
+          documents: []
+        })
+      ]
+    });
+    const refreshedWorkpapers = createWorkpapersModel({
+      items: [
+        createCurrentItem({
+          anchorCode: "BS.ASSET.DRAFT",
+          anchorLabel: "Current assets draft",
+          workpaper: createWorkpaperDetails({
+            status: "DRAFT",
+            noteText: "Draft note"
+          }),
+          documents: [
+            createDocument({
+              fileName: "refreshed-only.pdf",
+              mediaType: "application/pdf",
+              sourceLabel: "ERP",
+              verificationStatus: "UNVERIFIED"
+            })
+          ]
+        })
+      ]
+    });
+
+    primeNominalRoute(fetchMock, {
+      workpapers: () => jsonResponse(200, initialWorkpapers),
+      extras: [
+        () =>
+          jsonResponse(
+            201,
+            {
+              ...createDocumentUploadSuccessPayload({
+                file: selectedFile,
+                sourceLabel: "ERP",
+                documentDate: "2026-02-15"
+              }),
+              fileName: "server-only.pdf"
+            }
+          ),
+        () => jsonResponse(200, refreshedWorkpapers)
+      ]
+    });
+
+    renderClosingRoute();
+    await waitForNominalShell();
+
+    const draftCard = getWorkpaperCard("BS.ASSET.DRAFT");
+    const fileInput = within(draftCard).getByLabelText("Fichier document");
+    const sourceInput = within(draftCard).getByLabelText("Source document");
+    const dateInput = within(draftCard).getByLabelText("Date document");
+    const uploadButton = within(draftCard).getByRole("button", {
+      name: "Uploader le document"
+    });
+
+    await user.upload(fileInput, selectedFile);
+    expect(getWorkpaperDocumentPostCalls(fetchMock)).toHaveLength(0);
+
+    await user.type(sourceInput, "ERP");
+    expect(getWorkpaperDocumentPostCalls(fetchMock)).toHaveLength(0);
+
+    fireEvent.change(dateInput, { target: { value: "2026-02-15" } });
+    expect(getWorkpaperDocumentPostCalls(fetchMock)).toHaveLength(0);
+    expect(within(draftCard).getByText("fichier pret pour upload")).toBeInTheDocument();
+
+    await user.click(uploadButton);
+
+    expect(await screen.findByText("document uploade avec succes")).toBeInTheDocument();
+    expect(await screen.findByText(/refreshed-only\.pdf/)).toBeInTheDocument();
+    expect(screen.queryByText(/server-only\.pdf/)).not.toBeInTheDocument();
+    expect(getWorkpapersGetPaths(fetchMock)).toHaveLength(2);
+    expect(
+      getRequestPaths(fetchMock).filter((path) => path.endsWith("/controls"))
+    ).toHaveLength(1);
+    expect(
+      getRequestPaths(fetchMock).filter((path) => path.endsWith("/financial-summary"))
+    ).toHaveLength(1);
+    expect(
+      getRequestPaths(fetchMock).filter((path) =>
+        path.endsWith("/financial-statements/structured")
+      )
+    ).toHaveLength(1);
+    expect(
+      getRequestPaths(fetchMock).filter((path) => path.endsWith("/mappings/manual"))
+    ).toHaveLength(1);
+
+    const [, init] = getWorkpaperDocumentPostCalls(fetchMock)[0] as [string, RequestInit];
+    const headers = init.headers as Record<string, string>;
+    const formData = init.body as FormData;
+    const entries = Array.from(formData.entries());
+
+    expect(headers).toEqual(
+      expect.objectContaining({
+        Accept: "application/json",
+        "X-Tenant-Id": ACTIVE_TENANT.tenantId
+      })
+    );
+    expect(headers["Content-Type"]).toBeUndefined();
+    expect(entries.map(([key]) => key)).toEqual(["file", "sourceLabel", "documentDate"]);
+    expect(entries[0]?.[1]).toBe(selectedFile);
+    expect(entries[1]?.[1]).toBe("ERP");
+    expect(entries[2]?.[1]).toBe("2026-02-15");
+    expectNoOutOfScopePathsAllowingDocumentUploads(fetchMock, {
+      workpapersGets: 2,
+      workpapersPuts: 0,
+      workpaperDocumentPosts: 1
+    });
+  });
+
+  it.each([
+    {
+      label: "multiple files",
+      arrange: async (card: HTMLElement) => {
+        fireEvent.change(within(card).getByLabelText("Fichier document"), {
+          target: { files: [createUploadFile("first.pdf"), createUploadFile("second.pdf")] }
+        });
+      },
+      text: "un seul fichier est autorise"
+    },
+    {
+      label: "disallowed MIME with allowed extension",
+      arrange: async (card: HTMLElement) => {
+        fireEvent.change(within(card).getByLabelText("Fichier document"), {
+          target: { files: [createUploadFile("support.pdf", "text/plain", "plain")] }
+        });
+      },
+      text: "format de fichier non autorise"
+    },
+    {
+      label: "empty MIME with allowed extension",
+      arrange: async (card: HTMLElement) => {
+        const user = userEvent.setup();
+        await user.upload(
+          within(card).getByLabelText("Fichier document"),
+          createUploadFile("support.PDF", "", "pdf-content")
+        );
+        await user.type(within(card).getByLabelText("Source document"), "ERP");
+      },
+      text: "fichier pret pour upload"
+    },
+    {
+      label: "empty MIME with disallowed extension",
+      arrange: async (card: HTMLElement) => {
+        fireEvent.change(within(card).getByLabelText("Fichier document"), {
+          target: { files: [createUploadFile("support.txt", "", "txt")] }
+        });
+      },
+      text: "format de fichier non autorise"
+    },
+    {
+      label: "zero-byte file",
+      arrange: async (card: HTMLElement) => {
+        const user = userEvent.setup();
+        await user.upload(
+          within(card).getByLabelText("Fichier document"),
+          createUploadFile("empty.pdf", "application/pdf", "")
+        );
+      },
+      text: "fichier vide"
+    },
+    {
+      label: "oversized file",
+      arrange: async (card: HTMLElement) => {
+        const user = userEvent.setup();
+        await user.upload(
+          within(card).getByLabelText("Fichier document"),
+          new File([new Uint8Array(26 * 1024 * 1024)], "huge.pdf", {
+            type: "application/pdf"
+          })
+        );
+      },
+      text: "fichier trop volumineux (25 MiB max)"
+    },
+    {
+      label: "blank source label",
+      arrange: async (card: HTMLElement) => {
+        const user = userEvent.setup();
+        await user.upload(within(card).getByLabelText("Fichier document"), createUploadFile());
+        await user.type(within(card).getByLabelText("Source document"), "   ");
+      },
+      text: "source du document requise"
+    },
+    {
+      label: "invalid document date",
+      arrange: async (card: HTMLElement) => {
+        const user = userEvent.setup();
+        await user.upload(within(card).getByLabelText("Fichier document"), createUploadFile());
+        await user.type(within(card).getByLabelText("Source document"), "ERP");
+        const dateInput = within(card).getByLabelText("Date document") as HTMLInputElement;
+        Object.defineProperty(dateInput, "value", {
+          configurable: true,
+          value: "2026-02-31"
+        });
+        fireEvent.change(dateInput);
+      },
+      text: "date document invalide"
+    },
+    {
+      label: "allowed MIME with disallowed extension",
+      arrange: async (card: HTMLElement) => {
+        const user = userEvent.setup();
+        await user.upload(
+          within(card).getByLabelText("Fichier document"),
+          createUploadFile("support.weird", "application/pdf", "pdf-content")
+        );
+        await user.type(within(card).getByLabelText("Source document"), "ERP");
+      },
+      text: "fichier pret pour upload"
+    }
+  ])("renders the exact local upload validation '$text' for $label and emits no POST", async ({ arrange, text }) => {
+    const fetchMock = vi.mocked(global.fetch);
+
+    primeNominalRoute(fetchMock, {
+      workpapers: () =>
+        jsonResponse(
+          200,
+          createWorkpapersModel({
+            items: [
+              createCurrentItem({
+                anchorCode: "BS.ASSET.DRAFT",
+                anchorLabel: "Current assets draft",
+                workpaper: createWorkpaperDetails({
+                  status: "DRAFT",
+                  noteText: "Draft note"
+                })
+              })
+            ]
+          })
+        )
+    });
+
+    renderClosingRoute();
+    await waitForNominalShell();
+
+    const draftCard = getWorkpaperCard("BS.ASSET.DRAFT");
+    await arrange(draftCard);
+
+    expect(within(draftCard).getByText(text)).toBeInTheDocument();
+    if (text !== "fichier pret pour upload") {
+      expect(
+        within(draftCard).getByRole("button", { name: "Uploader le document" })
+      ).toBeDisabled();
+    }
+    expect(getWorkpaperDocumentPostCalls(fetchMock)).toHaveLength(0);
+    expectNoOutOfScopePathsAllowingDocumentUploads(fetchMock, {
+      workpapersGets: 1,
+      workpapersPuts: 0,
+      workpaperDocumentPosts: 0
+    });
+  });
+
+  it("allows only one document upload in flight across the whole block", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    const user = userEvent.setup();
+
+    primeNominalRoute(fetchMock, {
+      workpapers: () =>
+        jsonResponse(
+          200,
+          createWorkpapersModel({
+            items: [
+              createCurrentItem({
+                anchorCode: "BS.ASSET.ONE",
+                anchorLabel: "Current assets one",
+                workpaper: createWorkpaperDetails({ status: "DRAFT", noteText: "One" })
+              }),
+              createCurrentItem({
+                anchorCode: "BS.ASSET.TWO",
+                anchorLabel: "Current assets two",
+                workpaper: createWorkpaperDetails({ status: "DRAFT", noteText: "Two" })
+              })
+            ]
+          })
+        ),
+      extras: [() => new Promise(() => {})]
+    });
+
+    renderClosingRoute();
+    await waitForNominalShell();
+
+    const firstCard = getWorkpaperCard("BS.ASSET.ONE");
+    const secondCard = getWorkpaperCard("BS.ASSET.TWO");
+
+    await user.upload(within(firstCard).getByLabelText("Fichier document"), createUploadFile());
+    await user.type(within(firstCard).getByLabelText("Source document"), "ERP");
+    await user.upload(within(secondCard).getByLabelText("Fichier document"), createUploadFile());
+    await user.type(within(secondCard).getByLabelText("Source document"), "ERP");
+
+    await user.click(
+      within(firstCard).getByRole("button", { name: "Uploader le document" })
+    );
+
+    expect(await screen.findByText("upload document en cours")).toBeInTheDocument();
+    expect(getWorkpaperDocumentPostCalls(fetchMock)).toHaveLength(1);
+    expect(
+      within(secondCard).getByRole("button", { name: "Uploader le document" })
+    ).toBeDisabled();
+
+    await user.click(
+      within(secondCard).getByRole("button", { name: "Uploader le document" })
+    );
+
+    expect(getWorkpaperDocumentPostCalls(fetchMock)).toHaveLength(1);
+    expectNoOutOfScopePathsAllowingDocumentUploads(fetchMock, {
+      workpapersGets: 1,
+      workpapersPuts: 0,
+      workpaperDocumentPosts: 1
+    });
+  });
+
+  it("keeps upload controls disabled while a workpaper PUT is submitting and never emits POST /documents in that state", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    const user = userEvent.setup();
+
+    primeNominalRoute(fetchMock, {
+      workpapers: () =>
+        jsonResponse(
+          200,
+          createWorkpapersModel({
+            items: [
+              createCurrentItem({
+                anchorCode: "BS.ASSET.ONE",
+                anchorLabel: "Current assets one",
+                workpaper: createWorkpaperDetails({ status: "DRAFT", noteText: "One" })
+              }),
+              createCurrentItem({
+                anchorCode: "BS.ASSET.TWO",
+                anchorLabel: "Current assets two",
+                workpaper: createWorkpaperDetails({ status: "DRAFT", noteText: "Two" })
+              })
+            ]
+          })
+        ),
+      extras: [() => new Promise(() => {})]
+    });
+
+    renderClosingRoute();
+    await waitForNominalShell();
+
+    const firstCard = getWorkpaperCard("BS.ASSET.ONE");
+    const secondCard = getWorkpaperCard("BS.ASSET.TWO");
+
+    await user.clear(within(firstCard).getByLabelText("Note workpaper"));
+    await user.type(within(firstCard).getByLabelText("Note workpaper"), "Updated one");
+    await user.upload(within(secondCard).getByLabelText("Fichier document"), createUploadFile());
+    await user.type(within(secondCard).getByLabelText("Source document"), "ERP");
+
+    await user.click(
+      within(firstCard).getByRole("button", { name: "Enregistrer le workpaper" })
+    );
+
+    expect(await screen.findByText("enregistrement workpaper en cours")).toBeInTheDocument();
+    expect(
+      within(secondCard).getByRole("button", { name: "Uploader le document" })
+    ).toBeDisabled();
+    expect(getWorkpaperDocumentPostCalls(fetchMock)).toHaveLength(0);
+  });
+
+  it("keeps the last rendered workpapers block visible and shows the refresh failure after a valid document upload success", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    const user = userEvent.setup();
+    const selectedFile = createUploadFile();
+
+    primeNominalRoute(fetchMock, {
+      workpapers: () =>
+        jsonResponse(
+          200,
+          createWorkpapersModel({
+            items: [
+              createCurrentItem({
+                anchorCode: "BS.ASSET.DRAFT",
+                anchorLabel: "Current assets draft",
+                workpaper: createWorkpaperDetails({ status: "DRAFT", noteText: "Draft note" })
+              })
+            ]
+          })
+        ),
+      extras: [
+        () =>
+          jsonResponse(
+            201,
+            createDocumentUploadSuccessPayload({
+              file: selectedFile,
+              sourceLabel: "ERP",
+              documentDate: null
+            })
+          ),
+        () => jsonResponse(500, {})
+      ]
+    });
+
+    renderClosingRoute();
+    await waitForNominalShell();
+
+    const card = getWorkpaperCard("BS.ASSET.DRAFT");
+    await user.upload(within(card).getByLabelText("Fichier document"), selectedFile);
+    await user.type(within(card).getByLabelText("Source document"), "ERP");
+    await user.click(within(card).getByRole("button", { name: "Uploader le document" }));
+
+    expect(await screen.findByText("document uploade avec succes")).toBeInTheDocument();
+    expect(
+      await screen.findByText("rafraichissement workpapers impossible")
+    ).toBeInTheDocument();
+    expect(getWorkpaperCard("BS.ASSET.DRAFT")).toBeInTheDocument();
+    expectNoOutOfScopePathsAllowingDocumentUploads(fetchMock, {
+      workpapersGets: 2,
+      workpapersPuts: 0,
+      workpaperDocumentPosts: 1
+    });
+  });
+
+  it("treats an invalid POST /documents success payload as payload upload document invalide and does not refresh GET /workpapers", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    const user = userEvent.setup();
+
+    primeNominalRoute(fetchMock, {
+      workpapers: () =>
+        jsonResponse(
+          200,
+          createWorkpapersModel({
+            items: [
+              createCurrentItem({
+                anchorCode: "BS.ASSET.DRAFT",
+                anchorLabel: "Current assets draft",
+                workpaper: createWorkpaperDetails({ status: "DRAFT", noteText: "Draft note" })
+              })
+            ]
+          })
+        ),
+      extras: [
+        () =>
+          jsonResponse(201, {
+            id: "not-a-uuid"
+          })
+      ]
+    });
+
+    renderClosingRoute();
+    await waitForNominalShell();
+
+    const card = getWorkpaperCard("BS.ASSET.DRAFT");
+    await user.upload(within(card).getByLabelText("Fichier document"), createUploadFile());
+    await user.type(within(card).getByLabelText("Source document"), "ERP");
+    await user.click(within(card).getByRole("button", { name: "Uploader le document" }));
+
+    expect(await screen.findByText("payload upload document invalide")).toBeInTheDocument();
+    expect(getWorkpapersGetPaths(fetchMock)).toHaveLength(1);
+    expectNoOutOfScopePathsAllowingDocumentUploads(fetchMock, {
+      workpapersGets: 1,
+      workpapersPuts: 0,
+      workpaperDocumentPosts: 1
+    });
+  });
+
+  it.each([
+    { label: "400", response: () => jsonResponse(400, {}), text: "document invalide" },
+    { label: "401", response: () => jsonResponse(401, {}), text: "authentification requise" },
+    { label: "403", response: () => jsonResponse(403, {}), text: "acces documents refuse" },
+    {
+      label: "404",
+      response: () => jsonResponse(404, {}),
+      text: "workpaper introuvable pour upload document"
+    },
+    {
+      label: "409 archived",
+      response: () =>
+        jsonResponse(409, {
+          message: "Closing folder is archived and documents cannot be modified."
+        }),
+      text: "dossier archive, document non modifiable"
+    },
+    {
+      label: "409 readiness",
+      response: () =>
+        jsonResponse(409, {
+          message: "Documents can only be modified when controls.readiness is READY."
+        }),
+      text: "document non modifiable tant que les controles ne sont pas READY"
+    },
+    {
+      label: "409 stale",
+      response: () =>
+        jsonResponse(409, {
+          message: "anchorCode is not part of the current structure."
+        }),
+      text: "document indisponible sur un workpaper stale"
+    },
+    {
+      label: "409 workpaper status",
+      response: () =>
+        jsonResponse(409, {
+          message: "workpaper status does not allow document uploads."
+        }),
+      text: "document non modifiable pour ce workpaper"
+    },
+    {
+      label: "409 other",
+      response: () => jsonResponse(409, { message: "other conflict" }),
+      text: "upload document impossible"
+    },
+    {
+      label: "413",
+      response: () => jsonResponse(413, {}),
+      text: "fichier trop volumineux (25 MiB max)"
+    },
+    {
+      label: "5xx",
+      response: () => jsonResponse(500, {}),
+      text: "erreur serveur documents"
+    },
+    {
+      label: "network",
+      response: () => Promise.reject(new Error("network")),
+      text: "erreur reseau documents"
+    },
+    {
+      label: "timeout",
+      response: () => Promise.reject(new Error("timeout")),
+      text: "timeout documents"
+    },
+    {
+      label: "unexpected 200",
+      response: () => jsonResponse(200, {}),
+      text: "upload document indisponible"
+    }
+  ])("renders the exact upload mutation error '$text' on $label", async ({ response, text }) => {
+    const fetchMock = vi.mocked(global.fetch);
+    const user = userEvent.setup();
+
+    primeNominalRoute(fetchMock, {
+      workpapers: () =>
+        jsonResponse(
+          200,
+          createWorkpapersModel({
+            items: [
+              createCurrentItem({
+                anchorCode: "BS.ASSET.DRAFT",
+                anchorLabel: "Current assets draft",
+                workpaper: createWorkpaperDetails({ status: "DRAFT", noteText: "Draft note" })
+              })
+            ]
+          })
+        ),
+      extras: [response]
+    });
+
+    renderClosingRoute();
+    await waitForNominalShell();
+
+    const card = getWorkpaperCard("BS.ASSET.DRAFT");
+    await user.upload(within(card).getByLabelText("Fichier document"), createUploadFile());
+    await user.type(within(card).getByLabelText("Source document"), "ERP");
+    await user.click(within(card).getByRole("button", { name: "Uploader le document" }));
+
+    expect(await screen.findByText(text)).toBeInTheDocument();
+    expect(getWorkpapersGetPaths(fetchMock)).toHaveLength(1);
+    expectNoOutOfScopePathsAllowingDocumentUploads(fetchMock, {
+      workpapersGets: 1,
+      workpapersPuts: 0,
+      workpaperDocumentPosts: 1
+    });
   });
 
   it("allows only one mutation in flight across the whole block", async () => {

@@ -1,7 +1,7 @@
 # 021 - Frontend workpapers maker update v1
 
 ## Status
-Active
+Done
 
 ## Role de cette spec
 
@@ -1030,7 +1030,7 @@ Rendu exact :
 
 ## Criteres d acceptation frontend
 
-- `specs/active/021-frontend-workpapers-maker-update-v1.md` existe
+- `specs/done/021-frontend-workpapers-maker-update-v1.md` existe
 - `/closing-folders/:closingFolderId` reste l unique route produit enrichie par `021`
 - aucun nouveau backend n est introduit
 - aucun nouveau contrat OpenAPI n est introduit
