@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { loadWorkpapersShellState } from "./workpapers";
+import {
+  loadWorkpapersShellState,
+  upsertWorkpaper,
+  type ClosingWorkpapersReadModel,
+  type WorkpaperEvidence
+} from "./workpapers";
 
 const ACTIVE_TENANT = {
   tenantId: "11111111-1111-1111-1111-111111111111",
@@ -17,8 +22,21 @@ const CLOSING_FOLDER = {
   status: "DRAFT"
 };
 
-const VALID_WORKPAPERS = {
+const VALID_EVIDENCE: WorkpaperEvidence = {
+  position: 1,
+  fileName: "bank.csv",
+  mediaType: "text/csv",
+  documentDate: "2026-01-31",
+  sourceLabel: "Bank portal",
+  verificationStatus: "UNVERIFIED",
+  externalReference: null,
+  checksumSha256: null
+};
+
+const VALID_WORKPAPERS: ClosingWorkpapersReadModel = {
   closingFolderId: CLOSING_FOLDER.id,
+  closingFolderStatus: "DRAFT",
+  readiness: "READY",
   summaryCounts: {
     totalCurrentAnchors: 2,
     withWorkpaperCount: 1,
@@ -36,7 +54,8 @@ const VALID_WORKPAPERS = {
       isCurrentStructure: true,
       workpaper: {
         status: "READY_FOR_REVIEW",
-        noteText: "Cash tie-out"
+        noteText: "Cash tie-out",
+        evidences: [VALID_EVIDENCE]
       },
       documents: [
         {
@@ -73,7 +92,8 @@ const VALID_WORKPAPERS = {
       isCurrentStructure: false,
       workpaper: {
         status: "REVIEWED",
-        noteText: "Legacy support"
+        noteText: "Legacy support",
+        evidences: [VALID_EVIDENCE]
       },
       documents: [
         {
@@ -122,7 +142,6 @@ describe("workpapers api", () => {
           path: { unexpected: true },
           actionable: "nope"
         },
-        readiness: 99,
         blockers: "ignored"
       })
     );
@@ -140,6 +159,7 @@ describe("workpapers api", () => {
       expect.objectContaining({
         method: "GET",
         headers: expect.objectContaining({
+          Accept: "application/json",
           "X-Tenant-Id": ACTIVE_TENANT.tenantId
         })
       })
@@ -153,7 +173,7 @@ describe("workpapers api", () => {
     { status: 404, kind: "not_found" },
     { status: 500, kind: "server_error" },
     { status: 418, kind: "unexpected" }
-  ])("maps HTTP $status to $kind", async ({ status, kind }) => {
+  ])("maps GET HTTP $status to $kind", async ({ status, kind }) => {
     const fetcher = vi.fn().mockResolvedValue(jsonResponse(status, {}));
 
     await expect(
@@ -161,7 +181,7 @@ describe("workpapers api", () => {
     ).resolves.toEqual({ kind });
   });
 
-  it("maps timeout and network failures", async () => {
+  it("maps GET timeout and network failures", async () => {
     const timeoutFetcher = vi.fn().mockRejectedValue(new Error("timeout"));
     const networkFetcher = vi.fn().mockRejectedValue(new Error("network"));
 
@@ -180,6 +200,26 @@ describe("workpapers api", () => {
         ...cloneValue(VALID_WORKPAPERS),
         closingFolderId: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
       })
+    },
+    {
+      label: "closingFolderStatus missing",
+      payload: () => {
+        const payload = cloneValue(VALID_WORKPAPERS) as {
+          closingFolderStatus?: string;
+        };
+        delete payload.closingFolderStatus;
+        return payload;
+      }
+    },
+    {
+      label: "readiness missing",
+      payload: () => {
+        const payload = cloneValue(VALID_WORKPAPERS) as {
+          readiness?: string;
+        };
+        delete payload.readiness;
+        return payload;
+      }
     },
     {
       label: "summaryCounts.totalCurrentAnchors != items.length",
@@ -254,6 +294,22 @@ describe("workpapers api", () => {
       }
     },
     {
+      label: "workpaper object without evidences",
+      payload: () => {
+        const payload = cloneValue(VALID_WORKPAPERS);
+        delete (payload.items[0].workpaper as { evidences?: unknown }).evidences;
+        return payload;
+      }
+    },
+    {
+      label: "evidence without externalReference",
+      payload: () => {
+        const payload = cloneValue(VALID_WORKPAPERS);
+        delete (payload.items[0].workpaper as { evidences: Array<{ externalReference?: string | null }> }).evidences[0].externalReference;
+        return payload;
+      }
+    },
+    {
       label: "current item without documents[]",
       payload: () => {
         const payload = cloneValue(VALID_WORKPAPERS);
@@ -316,7 +372,7 @@ describe("workpapers api", () => {
         const payload = cloneValue(VALID_WORKPAPERS);
         (
           payload.staleWorkpapers[0] as {
-            workpaper: { status: string; noteText: string } | null;
+            workpaper: { status: string; noteText: string; evidences: unknown[] } | null;
           }
         ).workpaper = null;
         return payload;
@@ -351,7 +407,7 @@ describe("workpapers api", () => {
         return payload;
       }
     }
-  ])("returns invalid_payload on $label", async ({ payload }) => {
+  ])("returns invalid_payload on GET $label", async ({ payload }) => {
     const fetcher = vi.fn().mockResolvedValue(jsonResponse(200, payload()));
 
     await expect(
@@ -359,7 +415,7 @@ describe("workpapers api", () => {
     ).resolves.toEqual({ kind: "invalid_payload" });
   });
 
-  it("returns invalid_payload on unreadable 200 bodies", async () => {
+  it("returns invalid_payload on unreadable GET 200 bodies", async () => {
     const invalidJsonFetcher = vi.fn().mockResolvedValue(
       new Response("{", {
         status: 200,
@@ -387,6 +443,238 @@ describe("workpapers api", () => {
     ).resolves.toEqual({ kind: "invalid_payload" });
     await expect(
       loadWorkpapersShellState(CLOSING_FOLDER.id, CLOSING_FOLDER, ACTIVE_TENANT, plainTextFetcher)
+    ).resolves.toEqual({ kind: "invalid_payload" });
+  });
+
+  it("calls the exact PUT path with the exact headers and body and never sends evidences.id", async () => {
+    const request = {
+      anchorCode: "BS.ASSET.CURRENT_SECTION",
+      noteText: "Cash tie-out",
+      status: "READY_FOR_REVIEW" as const,
+      evidences: [
+        {
+          position: 2,
+          fileName: "support.pdf",
+          mediaType: "application/pdf",
+          documentDate: "2026-02-15",
+          sourceLabel: "ERP",
+          verificationStatus: "VERIFIED" as const,
+          externalReference: "erp://support-1",
+          checksumSha256: "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+        }
+      ]
+    };
+    const fetcher = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        anchorCode: request.anchorCode,
+        isCurrentStructure: true,
+        workpaper: {
+          status: request.status,
+          noteText: request.noteText,
+          evidences: request.evidences,
+          id: "ignored-by-frontend"
+        }
+      })
+    );
+
+    await expect(
+      upsertWorkpaper(CLOSING_FOLDER.id, ACTIVE_TENANT, request, fetcher)
+    ).resolves.toEqual({ kind: "success" });
+
+    const [path, init] = fetcher.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(String(init.body)) as {
+      noteText: string;
+      status: string;
+      evidences: Array<Record<string, unknown>>;
+    };
+
+    expect(path).toBe(
+      `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers/${request.anchorCode}`
+    );
+    expect(init.method).toBe("PUT");
+    expect(init.headers).toEqual(
+      expect.objectContaining({
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "X-Tenant-Id": ACTIVE_TENANT.tenantId
+      })
+    );
+    expect(Object.keys(body)).toEqual(["noteText", "status", "evidences"]);
+    expect(body).toEqual({
+      noteText: request.noteText,
+      status: request.status,
+      evidences: request.evidences
+    });
+    expect(body.evidences).toHaveLength(1);
+    expect(Object.keys(body.evidences[0] ?? {})).toEqual([
+      "position",
+      "fileName",
+      "mediaType",
+      "documentDate",
+      "sourceLabel",
+      "verificationStatus",
+      "externalReference",
+      "checksumSha256"
+    ]);
+    expect(body.evidences[0]).not.toHaveProperty("id");
+  });
+
+  it.each([
+    { status: 400, response: () => jsonResponse(400, {}), kind: "bad_request" },
+    { status: 401, response: () => jsonResponse(401, {}), kind: "auth_required" },
+    { status: 403, response: () => jsonResponse(403, {}), kind: "forbidden" },
+    { status: 404, response: () => jsonResponse(404, {}), kind: "not_found" },
+    {
+      status: 409,
+      response: () =>
+        jsonResponse(409, {
+          message: "Closing folder is archived and workpapers cannot be modified."
+        }),
+      kind: "conflict_archived"
+    },
+    {
+      status: 409,
+      response: () =>
+        jsonResponse(409, {
+          message: "Workpapers can only be modified when controls.readiness is READY."
+        }),
+      kind: "conflict_not_ready"
+    },
+    {
+      status: 409,
+      response: () =>
+        jsonResponse(409, {
+          message: "anchorCode is not part of the current structure."
+        }),
+      kind: "conflict_other"
+    },
+    { status: 500, response: () => jsonResponse(500, {}), kind: "server_error" },
+    { status: 418, response: () => jsonResponse(418, {}), kind: "unexpected" }
+  ])("maps PUT HTTP $status to $kind", async ({ response, kind }) => {
+    const fetcher = vi.fn().mockResolvedValue(response());
+
+    await expect(
+      upsertWorkpaper(
+        CLOSING_FOLDER.id,
+        ACTIVE_TENANT,
+        {
+          anchorCode: "BS.ASSET.CURRENT_SECTION",
+          noteText: "Cash tie-out",
+          status: "DRAFT",
+          evidences: []
+        },
+        fetcher
+      )
+    ).resolves.toEqual({ kind });
+  });
+
+  it("maps PUT timeout and network failures", async () => {
+    const timeoutFetcher = vi.fn().mockRejectedValue(new Error("timeout"));
+    const networkFetcher = vi.fn().mockRejectedValue(new Error("network"));
+    const request = {
+      anchorCode: "BS.ASSET.CURRENT_SECTION",
+      noteText: "Cash tie-out",
+      status: "DRAFT" as const,
+      evidences: []
+    };
+
+    await expect(
+      upsertWorkpaper(CLOSING_FOLDER.id, ACTIVE_TENANT, request, timeoutFetcher)
+    ).resolves.toEqual({ kind: "timeout" });
+    await expect(
+      upsertWorkpaper(CLOSING_FOLDER.id, ACTIVE_TENANT, request, networkFetcher)
+    ).resolves.toEqual({ kind: "network_error" });
+  });
+
+  it.each([
+    {
+      label: "anchorCode mismatch",
+      payload: {
+        anchorCode: "PL.REVENUE.CURRENT_SECTION",
+        isCurrentStructure: true,
+        workpaper: {
+          status: "READY_FOR_REVIEW",
+          noteText: "Cash tie-out",
+          evidences: [VALID_EVIDENCE]
+        }
+      }
+    },
+    {
+      label: "isCurrentStructure false",
+      payload: {
+        anchorCode: "BS.ASSET.CURRENT_SECTION",
+        isCurrentStructure: false,
+        workpaper: {
+          status: "READY_FOR_REVIEW",
+          noteText: "Cash tie-out",
+          evidences: [VALID_EVIDENCE]
+        }
+      }
+    },
+    {
+      label: "workpaper missing",
+      payload: {
+        anchorCode: "BS.ASSET.CURRENT_SECTION",
+        isCurrentStructure: true,
+        workpaper: null
+      }
+    },
+    {
+      label: "status mismatch",
+      payload: {
+        anchorCode: "BS.ASSET.CURRENT_SECTION",
+        isCurrentStructure: true,
+        workpaper: {
+          status: "DRAFT",
+          noteText: "Cash tie-out",
+          evidences: [VALID_EVIDENCE]
+        }
+      }
+    },
+    {
+      label: "noteText mismatch",
+      payload: {
+        anchorCode: "BS.ASSET.CURRENT_SECTION",
+        isCurrentStructure: true,
+        workpaper: {
+          status: "READY_FOR_REVIEW",
+          noteText: "Changed note",
+          evidences: [VALID_EVIDENCE]
+        }
+      }
+    },
+    {
+      label: "evidences mismatch",
+      payload: {
+        anchorCode: "BS.ASSET.CURRENT_SECTION",
+        isCurrentStructure: true,
+        workpaper: {
+          status: "READY_FOR_REVIEW",
+          noteText: "Cash tie-out",
+          evidences: [
+            {
+              ...VALID_EVIDENCE,
+              fileName: "changed.csv"
+            }
+          ]
+        }
+      }
+    }
+  ])("returns invalid_payload on PUT success payload $label", async ({ payload }) => {
+    const fetcher = vi.fn().mockResolvedValue(jsonResponse(200, payload));
+
+    await expect(
+      upsertWorkpaper(
+        CLOSING_FOLDER.id,
+        ACTIVE_TENANT,
+        {
+          anchorCode: "BS.ASSET.CURRENT_SECTION",
+          noteText: "Cash tie-out",
+          status: "READY_FOR_REVIEW",
+          evidences: [VALID_EVIDENCE]
+        },
+        fetcher
+      )
     ).resolves.toEqual({ kind: "invalid_payload" });
   });
 });

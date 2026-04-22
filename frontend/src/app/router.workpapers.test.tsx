@@ -88,35 +88,6 @@ const READY_MANUAL_MAPPING = {
   ]
 };
 
-const READY_MANUAL_MAPPING_AFTER_PUT = {
-  ...READY_MANUAL_MAPPING,
-  summary: {
-    total: 2,
-    mapped: 2,
-    unmapped: 0
-  },
-  mappings: [
-    {
-      accountCode: "1000",
-      targetCode: "BS.ASSET"
-    },
-    {
-      accountCode: "2000",
-      targetCode: "PL.REVENUE"
-    }
-  ]
-};
-
-const READY_MANUAL_MAPPING_AFTER_DELETE = {
-  ...READY_MANUAL_MAPPING,
-  summary: {
-    total: 2,
-    mapped: 0,
-    unmapped: 2
-  },
-  mappings: []
-};
-
 const READY_FINANCIAL_SUMMARY = {
   closingFolderId: CLOSING_FOLDER.id,
   statementState: "PREVIEW_READY",
@@ -211,114 +182,200 @@ const READY_FINANCIAL_STATEMENTS_STRUCTURED = {
   }
 };
 
-const EMPTY_WORKPAPERS = {
-  closingFolderId: CLOSING_FOLDER.id,
-  summaryCounts: {
-    totalCurrentAnchors: 0,
-    withWorkpaperCount: 0,
-    readyForReviewCount: 0,
-    reviewedCount: 0,
-    staleCount: 0,
-    missingCount: 0
-  },
-  items: [],
-  staleWorkpapers: []
-};
-
-const WORKPAPERS_WITH_DATA = {
-  closingFolderId: CLOSING_FOLDER.id,
-  summaryCounts: {
-    totalCurrentAnchors: 2,
-    withWorkpaperCount: 1,
-    readyForReviewCount: 1,
-    reviewedCount: 0,
-    staleCount: 1,
-    missingCount: 1
-  },
-  items: [
-    {
-      anchorCode: "PL.REVENUE.CURRENT_SECTION",
-      anchorLabel: "Revenue",
-      statementKind: "INCOME_STATEMENT",
-      breakdownType: "LEGACY_BUCKET_FALLBACK",
-      isCurrentStructure: true,
-      workpaper: null,
-      documents: [],
-      documentVerificationSummary: null
-    },
-    {
-      anchorCode: "BS.ASSET.CURRENT_SECTION",
-      anchorLabel: "Current assets",
-      statementKind: "BALANCE_SHEET",
-      breakdownType: "SECTION",
-      isCurrentStructure: true,
-      workpaper: {
-        status: "READY_FOR_REVIEW",
-        noteText: "Cash tie-out"
-      },
-      documents: [
-        {
-          fileName: "z-last.pdf",
-          mediaType: "application/pdf",
-          sourceLabel: "ERP",
-          verificationStatus: "VERIFIED"
-        },
-        {
-          fileName: "a-first.csv",
-          mediaType: "text/csv",
-          sourceLabel: "Bank portal",
-          verificationStatus: "REJECTED"
-        }
-      ],
-      documentVerificationSummary: {
-        documentsCount: 2,
-        unverifiedCount: 0,
-        verifiedCount: 1,
-        rejectedCount: 1
-      }
-    }
-  ],
-  staleWorkpapers: [
-    {
-      anchorCode: "BS.ASSET.LEGACY_BUCKET_FALLBACK",
-      anchorLabel: "Legacy bucket",
-      statementKind: "BALANCE_SHEET",
-      breakdownType: "LEGACY_BUCKET_FALLBACK",
-      isCurrentStructure: false,
-      workpaper: {
-        status: "REVIEWED",
-        noteText: "Legacy support"
-      },
-      documents: [
-        {
-          fileName: "legacy.xlsx",
-          mediaType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          sourceLabel: "Archive",
-          verificationStatus: "VERIFIED"
-        }
-      ],
-      documentVerificationSummary: {
-        documentsCount: 1,
-        unverifiedCount: 0,
-        verifiedCount: 1,
-        rejectedCount: 0
-      }
-    }
-  ],
-  nextAction: {
-    code: "IGNORED",
-    path: "/should-never-render",
-    actionable: true
-  }
-};
-
-const CLOSING_ROUTE = `/closing-folders/${CLOSING_FOLDER.id}`;
-const ME_PAYLOAD = {
+const ACCOUNTANT_ME = {
   activeTenant: ACTIVE_TENANT,
   effectiveRoles: ["ACCOUNTANT"]
 };
 
+const CLOSING_ROUTE = `/closing-folders/${CLOSING_FOLDER.id}`;
+
+type WorkpaperEvidence = {
+  position: number;
+  fileName: string;
+  mediaType: string;
+  documentDate: string | null;
+  sourceLabel: string;
+  verificationStatus: "UNVERIFIED" | "VERIFIED" | "REJECTED";
+  externalReference: string | null;
+  checksumSha256: string | null;
+};
+
+type WorkpaperDocument = {
+  fileName: string;
+  mediaType: string;
+  sourceLabel: string;
+  verificationStatus: "UNVERIFIED" | "VERIFIED" | "REJECTED";
+};
+
+type WorkpaperDetails = {
+  status: "DRAFT" | "READY_FOR_REVIEW" | "CHANGES_REQUESTED" | "REVIEWED";
+  noteText: string;
+  evidences: WorkpaperEvidence[];
+};
+
+type WorkpaperItem = {
+  anchorCode: string;
+  anchorLabel: string;
+  statementKind: "BALANCE_SHEET" | "INCOME_STATEMENT";
+  breakdownType: "SECTION" | "LEGACY_BUCKET_FALLBACK";
+  isCurrentStructure: boolean;
+  workpaper: WorkpaperDetails | null;
+  documents: WorkpaperDocument[];
+  documentVerificationSummary:
+    | {
+        documentsCount: number;
+        unverifiedCount: number;
+        verifiedCount: number;
+        rejectedCount: number;
+      }
+    | null;
+};
+
+type WorkpapersModel = {
+  closingFolderId: string;
+  closingFolderStatus: "DRAFT" | "ARCHIVED";
+  readiness: "READY" | "BLOCKED";
+  summaryCounts: {
+    totalCurrentAnchors: number;
+    withWorkpaperCount: number;
+    readyForReviewCount: number;
+    reviewedCount: number;
+    staleCount: number;
+    missingCount: number;
+  };
+  items: WorkpaperItem[];
+  staleWorkpapers: WorkpaperItem[];
+  nextAction?: {
+    code: string;
+    path: string;
+    actionable: boolean;
+  };
+};
+
 type ResponseFactory = () => Response | Promise<Response>;
+
+function createEvidence(overrides: Partial<WorkpaperEvidence> = {}): WorkpaperEvidence {
+  return {
+    position: 1,
+    fileName: "support.pdf",
+    mediaType: "application/pdf",
+    documentDate: "2026-01-31",
+    sourceLabel: "ERP",
+    verificationStatus: "UNVERIFIED",
+    externalReference: null,
+    checksumSha256: null,
+    ...overrides
+  };
+}
+
+function createDocument(overrides: Partial<WorkpaperDocument> = {}): WorkpaperDocument {
+  return {
+    fileName: "support.pdf",
+    mediaType: "application/pdf",
+    sourceLabel: "ERP",
+    verificationStatus: "UNVERIFIED",
+    ...overrides
+  };
+}
+
+function summarizeDocuments(documents: WorkpaperDocument[]) {
+  return {
+    documentsCount: documents.length,
+    unverifiedCount: documents.filter((document) => document.verificationStatus === "UNVERIFIED")
+      .length,
+    verifiedCount: documents.filter((document) => document.verificationStatus === "VERIFIED")
+      .length,
+    rejectedCount: documents.filter((document) => document.verificationStatus === "REJECTED")
+      .length
+  };
+}
+
+function createWorkpaperDetails(overrides: Partial<WorkpaperDetails> = {}): WorkpaperDetails {
+  return {
+    status: "DRAFT",
+    noteText: "Cash tie-out",
+    evidences: [createEvidence()],
+    ...overrides
+  };
+}
+
+function createCurrentItem({
+  anchorCode = "BS.ASSET.CURRENT_SECTION",
+  anchorLabel = "Current assets",
+  statementKind = "BALANCE_SHEET",
+  breakdownType = "SECTION",
+  workpaper = null,
+  documents,
+  documentVerificationSummary
+}: Partial<WorkpaperItem> = {}): WorkpaperItem {
+  const resolvedDocuments =
+    workpaper === null ? [] : (documents ?? []);
+
+  return {
+    anchorCode,
+    anchorLabel,
+    statementKind,
+    breakdownType,
+    isCurrentStructure: true,
+    workpaper,
+    documents: resolvedDocuments,
+    documentVerificationSummary:
+      workpaper === null
+        ? null
+        : (documentVerificationSummary ?? summarizeDocuments(resolvedDocuments))
+  };
+}
+
+function createStaleItem({
+  anchorCode = "BS.ASSET.LEGACY_BUCKET_FALLBACK",
+  anchorLabel = "Legacy bucket",
+  statementKind = "BALANCE_SHEET",
+  breakdownType = "LEGACY_BUCKET_FALLBACK",
+  workpaper = createWorkpaperDetails({
+    status: "REVIEWED",
+    noteText: "Legacy support"
+  }),
+  documents = [createDocument({ fileName: "legacy.pdf", verificationStatus: "VERIFIED" })],
+  documentVerificationSummary
+}: Partial<WorkpaperItem> = {}): WorkpaperItem {
+  return {
+    anchorCode,
+    anchorLabel,
+    statementKind,
+    breakdownType,
+    isCurrentStructure: false,
+    workpaper,
+    documents,
+    documentVerificationSummary: documentVerificationSummary ?? summarizeDocuments(documents)
+  };
+}
+
+function createWorkpapersModel({
+  closingFolderStatus = "DRAFT",
+  readiness = "READY",
+  items = [],
+  staleWorkpapers = [],
+  nextAction
+}: Partial<WorkpapersModel> = {}): WorkpapersModel {
+  return {
+    closingFolderId: CLOSING_FOLDER.id,
+    closingFolderStatus,
+    readiness,
+    summaryCounts: {
+      totalCurrentAnchors: items.length,
+      withWorkpaperCount: items.filter((item) => item.workpaper !== null).length,
+      readyForReviewCount: items.filter(
+        (item) => item.workpaper?.status === "READY_FOR_REVIEW"
+      ).length,
+      reviewedCount: items.filter((item) => item.workpaper?.status === "REVIEWED").length,
+      staleCount: staleWorkpapers.length,
+      missingCount: items.filter((item) => item.workpaper === null).length
+    },
+    items,
+    staleWorkpapers,
+    ...(nextAction === undefined ? {} : { nextAction })
+  };
+}
 
 function jsonResponse(status: number, payload: unknown) {
   return new Response(JSON.stringify(payload), {
@@ -329,19 +386,6 @@ function jsonResponse(status: number, payload: unknown) {
   });
 }
 
-function textResponse(status: number, body: string, contentType = "text/plain") {
-  return new Response(body, {
-    status,
-    headers: {
-      "Content-Type": contentType
-    }
-  });
-}
-
-function emptyResponse(status: number) {
-  return new Response(null, { status });
-}
-
 function renderClosingRoute() {
   const router = createAppMemoryRouter([CLOSING_ROUTE]);
   return render(<RouterProvider router={router} />);
@@ -350,13 +394,18 @@ function renderClosingRoute() {
 function primeNominalRoute(
   fetchMock: ReturnType<typeof vi.fn>,
   {
+    me = () => jsonResponse(200, ACCOUNTANT_ME),
+    closingFolder = () => jsonResponse(200, CLOSING_FOLDER),
     controls = () => jsonResponse(200, READY_CONTROLS),
     manualMapping = () => jsonResponse(200, READY_MANUAL_MAPPING),
     financialSummary = () => jsonResponse(200, READY_FINANCIAL_SUMMARY),
-    financialStatementsStructured = () => jsonResponse(200, READY_FINANCIAL_STATEMENTS_STRUCTURED),
-    workpapers = () => jsonResponse(200, EMPTY_WORKPAPERS),
+    financialStatementsStructured = () =>
+      jsonResponse(200, READY_FINANCIAL_STATEMENTS_STRUCTURED),
+    workpapers = () => jsonResponse(200, createWorkpapersModel()),
     extras = []
   }: {
+    me?: ResponseFactory;
+    closingFolder?: ResponseFactory;
     controls?: ResponseFactory;
     manualMapping?: ResponseFactory;
     financialSummary?: ResponseFactory;
@@ -366,8 +415,8 @@ function primeNominalRoute(
   } = {}
 ) {
   fetchMock
-    .mockResolvedValueOnce(jsonResponse(200, ME_PAYLOAD))
-    .mockResolvedValueOnce(jsonResponse(200, CLOSING_FOLDER))
+    .mockImplementationOnce(() => Promise.resolve(me()))
+    .mockImplementationOnce(() => Promise.resolve(closingFolder()))
     .mockImplementationOnce(() => Promise.resolve(controls()))
     .mockImplementationOnce(() => Promise.resolve(manualMapping()))
     .mockImplementationOnce(() => Promise.resolve(financialSummary()))
@@ -393,29 +442,36 @@ function getRequestPaths(fetchMock: ReturnType<typeof vi.fn>) {
   return fetchMock.mock.calls.map((call) => String(call[0]));
 }
 
-function getWorkpapersPaths(fetchMock: ReturnType<typeof vi.fn>) {
+function getWorkpapersGetPaths(fetchMock: ReturnType<typeof vi.fn>) {
   return getRequestPaths(fetchMock).filter((path) => path.endsWith("/workpapers"));
 }
 
-function expectNoForbiddenPaths(paths: string[], expectedWorkpapersCalls = 1) {
-  expect(paths.filter((path) => path.includes("/workpapers"))).toHaveLength(expectedWorkpapersCalls);
-  expect(paths.some((path) => /\/workpapers\/[^/]+/.test(path))).toBe(false);
+function getWorkpapersPutCalls(fetchMock: ReturnType<typeof vi.fn>) {
+  return fetchMock.mock.calls.filter(([path]) =>
+    /\/api\/closing-folders\/[^/]+\/workpapers\/[^/]+$/.test(String(path))
+  ) as Array<[string, RequestInit]>;
+}
+
+function expectNoOutOfScopePaths(
+  paths: string[],
+  {
+    workpapersGets,
+    workpapersPuts
+  }: {
+    workpapersGets: number;
+    workpapersPuts: number;
+  }
+) {
+  expect(paths.filter((path) => path.endsWith("/workpapers"))).toHaveLength(workpapersGets);
+  expect(
+    paths.filter((path) => /\/api\/closing-folders\/[^/]+\/workpapers\/[^/]+$/.test(path))
+  ).toHaveLength(workpapersPuts);
   expect(paths.some((path) => path.includes("/review-decision"))).toBe(false);
   expect(paths.some((path) => path.includes("/documents"))).toBe(false);
   expect(paths.some((path) => path.includes("/exports"))).toBe(false);
   expect(paths.some((path) => path.includes("/imports/balance/versions"))).toBe(false);
   expect(paths.some((path) => path.includes("/diff-previous"))).toBe(false);
   expect(paths.some((path) => path.includes("/ai"))).toBe(false);
-}
-
-function expectExistingBlocksVisible() {
-  expect(screen.getByText("Dossier courant")).toBeInTheDocument();
-  expect(screen.getByText("Import balance")).toBeInTheDocument();
-  expect(screen.getByText("Mapping manuel")).toBeInTheDocument();
-  expect(screen.getByRole("heading", { name: "Cockpit read-only" })).toBeInTheDocument();
-  expect(screen.getByText("Financial summary")).toBeInTheDocument();
-  expect(screen.getByText("Financial statements structured")).toBeInTheDocument();
-  expect(screen.getByText("Workpapers")).toBeInTheDocument();
 }
 
 function getWorkpapersSection() {
@@ -444,20 +500,18 @@ describe("router workpapers", () => {
     vi.restoreAllMocks();
   });
 
-  it("places Workpapers after Financial statements structured, loads it only after /api/me and dossier, and keeps the request scope closed", async () => {
+  it("places Workpapers after Financial statements structured and keeps the request scope closed on initial load", async () => {
     const fetchMock = vi.mocked(global.fetch);
     primeNominalRoute(fetchMock);
 
     renderClosingRoute();
     await waitForNominalShell();
 
-    const structuredLabel = screen.getByText("Financial statements structured");
-    const workpapersLabel = screen.getByText("Workpapers");
-
-    expectNodeBefore(structuredLabel, workpapersLabel);
-
-    const paths = getRequestPaths(fetchMock);
-    expect(paths).toEqual([
+    expectNodeBefore(
+      screen.getByText("Financial statements structured"),
+      screen.getByText("Workpapers")
+    );
+    expect(getRequestPaths(fetchMock)).toEqual([
       "/api/me",
       `/api/closing-folders/${CLOSING_FOLDER.id}`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/controls`,
@@ -466,294 +520,656 @@ describe("router workpapers", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`
     ]);
-    expectNoForbiddenPaths(paths);
-  });
-
-  it("shows chargement workpapers while the request is pending and keeps the other blocks visible", async () => {
-    const fetchMock = vi.mocked(global.fetch);
-    primeNominalRoute(fetchMock, {
-      workpapers: () => new Promise(() => {})
+    expectNoOutOfScopePaths(getRequestPaths(fetchMock), {
+      workpapersGets: 1,
+      workpapersPuts: 0
     });
-
-    renderClosingRoute();
-    await waitForNominalShell();
-
-    expect(await screen.findByText("chargement workpapers")).toBeInTheDocument();
-    expectExistingBlocksVisible();
-    expect(screen.queryByText("Workpapers en lecture seule dans cette version.")).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Resume workpapers" })).not.toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(7);
   });
 
-  it.each([
-    { response: () => jsonResponse(400, {}), text: "workpapers indisponibles" },
-    { response: () => jsonResponse(401, {}), text: "authentification requise" },
-    { response: () => jsonResponse(403, {}), text: "acces workpapers refuse" },
-    { response: () => jsonResponse(404, {}), text: "workpapers introuvables" },
-    { response: () => jsonResponse(500, {}), text: "erreur serveur workpapers" },
-    { response: () => Promise.reject(new Error("network")), text: "erreur reseau workpapers" },
-    { response: () => Promise.reject(new Error("timeout")), text: "timeout workpapers" },
-    { response: () => jsonResponse(418, {}), text: "workpapers indisponibles" }
-  ])("renders the exact workpapers error state '$text' and keeps the existing blocks visible", async ({ response, text }) => {
+  it("renders the nominal maker block, keeps stale read-only, and never renders nextAction.path as navigation", async () => {
     const fetchMock = vi.mocked(global.fetch);
-    primeNominalRoute(fetchMock, {
-      workpapers: response
-    });
-
-    renderClosingRoute();
-    await waitForNominalShell();
-
-    expect(await screen.findByText(text)).toBeInTheDocument();
-    expectExistingBlocksVisible();
-    expect(screen.queryByText("Workpapers en lecture seule dans cette version.")).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Resume workpapers" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Workpapers courants" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Workpapers stale" })).not.toBeInTheDocument();
-  });
-
-  it.each([
-    {
-      label: "missing documents[]",
-      response: () =>
-        jsonResponse(200, {
-          ...WORKPAPERS_WITH_DATA,
-          items: WORKPAPERS_WITH_DATA.items.map((item, index) =>
-            index === 0
-              ? Object.fromEntries(
-                  Object.entries(item).filter(([key]) => key !== "documents")
-                )
-              : item
-          )
+    const workpapers = createWorkpapersModel({
+      items: [
+        createCurrentItem({
+          anchorCode: "PL.REVENUE.NEW",
+          anchorLabel: "Revenue new",
+          statementKind: "INCOME_STATEMENT",
+          breakdownType: "LEGACY_BUCKET_FALLBACK",
+          workpaper: null
+        }),
+        createCurrentItem({
+          anchorCode: "BS.ASSET.DRAFT",
+          anchorLabel: "Current assets draft",
+          workpaper: createWorkpaperDetails({
+            status: "DRAFT",
+            noteText: "Draft note"
+          })
+        }),
+        createCurrentItem({
+          anchorCode: "BS.ASSET.CHANGES",
+          anchorLabel: "Current assets changes",
+          workpaper: createWorkpaperDetails({
+            status: "CHANGES_REQUESTED",
+            noteText: "Needs update"
+          })
+        }),
+        createCurrentItem({
+          anchorCode: "BS.ASSET.READY",
+          anchorLabel: "Current assets ready",
+          workpaper: createWorkpaperDetails({
+            status: "READY_FOR_REVIEW",
+            noteText: "Ready for review"
+          })
+        }),
+        createCurrentItem({
+          anchorCode: "BS.ASSET.REVIEWED",
+          anchorLabel: "Current assets reviewed",
+          workpaper: createWorkpaperDetails({
+            status: "REVIEWED",
+            noteText: "Reviewed note"
+          })
         })
-    },
-    {
-      label: "incoherent counts",
-      response: () =>
-        jsonResponse(200, {
-          ...WORKPAPERS_WITH_DATA,
-          summaryCounts: {
-            ...WORKPAPERS_WITH_DATA.summaryCounts,
-            staleCount: 7
-          }
+      ],
+      staleWorkpapers: [
+        createStaleItem({
+          anchorCode: "BS.ASSET.STALE",
+          anchorLabel: "Legacy bucket stale"
         })
-    },
-    {
-      label: "unreadable json",
-      response: () => textResponse(200, "{", "application/json")
-    }
-  ])("renders payload workpapers invalide on $label", async ({ response }) => {
-    const fetchMock = vi.mocked(global.fetch);
+      ],
+      nextAction: {
+        code: "IGNORED",
+        path: "/never-rendered",
+        actionable: true
+      }
+    });
+
     primeNominalRoute(fetchMock, {
-      workpapers: response
+      workpapers: () => jsonResponse(200, workpapers)
     });
 
     renderClosingRoute();
     await waitForNominalShell();
 
-    expect(await screen.findByText("payload workpapers invalide")).toBeInTheDocument();
-    expectExistingBlocksVisible();
-    expect(screen.queryByText("Workpapers en lecture seule dans cette version.")).not.toBeInTheDocument();
-  });
+    const section = getWorkpapersSection();
+    const newCard = getWorkpaperCard("PL.REVENUE.NEW");
+    const draftCard = getWorkpaperCard("BS.ASSET.DRAFT");
+    const changesCard = getWorkpaperCard("BS.ASSET.CHANGES");
+    const readyCard = getWorkpaperCard("BS.ASSET.READY");
+    const reviewedCard = getWorkpaperCard("BS.ASSET.REVIEWED");
+    const staleCard = getWorkpaperCard("BS.ASSET.STALE");
 
-  it("renders the exact READY_EMPTY state and the read-only reminder", async () => {
-    const fetchMock = vi.mocked(global.fetch);
-    primeNominalRoute(fetchMock, {
-      workpapers: () =>
-        jsonResponse(200, {
-          ...EMPTY_WORKPAPERS,
-          nextAction: {
-            code: "IGNORED",
-            path: "/never-rendered",
-            actionable: "still-ignored"
-          }
-        })
-    });
-
-    renderClosingRoute();
-    await waitForNominalShell();
-
-    const workpapersSection = getWorkpapersSection();
-
-    expect(await screen.findByText("Workpapers en lecture seule dans cette version.")).toBeInTheDocument();
-    expect(workpapersSection.getByRole("heading", { name: "Resume workpapers" })).toBeInTheDocument();
-    expect(workpapersSection.getByText("anchors courants total : 0")).toBeInTheDocument();
-    expect(workpapersSection.getByText("anchors avec workpaper : 0")).toBeInTheDocument();
-    expect(workpapersSection.getByText("workpapers prets pour revue : 0")).toBeInTheDocument();
-    expect(workpapersSection.getByText("workpapers revus : 0")).toBeInTheDocument();
-    expect(workpapersSection.getByText("workpapers stale : 0")).toBeInTheDocument();
-    expect(workpapersSection.getByText("anchors sans workpaper : 0")).toBeInTheDocument();
-    expect(workpapersSection.getByText("aucun workpaper disponible")).toBeInTheDocument();
-    expect(workpapersSection.getByRole("heading", { name: "Workpapers courants" })).toBeInTheDocument();
-    expect(workpapersSection.getByText("aucun workpaper courant")).toBeInTheDocument();
-    expect(workpapersSection.getByRole("heading", { name: "Workpapers stale" })).toBeInTheDocument();
-    expect(workpapersSection.getByText("aucun workpaper stale")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Mise a jour maker unitaire sur les workpapers courants uniquement.")
+    ).toBeInTheDocument();
+    expect(section.getByText("workpapers stale en lecture seule")).toBeInTheDocument();
     expect(screen.queryByText("/never-rendered")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "/never-rendered" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "/never-rendered" })).not.toBeInTheDocument();
+
+    expect(within(newCard).getByLabelText("Note workpaper")).toHaveValue("");
+    expect(within(newCard).getByLabelText("Statut maker")).toHaveValue("DRAFT");
+    expect(
+      within(newCard).getByRole("button", { name: "Enregistrer le workpaper" })
+    ).toBeDisabled();
+
+    expect(within(draftCard).getByLabelText("Note workpaper")).toHaveValue("Draft note");
+    expect(within(draftCard).getByLabelText("Statut maker")).toHaveValue("DRAFT");
+    expect(
+      within(draftCard).getByRole("button", { name: "Enregistrer le workpaper" })
+    ).toBeDisabled();
+
+    expect(within(changesCard).getByLabelText("Note workpaper")).toHaveValue("Needs update");
+    expect(within(changesCard).getByLabelText("Statut maker")).toHaveValue("DRAFT");
+    expect(
+      within(changesCard).getByRole("button", { name: "Enregistrer le workpaper" })
+    ).toBeEnabled();
+
+    expect(within(readyCard).getByText("workpaper en lecture seule")).toBeInTheDocument();
+    expect(within(readyCard).queryByLabelText("Note workpaper")).not.toBeInTheDocument();
+    expect(within(readyCard).queryByLabelText("Statut maker")).not.toBeInTheDocument();
+    expect(
+      within(readyCard).queryByRole("button", { name: "Enregistrer le workpaper" })
+    ).not.toBeInTheDocument();
+
+    expect(within(reviewedCard).getByText("workpaper en lecture seule")).toBeInTheDocument();
+    expect(within(reviewedCard).queryByLabelText("Note workpaper")).not.toBeInTheDocument();
+    expect(within(reviewedCard).queryByLabelText("Statut maker")).not.toBeInTheDocument();
+    expect(
+      within(reviewedCard).queryByRole("button", { name: "Enregistrer le workpaper" })
+    ).not.toBeInTheDocument();
+
+    expect(within(staleCard).queryByLabelText("Note workpaper")).not.toBeInTheDocument();
+    expect(within(staleCard).queryByLabelText("Statut maker")).not.toBeInTheDocument();
+    expect(
+      within(staleCard).queryByRole("button", { name: "Enregistrer le workpaper" })
+    ).not.toBeInTheDocument();
   });
 
-  it("renders READY_WITH_DATA in backend order, renders documents and verification sections exactly, and never exposes workpapers CTAs", async () => {
-    const fetchMock = vi.mocked(global.fetch);
-    primeNominalRoute(fetchMock, {
-      workpapers: () => jsonResponse(200, WORKPAPERS_WITH_DATA)
-    });
-
-    renderClosingRoute();
-    await waitForNominalShell();
-
-    const workpapersSection = getWorkpapersSection();
-    const currentCards = screen.getAllByLabelText(/workpaper /);
-    const revenueCard = getWorkpaperCard("PL.REVENUE.CURRENT_SECTION");
-    const currentAssetsCard = getWorkpaperCard("BS.ASSET.CURRENT_SECTION");
-    const staleCard = getWorkpaperCard("BS.ASSET.LEGACY_BUCKET_FALLBACK");
-
-    expect(await screen.findByText("Workpapers en lecture seule dans cette version.")).toBeInTheDocument();
-    expectNodeBefore(currentCards[0] as HTMLElement, currentCards[1] as HTMLElement);
-    expect(workpapersSection.getByText("anchors courants total : 2")).toBeInTheDocument();
-    expect(workpapersSection.getByText("anchors avec workpaper : 1")).toBeInTheDocument();
-    expect(workpapersSection.getByText("workpapers prets pour revue : 1")).toBeInTheDocument();
-    expect(workpapersSection.getByText("workpapers revus : 0")).toBeInTheDocument();
-    expect(workpapersSection.getByText("workpapers stale : 1")).toBeInTheDocument();
-    expect(workpapersSection.getByText("anchors sans workpaper : 1")).toBeInTheDocument();
-
-    expect(within(revenueCard).getByText("Revenue")).toBeInTheDocument();
-    expect(within(revenueCard).getByText("anchor code : PL.REVENUE.CURRENT_SECTION")).toBeInTheDocument();
-    expect(within(revenueCard).getByText("statement kind : INCOME_STATEMENT")).toBeInTheDocument();
-    expect(within(revenueCard).getByText("breakdown type : LEGACY_BUCKET_FALLBACK")).toBeInTheDocument();
-    expect(within(revenueCard).getByText("etat workpaper : aucun")).toBeInTheDocument();
-    expect(within(revenueCard).getByText("aucun document inclus")).toBeInTheDocument();
-    expect(within(revenueCard).queryByRole("heading", { name: "Verification documents" })).not.toBeInTheDocument();
-
-    expect(within(currentAssetsCard).getByText("Current assets")).toBeInTheDocument();
-    expect(within(currentAssetsCard).getByText("etat workpaper : READY_FOR_REVIEW")).toBeInTheDocument();
-    expect(within(currentAssetsCard).getByText("note workpaper : Cash tie-out")).toBeInTheDocument();
-    const currentAssetsDocuments = within(currentAssetsCard).getAllByText(/verification : /);
-    expect(currentAssetsDocuments).toHaveLength(2);
-    expect(currentAssetsDocuments[0]).toHaveTextContent(
-      "z-last.pdf | application/pdf | ERP | verification : VERIFIED"
-    );
-    expect(currentAssetsDocuments[1]).toHaveTextContent(
-      "a-first.csv | text/csv | Bank portal | verification : REJECTED"
-    );
-    expect(within(currentAssetsCard).getByText("documents total : 2")).toBeInTheDocument();
-    expect(within(currentAssetsCard).getByText("documents non verifies : 0")).toBeInTheDocument();
-    expect(within(currentAssetsCard).getByText("documents verifies : 1")).toBeInTheDocument();
-    expect(within(currentAssetsCard).getByText("documents rejetes : 1")).toBeInTheDocument();
-
-    expect(within(staleCard).getByText("Legacy bucket")).toBeInTheDocument();
-    expect(within(staleCard).getByText("etat workpaper : REVIEWED")).toBeInTheDocument();
-    expect(within(staleCard).getByText("note workpaper : Legacy support")).toBeInTheDocument();
-    expect(within(staleCard).queryByText("etat workpaper : aucun")).not.toBeInTheDocument();
-    expect(within(staleCard).getByText("legacy.xlsx | application/vnd.openxmlformats-officedocument.spreadsheetml.sheet | Archive | verification : VERIFIED")).toBeInTheDocument();
-    expect(within(staleCard).getByText("documents total : 1")).toBeInTheDocument();
-    expect(within(staleCard).getByText("documents non verifies : 0")).toBeInTheDocument();
-    expect(within(staleCard).getByText("documents verifies : 1")).toBeInTheDocument();
-    expect(within(staleCard).getByText("documents rejetes : 0")).toBeInTheDocument();
-
-    expect(within(workpapersSection.getByRole("heading", { name: "Workpapers courants" }).closest("section") as HTMLElement).getAllByRole("heading", { name: "Documents inclus" })).toHaveLength(2);
-    expect(within(workpapersSection.getByRole("heading", { name: "Workpapers stale" }).closest("section") as HTMLElement).getAllByRole("heading", { name: "Documents inclus" })).toHaveLength(1);
-    expect(screen.getAllByRole("heading", { name: "Verification documents" })).toHaveLength(2);
-    expect(screen.queryByText("/should-never-render")).not.toBeInTheDocument();
-
-    [
-      "Modifier le workpaper",
-      "Envoyer en review",
-      "Prendre une decision reviewer",
-      "Uploader un document",
-      "Telecharger un document",
-      "Ouvrir les documents",
-      "Ouvrir les exports",
-      "Ouvrir le workpaper"
-    ].forEach((name) => {
-      expect(workpapersSection.queryByRole("button", { name })).not.toBeInTheDocument();
-      expect(workpapersSection.queryByRole("link", { name })).not.toBeInTheDocument();
-    });
-  });
-
-  it("does not refetch workpapers after a successful import refresh sequence", async () => {
+  it("does not autosave on textarea or select changes and sends evidences [] for a current item without persisted workpaper", async () => {
     const fetchMock = vi.mocked(global.fetch);
     const user = userEvent.setup();
-    const file = new File(["account,amount"], "balance.csv", { type: "text/csv" });
+    const initialWorkpapers = createWorkpapersModel({
+      items: [
+        createCurrentItem({
+          anchorCode: "PL.REVENUE.NEW",
+          anchorLabel: "Revenue new",
+          statementKind: "INCOME_STATEMENT",
+          breakdownType: "LEGACY_BUCKET_FALLBACK",
+          workpaper: null
+        })
+      ]
+    });
+    const refreshedWorkpapers = createWorkpapersModel({
+      items: [
+        createCurrentItem({
+          anchorCode: "PL.REVENUE.NEW",
+          anchorLabel: "Revenue new",
+          statementKind: "INCOME_STATEMENT",
+          breakdownType: "LEGACY_BUCKET_FALLBACK",
+          workpaper: createWorkpaperDetails({
+            status: "READY_FOR_REVIEW",
+            noteText: "Revenue support"
+          })
+        })
+      ]
+    });
 
     primeNominalRoute(fetchMock, {
+      workpapers: () => jsonResponse(200, initialWorkpapers),
       extras: [
         () =>
           jsonResponse(201, {
-            closingFolderId: CLOSING_FOLDER.id,
-            version: 3,
-            rowCount: 12
+            anchorCode: "PL.REVENUE.NEW",
+            isCurrentStructure: true,
+            workpaper: {
+              status: "READY_FOR_REVIEW",
+              noteText: "Revenue support",
+              evidences: []
+            }
           }),
-        () =>
-          jsonResponse(200, {
-            ...CLOSING_FOLDER,
-            name: "Closing FY26 refreshed"
-          }),
-        () =>
-          jsonResponse(200, {
-            ...READY_CONTROLS,
-            latestImportVersion: 3
+        () => jsonResponse(200, refreshedWorkpapers)
+      ]
+    });
+
+    renderClosingRoute();
+    await waitForNominalShell();
+
+    const newCard = getWorkpaperCard("PL.REVENUE.NEW");
+    const noteField = within(newCard).getByLabelText("Note workpaper");
+    const statusSelect = within(newCard).getByLabelText("Statut maker");
+    const saveButton = within(newCard).getByRole("button", {
+      name: "Enregistrer le workpaper"
+    });
+
+    await user.type(noteField, "  Revenue support  ");
+    expect(getWorkpapersPutCalls(fetchMock)).toHaveLength(0);
+
+    await user.selectOptions(statusSelect, "READY_FOR_REVIEW");
+    expect(getWorkpapersPutCalls(fetchMock)).toHaveLength(0);
+
+    await user.click(saveButton);
+
+    expect(await screen.findByText("workpaper enregistre avec succes")).toBeInTheDocument();
+    expect(getWorkpapersPutCalls(fetchMock)).toHaveLength(1);
+    expect(getWorkpapersGetPaths(fetchMock)).toHaveLength(2);
+
+    const [, init] = getWorkpapersPutCalls(fetchMock)[0] as [string, RequestInit];
+    const body = JSON.parse(String(init.body)) as {
+      noteText: string;
+      status: string;
+      evidences: unknown[];
+    };
+
+    expect(body).toEqual({
+      noteText: "Revenue support",
+      status: "READY_FOR_REVIEW",
+      evidences: []
+    });
+    expectNoOutOfScopePaths(getRequestPaths(fetchMock), {
+      workpapersGets: 2,
+      workpapersPuts: 1
+    });
+  });
+
+  it("preserves the exact evidences order and fields from the latest GET workpapers on a persisted current item", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    const user = userEvent.setup();
+    const evidences = [
+      createEvidence({
+        position: 2,
+        fileName: "z-last.csv",
+        mediaType: "text/csv",
+        documentDate: "2026-02-28",
+        sourceLabel: "Bank portal",
+        verificationStatus: "REJECTED",
+        externalReference: "bank://42",
+        checksumSha256: "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+      }),
+      createEvidence({
+        position: 1,
+        fileName: "a-first.pdf",
+        mediaType: "application/pdf",
+        documentDate: null,
+        sourceLabel: "ERP",
+        verificationStatus: "VERIFIED"
+      })
+    ];
+    const initialWorkpapers = createWorkpapersModel({
+      items: [
+        createCurrentItem({
+          anchorCode: "BS.ASSET.DRAFT",
+          anchorLabel: "Current assets draft",
+          workpaper: createWorkpaperDetails({
+            status: "DRAFT",
+            noteText: "Draft note",
+            evidences
           })
+        })
       ]
     });
 
-    renderClosingRoute();
-    await waitForNominalShell();
-
-    await user.upload(screen.getByLabelText("Fichier CSV"), file);
-    await user.click(screen.getByRole("button", { name: "Importer la balance" }));
-
-    expect(await screen.findByText("balance importee avec succes")).toBeInTheDocument();
-    expect(getWorkpapersPaths(fetchMock)).toHaveLength(1);
-    expectNoForbiddenPaths(getRequestPaths(fetchMock));
-  });
-
-  it("does not refetch workpapers after a successful PUT mapping refresh sequence", async () => {
-    const fetchMock = vi.mocked(global.fetch);
-    const user = userEvent.setup();
-
     primeNominalRoute(fetchMock, {
+      workpapers: () => jsonResponse(200, initialWorkpapers),
       extras: [
         () =>
           jsonResponse(200, {
-            accountCode: "2000",
-            targetCode: "PL.REVENUE"
+            anchorCode: "BS.ASSET.DRAFT",
+            isCurrentStructure: true,
+            workpaper: {
+              status: "READY_FOR_REVIEW",
+              noteText: "Updated note",
+              evidences
+            }
           }),
-        () => jsonResponse(200, READY_MANUAL_MAPPING_AFTER_PUT),
-        () => jsonResponse(200, READY_CONTROLS)
+        () =>
+          jsonResponse(
+            200,
+            createWorkpapersModel({
+              items: [
+                createCurrentItem({
+                  anchorCode: "BS.ASSET.DRAFT",
+                  anchorLabel: "Current assets draft",
+                  workpaper: createWorkpaperDetails({
+                    status: "READY_FOR_REVIEW",
+                    noteText: "Updated note",
+                    evidences
+                  })
+                })
+              ]
+            })
+          )
       ]
     });
 
     renderClosingRoute();
     await waitForNominalShell();
 
-    const revenueLine = screen.getByLabelText("ligne mapping 2000");
-    const revenueTargetSelect = within(revenueLine).getByLabelText("Cible");
-    const revenueSaveButton = within(revenueLine).getByRole("button", {
-      name: "Enregistrer le mapping"
-    });
+    const draftCard = getWorkpaperCard("BS.ASSET.DRAFT");
+    await user.clear(within(draftCard).getByLabelText("Note workpaper"));
+    await user.type(within(draftCard).getByLabelText("Note workpaper"), "Updated note");
+    await user.selectOptions(
+      within(draftCard).getByLabelText("Statut maker"),
+      "READY_FOR_REVIEW"
+    );
+    await user.click(
+      within(draftCard).getByRole("button", { name: "Enregistrer le workpaper" })
+    );
 
-    await user.selectOptions(revenueTargetSelect, "PL.REVENUE");
-    expect(revenueSaveButton).toBeEnabled();
-    await user.click(revenueSaveButton);
+    expect(await screen.findByText("workpaper enregistre avec succes")).toBeInTheDocument();
 
-    expect(await screen.findByText("mapping enregistre avec succes")).toBeInTheDocument();
-    expect(getWorkpapersPaths(fetchMock)).toHaveLength(1);
-    expectNoForbiddenPaths(getRequestPaths(fetchMock));
+    const [, init] = getWorkpapersPutCalls(fetchMock)[0] as [string, RequestInit];
+    const body = JSON.parse(String(init.body)) as {
+      evidences: Array<Record<string, unknown>>;
+    };
+
+    expect(body.evidences).toEqual(evidences);
+    expect(body.evidences[0]).not.toHaveProperty("id");
+    expect(Object.keys(body.evidences[0] ?? {})).toEqual([
+      "position",
+      "fileName",
+      "mediaType",
+      "documentDate",
+      "sourceLabel",
+      "verificationStatus",
+      "externalReference",
+      "checksumSha256"
+    ]);
   });
 
-  it("does not refetch workpapers after a successful DELETE mapping refresh sequence", async () => {
+  it.each([
+    {
+      label: "effectiveRoles absent",
+      me: () => jsonResponse(200, { activeTenant: ACTIVE_TENANT })
+    },
+    {
+      label: "effectiveRoles invalid",
+      me: () => jsonResponse(200, { activeTenant: ACTIVE_TENANT, effectiveRoles: "oops" })
+    },
+    {
+      label: "REVIEWER only",
+      me: () => jsonResponse(200, { activeTenant: ACTIVE_TENANT, effectiveRoles: ["REVIEWER"] })
+    }
+  ])("keeps the block read-only when $label", async ({ me }) => {
+    const fetchMock = vi.mocked(global.fetch);
+
+    primeNominalRoute(fetchMock, {
+      me,
+      workpapers: () =>
+        jsonResponse(
+          200,
+          createWorkpapersModel({
+            items: [createCurrentItem({ workpaper: null })]
+          })
+        )
+    });
+
+    renderClosingRoute();
+    await waitForNominalShell();
+
+    const section = getWorkpapersSection();
+    expect(await screen.findAllByText("lecture seule")).toHaveLength(2);
+    expect(section.getAllByText("lecture seule")).toHaveLength(1);
+    expect(section.queryByLabelText("Note workpaper")).not.toBeInTheDocument();
+    expect(section.queryByLabelText("Statut maker")).not.toBeInTheDocument();
+    expect(
+      section.queryByRole("button", { name: "Enregistrer le workpaper" })
+    ).not.toBeInTheDocument();
+    expect(getWorkpapersPutCalls(fetchMock)).toHaveLength(0);
+  });
+
+  it("keeps the block read-only on ARCHIVED and never emits PUT", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+
+    primeNominalRoute(fetchMock, {
+      closingFolder: () =>
+        jsonResponse(200, {
+          ...CLOSING_FOLDER,
+          status: "ARCHIVED"
+        }),
+      workpapers: () =>
+        jsonResponse(
+          200,
+          createWorkpapersModel({
+            closingFolderStatus: "ARCHIVED",
+            items: [createCurrentItem({ workpaper: null })]
+          })
+        )
+    });
+
+    renderClosingRoute();
+    await waitForNominalShell();
+
+    const section = getWorkpapersSection();
+    expect(
+      await screen.findByText("dossier archive, workpaper en lecture seule")
+    ).toBeInTheDocument();
+    expect(section.queryByLabelText("Note workpaper")).not.toBeInTheDocument();
+    expect(section.queryByLabelText("Statut maker")).not.toBeInTheDocument();
+    expect(
+      section.queryByRole("button", { name: "Enregistrer le workpaper" })
+    ).not.toBeInTheDocument();
+    expect(getWorkpapersPutCalls(fetchMock)).toHaveLength(0);
+  });
+
+  it("keeps the block read-only when readiness is not READY and never emits PUT", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+
+    primeNominalRoute(fetchMock, {
+      workpapers: () =>
+        jsonResponse(
+          200,
+          createWorkpapersModel({
+            readiness: "BLOCKED",
+            items: [createCurrentItem({ workpaper: null })]
+          })
+        )
+    });
+
+    renderClosingRoute();
+    await waitForNominalShell();
+
+    const section = getWorkpapersSection();
+    expect(
+      await screen.findByText(
+        "workpaper non modifiable tant que les controles ne sont pas READY"
+      )
+    ).toBeInTheDocument();
+    expect(section.queryByLabelText("Note workpaper")).not.toBeInTheDocument();
+    expect(section.queryByLabelText("Statut maker")).not.toBeInTheDocument();
+    expect(
+      section.queryByRole("button", { name: "Enregistrer le workpaper" })
+    ).not.toBeInTheDocument();
+    expect(getWorkpapersPutCalls(fetchMock)).toHaveLength(0);
+  });
+
+  it("allows only one mutation in flight across the whole block", async () => {
     const fetchMock = vi.mocked(global.fetch);
     const user = userEvent.setup();
 
     primeNominalRoute(fetchMock, {
+      workpapers: () =>
+        jsonResponse(
+          200,
+          createWorkpapersModel({
+            items: [
+              createCurrentItem({
+                anchorCode: "BS.ASSET.ONE",
+                anchorLabel: "Current assets one",
+                workpaper: null
+              }),
+              createCurrentItem({
+                anchorCode: "BS.ASSET.TWO",
+                anchorLabel: "Current assets two",
+                workpaper: null
+              })
+            ]
+          })
+        ),
+      extras: [() => new Promise(() => {})]
+    });
+
+    renderClosingRoute();
+    await waitForNominalShell();
+
+    const firstCard = getWorkpaperCard("BS.ASSET.ONE");
+    const secondCard = getWorkpaperCard("BS.ASSET.TWO");
+
+    await user.type(within(firstCard).getByLabelText("Note workpaper"), "First note");
+    await user.type(within(secondCard).getByLabelText("Note workpaper"), "Second note");
+
+    expect(screen.getAllByRole("button", { name: "Enregistrer le workpaper" })).toHaveLength(2);
+
+    await user.click(
+      within(firstCard).getByRole("button", { name: "Enregistrer le workpaper" })
+    );
+
+    expect(await screen.findByText("enregistrement workpaper en cours")).toBeInTheDocument();
+    expect(getWorkpapersPutCalls(fetchMock)).toHaveLength(1);
+    expect(
+      within(secondCard).getByRole("button", { name: "Enregistrer le workpaper" })
+    ).toBeDisabled();
+
+    await user.click(
+      within(secondCard).getByRole("button", { name: "Enregistrer le workpaper" })
+    );
+
+    expect(getWorkpapersPutCalls(fetchMock)).toHaveLength(1);
+    expectNoOutOfScopePaths(getRequestPaths(fetchMock), {
+      workpapersGets: 1,
+      workpapersPuts: 1
+    });
+  });
+
+  it("shows success, refreshes exactly GET /workpapers once, and does not refresh the other blocks after PUT success", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    const user = userEvent.setup();
+    const initialWorkpapers = createWorkpapersModel({
+      items: [
+        createCurrentItem({
+          anchorCode: "BS.ASSET.DRAFT",
+          anchorLabel: "Current assets draft",
+          workpaper: createWorkpaperDetails({
+            status: "DRAFT",
+            noteText: "Draft note"
+          })
+        })
+      ]
+    });
+    const refreshedWorkpapers = createWorkpapersModel({
+      items: [
+        createCurrentItem({
+          anchorCode: "BS.ASSET.DRAFT",
+          anchorLabel: "Current assets draft",
+          workpaper: createWorkpaperDetails({
+            status: "READY_FOR_REVIEW",
+            noteText: "Updated note"
+          })
+        })
+      ]
+    });
+
+    primeNominalRoute(fetchMock, {
+      workpapers: () => jsonResponse(200, initialWorkpapers),
       extras: [
-        () => emptyResponse(204),
-        () => jsonResponse(200, READY_MANUAL_MAPPING_AFTER_DELETE),
         () =>
           jsonResponse(200, {
-            ...READY_CONTROLS,
-            mappingSummary: {
-              total: 2,
-              mapped: 0,
-              unmapped: 2
+            anchorCode: "BS.ASSET.DRAFT",
+            isCurrentStructure: true,
+            workpaper: {
+              status: "READY_FOR_REVIEW",
+              noteText: "Updated note",
+              evidences: [createEvidence()]
+            }
+          }),
+        () => jsonResponse(200, refreshedWorkpapers)
+      ]
+    });
+
+    renderClosingRoute();
+    await waitForNominalShell();
+
+    const draftCard = getWorkpaperCard("BS.ASSET.DRAFT");
+    await user.clear(within(draftCard).getByLabelText("Note workpaper"));
+    await user.type(within(draftCard).getByLabelText("Note workpaper"), "Updated note");
+    await user.selectOptions(
+      within(draftCard).getByLabelText("Statut maker"),
+      "READY_FOR_REVIEW"
+    );
+    await user.click(
+      within(draftCard).getByRole("button", { name: "Enregistrer le workpaper" })
+    );
+
+    expect(await screen.findByText("workpaper enregistre avec succes")).toBeInTheDocument();
+    expect(await screen.findByText("note workpaper : Updated note")).toBeInTheDocument();
+    expect(await screen.findByText("etat workpaper : READY_FOR_REVIEW")).toBeInTheDocument();
+    expect(getWorkpapersGetPaths(fetchMock)).toHaveLength(2);
+    expect(
+      getRequestPaths(fetchMock).filter((path) => path.endsWith("/controls"))
+    ).toHaveLength(1);
+    expect(
+      getRequestPaths(fetchMock).filter((path) => path.endsWith("/financial-summary"))
+    ).toHaveLength(1);
+    expect(
+      getRequestPaths(fetchMock).filter((path) =>
+        path.endsWith("/financial-statements/structured")
+      )
+    ).toHaveLength(1);
+    expect(
+      getRequestPaths(fetchMock).filter((path) => path.endsWith("/mappings/manual"))
+    ).toHaveLength(1);
+    expect(getRequestPaths(fetchMock).filter((path) => path === "/api/me")).toHaveLength(1);
+    expect(
+      getRequestPaths(fetchMock).filter(
+        (path) => path === `/api/closing-folders/${CLOSING_FOLDER.id}`
+      )
+    ).toHaveLength(1);
+    expectNoOutOfScopePaths(getRequestPaths(fetchMock), {
+      workpapersGets: 2,
+      workpapersPuts: 1
+    });
+  });
+
+  it("keeps the last rendered workpapers block visible and shows the refresh failure after a valid PUT success", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    const user = userEvent.setup();
+
+    primeNominalRoute(fetchMock, {
+      workpapers: () =>
+        jsonResponse(
+          200,
+          createWorkpapersModel({
+            items: [
+              createCurrentItem({
+                anchorCode: "PL.REVENUE.NEW",
+                anchorLabel: "Revenue new",
+                statementKind: "INCOME_STATEMENT",
+                breakdownType: "LEGACY_BUCKET_FALLBACK",
+                workpaper: null
+              })
+            ]
+          })
+        ),
+      extras: [
+        () =>
+          jsonResponse(201, {
+            anchorCode: "PL.REVENUE.NEW",
+            isCurrentStructure: true,
+            workpaper: {
+              status: "DRAFT",
+              noteText: "Saved locally",
+              evidences: []
+            }
+          }),
+        () => jsonResponse(500, {})
+      ]
+    });
+
+    renderClosingRoute();
+    await waitForNominalShell();
+
+    const card = getWorkpaperCard("PL.REVENUE.NEW");
+    await user.type(within(card).getByLabelText("Note workpaper"), "  Saved locally  ");
+    await user.click(
+      within(card).getByRole("button", { name: "Enregistrer le workpaper" })
+    );
+
+    expect(await screen.findByText("workpaper enregistre avec succes")).toBeInTheDocument();
+    expect(
+      await screen.findByText("rafraichissement workpapers impossible")
+    ).toBeInTheDocument();
+    const refreshedCard = getWorkpaperCard("PL.REVENUE.NEW");
+    expect(refreshedCard).toBeInTheDocument();
+    expect(within(refreshedCard).getByLabelText("Note workpaper")).toBeInTheDocument();
+    expect(
+      within(refreshedCard).getByRole("button", { name: "Enregistrer le workpaper" })
+    ).toBeInTheDocument();
+    expectNoOutOfScopePaths(getRequestPaths(fetchMock), {
+      workpapersGets: 2,
+      workpapersPuts: 1
+    });
+  });
+
+  it("treats an invalid PUT success payload as payload workpaper invalide and does not refresh GET /workpapers", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    const user = userEvent.setup();
+
+    primeNominalRoute(fetchMock, {
+      workpapers: () =>
+        jsonResponse(
+          200,
+          createWorkpapersModel({
+            items: [createCurrentItem({ workpaper: null })]
+          })
+        ),
+      extras: [
+        () =>
+          jsonResponse(200, {
+            anchorCode: "WRONG.ANCHOR",
+            isCurrentStructure: true,
+            workpaper: {
+              status: "DRAFT",
+              noteText: "Broken payload",
+              evidences: []
             }
           })
       ]
@@ -762,16 +1178,90 @@ describe("router workpapers", () => {
     renderClosingRoute();
     await waitForNominalShell();
 
-    const cashLine = screen.getByLabelText("ligne mapping 1000");
-    const cashDeleteButton = within(cashLine).getByRole("button", {
-      name: "Supprimer le mapping"
+    const card = getWorkpaperCard("BS.ASSET.CURRENT_SECTION");
+    await user.type(within(card).getByLabelText("Note workpaper"), "Broken payload");
+    await user.click(
+      within(card).getByRole("button", { name: "Enregistrer le workpaper" })
+    );
+
+    expect(await screen.findByText("payload workpaper invalide")).toBeInTheDocument();
+    expect(getWorkpapersGetPaths(fetchMock)).toHaveLength(1);
+    expectNoOutOfScopePaths(getRequestPaths(fetchMock), {
+      workpapersGets: 1,
+      workpapersPuts: 1
+    });
+  });
+
+  it.each([
+    { label: "400", response: () => jsonResponse(400, {}), text: "workpaper invalide" },
+    { label: "401", response: () => jsonResponse(401, {}), text: "authentification requise" },
+    { label: "403", response: () => jsonResponse(403, {}), text: "acces workpapers refuse" },
+    { label: "404", response: () => jsonResponse(404, {}), text: "dossier introuvable" },
+    {
+      label: "409 archived",
+      response: () =>
+        jsonResponse(409, {
+          message: "Closing folder is archived and workpapers cannot be modified."
+        }),
+      text: "dossier archive, workpaper non modifiable"
+    },
+    {
+      label: "409 readiness",
+      response: () =>
+        jsonResponse(409, {
+          message: "Workpapers can only be modified when controls.readiness is READY."
+        }),
+      text: "workpaper non modifiable tant que les controles ne sont pas READY"
+    },
+    {
+      label: "409 other",
+      response: () =>
+        jsonResponse(409, {
+          message: "anchorCode is not part of the current structure."
+        }),
+      text: "mise a jour workpaper impossible"
+    },
+    { label: "5xx", response: () => jsonResponse(500, {}), text: "erreur serveur workpapers" },
+    {
+      label: "network",
+      response: () => Promise.reject(new Error("network")),
+      text: "erreur reseau workpapers"
+    },
+    {
+      label: "timeout",
+      response: () => Promise.reject(new Error("timeout")),
+      text: "timeout workpapers"
+    },
+    { label: "unexpected", response: () => jsonResponse(418, {}), text: "workpaper indisponible" }
+  ])("renders the exact mutation error '$text' on $label", async ({ response, text }) => {
+    const fetchMock = vi.mocked(global.fetch);
+    const user = userEvent.setup();
+
+    primeNominalRoute(fetchMock, {
+      workpapers: () =>
+        jsonResponse(
+          200,
+          createWorkpapersModel({
+            items: [createCurrentItem({ workpaper: null })]
+          })
+        ),
+      extras: [response]
     });
 
-    expect(cashDeleteButton).toBeEnabled();
-    await user.click(cashDeleteButton);
+    renderClosingRoute();
+    await waitForNominalShell();
 
-    expect(await screen.findByText("mapping supprime avec succes")).toBeInTheDocument();
-    expect(getWorkpapersPaths(fetchMock)).toHaveLength(1);
-    expectNoForbiddenPaths(getRequestPaths(fetchMock));
+    const card = getWorkpaperCard("BS.ASSET.CURRENT_SECTION");
+    await user.type(within(card).getByLabelText("Note workpaper"), "Save me");
+    await user.click(
+      within(card).getByRole("button", { name: "Enregistrer le workpaper" })
+    );
+
+    expect(await screen.findByText(text)).toBeInTheDocument();
+    expect(getWorkpapersGetPaths(fetchMock)).toHaveLength(1);
+    expectNoOutOfScopePaths(getRequestPaths(fetchMock), {
+      workpapersGets: 1,
+      workpapersPuts: 1
+    });
   });
 });

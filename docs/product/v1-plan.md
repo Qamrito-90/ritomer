@@ -46,9 +46,10 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `specs/done/017-frontend-manual-mapping-v1.md`
 - `specs/done/018-frontend-financial-summary-preview-v1.md`
 - `specs/done/019-frontend-financial-statements-structured-preview-v1.md`
+- `specs/done/020-frontend-workpapers-read-model-v1.md`
 
 ### Active
-- `specs/active/020-frontend-workpapers-read-model-v1.md`
+- `specs/active/021-frontend-workpapers-maker-update-v1.md`
 
 ### Decisions figees
 - Le flux V1 livre est maintenant `closing -> import -> mapping -> controls -> financial-summary -> financial-statements-structured -> workpapers -> document-storage-and-evidence-files -> exports-audit-ready`.
@@ -61,7 +62,7 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `workpapers-v1` reste backend-only, REST-only, anchor-driven, tenant-scoped et audit-ready, avec un noyau borne a `workpaper + evidence metadata + maker/checker minimal`.
 - `GET /workpapers` expose tous les anchors courants meme sans workpaper persiste, et separe les persistences stale dans `staleWorkpapers[]`.
 - `workpapers-v1` ne couvre ni upload binaire, ni signed URLs, ni stockage objet, ni PDF, ni export pack final, ni commentaires threades, ni generation automatique ; `013-exports-audit-ready-v1` ferme ensuite le pack `ZIP` immutable, prive et telecharge backend-only.
-- Les lectures `GET` sur `workpapers` n'ecrivent aucun `audit_event`; les lectures sur `ARCHIVED` restent autorisees, et les writes restent bloques hors `PREVIEW_READY` ou sur closing `ARCHIVED`.
+- Les lectures `GET` sur `workpapers` n'ecrivent aucun `audit_event`; les lectures sur `ARCHIVED` restent autorisees, et les writes restent bloques si `controls.readiness != READY` ou sur closing `ARCHIVED`.
 - `workpapers-v1` depend de `financials::access` pour ses anchors courants et n'introduit aucun couplage direct vers `imports` ou `mapping`.
 - `document-storage-and-evidence-files-v1` et `evidence-review-and-verification-v1` etendent `workpapers-v1` sans creer de module transverse et apportent la premiere vraie couche binaire de pieces justificatives puis la premiere verification reviewer first-class sur ces documents.
 - `document-storage-and-evidence-files-v1` garde `document` comme objet immutable first-class, sans duplication de `closing_folder_id`, derive via `workpaper`; `workpaper_evidence` reste la surface legacy metadata-only de `010-workpapers-v1`.

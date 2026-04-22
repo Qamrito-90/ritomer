@@ -1,7 +1,7 @@
 # 020 - Frontend workpapers read model v1
 
 ## Status
-Active
+Done
 
 ## Role de cette spec
 
