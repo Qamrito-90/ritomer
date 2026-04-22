@@ -29,7 +29,10 @@ import {
 } from "../lib/api/financial-summary";
 import {
   loadWorkpapersShellState,
+  upsertWorkpaper,
   type ClosingWorkpapersReadModel,
+  type MakerWorkpaperStatus,
+  type WorkpaperEvidence,
   type WorkpaperReadModelItem,
   type WorkpapersShellState
 } from "../lib/api/workpapers";
@@ -121,6 +124,34 @@ type ManualMappingMutationState =
   | { kind: "invalid_payload" }
   | { kind: "unexpected" };
 
+type WorkpaperDraft = {
+  noteText: string;
+  status: MakerWorkpaperStatus;
+};
+
+type WorkpaperMutationState =
+  | { kind: "idle" }
+  | { kind: "submitting" }
+  | { kind: "success"; refreshFailed: boolean }
+  | { kind: "read_only_archived" }
+  | { kind: "read_only_not_ready" }
+  | { kind: "read_only_role" }
+  | { kind: "stale_read_only" }
+  | { kind: "item_read_only" }
+  | { kind: "invalid_workpaper" }
+  | { kind: "auth_required" }
+  | { kind: "forbidden" }
+  | { kind: "not_found" }
+  | { kind: "conflict_archived" }
+  | { kind: "conflict_not_ready" }
+  | { kind: "conflict_other" }
+  | { kind: "server_error" }
+  | { kind: "network_error" }
+  | { kind: "timeout" }
+  | { kind: "invalid_payload" }
+  | { kind: "invalid_workpapers_payload" }
+  | { kind: "unexpected" };
+
 type ClosingRouteState =
   | { kind: "loading" }
   | { kind: "auth_required" }
@@ -140,6 +171,8 @@ type ClosingRouteState =
       financialSummaryState: FinancialSummaryShellState;
       financialStatementsStructuredState: FinancialStatementsStructuredShellState;
       workpapersState: WorkpapersShellState;
+      workpaperDrafts: Record<string, WorkpaperDraft>;
+      workpaperMutationState: WorkpaperMutationState;
       manualMappingState: ManualMappingShellState;
       manualMappingSelectedTargets: Record<string, string | undefined>;
       manualMappingMutationState: ManualMappingMutationState;
@@ -173,6 +206,7 @@ const nextActionLabelByCode = {
 } as const;
 
 const manualMappingWritableRoles = new Set(["ACCOUNTANT", "MANAGER", "ADMIN"]);
+const workpaperWritableRoles = new Set(["ACCOUNTANT", "MANAGER", "ADMIN"]);
 
 function ClosingFoldersEntrypointRoute() {
   const [state, setState] = useState<EntrypointRouteState>({ kind: "loading" });
@@ -308,9 +342,11 @@ function ClosingFolderRoute() {
   const [state, setState] = useState<ClosingRouteState>({ kind: "loading" });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importRequestIdRef = useRef(0);
+  const workpaperMutationInFlightRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
+    workpaperMutationInFlightRef.current = false;
 
     async function loadShellState() {
       setState({ kind: "loading" });
@@ -368,6 +404,8 @@ function ClosingFolderRoute() {
             financialSummaryState: { kind: "loading" },
             financialStatementsStructuredState: { kind: "loading" },
             workpapersState: { kind: "loading" },
+            workpaperDrafts: {},
+            workpaperMutationState: { kind: "idle" },
             manualMappingState: { kind: "loading" },
             manualMappingSelectedTargets: {},
             manualMappingMutationState: { kind: "idle" },
@@ -425,6 +463,10 @@ function ClosingFolderRoute() {
               financialSummaryState,
               financialStatementsStructuredState,
               workpapersState,
+              workpaperDrafts:
+                workpapersState.kind === "ready"
+                  ? createWorkpaperDrafts(workpapersState.workpapers)
+                  : {},
               manualMappingState,
               manualMappingSelectedTargets:
                 manualMappingState.kind === "ready"
@@ -441,6 +483,7 @@ function ClosingFolderRoute() {
 
     return () => {
       cancelled = true;
+      workpaperMutationInFlightRef.current = false;
     };
   }, [closingFolderId]);
 
@@ -789,6 +832,287 @@ function ClosingFolderRoute() {
     });
   }
 
+  function handleWorkpaperNoteChange(anchorCode: string, noteText: string) {
+    setState((currentState) => {
+      if (
+        currentState.kind !== "closing_ready" ||
+        currentState.workpapersState.kind !== "ready"
+      ) {
+        return currentState;
+      }
+
+      const item = currentState.workpapersState.workpapers.items.find(
+        (candidate) => candidate.anchorCode === anchorCode
+      );
+
+      if (item === undefined) {
+        return currentState;
+      }
+
+      return {
+        ...currentState,
+        workpaperDrafts: {
+          ...currentState.workpaperDrafts,
+          [anchorCode]: {
+            ...getWorkpaperDraft(currentState.workpaperDrafts, item),
+            noteText
+          }
+        }
+      };
+    });
+  }
+
+  function handleWorkpaperStatusChange(anchorCode: string, status: string) {
+    if (!isMakerWorkpaperStatus(status)) {
+      return;
+    }
+
+    setState((currentState) => {
+      if (
+        currentState.kind !== "closing_ready" ||
+        currentState.workpapersState.kind !== "ready"
+      ) {
+        return currentState;
+      }
+
+      const item = currentState.workpapersState.workpapers.items.find(
+        (candidate) => candidate.anchorCode === anchorCode
+      );
+
+      if (item === undefined) {
+        return currentState;
+      }
+
+      return {
+        ...currentState,
+        workpaperDrafts: {
+          ...currentState.workpaperDrafts,
+          [anchorCode]: {
+            ...getWorkpaperDraft(currentState.workpaperDrafts, item),
+            status
+          }
+        }
+      };
+    });
+  }
+
+  async function handleSaveWorkpaper(anchorCode: string) {
+    if (state.kind !== "closing_ready" || state.workpapersState.kind !== "ready") {
+      return;
+    }
+
+    if (workpaperMutationInFlightRef.current) {
+      return;
+    }
+
+    const workpapers = state.workpapersState.workpapers;
+
+    if (workpapers.closingFolderStatus === "ARCHIVED") {
+      setState((currentState) => {
+        if (currentState.kind !== "closing_ready") {
+          return currentState;
+        }
+
+        return {
+          ...currentState,
+          workpaperMutationState: { kind: "read_only_archived" }
+        };
+      });
+      return;
+    }
+
+    if (workpapers.readiness !== "READY") {
+      setState((currentState) => {
+        if (currentState.kind !== "closing_ready") {
+          return currentState;
+        }
+
+        return {
+          ...currentState,
+          workpaperMutationState: { kind: "read_only_not_ready" }
+        };
+      });
+      return;
+    }
+
+    if (!hasWorkpaperWritableRole(state.effectiveRoles)) {
+      setState((currentState) => {
+        if (currentState.kind !== "closing_ready") {
+          return currentState;
+        }
+
+        return {
+          ...currentState,
+          workpaperMutationState: { kind: "read_only_role" }
+        };
+      });
+      return;
+    }
+
+    const currentItem = workpapers.items.find((item) => item.anchorCode === anchorCode);
+
+    if (currentItem === undefined) {
+      const staleItem = workpapers.staleWorkpapers.find((item) => item.anchorCode === anchorCode);
+
+      setState((currentState) => {
+        if (currentState.kind !== "closing_ready") {
+          return currentState;
+        }
+
+        return {
+          ...currentState,
+          workpaperMutationState:
+            staleItem === undefined ? { kind: "unexpected" } : { kind: "stale_read_only" }
+        };
+      });
+      return;
+    }
+
+    if (!currentItem.isCurrentStructure) {
+      setState((currentState) => {
+        if (currentState.kind !== "closing_ready") {
+          return currentState;
+        }
+
+        return {
+          ...currentState,
+          workpaperMutationState: { kind: "stale_read_only" }
+        };
+      });
+      return;
+    }
+
+    if (!isWorkpaperMakerEditable(currentItem)) {
+      setState((currentState) => {
+        if (currentState.kind !== "closing_ready") {
+          return currentState;
+        }
+
+        return {
+          ...currentState,
+          workpaperMutationState: { kind: "item_read_only" }
+        };
+      });
+      return;
+    }
+
+    const draft = getWorkpaperDraft(state.workpaperDrafts, currentItem);
+    const trimmedNoteText = draft.noteText.trim();
+
+    if (!isMakerWorkpaperStatus(draft.status) || trimmedNoteText.length === 0) {
+      setState((currentState) => {
+        if (currentState.kind !== "closing_ready") {
+          return currentState;
+        }
+
+        return {
+          ...currentState,
+          workpaperMutationState: { kind: "invalid_workpaper" }
+        };
+      });
+      return;
+    }
+
+    const evidences = createWorkpaperEvidencePayload(currentItem);
+
+    if (evidences === null) {
+      setState((currentState) => {
+        if (currentState.kind !== "closing_ready") {
+          return currentState;
+        }
+
+        return {
+          ...currentState,
+          workpaperMutationState: { kind: "invalid_workpapers_payload" }
+        };
+      });
+      return;
+    }
+
+    if (currentItem.workpaper !== null && !hasWorkpaperDraftChanges(currentItem, draft)) {
+      return;
+    }
+
+    workpaperMutationInFlightRef.current = true;
+
+    setState((currentState) => {
+      if (currentState.kind !== "closing_ready") {
+        return currentState;
+      }
+
+      return {
+        ...currentState,
+        workpaperMutationState: { kind: "submitting" }
+      };
+    });
+
+    const result = await upsertWorkpaper(closingFolderId, state.activeTenant, {
+      anchorCode,
+      noteText: trimmedNoteText,
+      status: draft.status,
+      evidences
+    });
+
+    if (result.kind === "success") {
+      setState((currentState) => {
+        if (currentState.kind !== "closing_ready") {
+          return currentState;
+        }
+
+        return {
+          ...currentState,
+          workpaperMutationState: { kind: "success", refreshFailed: false }
+        };
+      });
+
+      await refreshWorkpapers(state.activeTenant, state.closingFolder);
+      return;
+    }
+
+    workpaperMutationInFlightRef.current = false;
+
+    setState((currentState) => {
+      if (currentState.kind !== "closing_ready") {
+        return currentState;
+      }
+
+      return {
+        ...currentState,
+        workpaperMutationState: mapWorkpaperMutationResult(result)
+      };
+    });
+  }
+
+  async function refreshWorkpapers(activeTenant: ActiveTenant, closingFolder: ClosingFolderSummary) {
+    const refreshedWorkpapersState = await loadWorkpapersShellState(
+      closingFolderId,
+      closingFolder,
+      activeTenant
+    );
+
+    workpaperMutationInFlightRef.current = false;
+
+    setState((currentState) => {
+      if (currentState.kind !== "closing_ready") {
+        return currentState;
+      }
+
+      if (refreshedWorkpapersState.kind !== "ready") {
+        return {
+          ...currentState,
+          workpaperMutationState: { kind: "success", refreshFailed: true }
+        };
+      }
+
+      return {
+        ...currentState,
+        workpapersState: refreshedWorkpapersState,
+        workpaperDrafts: createWorkpaperDrafts(refreshedWorkpapersState.workpapers),
+        workpaperMutationState: { kind: "success", refreshFailed: false }
+      };
+    });
+  }
+
   async function refreshManualMappingAndControls(
     activeTenant: ActiveTenant,
     closingFolder: ClosingFolderSummary,
@@ -853,7 +1177,7 @@ function ClosingFolderRoute() {
         { label: "Dossiers de closing", href: "/" },
         { label: "Dossier" }
       ]}
-      description="Shell produit borne a GET /api/me, GET /api/closing-folders/{id}, GET /api/closing-folders/{closingFolderId}/controls, GET /api/closing-folders/{closingFolderId}/mappings/manual, GET /api/closing-folders/{closingFolderId}/financial-summary, GET /api/closing-folders/{closingFolderId}/financial-statements/structured, GET /api/closing-folders/{closingFolderId}/workpapers puis POST /api/closing-folders/{closingFolderId}/imports/balance."
+      description="Shell produit borne a GET /api/me, GET /api/closing-folders/{id}, GET /api/closing-folders/{closingFolderId}/controls, GET /api/closing-folders/{closingFolderId}/mappings/manual, GET /api/closing-folders/{closingFolderId}/financial-summary, GET /api/closing-folders/{closingFolderId}/financial-statements/structured, GET /api/closing-folders/{closingFolderId}/workpapers, PUT /api/closing-folders/{closingFolderId}/workpapers/{anchorCode} puis POST /api/closing-folders/{closingFolderId}/imports/balance."
       eyebrow="Route shell produit"
       sidebarItems={[
         { href: "/", label: "Dossiers" },
@@ -988,9 +1312,17 @@ function ClosingFolderRoute() {
             <div className="grid gap-6">
               <div className="grid gap-2">
                 <p className="label-eyebrow">Workpapers</p>
-                <h3 className="text-xl font-semibold text-foreground">Read-only</h3>
+                <h3 className="text-xl font-semibold text-foreground">Maker update unitaire</h3>
               </div>
-              <WorkpapersSlot state={state.workpapersState} />
+              <WorkpapersSlot
+                effectiveRoles={state.effectiveRoles}
+                mutationState={state.workpaperMutationState}
+                onNoteChange={handleWorkpaperNoteChange}
+                onSave={handleSaveWorkpaper}
+                onStatusChange={handleWorkpaperStatusChange}
+                state={state.workpapersState}
+                workpaperDrafts={state.workpaperDrafts}
+              />
             </div>
           </section>
         </div>
@@ -1218,7 +1550,23 @@ function FinancialStatementsStructuredSlot({
   );
 }
 
-function WorkpapersSlot({ state }: { state: WorkpapersShellState }) {
+function WorkpapersSlot({
+  effectiveRoles,
+  state,
+  workpaperDrafts,
+  mutationState,
+  onNoteChange,
+  onStatusChange,
+  onSave
+}: {
+  effectiveRoles: EffectiveRolesHint;
+  state: WorkpapersShellState;
+  workpaperDrafts: Record<string, WorkpaperDraft>;
+  mutationState: WorkpaperMutationState;
+  onNoteChange: (anchorCode: string, noteText: string) => void;
+  onStatusChange: (anchorCode: string, status: string) => void;
+  onSave: (anchorCode: string) => void;
+}) {
   if (state.kind === "loading") {
     return <StateMessage text="chargement workpapers" />;
   }
@@ -1255,7 +1603,17 @@ function WorkpapersSlot({ state }: { state: WorkpapersShellState }) {
     return <StateMessage text="workpapers indisponibles" />;
   }
 
-  return <WorkpapersNominalBlocks workpapers={state.workpapers} />;
+  return (
+    <WorkpapersNominalBlocks
+      effectiveRoles={effectiveRoles}
+      mutationState={mutationState}
+      onNoteChange={onNoteChange}
+      onSave={onSave}
+      onStatusChange={onStatusChange}
+      workpaperDrafts={workpaperDrafts}
+      workpapers={state.workpapers}
+    />
+  );
 }
 
 function ImportBalanceStatus({
@@ -1580,6 +1938,32 @@ function ManualMappingMutationStatus({ state }: { state: ManualMappingMutationSt
   return <StateMessage text={formatManualMappingMutationState(state)} />;
 }
 
+function WorkpaperMutationStatus({ state }: { state: WorkpaperMutationState }) {
+  if (state.kind === "idle") {
+    return null;
+  }
+
+  return (
+    <ControlsBlock title="Etat mutation workpaper">
+      {state.kind === "success" ? (
+        <div aria-live="polite" className="grid gap-2">
+          <p className="label-eyebrow">Etat visible</p>
+          <p className="text-lg font-semibold text-foreground">
+            workpaper enregistre avec succes
+          </p>
+          {state.refreshFailed ? (
+            <p className="text-sm font-medium text-foreground">
+              rafraichissement workpapers impossible
+            </p>
+          ) : null}
+        </div>
+      ) : (
+        <StateMessage text={formatWorkpaperMutationState(state)} />
+      )}
+    </ControlsBlock>
+  );
+}
+
 function ControlsNominalBlocks({ controls }: { controls: ClosingControlsSummary }) {
   return (
     <div className="grid gap-4">
@@ -1812,8 +2196,20 @@ function FinancialStatementsStructuredNominalBlocks({
 }
 
 function WorkpapersNominalBlocks({
+  effectiveRoles,
+  mutationState,
+  onNoteChange,
+  onSave,
+  onStatusChange,
+  workpaperDrafts,
   workpapers
 }: {
+  effectiveRoles: EffectiveRolesHint;
+  mutationState: WorkpaperMutationState;
+  onNoteChange: (anchorCode: string, noteText: string) => void;
+  onSave: (anchorCode: string) => void;
+  onStatusChange: (anchorCode: string, status: string) => void;
+  workpaperDrafts: Record<string, WorkpaperDraft>;
   workpapers: ClosingWorkpapersReadModel;
 }) {
   const summaryLines = [
@@ -1824,16 +2220,24 @@ function WorkpapersNominalBlocks({
     `workpapers stale : ${workpapers.summaryCounts.staleCount}`,
     `anchors sans workpaper : ${workpapers.summaryCounts.missingCount}`
   ];
+  const globalReadOnlyMessage = getWorkpapersGlobalReadOnlyMessage(workpapers, effectiveRoles);
+  const controlsDisabled = mutationState.kind === "submitting";
 
   return (
     <div className="grid gap-4">
       <p className="rounded-lg border bg-background/80 p-4 text-sm font-medium text-foreground">
-        Workpapers en lecture seule dans cette version.
+        Mise a jour maker unitaire sur les workpapers courants uniquement.
       </p>
+
+      <WorkpaperMutationStatus state={mutationState} />
 
       <ControlsBlock title="Resume workpapers">
         <ReadonlyLineList lines={summaryLines} />
       </ControlsBlock>
+
+      {globalReadOnlyMessage !== null ? (
+        <p className="text-sm font-medium text-foreground">{globalReadOnlyMessage}</p>
+      ) : null}
 
       {workpapers.items.length === 0 && workpapers.staleWorkpapers.length === 0 ? (
         <p className="text-sm font-medium text-foreground">aucun workpaper disponible</p>
@@ -1844,14 +2248,46 @@ function WorkpapersNominalBlocks({
           <p className="text-sm font-medium text-foreground">aucun workpaper courant</p>
         ) : (
           <ul className="grid gap-4">
-            {workpapers.items.map((item) => (
-              <li key={`${item.anchorCode}-current`}>
-                <WorkpaperCard item={item} />
-              </li>
-            ))}
+            {workpapers.items.map((item) => {
+              const draft = getWorkpaperDraft(workpaperDrafts, item);
+              const itemReadOnlyMessage = getCurrentWorkpaperReadOnlyMessage(
+                item,
+                globalReadOnlyMessage
+              );
+              const showMakerForm =
+                globalReadOnlyMessage === null && itemReadOnlyMessage === null;
+
+              return (
+                <li key={`${item.anchorCode}-current`}>
+                  <WorkpaperCard
+                    controlsDisabled={controlsDisabled}
+                    draft={showMakerForm ? draft : null}
+                    item={item}
+                    makerReadOnlyMessage={itemReadOnlyMessage}
+                    onNoteChange={showMakerForm ? onNoteChange : undefined}
+                    onSave={showMakerForm ? onSave : undefined}
+                    onStatusChange={showMakerForm ? onStatusChange : undefined}
+                    saveDisabled={
+                      !showMakerForm ||
+                      !canSaveWorkpaperItem(
+                        workpapers,
+                        effectiveRoles,
+                        item,
+                        draft,
+                        mutationState
+                      )
+                    }
+                  />
+                </li>
+              );
+            })}
           </ul>
         )}
       </ControlsBlock>
+
+      {workpapers.staleWorkpapers.length > 0 ? (
+        <p className="text-sm font-medium text-foreground">workpapers stale en lecture seule</p>
+      ) : null}
 
       <ControlsBlock title="Workpapers stale">
         {workpapers.staleWorkpapers.length === 0 ? (
@@ -1870,13 +2306,37 @@ function WorkpapersNominalBlocks({
   );
 }
 
-function WorkpaperCard({ item }: { item: WorkpaperReadModelItem }) {
+function WorkpaperCard({
+  controlsDisabled = false,
+  draft = null,
+  item,
+  makerReadOnlyMessage = null,
+  onNoteChange,
+  onSave,
+  onStatusChange,
+  saveDisabled = true
+}: {
+  controlsDisabled?: boolean;
+  draft?: WorkpaperDraft | null;
+  item: WorkpaperReadModelItem;
+  makerReadOnlyMessage?: string | null;
+  onNoteChange?: (anchorCode: string, noteText: string) => void;
+  onSave?: (anchorCode: string) => void;
+  onStatusChange?: (anchorCode: string, status: string) => void;
+  saveDisabled?: boolean;
+}) {
   const lines = [
     `anchor code : ${item.anchorCode}`,
     `statement kind : ${item.statementKind}`,
     `breakdown type : ${item.breakdownType}`,
     `etat workpaper : ${item.workpaper === null ? "aucun" : item.workpaper.status}`
   ];
+  const canRenderMakerForm =
+    draft !== null &&
+    makerReadOnlyMessage === null &&
+    onNoteChange !== undefined &&
+    onSave !== undefined &&
+    onStatusChange !== undefined;
 
   if (item.workpaper !== null) {
     lines.push(`note workpaper : ${item.workpaper.noteText}`);
@@ -1890,6 +2350,65 @@ function WorkpaperCard({ item }: { item: WorkpaperReadModelItem }) {
       <div className="grid gap-4">
         <p className="text-sm font-semibold text-foreground">{item.anchorLabel}</p>
         <ReadonlyLineList lines={lines} />
+
+        {makerReadOnlyMessage !== null ? (
+          <p className="text-sm font-medium text-foreground">{makerReadOnlyMessage}</p>
+        ) : null}
+
+        {canRenderMakerForm ? (
+          <div className="grid gap-4">
+            <div className="grid gap-2">
+              <label
+                className="text-sm font-medium text-foreground"
+                htmlFor={`workpaper-note-${item.anchorCode}`}
+              >
+                Note workpaper
+              </label>
+              <textarea
+                className="min-h-28 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground disabled:cursor-not-allowed disabled:bg-muted"
+                disabled={controlsDisabled}
+                id={`workpaper-note-${item.anchorCode}`}
+                onChange={(event) => {
+                  onNoteChange(item.anchorCode, event.currentTarget.value);
+                }}
+                value={draft.noteText}
+              />
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+              <div className="grid gap-2">
+                <label
+                  className="text-sm font-medium text-foreground"
+                  htmlFor={`workpaper-status-${item.anchorCode}`}
+                >
+                  Statut maker
+                </label>
+                <select
+                  className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground disabled:cursor-not-allowed disabled:bg-muted"
+                  disabled={controlsDisabled}
+                  id={`workpaper-status-${item.anchorCode}`}
+                  onChange={(event) => {
+                    onStatusChange(item.anchorCode, event.currentTarget.value);
+                  }}
+                  value={draft.status}
+                >
+                  <option value="DRAFT">DRAFT</option>
+                  <option value="READY_FOR_REVIEW">READY_FOR_REVIEW</option>
+                </select>
+              </div>
+
+              <Button
+                disabled={saveDisabled}
+                onClick={() => {
+                  void onSave(item.anchorCode);
+                }}
+                type="button"
+              >
+                Enregistrer le workpaper
+              </Button>
+            </div>
+          </div>
+        ) : null}
 
         <ControlsBlock title="Documents inclus">
           {item.documents.length === 0 ? (
@@ -2131,6 +2650,176 @@ function getManualMappingReadOnlyMessage(
   return null;
 }
 
+function createWorkpaperDrafts(workpapers: ClosingWorkpapersReadModel) {
+  return Object.fromEntries(
+    workpapers.items.map((item) => [item.anchorCode, createWorkpaperDraft(item)])
+  ) as Record<string, WorkpaperDraft>;
+}
+
+function createWorkpaperDraft(item: WorkpaperReadModelItem): WorkpaperDraft {
+  if (item.workpaper === null) {
+    return {
+      noteText: "",
+      status: "DRAFT"
+    };
+  }
+
+  if (item.workpaper.status === "CHANGES_REQUESTED") {
+    return {
+      noteText: item.workpaper.noteText,
+      status: "DRAFT"
+    };
+  }
+
+  return {
+    noteText: item.workpaper.noteText,
+    status: item.workpaper.status === "READY_FOR_REVIEW" ? "READY_FOR_REVIEW" : "DRAFT"
+  };
+}
+
+function getWorkpaperDraft(
+  drafts: Record<string, WorkpaperDraft>,
+  item: WorkpaperReadModelItem
+) {
+  return drafts[item.anchorCode] ?? createWorkpaperDraft(item);
+}
+
+function hasWorkpaperWritableRole(effectiveRoles: EffectiveRolesHint) {
+  return effectiveRoles?.some((role) => workpaperWritableRoles.has(role)) ?? false;
+}
+
+function isMakerWorkpaperStatus(value: string): value is MakerWorkpaperStatus {
+  return value === "DRAFT" || value === "READY_FOR_REVIEW";
+}
+
+function isWorkpaperMakerEditable(item: WorkpaperReadModelItem) {
+  return (
+    item.workpaper === null ||
+    item.workpaper.status === "DRAFT" ||
+    item.workpaper.status === "CHANGES_REQUESTED"
+  );
+}
+
+function getWorkpapersGlobalReadOnlyMessage(
+  workpapers: ClosingWorkpapersReadModel,
+  effectiveRoles: EffectiveRolesHint
+) {
+  if (workpapers.closingFolderStatus === "ARCHIVED") {
+    return "dossier archive, workpaper en lecture seule";
+  }
+
+  if (workpapers.readiness !== "READY") {
+    return "workpaper non modifiable tant que les controles ne sont pas READY";
+  }
+
+  if (!hasWorkpaperWritableRole(effectiveRoles)) {
+    return "lecture seule";
+  }
+
+  return null;
+}
+
+function getCurrentWorkpaperReadOnlyMessage(
+  item: WorkpaperReadModelItem,
+  globalReadOnlyMessage: string | null
+) {
+  if (globalReadOnlyMessage !== null) {
+    return null;
+  }
+
+  if (
+    item.workpaper !== null &&
+    (item.workpaper.status === "READY_FOR_REVIEW" || item.workpaper.status === "REVIEWED")
+  ) {
+    return "workpaper en lecture seule";
+  }
+
+  return null;
+}
+
+function createWorkpaperEvidencePayload(item: WorkpaperReadModelItem): WorkpaperEvidence[] | null {
+  if (item.workpaper === null) {
+    return [];
+  }
+
+  const evidences = item.workpaper.evidences;
+
+  if (!Array.isArray(evidences) || !evidences.every(isWorkpaperEvidencePayload)) {
+    return null;
+  }
+
+  return evidences.map((evidence) => ({
+    position: evidence.position,
+    fileName: evidence.fileName,
+    mediaType: evidence.mediaType,
+    documentDate: evidence.documentDate,
+    sourceLabel: evidence.sourceLabel,
+    verificationStatus: evidence.verificationStatus,
+    externalReference: evidence.externalReference,
+    checksumSha256: evidence.checksumSha256
+  }));
+}
+
+function isWorkpaperEvidencePayload(evidence: WorkpaperEvidence) {
+  return (
+    Number.isInteger(evidence.position) &&
+    evidence.position > 0 &&
+    typeof evidence.fileName === "string" &&
+    typeof evidence.mediaType === "string" &&
+    (typeof evidence.documentDate === "string" || evidence.documentDate === null) &&
+    typeof evidence.sourceLabel === "string" &&
+    (evidence.verificationStatus === "UNVERIFIED" ||
+      evidence.verificationStatus === "VERIFIED" ||
+      evidence.verificationStatus === "REJECTED") &&
+    (typeof evidence.externalReference === "string" || evidence.externalReference === null) &&
+    (typeof evidence.checksumSha256 === "string" || evidence.checksumSha256 === null)
+  );
+}
+
+function hasWorkpaperDraftChanges(item: WorkpaperReadModelItem, draft: WorkpaperDraft) {
+  if (item.workpaper === null) {
+    return true;
+  }
+
+  return (
+    draft.noteText.trim() !== item.workpaper.noteText || draft.status !== item.workpaper.status
+  );
+}
+
+function canSaveWorkpaperItem(
+  workpapers: ClosingWorkpapersReadModel,
+  effectiveRoles: EffectiveRolesHint,
+  item: WorkpaperReadModelItem,
+  draft: WorkpaperDraft,
+  mutationState: WorkpaperMutationState
+) {
+  if (mutationState.kind === "submitting") {
+    return false;
+  }
+
+  if (getWorkpapersGlobalReadOnlyMessage(workpapers, effectiveRoles) !== null) {
+    return false;
+  }
+
+  if (!item.isCurrentStructure || !isWorkpaperMakerEditable(item)) {
+    return false;
+  }
+
+  if (!isMakerWorkpaperStatus(draft.status) || draft.noteText.trim().length === 0) {
+    return false;
+  }
+
+  if (createWorkpaperEvidencePayload(item) === null) {
+    return false;
+  }
+
+  if (item.workpaper !== null && !hasWorkpaperDraftChanges(item, draft)) {
+    return false;
+  }
+
+  return true;
+}
+
 function createManualMappingSelectedTargets(projection: ManualMappingProjection) {
   const selectableTargetCodes = getSelectableTargetCodes(projection);
 
@@ -2163,6 +2852,56 @@ function findManualMappingForAccount(projection: ManualMappingProjection, accoun
 
 function formatManualMappingTargetOption(label: string, code: string) {
   return `${label} (${code})`;
+}
+
+function mapWorkpaperMutationResult(
+  result: Exclude<Awaited<ReturnType<typeof upsertWorkpaper>>, { kind: "success" }>
+): WorkpaperMutationState {
+  if (result.kind === "bad_request") {
+    return { kind: "invalid_workpaper" };
+  }
+
+  if (result.kind === "auth_required") {
+    return { kind: "auth_required" };
+  }
+
+  if (result.kind === "forbidden") {
+    return { kind: "forbidden" };
+  }
+
+  if (result.kind === "not_found") {
+    return { kind: "not_found" };
+  }
+
+  if (result.kind === "conflict_archived") {
+    return { kind: "conflict_archived" };
+  }
+
+  if (result.kind === "conflict_not_ready") {
+    return { kind: "conflict_not_ready" };
+  }
+
+  if (result.kind === "conflict_other") {
+    return { kind: "conflict_other" };
+  }
+
+  if (result.kind === "server_error") {
+    return { kind: "server_error" };
+  }
+
+  if (result.kind === "network_error") {
+    return { kind: "network_error" };
+  }
+
+  if (result.kind === "timeout") {
+    return { kind: "timeout" };
+  }
+
+  if (result.kind === "invalid_payload") {
+    return { kind: "invalid_payload" };
+  }
+
+  return { kind: "unexpected" };
 }
 
 function mapUploadResultToImportState(
@@ -2338,6 +3077,84 @@ function formatManualMappingMutationState(
   }
 
   return "mapping indisponible";
+}
+
+function formatWorkpaperMutationState(
+  state: Exclude<WorkpaperMutationState, { kind: "idle" | "success" }>
+) {
+  if (state.kind === "submitting") {
+    return "enregistrement workpaper en cours";
+  }
+
+  if (state.kind === "read_only_archived") {
+    return "dossier archive, workpaper en lecture seule";
+  }
+
+  if (state.kind === "read_only_not_ready") {
+    return "workpaper non modifiable tant que les controles ne sont pas READY";
+  }
+
+  if (state.kind === "read_only_role") {
+    return "lecture seule";
+  }
+
+  if (state.kind === "stale_read_only") {
+    return "workpapers stale en lecture seule";
+  }
+
+  if (state.kind === "item_read_only") {
+    return "workpaper en lecture seule";
+  }
+
+  if (state.kind === "invalid_workpaper") {
+    return "workpaper invalide";
+  }
+
+  if (state.kind === "auth_required") {
+    return "authentification requise";
+  }
+
+  if (state.kind === "forbidden") {
+    return "acces workpapers refuse";
+  }
+
+  if (state.kind === "not_found") {
+    return "dossier introuvable";
+  }
+
+  if (state.kind === "conflict_archived") {
+    return "dossier archive, workpaper non modifiable";
+  }
+
+  if (state.kind === "conflict_not_ready") {
+    return "workpaper non modifiable tant que les controles ne sont pas READY";
+  }
+
+  if (state.kind === "conflict_other") {
+    return "mise a jour workpaper impossible";
+  }
+
+  if (state.kind === "server_error") {
+    return "erreur serveur workpapers";
+  }
+
+  if (state.kind === "network_error") {
+    return "erreur reseau workpapers";
+  }
+
+  if (state.kind === "timeout") {
+    return "timeout workpapers";
+  }
+
+  if (state.kind === "invalid_payload") {
+    return "payload workpaper invalide";
+  }
+
+  if (state.kind === "invalid_workpapers_payload") {
+    return "payload workpapers invalide";
+  }
+
+  return "workpaper indisponible";
 }
 
 function updateImportSuccessRefreshStatus(
