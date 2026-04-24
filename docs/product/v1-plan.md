@@ -49,9 +49,10 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `specs/done/020-frontend-workpapers-read-model-v1.md`
 - `specs/done/021-frontend-workpapers-maker-update-v1.md`
 - `specs/done/022-frontend-document-upload-only-v1.md`
+- `specs/done/023-frontend-document-download-only-v1.md`
 
 ### Active
-- `specs/active/023-frontend-document-download-only-v1.md`
+- `specs/active/024-frontend-workpapers-panel-extraction-v1.md`
 
 ### Decisions figees
 - Le flux V1 livre est maintenant `closing -> import -> mapping -> controls -> financial-summary -> financial-statements-structured -> workpapers -> document-storage-and-evidence-files -> exports-audit-ready`.
@@ -74,6 +75,7 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `evidence-review-and-verification-v1` garde la decision finale reviewer sur `workpaper`, mais bloque `READY_FOR_REVIEW -> REVIEWED` tant que les documents attaches restent `UNVERIFIED`, sauf quand `documentsCount = 0`.
 - `document-storage-and-evidence-files-v1` autorise les lectures sur current, stale et `ARCHIVED`, sans `audit_event` sur les `GET`; seul l'upload reussi ecrit `DOCUMENT.CREATED`.
 - `022-frontend-document-upload-only-v1` ferme le premier upload frontend unitaire de document sur `/closing-folders/:closingFolderId`, strictement dans le bloc `Workpapers`, en gardant `GET /workpapers` comme read-model canonique avant et apres succes et en n'ajoutant que `POST /workpapers/{anchorCode}/documents`.
+- `023-frontend-document-download-only-v1` ferme le premier download frontend unitaire de document sur `/closing-folders/:closingFolderId`, strictement dans le bloc `Workpapers`, en gardant `GET /workpapers` comme read-model canonique avant le clic, en n'ajoutant que `GET /documents/{documentId}/content`, et sans refresh apres succes ou echec.
 - `evidence-review-and-verification-v1` ajoute `DOCUMENT.VERIFICATION_UPDATED` pour toute mutation reviewer reussie sur `document`, sans audit sur no-op, lecture, backfill ni creation automatique de la ligne initiale.
 - `document-storage-and-evidence-files-v1` persiste les metadata en PostgreSQL, stocke le binaire en object storage prive, et impose un download backend-only sans signed URL publique.
 - Le role de `document-storage-and-evidence-files-v1` dans la sequence V1 est de fermer le noyau evidence-first utile avant les couches futures d'export, d'annexe ou d'IA active.
