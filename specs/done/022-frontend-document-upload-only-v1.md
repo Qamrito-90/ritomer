@@ -1,7 +1,7 @@
 # 022 - Frontend document upload only v1
 
 ## Status
-Active
+Done
 
 ## Role de cette spec
 
@@ -1107,7 +1107,7 @@ Rendu exact :
 
 ## Criteres d acceptation frontend
 
-- `specs/active/022-frontend-document-upload-only-v1.md` existe
+- `specs/done/022-frontend-document-upload-only-v1.md` existe
 - `/closing-folders/:closingFolderId` reste l unique route produit enrichie par `022`
 - aucun nouveau backend n est introduit
 - aucun nouveau contrat OpenAPI n est introduit
