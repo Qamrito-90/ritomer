@@ -201,6 +201,7 @@ type WorkpaperEvidence = {
 };
 
 type WorkpaperDocument = {
+  id?: unknown;
   fileName: string;
   mediaType: string;
   sourceLabel: string;
@@ -286,6 +287,7 @@ function createEvidence(overrides: Partial<WorkpaperEvidence> = {}): WorkpaperEv
 
 function createDocument(overrides: Partial<WorkpaperDocument> = {}): WorkpaperDocument {
   return {
+    id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1",
     fileName: "support.pdf",
     mediaType: "application/pdf",
     sourceLabel: "ERP",
@@ -514,6 +516,18 @@ function getWorkpaperDocumentPostCalls(fetchMock: ReturnType<typeof vi.fn>) {
   }) as Array<[string, RequestInit]>;
 }
 
+function getDocumentContentGetCalls(fetchMock: ReturnType<typeof vi.fn>) {
+  return fetchMock.mock.calls.filter(([path, init]) => {
+    const requestPath = String(path);
+    const requestInit = init as RequestInit | undefined;
+
+    return (
+      /\/api\/closing-folders\/[^/]+\/documents\/[^/]+\/content$/.test(requestPath) &&
+      requestInit?.method === "GET"
+    );
+  }) as Array<[string, RequestInit]>;
+}
+
 function expectNoOutOfScopePaths(
   paths: string[],
   {
@@ -571,6 +585,69 @@ function expectNoOutOfScopePathsAllowingDocumentUploads(
   expect(paths.some((path) => path.includes("/imports/balance/versions"))).toBe(false);
   expect(paths.some((path) => path.includes("/diff-previous"))).toBe(false);
   expect(paths.some((path) => path.includes("/ai"))).toBe(false);
+}
+
+function expectNoOutOfScopePathsAllowingDocumentDownloads(
+  fetchMock: ReturnType<typeof vi.fn>,
+  {
+    workpapersGets,
+    workpapersPuts,
+    workpaperDocumentPosts,
+    documentContentGets
+  }: {
+    workpapersGets: number;
+    workpapersPuts: number;
+    workpaperDocumentPosts: number;
+    documentContentGets: number;
+  }
+) {
+  const paths = getRequestPaths(fetchMock);
+
+  expect(paths.filter((path) => path.endsWith("/workpapers"))).toHaveLength(workpapersGets);
+  expect(getWorkpapersPutCalls(fetchMock)).toHaveLength(workpapersPuts);
+  expect(getWorkpaperDocumentPostCalls(fetchMock)).toHaveLength(workpaperDocumentPosts);
+  expect(getDocumentContentGetCalls(fetchMock)).toHaveLength(documentContentGets);
+  expect(paths.some((path) => /\/workpapers\/[^/]+\/documents$/.test(path))).toBe(false);
+  expect(paths.some((path) => /\/documents\/[^/]+\/verification-decision$/.test(path))).toBe(false);
+  expect(paths.some((path) => path.includes("/review-decision"))).toBe(false);
+  expect(paths.some((path) => path.includes("/exports"))).toBe(false);
+  expect(paths.some((path) => path.includes("/imports/balance/versions"))).toBe(false);
+  expect(paths.some((path) => path.includes("/diff-previous"))).toBe(false);
+  expect(paths.some((path) => path.includes("/ai"))).toBe(false);
+}
+
+function createDocumentDownloadResponse({
+  blob = new Blob(["pdf-content"]),
+  contentDisposition = 'attachment; filename="support.pdf"',
+  contentType = "application/pdf"
+}: {
+  blob?: Blob;
+  contentDisposition?: string | null;
+  contentType?: string | null;
+} = {}) {
+  const blobSpy = vi.fn().mockResolvedValue(blob);
+  const jsonSpy = vi.fn();
+  const headers = new Headers();
+
+  if (contentDisposition !== null) {
+    headers.set("Content-Disposition", contentDisposition);
+  }
+
+  if (contentType !== null) {
+    headers.set("Content-Type", contentType);
+  }
+
+  return {
+    response: {
+      status: 200,
+      headers,
+      blob: blobSpy,
+      json: jsonSpy
+    } as unknown as Response,
+    blob,
+    blobSpy,
+    jsonSpy
+  };
 }
 
 function getWorkpapersSection() {
@@ -642,7 +719,13 @@ describe("router workpapers", () => {
           workpaper: createWorkpaperDetails({
             status: "DRAFT",
             noteText: "Draft note"
-          })
+          }),
+          documents: [
+            createDocument({
+              id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeed1",
+              fileName: "draft-support.pdf"
+            })
+          ]
         }),
         createCurrentItem({
           anchorCode: "BS.ASSET.CHANGES",
@@ -672,7 +755,14 @@ describe("router workpapers", () => {
       staleWorkpapers: [
         createStaleItem({
           anchorCode: "BS.ASSET.STALE",
-          anchorLabel: "Legacy bucket stale"
+          anchorLabel: "Legacy bucket stale",
+          documents: [
+            createDocument({
+              id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeed2",
+              fileName: "legacy-stale.pdf",
+              verificationStatus: "VERIFIED"
+            })
+          ]
         })
       ],
       nextAction: {
@@ -726,6 +816,9 @@ describe("router workpapers", () => {
     expect(within(draftCard).getByLabelText("Date document")).toHaveValue("");
     expect(within(draftCard).getByText("selectionner un fichier")).toBeInTheDocument();
     expect(
+      within(draftCard).getByRole("button", { name: "Telecharger le document" })
+    ).toBeInTheDocument();
+    expect(
       within(draftCard).getByRole("button", { name: "Uploader le document" })
     ).toBeDisabled();
     expect(
@@ -770,6 +863,9 @@ describe("router workpapers", () => {
     expect(
       within(staleCard).queryByRole("button", { name: "Uploader le document" })
     ).not.toBeInTheDocument();
+    expect(
+      within(staleCard).getByRole("button", { name: "Telecharger le document" })
+    ).toBeInTheDocument();
   });
 
   it("does not autosave on textarea or select changes and sends evidences [] for a current item without persisted workpaper", async () => {
@@ -966,17 +1062,20 @@ describe("router workpapers", () => {
   it.each([
     {
       label: "effectiveRoles absent",
-      me: () => jsonResponse(200, { activeTenant: ACTIVE_TENANT })
+      me: () => jsonResponse(200, { activeTenant: ACTIVE_TENANT }),
+      downloadVisible: false
     },
     {
       label: "effectiveRoles invalid",
-      me: () => jsonResponse(200, { activeTenant: ACTIVE_TENANT, effectiveRoles: "oops" })
+      me: () => jsonResponse(200, { activeTenant: ACTIVE_TENANT, effectiveRoles: "oops" }),
+      downloadVisible: false
     },
     {
       label: "REVIEWER only",
-      me: () => jsonResponse(200, { activeTenant: ACTIVE_TENANT, effectiveRoles: ["REVIEWER"] })
+      me: () => jsonResponse(200, { activeTenant: ACTIVE_TENANT, effectiveRoles: ["REVIEWER"] }),
+      downloadVisible: true
     }
-  ])("keeps the block read-only when $label", async ({ me }) => {
+  ])("keeps the block read-only when $label", async ({ me, downloadVisible }) => {
     const fetchMock = vi.mocked(global.fetch);
 
     primeNominalRoute(fetchMock, {
@@ -985,7 +1084,19 @@ describe("router workpapers", () => {
         jsonResponse(
           200,
           createWorkpapersModel({
-            items: [createCurrentItem({ workpaper: null })]
+            items: [
+              createCurrentItem({
+                workpaper: createWorkpaperDetails({
+                  status: "DRAFT",
+                  noteText: "Cash tie-out"
+                }),
+                documents: [
+                  createDocument({
+                    id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeed3"
+                  })
+                ]
+              })
+            ]
           })
         )
     });
@@ -1007,6 +1118,15 @@ describe("router workpapers", () => {
     expect(
       section.queryByRole("button", { name: "Uploader le document" })
     ).not.toBeInTheDocument();
+    if (downloadVisible) {
+      expect(
+        section.getByRole("button", { name: "Telecharger le document" })
+      ).toBeInTheDocument();
+    } else {
+      expect(
+        section.queryByRole("button", { name: "Telecharger le document" })
+      ).not.toBeInTheDocument();
+    }
     expect(getWorkpapersPutCalls(fetchMock)).toHaveLength(0);
   });
 
@@ -1024,7 +1144,20 @@ describe("router workpapers", () => {
           200,
           createWorkpapersModel({
             closingFolderStatus: "ARCHIVED",
-            items: [createCurrentItem({ workpaper: null })]
+            items: [
+              createCurrentItem({
+                workpaper: createWorkpaperDetails({
+                  status: "DRAFT",
+                  noteText: "Archived support"
+                }),
+                documents: [
+                  createDocument({
+                    id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeed4",
+                    fileName: "archived-support.pdf"
+                  })
+                ]
+              })
+            ]
           })
         )
     });
@@ -1045,6 +1178,9 @@ describe("router workpapers", () => {
     expect(
       section.queryByRole("button", { name: "Uploader le document" })
     ).not.toBeInTheDocument();
+    expect(
+      section.getByRole("button", { name: "Telecharger le document" })
+    ).toBeInTheDocument();
     expect(getWorkpapersPutCalls(fetchMock)).toHaveLength(0);
   });
 
@@ -1057,7 +1193,20 @@ describe("router workpapers", () => {
           200,
           createWorkpapersModel({
             readiness: "BLOCKED",
-            items: [createCurrentItem({ workpaper: null })]
+            items: [
+              createCurrentItem({
+                workpaper: createWorkpaperDetails({
+                  status: "DRAFT",
+                  noteText: "Blocked support"
+                }),
+                documents: [
+                  createDocument({
+                    id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeed5",
+                    fileName: "blocked-support.pdf"
+                  })
+                ]
+              })
+            ]
           })
         )
     });
@@ -1080,7 +1229,478 @@ describe("router workpapers", () => {
     expect(
       section.queryByRole("button", { name: "Uploader le document" })
     ).not.toBeInTheDocument();
+    expect(
+      section.getByRole("button", { name: "Telecharger le document" })
+    ).toBeInTheDocument();
     expect(getWorkpapersPutCalls(fetchMock)).toHaveLength(0);
+  });
+
+  it.each([
+    {
+      label: "missing document id",
+      document: createDocument({ id: undefined })
+    },
+    {
+      label: "invalid document id",
+      document: createDocument({ id: "not-a-uuid" })
+    }
+  ])("keeps a visible document line read-only with 'telechargement indisponible' on $label", async ({ document }) => {
+    const fetchMock = vi.mocked(global.fetch);
+
+    primeNominalRoute(fetchMock, {
+      workpapers: () =>
+        jsonResponse(
+          200,
+          createWorkpapersModel({
+            items: [
+              createCurrentItem({
+                workpaper: createWorkpaperDetails({
+                  status: "DRAFT",
+                  noteText: "Download support"
+                }),
+                documents: [document]
+              })
+            ]
+          })
+        )
+    });
+
+    renderClosingRoute();
+    await waitForNominalShell();
+
+    const card = getWorkpaperCard("BS.ASSET.CURRENT_SECTION");
+    expect(within(card).getByText("telechargement indisponible")).toBeInTheDocument();
+    expect(
+      within(card).queryByRole("button", { name: "Telecharger le document" })
+    ).not.toBeInTheDocument();
+    expect(getDocumentContentGetCalls(fetchMock)).toHaveLength(0);
+    expectNoOutOfScopePathsAllowingDocumentDownloads(fetchMock, {
+      workpapersGets: 1,
+      workpapersPuts: 0,
+      workpaperDocumentPosts: 0,
+      documentContentGets: 0
+    });
+  });
+
+  it("allows only one document download in flight across the whole block", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    const user = userEvent.setup();
+
+    primeNominalRoute(fetchMock, {
+      workpapers: () =>
+        jsonResponse(
+          200,
+          createWorkpapersModel({
+            items: [
+              createCurrentItem({
+                anchorCode: "BS.ASSET.ONE",
+                anchorLabel: "Current assets one",
+                workpaper: createWorkpaperDetails({ status: "DRAFT", noteText: "One" }),
+                documents: [
+                  createDocument({
+                    id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeed6",
+                    fileName: "one.pdf"
+                  })
+                ]
+              }),
+              createCurrentItem({
+                anchorCode: "BS.ASSET.TWO",
+                anchorLabel: "Current assets two",
+                workpaper: createWorkpaperDetails({ status: "DRAFT", noteText: "Two" }),
+                documents: [
+                  createDocument({
+                    id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeed7",
+                    fileName: "two.pdf"
+                  })
+                ]
+              })
+            ]
+          })
+        ),
+      extras: [() => new Promise(() => {})]
+    });
+
+    renderClosingRoute();
+    await waitForNominalShell();
+
+    const firstCard = getWorkpaperCard("BS.ASSET.ONE");
+    const secondCard = getWorkpaperCard("BS.ASSET.TWO");
+
+    await user.click(
+      within(firstCard).getByRole("button", { name: "Telecharger le document" })
+    );
+
+    expect(await screen.findByText("telechargement document en cours")).toBeInTheDocument();
+    expect(getDocumentContentGetCalls(fetchMock)).toHaveLength(1);
+    expect(
+      within(secondCard).getByRole("button", { name: "Telecharger le document" })
+    ).toBeDisabled();
+
+    await user.click(
+      within(secondCard).getByRole("button", { name: "Telecharger le document" })
+    );
+
+    expect(getDocumentContentGetCalls(fetchMock)).toHaveLength(1);
+    expectNoOutOfScopePathsAllowingDocumentDownloads(fetchMock, {
+      workpapersGets: 1,
+      workpapersPuts: 0,
+      workpaperDocumentPosts: 0,
+      documentContentGets: 1
+    });
+  });
+
+  it("downloads through fetch + blob + object URL + temporary link, uses the visible document id, and never refreshes the shell after success", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    const user = userEvent.setup();
+    const documentId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeed8";
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    const appendSpy = vi.spyOn(document.body, "append");
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => undefined);
+    const createObjectURL = vi.fn((blob: Blob) => {
+      void blob;
+      return "blob:download-url";
+    });
+    const revokeObjectURL = vi.fn();
+    const response = createDocumentDownloadResponse({
+      blob: new Blob(["pdf-content"]),
+      contentDisposition:
+        "attachment; filename*=UTF-8''support%20final.pdf; filename=\"ignored.pdf\"",
+      contentType: "application/pdf"
+    });
+
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: createObjectURL
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: revokeObjectURL
+    });
+
+    primeNominalRoute(fetchMock, {
+      workpapers: () =>
+        jsonResponse(
+          200,
+          createWorkpapersModel({
+            items: [
+              createCurrentItem({
+                workpaper: createWorkpaperDetails({
+                  status: "DRAFT",
+                  noteText: "Current support"
+                }),
+                documents: [
+                  createDocument({
+                    id: documentId,
+                    fileName: "fallback.pdf",
+                    mediaType: "image/png"
+                  })
+                ]
+              })
+            ]
+          })
+        ),
+      extras: [() => response.response]
+    });
+
+    renderClosingRoute();
+    await waitForNominalShell();
+
+    const card = getWorkpaperCard("BS.ASSET.CURRENT_SECTION");
+    await user.click(within(card).getByRole("button", { name: "Telecharger le document" }));
+
+    const [path, init] = getDocumentContentGetCalls(fetchMock)[0] as [string, RequestInit];
+    const headers = init.headers as Record<string, string>;
+    const appendedLink = appendSpy.mock.calls[0]?.[0] as HTMLAnchorElement;
+
+    expect(path).toBe(
+      `/api/closing-folders/${CLOSING_FOLDER.id}/documents/${documentId}/content`
+    );
+    expect(init.method).toBe("GET");
+    expect(headers).toEqual({
+      "X-Tenant-Id": ACTIVE_TENANT.tenantId
+    });
+    expect(response.blobSpy).toHaveBeenCalledTimes(1);
+    expect(response.jsonSpy).not.toHaveBeenCalled();
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(createObjectURL.mock.calls[0]?.[0]?.type).toBe("application/pdf");
+    expect(appendedLink.href).toBe("blob:download-url");
+    expect(appendedLink.download).toBe("support final.pdf");
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+    expect(document.body.contains(appendedLink)).toBe(false);
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:download-url");
+    expect(openSpy).not.toHaveBeenCalled();
+    expect(screen.queryByText("telechargement document en cours")).not.toBeInTheDocument();
+    expect(screen.queryByText("telechargement indisponible")).not.toBeInTheDocument();
+    expect(getWorkpapersGetPaths(fetchMock)).toHaveLength(1);
+    expect(
+      getRequestPaths(fetchMock).filter((requestPath) => requestPath.endsWith("/controls"))
+    ).toHaveLength(1);
+    expect(
+      getRequestPaths(fetchMock).filter((requestPath) => requestPath.endsWith("/financial-summary"))
+    ).toHaveLength(1);
+    expect(
+      getRequestPaths(fetchMock).filter((requestPath) =>
+        requestPath.endsWith("/financial-statements/structured")
+      )
+    ).toHaveLength(1);
+    expect(
+      getRequestPaths(fetchMock).filter((requestPath) => requestPath.endsWith("/mappings/manual"))
+    ).toHaveLength(1);
+    expect(getRequestPaths(fetchMock).filter((requestPath) => requestPath === "/api/me")).toHaveLength(1);
+    expect(
+      getRequestPaths(fetchMock).filter(
+        (requestPath) => requestPath === `/api/closing-folders/${CLOSING_FOLDER.id}`
+      )
+    ).toHaveLength(1);
+    expectNoOutOfScopePathsAllowingDocumentDownloads(fetchMock, {
+      workpapersGets: 1,
+      workpapersPuts: 0,
+      workpaperDocumentPosts: 0,
+      documentContentGets: 1
+    });
+  });
+
+  it.each([
+    {
+      label: "filename* from Content-Disposition",
+      contentDisposition:
+        "attachment; filename*=UTF-8''support%20final.pdf; filename=\"ignored.pdf\"",
+      fallbackFileName: "fallback.pdf",
+      expectedDownload: "support final.pdf"
+    },
+    {
+      label: "filename from Content-Disposition",
+      contentDisposition: "attachment; filename=\"header.pdf\"",
+      fallbackFileName: "fallback.pdf",
+      expectedDownload: "header.pdf"
+    },
+    {
+      label: "documents[].fileName fallback",
+      contentDisposition: null,
+      fallbackFileName: "fallback.pdf",
+      expectedDownload: "fallback.pdf"
+    },
+    {
+      label: "document-<documentId> fallback",
+      contentDisposition: null,
+      fallbackFileName: "   ",
+      expectedDownload: "document-eeeeeeee-eeee-4eee-8eee-eeeeeeeeeed9"
+    }
+  ])("resolves the download file name from $label", async ({ contentDisposition, fallbackFileName, expectedDownload }) => {
+    const fetchMock = vi.mocked(global.fetch);
+    const user = userEvent.setup();
+    const appendSpy = vi.spyOn(document.body, "append");
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: vi.fn(() => "blob:file-name-test")
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: vi.fn()
+    });
+
+    primeNominalRoute(fetchMock, {
+      workpapers: () =>
+        jsonResponse(
+          200,
+          createWorkpapersModel({
+            items: [
+              createCurrentItem({
+                workpaper: createWorkpaperDetails({
+                  status: "DRAFT",
+                  noteText: "Name resolution"
+                }),
+                documents: [
+                  createDocument({
+                    id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeed9",
+                    fileName: fallbackFileName
+                  })
+                ]
+              })
+            ]
+          })
+        ),
+      extras: [
+        () =>
+          createDocumentDownloadResponse({
+            contentDisposition,
+            contentType: "application/pdf"
+          }).response
+      ]
+    });
+
+    renderClosingRoute();
+    await waitForNominalShell();
+
+    await user.click(
+      within(getWorkpaperCard("BS.ASSET.CURRENT_SECTION")).getByRole("button", {
+        name: "Telecharger le document"
+      })
+    );
+
+    const appendedLink = appendSpy.mock.calls[0]?.[0] as HTMLAnchorElement;
+    expect(appendedLink.download).toBe(expectedDownload);
+  });
+
+  it.each([
+    {
+      label: "Content-Type response",
+      contentType: "application/pdf",
+      fallbackMediaType: "image/png",
+      blob: new Blob(["pdf-content"]),
+      expectedType: "application/pdf"
+    },
+    {
+      label: "documents[].mediaType fallback",
+      contentType: null,
+      fallbackMediaType: "image/png",
+      blob: new Blob(["image-content"]),
+      expectedType: "image/png"
+    },
+    {
+      label: "raw Blob fallback",
+      contentType: null,
+      fallbackMediaType: "   ",
+      blob: new Blob(["raw-content"], { type: "text/plain" }),
+      expectedType: "text/plain"
+    }
+  ])("resolves the local MIME from $label", async ({ contentType, fallbackMediaType, blob, expectedType }) => {
+    const fetchMock = vi.mocked(global.fetch);
+    const user = userEvent.setup();
+    const createObjectURL = vi.fn((blob: Blob) => {
+      void blob;
+      return "blob:mime-test";
+    });
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: createObjectURL
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: vi.fn()
+    });
+
+    primeNominalRoute(fetchMock, {
+      workpapers: () =>
+        jsonResponse(
+          200,
+          createWorkpapersModel({
+            items: [
+              createCurrentItem({
+                workpaper: createWorkpaperDetails({
+                  status: "DRAFT",
+                  noteText: "Mime resolution"
+                }),
+                documents: [
+                  createDocument({
+                    id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee10",
+                    mediaType: fallbackMediaType
+                  })
+                ]
+              })
+            ]
+          })
+        ),
+      extras: [
+        () =>
+          createDocumentDownloadResponse({
+            blob,
+            contentDisposition: 'attachment; filename="support.pdf"',
+            contentType
+          }).response
+      ]
+    });
+
+    renderClosingRoute();
+    await waitForNominalShell();
+
+    await user.click(
+      within(getWorkpaperCard("BS.ASSET.CURRENT_SECTION")).getByRole("button", {
+        name: "Telecharger le document"
+      })
+    );
+
+    expect(createObjectURL.mock.calls[0]?.[0]?.type).toBe(expectedType);
+  });
+
+  it.each([
+    { label: "401", response: () => jsonResponse(401, {}), text: "authentification requise" },
+    { label: "403", response: () => jsonResponse(403, {}), text: "acces documents refuse" },
+    {
+      label: "404",
+      response: () => jsonResponse(404, {}),
+      text: "document introuvable pour telechargement"
+    },
+    {
+      label: "5xx",
+      response: () => jsonResponse(500, {}),
+      text: "erreur serveur documents"
+    },
+    {
+      label: "network",
+      response: () => Promise.reject(new Error("network")),
+      text: "erreur reseau documents"
+    },
+    {
+      label: "timeout",
+      response: () => Promise.reject(new Error("timeout")),
+      text: "timeout documents"
+    },
+    {
+      label: "unexpected 400",
+      response: () => jsonResponse(400, {}),
+      text: "telechargement indisponible"
+    }
+  ])("renders the exact download error '$text' on $label without refreshing workpapers", async ({ response, text }) => {
+    const fetchMock = vi.mocked(global.fetch);
+    const user = userEvent.setup();
+
+    primeNominalRoute(fetchMock, {
+      workpapers: () =>
+        jsonResponse(
+          200,
+          createWorkpapersModel({
+            items: [
+              createCurrentItem({
+                workpaper: createWorkpaperDetails({
+                  status: "DRAFT",
+                  noteText: "Download errors"
+                }),
+                documents: [
+                  createDocument({
+                    id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee11"
+                  })
+                ]
+              })
+            ]
+          })
+        ),
+      extras: [response]
+    });
+
+    renderClosingRoute();
+    await waitForNominalShell();
+
+    await user.click(
+      within(getWorkpaperCard("BS.ASSET.CURRENT_SECTION")).getByRole("button", {
+        name: "Telecharger le document"
+      })
+    );
+
+    expect(await screen.findByText(text)).toBeInTheDocument();
+    expect(getWorkpapersGetPaths(fetchMock)).toHaveLength(1);
+    expectNoOutOfScopePathsAllowingDocumentDownloads(fetchMock, {
+      workpapersGets: 1,
+      workpapersPuts: 0,
+      workpaperDocumentPosts: 0,
+      documentContentGets: 1
+    });
   });
 
   it("does not emit any upload request on file or metadata changes, then posts the exact FormData payload and refreshes only GET /workpapers after a valid success", async () => {

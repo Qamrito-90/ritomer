@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  downloadWorkpaperDocument,
   loadWorkpapersShellState,
   uploadWorkpaperDocument,
   upsertWorkpaper,
@@ -60,6 +61,7 @@ const VALID_WORKPAPERS: ClosingWorkpapersReadModel = {
       },
       documents: [
         {
+          id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1",
           fileName: "bank.csv",
           mediaType: "text/csv",
           sourceLabel: "Bank portal",
@@ -98,12 +100,14 @@ const VALID_WORKPAPERS: ClosingWorkpapersReadModel = {
       },
       documents: [
         {
+          id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2",
           fileName: "legacy.pdf",
           mediaType: "application/pdf",
           sourceLabel: "ERP",
           verificationStatus: "VERIFIED"
         },
         {
+          id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee3",
           fileName: "rejected.png",
           mediaType: "image/png",
           sourceLabel: "Scan",
@@ -773,6 +777,112 @@ describe("workpapers api", () => {
     expect(entries).toHaveLength(2);
     expect(entries.map(([key]) => key)).toEqual(["file", "sourceLabel"]);
     expect(entries.some(([key]) => key === "documentDate")).toBe(false);
+  });
+
+  it("calls the exact GET /documents/{documentId}/content path with X-Tenant-Id only, follows the 5000 ms timeout convention, and reads response.blob() without response.json()", async () => {
+    const blob = new Blob(["pdf-content"]);
+    const blobSpy = vi.fn().mockResolvedValue(blob);
+    const jsonSpy = vi.fn();
+    const setTimeoutSpy = vi.spyOn(window, "setTimeout");
+    const clearTimeoutSpy = vi.spyOn(window, "clearTimeout");
+    const fetcher = vi.fn().mockResolvedValue({
+      status: 200,
+      headers: new Headers({
+        "Content-Disposition": 'attachment; filename="support.pdf"',
+        "Content-Type": "application/pdf"
+      }),
+      blob: blobSpy,
+      json: jsonSpy
+    } as unknown as Response);
+
+    await expect(
+      downloadWorkpaperDocument(
+        CLOSING_FOLDER.id,
+        ACTIVE_TENANT,
+        {
+          documentId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1"
+        },
+        fetcher
+      )
+    ).resolves.toEqual({
+      kind: "success",
+      blob,
+      contentDisposition: 'attachment; filename="support.pdf"',
+      contentType: "application/pdf"
+    });
+
+    const [path, init] = fetcher.mock.calls[0] as [string, RequestInit];
+    const headers = init.headers as Record<string, string>;
+
+    expect(path).toBe(
+      `/api/closing-folders/${CLOSING_FOLDER.id}/documents/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1/content`
+    );
+    expect(init.method).toBe("GET");
+    expect(headers).toEqual({
+      "X-Tenant-Id": ACTIVE_TENANT.tenantId
+    });
+    expect(headers.Accept).toBeUndefined();
+    expect(headers["Content-Type"]).toBeUndefined();
+    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 5000);
+    expect(clearTimeoutSpy).toHaveBeenCalled();
+    expect(blobSpy).toHaveBeenCalledTimes(1);
+    expect(jsonSpy).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { status: 400, response: () => jsonResponse(400, {}), kind: "unexpected" },
+    { status: 401, response: () => jsonResponse(401, {}), kind: "auth_required" },
+    { status: 403, response: () => jsonResponse(403, {}), kind: "forbidden" },
+    { status: 404, response: () => jsonResponse(404, {}), kind: "not_found" },
+    { status: 500, response: () => jsonResponse(500, {}), kind: "server_error" },
+    { status: 418, response: () => jsonResponse(418, {}), kind: "unexpected" }
+  ])("maps GET /documents/{documentId}/content HTTP $status to $kind", async ({ response, kind }) => {
+    const fetcher = vi.fn().mockResolvedValue(response());
+
+    await expect(
+      downloadWorkpaperDocument(
+        CLOSING_FOLDER.id,
+        ACTIVE_TENANT,
+        {
+          documentId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1"
+        },
+        fetcher
+      )
+    ).resolves.toEqual({ kind });
+  });
+
+  it("maps GET /documents/{documentId}/content timeout and network failures", async () => {
+    const timeoutFetcher = vi.fn().mockRejectedValue(new Error("timeout"));
+    const networkFetcher = vi.fn().mockRejectedValue(new Error("network"));
+    const request = {
+      documentId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1"
+    };
+
+    await expect(
+      downloadWorkpaperDocument(CLOSING_FOLDER.id, ACTIVE_TENANT, request, timeoutFetcher)
+    ).resolves.toEqual({ kind: "timeout" });
+    await expect(
+      downloadWorkpaperDocument(CLOSING_FOLDER.id, ACTIVE_TENANT, request, networkFetcher)
+    ).resolves.toEqual({ kind: "network_error" });
+  });
+
+  it("returns unexpected when GET /documents/{documentId}/content succeeds with 200 but response.blob() fails", async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      status: 200,
+      headers: new Headers(),
+      blob: vi.fn().mockRejectedValue(new Error("blob failure"))
+    } as unknown as Response);
+
+    await expect(
+      downloadWorkpaperDocument(
+        CLOSING_FOLDER.id,
+        ACTIVE_TENANT,
+        {
+          documentId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1"
+        },
+        fetcher
+      )
+    ).resolves.toEqual({ kind: "unexpected" });
   });
 
   it.each([

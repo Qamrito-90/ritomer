@@ -1,6 +1,10 @@
 import { z } from "zod";
 import type { ClosingFolderSummary } from "./closing-folders";
-import { requestJson, type Fetcher } from "./http";
+import {
+  DEFAULT_REQUEST_TIMEOUT_MS,
+  requestJson,
+  type Fetcher
+} from "./http";
 import type { ActiveTenant } from "./me";
 
 const uploadedDocumentMediaTypes = [
@@ -36,6 +40,7 @@ const summaryCountsSchema = z.object({
 });
 
 const workpaperDocumentSchema = z.object({
+  id: z.unknown().optional(),
   fileName: z.string(),
   mediaType: z.string(),
   sourceLabel: z.string(),
@@ -139,6 +144,9 @@ export type UploadWorkpaperDocumentRequest = {
   sourceLabel: string;
   documentDate: string | null;
 };
+export type DownloadWorkpaperDocumentRequest = {
+  documentId: string;
+};
 
 export type WorkpapersShellState =
   | { kind: "loading" }
@@ -187,6 +195,21 @@ export type UploadWorkpaperDocumentState =
   | { kind: "timeout" }
   | { kind: "network_error" }
   | { kind: "invalid_payload" }
+  | { kind: "unexpected" };
+
+export type DownloadWorkpaperDocumentState =
+  | {
+      kind: "success";
+      blob: Blob;
+      contentDisposition: string | null;
+      contentType: string | null;
+    }
+  | { kind: "auth_required" }
+  | { kind: "forbidden" }
+  | { kind: "not_found" }
+  | { kind: "server_error" }
+  | { kind: "timeout" }
+  | { kind: "network_error" }
   | { kind: "unexpected" };
 
 export async function loadWorkpapersShellState(
@@ -410,6 +433,80 @@ export async function uploadWorkpaperDocument(
     }
 
     return { kind: "network_error" };
+  }
+}
+
+export async function downloadWorkpaperDocument(
+  closingFolderId: string,
+  activeTenant: ActiveTenant,
+  request: DownloadWorkpaperDocumentRequest,
+  fetcher: Fetcher = fetch
+): Promise<DownloadWorkpaperDocumentState> {
+  const controller = new AbortController();
+  let timeoutId = 0;
+
+  try {
+    const response = await Promise.race([
+      fetcher(
+        `/api/closing-folders/${encodeURIComponent(closingFolderId)}/documents/${encodeURIComponent(request.documentId)}/content`,
+        {
+          method: "GET",
+          headers: {
+            "X-Tenant-Id": activeTenant.tenantId
+          },
+          signal: controller.signal
+        }
+      ),
+      new Promise<never>((_, reject) => {
+        timeoutId = window.setTimeout(() => {
+          controller.abort();
+          reject(new Error("timeout"));
+        }, DEFAULT_REQUEST_TIMEOUT_MS);
+      })
+    ]);
+
+    if (response.status === 200) {
+      try {
+        const blob = await response.blob();
+
+        return {
+          kind: "success",
+          blob,
+          contentDisposition: normalizeOptionalHeaderValue(
+            response.headers.get("Content-Disposition")
+          ),
+          contentType: normalizeOptionalHeaderValue(response.headers.get("Content-Type"))
+        };
+      } catch {
+        return { kind: "unexpected" };
+      }
+    }
+
+    if (response.status === 401) {
+      return { kind: "auth_required" };
+    }
+
+    if (response.status === 403) {
+      return { kind: "forbidden" };
+    }
+
+    if (response.status === 404) {
+      return { kind: "not_found" };
+    }
+
+    if (response.status >= 500 && response.status <= 599) {
+      return { kind: "server_error" };
+    }
+
+    return { kind: "unexpected" };
+  } catch (error) {
+    if (error instanceof Error && error.message === "timeout") {
+      return { kind: "timeout" };
+    }
+
+    return { kind: "network_error" };
+  } finally {
+    window.clearTimeout(timeoutId);
   }
 }
 
@@ -643,4 +740,13 @@ function normalizeUploadedDocumentMediaType(value: string) {
 
 function isDateTimeString(value: string) {
   return !Number.isNaN(Date.parse(value));
+}
+
+function normalizeOptionalHeaderValue(value: string | null) {
+  if (value === null) {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? null : trimmed;
 }
