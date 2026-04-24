@@ -1,7 +1,7 @@
 # 023 - Frontend document download only v1
 
 ## Status
-Active
+Done
 
 ## Role de cette spec
 
@@ -790,7 +790,7 @@ Rendu exact :
 
 ## Criteres d acceptation frontend
 
-- `specs/active/023-frontend-document-download-only-v1.md` existe
+- `specs/done/023-frontend-document-download-only-v1.md` existe
 - `/closing-folders/:closingFolderId` reste l unique route produit enrichie par `023`
 - aucun nouveau backend n est introduit
 - aucun nouveau contrat OpenAPI n est introduit
