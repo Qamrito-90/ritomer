@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   downloadWorkpaperDocument,
   loadWorkpapersShellState,
+  reviewDocumentVerificationDecision,
   uploadWorkpaperDocument,
   upsertWorkpaper,
   type ClosingWorkpapersReadModel,
@@ -65,7 +66,8 @@ const VALID_WORKPAPERS: ClosingWorkpapersReadModel = {
           fileName: "bank.csv",
           mediaType: "text/csv",
           sourceLabel: "Bank portal",
-          verificationStatus: "UNVERIFIED"
+          verificationStatus: "UNVERIFIED",
+          reviewComment: null
         }
       ],
       documentVerificationSummary: {
@@ -104,14 +106,16 @@ const VALID_WORKPAPERS: ClosingWorkpapersReadModel = {
           fileName: "legacy.pdf",
           mediaType: "application/pdf",
           sourceLabel: "ERP",
-          verificationStatus: "VERIFIED"
+          verificationStatus: "VERIFIED",
+          reviewComment: null
         },
         {
           id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee3",
           fileName: "rejected.png",
           mediaType: "image/png",
           sourceLabel: "Scan",
-          verificationStatus: "REJECTED"
+          verificationStatus: "REJECTED",
+          reviewComment: "Rejected support"
         }
       ],
       documentVerificationSummary: {
@@ -168,6 +172,32 @@ function createDocumentUploadSuccessPayload(
     reviewedAt: null,
     reviewedByUserId: null,
     ...overrides
+  };
+}
+
+function createDocumentVerificationSuccessPayload({
+  documentId,
+  decision,
+  reviewComment
+}: {
+  documentId: string;
+  decision: "VERIFIED" | "REJECTED";
+  reviewComment: string | null;
+}) {
+  return {
+    id: documentId,
+    fileName: "ignored.pdf",
+    mediaType: "application/pdf",
+    byteSize: 42,
+    checksumSha256: "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+    sourceLabel: "ERP",
+    documentDate: null,
+    createdAt: "2026-02-01T10:00:00Z",
+    createdByUserId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+    verificationStatus: decision,
+    reviewComment,
+    reviewedAt: "2026-02-02T10:00:00Z",
+    reviewedByUserId: "ffffffff-ffff-4fff-8fff-ffffffffffff"
   };
 }
 
@@ -391,7 +421,8 @@ describe("workpapers api", () => {
             fileName: "unexpected.pdf",
             mediaType: "application/pdf",
             sourceLabel: "ERP",
-            verificationStatus: "VERIFIED"
+            verificationStatus: "VERIFIED",
+            reviewComment: null
           }
         ];
         return payload;
@@ -883,6 +914,223 @@ describe("workpapers api", () => {
         fetcher
       )
     ).resolves.toEqual({ kind: "unexpected" });
+  });
+
+  it("calls the exact POST /documents/{documentId}/verification-decision path with the VERIFIED body and JSON headers", async () => {
+    const documentId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1";
+    const fetcher = vi.fn().mockResolvedValue(
+      jsonResponse(
+        200,
+        createDocumentVerificationSuccessPayload({
+          documentId,
+          decision: "VERIFIED",
+          reviewComment: null
+        })
+      )
+    );
+
+    await expect(
+      reviewDocumentVerificationDecision(
+        CLOSING_FOLDER.id,
+        ACTIVE_TENANT,
+        {
+          documentId,
+          decision: "VERIFIED"
+        },
+        fetcher
+      )
+    ).resolves.toEqual({ kind: "success" });
+
+    const [path, init] = fetcher.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+
+    expect(path).toBe(
+      `/api/closing-folders/${CLOSING_FOLDER.id}/documents/${documentId}/verification-decision`
+    );
+    expect(init.method).toBe("POST");
+    expect(init.headers).toEqual(
+      expect.objectContaining({
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "X-Tenant-Id": ACTIVE_TENANT.tenantId
+      })
+    );
+    expect(Object.keys(body)).toEqual(["decision"]);
+    expect(body).toEqual({ decision: "VERIFIED" });
+  });
+
+  it("calls the exact POST /documents/{documentId}/verification-decision path with the trimmed REJECTED body only", async () => {
+    const documentId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2";
+    const fetcher = vi.fn().mockResolvedValue(
+      jsonResponse(
+        200,
+        createDocumentVerificationSuccessPayload({
+          documentId,
+          decision: "REJECTED",
+          reviewComment: "Piece illisible"
+        })
+      )
+    );
+
+    await expect(
+      reviewDocumentVerificationDecision(
+        CLOSING_FOLDER.id,
+        ACTIVE_TENANT,
+        {
+          documentId,
+          decision: "REJECTED",
+          comment: "  Piece illisible  "
+        },
+        fetcher
+      )
+    ).resolves.toEqual({ kind: "success" });
+
+    const [, init] = fetcher.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+
+    expect(Object.keys(body)).toEqual(["decision", "comment"]);
+    expect(body).toEqual({
+      decision: "REJECTED",
+      comment: "Piece illisible"
+    });
+    expect(body).not.toHaveProperty("documentId");
+    expect(body).not.toHaveProperty("anchorCode");
+    expect(body).not.toHaveProperty("workpaperId");
+    expect(body).not.toHaveProperty("reviewComment");
+  });
+
+  it.each([
+    { status: 400, response: () => jsonResponse(400, {}), kind: "bad_request" },
+    { status: 401, response: () => jsonResponse(401, {}), kind: "auth_required" },
+    { status: 403, response: () => jsonResponse(403, {}), kind: "forbidden" },
+    { status: 404, response: () => jsonResponse(404, {}), kind: "not_found" },
+    {
+      status: 409,
+      response: () =>
+        jsonResponse(409, {
+          message: "Closing folder is archived and documents cannot be modified."
+        }),
+      kind: "conflict_archived"
+    },
+    {
+      status: 409,
+      response: () =>
+        jsonResponse(409, {
+          message: "Documents can only be modified when controls.readiness is READY."
+        }),
+      kind: "conflict_not_ready"
+    },
+    {
+      status: 409,
+      response: () =>
+        jsonResponse(409, {
+          message: "document belongs to a stale workpaper."
+        }),
+      kind: "conflict_stale"
+    },
+    {
+      status: 409,
+      response: () =>
+        jsonResponse(409, {
+          message: "document verification requires a workpaper in READY_FOR_REVIEW."
+        }),
+      kind: "conflict_workpaper_status"
+    },
+    {
+      status: 409,
+      response: () => jsonResponse(409, { message: "other conflict" }),
+      kind: "conflict_other"
+    },
+    { status: 500, response: () => jsonResponse(500, {}), kind: "server_error" },
+    { status: 418, response: () => jsonResponse(418, {}), kind: "unexpected" }
+  ])("maps POST /verification-decision HTTP $status to $kind", async ({ response, kind }) => {
+    const fetcher = vi.fn().mockResolvedValue(response());
+
+    await expect(
+      reviewDocumentVerificationDecision(
+        CLOSING_FOLDER.id,
+        ACTIVE_TENANT,
+        {
+          documentId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1",
+          decision: "VERIFIED"
+        },
+        fetcher
+      )
+    ).resolves.toEqual({ kind });
+  });
+
+  it("maps POST /verification-decision timeout and network failures", async () => {
+    const timeoutFetcher = vi.fn().mockRejectedValue(new Error("timeout"));
+    const networkFetcher = vi.fn().mockRejectedValue(new Error("network"));
+    const request = {
+      documentId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1",
+      decision: "VERIFIED" as const
+    };
+
+    await expect(
+      reviewDocumentVerificationDecision(CLOSING_FOLDER.id, ACTIVE_TENANT, request, timeoutFetcher)
+    ).resolves.toEqual({ kind: "timeout" });
+    await expect(
+      reviewDocumentVerificationDecision(CLOSING_FOLDER.id, ACTIVE_TENANT, request, networkFetcher)
+    ).resolves.toEqual({ kind: "network_error" });
+  });
+
+  it.each([
+    {
+      label: "id mismatch",
+      payload: () =>
+        createDocumentVerificationSuccessPayload({
+          documentId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2",
+          decision: "VERIFIED",
+          reviewComment: null
+        })
+    },
+    {
+      label: "decision mismatch",
+      payload: () =>
+        createDocumentVerificationSuccessPayload({
+          documentId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1",
+          decision: "REJECTED",
+          reviewComment: "Rejected"
+        })
+    },
+    {
+      label: "verified with comment",
+      payload: () =>
+        createDocumentVerificationSuccessPayload({
+          documentId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1",
+          decision: "VERIFIED",
+          reviewComment: "Unexpected"
+        })
+    },
+    {
+      label: "rejected comment mismatch",
+      request: {
+        documentId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1",
+        decision: "REJECTED" as const,
+        comment: "Expected"
+      },
+      payload: () =>
+        createDocumentVerificationSuccessPayload({
+          documentId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1",
+          decision: "REJECTED",
+          reviewComment: "Other"
+        })
+    }
+  ])("returns invalid_payload on POST /verification-decision success payload $label", async ({ payload, request }) => {
+    const fetcher = vi.fn().mockResolvedValue(jsonResponse(200, payload()));
+
+    await expect(
+      reviewDocumentVerificationDecision(
+        CLOSING_FOLDER.id,
+        ACTIVE_TENANT,
+        request ?? {
+          documentId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1",
+          decision: "VERIFIED"
+        },
+        fetcher
+      )
+    ).resolves.toEqual({ kind: "invalid_payload" });
   });
 
   it.each([

@@ -29,6 +29,7 @@ const makerWorkpaperStatusSchema = z.enum(["DRAFT", "READY_FOR_REVIEW"]);
 const uploadedDocumentMediaTypeSchema = z.enum(uploadedDocumentMediaTypes);
 
 const documentVerificationStatusSchema = z.enum(["UNVERIFIED", "VERIFIED", "REJECTED"]);
+const documentVerificationDecisionSchema = z.enum(["VERIFIED", "REJECTED"]);
 
 const summaryCountsSchema = z.object({
   totalCurrentAnchors: z.number().int().nonnegative(),
@@ -44,7 +45,8 @@ const workpaperDocumentSchema = z.object({
   fileName: z.string(),
   mediaType: z.string(),
   sourceLabel: z.string(),
-  verificationStatus: documentVerificationStatusSchema
+  verificationStatus: documentVerificationStatusSchema,
+  reviewComment: z.string().nullable()
 });
 
 const documentVerificationSummarySchema = z.object({
@@ -117,6 +119,12 @@ const documentUploadSuccessSchema = z.object({
   reviewedByUserId: z.null()
 });
 
+const documentVerificationDecisionSuccessSchema = z.object({
+  id: z.string().uuid(),
+  verificationStatus: documentVerificationDecisionSchema,
+  reviewComment: z.string().nullable()
+});
+
 export const DOCUMENT_UPLOAD_ALLOWED_MEDIA_TYPES = uploadedDocumentMediaTypes;
 export const DOCUMENT_UPLOAD_MAX_BYTES = 25 * 1024 * 1024;
 
@@ -125,6 +133,7 @@ export type WorkpaperReadiness = z.infer<typeof workpaperReadinessSchema>;
 export type WorkpaperStatus = z.infer<typeof workpaperStatusSchema>;
 export type MakerWorkpaperStatus = z.infer<typeof makerWorkpaperStatusSchema>;
 export type DocumentVerificationStatus = z.infer<typeof documentVerificationStatusSchema>;
+export type DocumentVerificationDecision = z.infer<typeof documentVerificationDecisionSchema>;
 export type WorkpaperSummaryCounts = z.infer<typeof summaryCountsSchema>;
 export type WorkpaperDocument = z.infer<typeof workpaperDocumentSchema>;
 export type DocumentVerificationSummary = z.infer<typeof documentVerificationSummarySchema>;
@@ -147,6 +156,16 @@ export type UploadWorkpaperDocumentRequest = {
 export type DownloadWorkpaperDocumentRequest = {
   documentId: string;
 };
+export type ReviewDocumentVerificationDecisionRequest =
+  | {
+      documentId: string;
+      decision: "VERIFIED";
+    }
+  | {
+      documentId: string;
+      decision: "REJECTED";
+      comment: string;
+    };
 
 export type WorkpapersShellState =
   | { kind: "loading" }
@@ -210,6 +229,23 @@ export type DownloadWorkpaperDocumentState =
   | { kind: "server_error" }
   | { kind: "timeout" }
   | { kind: "network_error" }
+  | { kind: "unexpected" };
+
+export type ReviewDocumentVerificationDecisionState =
+  | { kind: "success" }
+  | { kind: "bad_request" }
+  | { kind: "auth_required" }
+  | { kind: "forbidden" }
+  | { kind: "not_found" }
+  | { kind: "conflict_archived" }
+  | { kind: "conflict_not_ready" }
+  | { kind: "conflict_stale" }
+  | { kind: "conflict_workpaper_status" }
+  | { kind: "conflict_other" }
+  | { kind: "server_error" }
+  | { kind: "timeout" }
+  | { kind: "network_error" }
+  | { kind: "invalid_payload" }
   | { kind: "unexpected" };
 
 export async function loadWorkpapersShellState(
@@ -510,6 +546,84 @@ export async function downloadWorkpaperDocument(
   }
 }
 
+export async function reviewDocumentVerificationDecision(
+  closingFolderId: string,
+  activeTenant: ActiveTenant,
+  request: ReviewDocumentVerificationDecisionRequest,
+  fetcher: Fetcher = fetch
+): Promise<ReviewDocumentVerificationDecisionState> {
+  const body =
+    request.decision === "VERIFIED"
+      ? { decision: "VERIFIED" as const }
+      : { decision: "REJECTED" as const, comment: request.comment.trim() };
+
+  try {
+    const response = await requestJson(
+      `/api/closing-folders/${encodeURIComponent(closingFolderId)}/documents/${encodeURIComponent(request.documentId)}/verification-decision`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Tenant-Id": activeTenant.tenantId
+        },
+        body: JSON.stringify(body)
+      },
+      fetcher
+    );
+
+    if (response.status === 200) {
+      const payload = await readJsonBody(response);
+
+      if (payload === undefined) {
+        return { kind: "invalid_payload" };
+      }
+
+      const parsed = documentVerificationDecisionSuccessSchema.safeParse(payload);
+
+      if (
+        !parsed.success ||
+        !isDocumentVerificationDecisionSuccessCoherent(parsed.data, request)
+      ) {
+        return { kind: "invalid_payload" };
+      }
+
+      return { kind: "success" };
+    }
+
+    if (response.status === 400) {
+      return { kind: "bad_request" };
+    }
+
+    if (response.status === 401) {
+      return { kind: "auth_required" };
+    }
+
+    if (response.status === 403) {
+      return { kind: "forbidden" };
+    }
+
+    if (response.status === 404) {
+      return { kind: "not_found" };
+    }
+
+    if (response.status === 409) {
+      return refineConflictForDocumentVerification(await readErrorMessage(response));
+    }
+
+    if (response.status >= 500 && response.status <= 599) {
+      return { kind: "server_error" };
+    }
+
+    return { kind: "unexpected" };
+  } catch (error) {
+    if (error instanceof Error && error.message === "timeout") {
+      return { kind: "timeout" };
+    }
+
+    return { kind: "network_error" };
+  }
+}
+
 function isClosingWorkpapersCoherent(
   workpapers: ClosingWorkpapersReadModel,
   closingFolderId: string,
@@ -595,6 +709,21 @@ function isUploadedDocumentCoherent(
     (normalizedFileType === null || payload.mediaType === normalizedFileType) &&
     isDateTimeString(payload.createdAt)
   );
+}
+
+function isDocumentVerificationDecisionSuccessCoherent(
+  payload: z.infer<typeof documentVerificationDecisionSuccessSchema>,
+  request: ReviewDocumentVerificationDecisionRequest
+) {
+  if (payload.id !== request.documentId || payload.verificationStatus !== request.decision) {
+    return false;
+  }
+
+  if (request.decision === "VERIFIED") {
+    return payload.reviewComment === null;
+  }
+
+  return payload.reviewComment === request.comment.trim();
 }
 
 function isWorkpaperItemCoherent(item: WorkpaperReadModelItem, isCurrentStructure: boolean) {
@@ -717,6 +846,28 @@ function refineConflictForUpload(message: string | undefined): UploadWorkpaperDo
 
   if (message === "workpaper status does not allow document uploads.") {
     return { kind: "conflict_workpaper_read_only" };
+  }
+
+  return { kind: "conflict_other" };
+}
+
+function refineConflictForDocumentVerification(
+  message: string | undefined
+): ReviewDocumentVerificationDecisionState {
+  if (message === "Closing folder is archived and documents cannot be modified.") {
+    return { kind: "conflict_archived" };
+  }
+
+  if (message === "Documents can only be modified when controls.readiness is READY.") {
+    return { kind: "conflict_not_ready" };
+  }
+
+  if (message === "document belongs to a stale workpaper.") {
+    return { kind: "conflict_stale" };
+  }
+
+  if (message === "document verification requires a workpaper in READY_FOR_REVIEW.") {
+    return { kind: "conflict_workpaper_status" };
   }
 
   return { kind: "conflict_other" };

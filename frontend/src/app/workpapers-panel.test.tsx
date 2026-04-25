@@ -5,10 +5,12 @@ import { WorkpapersPanel } from "./workpapers-panel";
 import {
   downloadWorkpaperDocument,
   loadWorkpapersShellState,
+  reviewDocumentVerificationDecision,
   uploadWorkpaperDocument,
   upsertWorkpaper,
   type ClosingWorkpapersReadModel,
   type DownloadWorkpaperDocumentState,
+  type ReviewDocumentVerificationDecisionState,
   type UploadWorkpaperDocumentState,
   type WorkpaperEvidence,
   type WorkpapersShellState
@@ -24,6 +26,7 @@ vi.mock("../lib/api/workpapers", async () => {
     ...actual,
     downloadWorkpaperDocument: vi.fn(),
     loadWorkpapersShellState: vi.fn(),
+    reviewDocumentVerificationDecision: vi.fn(),
     uploadWorkpaperDocument: vi.fn(),
     upsertWorkpaper: vi.fn()
   };
@@ -51,6 +54,7 @@ type WorkpaperDocument = {
   mediaType: string;
   sourceLabel: string;
   verificationStatus: "UNVERIFIED" | "VERIFIED" | "REJECTED";
+  reviewComment: string | null;
 };
 
 type WorkpaperDetails = {
@@ -83,6 +87,7 @@ function createDocument(overrides: Partial<WorkpaperDocument> = {}): WorkpaperDo
     mediaType: "application/pdf",
     sourceLabel: "ERP",
     verificationStatus: "UNVERIFIED",
+    reviewComment: null,
     ...overrides
   };
 }
@@ -222,12 +227,14 @@ function getWorkpaperCard(anchorCode: string) {
 describe("workpapers panel", () => {
   const mockedDownload = vi.mocked(downloadWorkpaperDocument);
   const mockedLoadWorkpapers = vi.mocked(loadWorkpapersShellState);
+  const mockedReviewDecision = vi.mocked(reviewDocumentVerificationDecision);
   const mockedUpload = vi.mocked(uploadWorkpaperDocument);
   const mockedUpsert = vi.mocked(upsertWorkpaper);
 
   beforeEach(() => {
     mockedDownload.mockReset();
     mockedLoadWorkpapers.mockReset();
+    mockedReviewDecision.mockReset();
     mockedUpload.mockReset();
     mockedUpsert.mockReset();
   });
@@ -482,6 +489,534 @@ describe("workpapers panel", () => {
         screen.queryByRole("button", { name: "Telecharger le document" })
       ).not.toBeInTheDocument();
     }
+  });
+
+  it("renders document reviewer decision only for eligible current documents and never for stale documents", () => {
+    const workpapers = createWorkpapersModel({
+      items: [
+        createCurrentItem({
+          anchorCode: "BS.ASSET.READY",
+          anchorLabel: "Current assets ready",
+          workpaper: createWorkpaperDetails({
+            status: "READY_FOR_REVIEW",
+            noteText: "Ready"
+          }),
+          documents: [
+            createDocument({
+              id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee21",
+              fileName: "eligible.pdf"
+            })
+          ]
+        }),
+        createCurrentItem({
+          anchorCode: "BS.ASSET.DRAFT",
+          anchorLabel: "Current assets draft",
+          workpaper: createWorkpaperDetails({
+            status: "DRAFT",
+            noteText: "Draft"
+          }),
+          documents: [
+            createDocument({
+              id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee22",
+              fileName: "draft.pdf"
+            })
+          ]
+        })
+      ],
+      staleWorkpapers: [
+        createStaleItem({
+          anchorCode: "BS.ASSET.STALE",
+          documents: [
+            createDocument({
+              id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee23",
+              fileName: "stale.pdf"
+            })
+          ]
+        })
+      ]
+    });
+
+    renderPanel({ effectiveRoles: ["REVIEWER"], initialState: createReadyState(workpapers) });
+
+    const eligibleCard = getWorkpaperCard("BS.ASSET.READY");
+    const draftCard = getWorkpaperCard("BS.ASSET.DRAFT");
+    const staleCard = getWorkpaperCard("BS.ASSET.STALE");
+
+    expect(within(eligibleCard).getAllByText("Decision reviewer document")).toHaveLength(2);
+    expect(within(eligibleCard).getByLabelText("Decision reviewer document")).toHaveValue(
+      "VERIFIED"
+    );
+    expect(
+      within(eligibleCard).getByRole("button", { name: "Enregistrer la decision document" })
+    ).toBeEnabled();
+    expect(
+      within(draftCard).getByText(
+        "decision document disponible quand le workpaper est READY_FOR_REVIEW"
+      )
+    ).toBeInTheDocument();
+    expect(
+      within(draftCard).queryByRole("button", { name: "Enregistrer la decision document" })
+    ).not.toBeInTheDocument();
+    expect(within(staleCard).queryByText("Decision reviewer document")).not.toBeInTheDocument();
+    expect(
+      within(staleCard).queryByRole("button", { name: "Enregistrer la decision document" })
+    ).not.toBeInTheDocument();
+    expect(mockedReviewDecision).not.toHaveBeenCalled();
+    expect(mockedLoadWorkpapers).not.toHaveBeenCalled();
+  });
+
+  it("uses the document verification status and review comment as the initial local decision draft", () => {
+    renderPanel({
+      effectiveRoles: ["MANAGER"],
+      initialState: createReadyState(
+        createWorkpapersModel({
+          items: [
+            createCurrentItem({
+              workpaper: createWorkpaperDetails({
+                status: "READY_FOR_REVIEW",
+                noteText: "Ready"
+              }),
+              documents: [
+                createDocument({
+                  id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee24",
+                  fileName: "verified.pdf",
+                  verificationStatus: "VERIFIED"
+                }),
+                createDocument({
+                  id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee25",
+                  fileName: "rejected.pdf",
+                  verificationStatus: "REJECTED",
+                  reviewComment: "Piece illisible"
+                })
+              ]
+            })
+          ]
+        })
+      )
+    });
+
+    const card = getWorkpaperCard("BS.ASSET.CURRENT_SECTION");
+    const decisions = within(card).getAllByLabelText("Decision reviewer document");
+
+    expect(decisions[0]).toHaveValue("VERIFIED");
+    expect(decisions[1]).toHaveValue("REJECTED");
+    expect(within(card).getByLabelText("Commentaire reviewer")).toHaveValue("Piece illisible");
+  });
+
+  it.each([
+    {
+      label: "ACCOUNTANT only",
+      effectiveRoles: ["ACCOUNTANT"] as EffectiveRolesHint,
+      workpapers: createWorkpapersModel({
+        items: [
+          createCurrentItem({
+            workpaper: createWorkpaperDetails({
+              status: "READY_FOR_REVIEW",
+              noteText: "Ready"
+            }),
+            documents: [
+              createDocument({
+                id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee26"
+              })
+            ]
+          })
+        ]
+      }),
+      text: "verification reviewer en lecture seule"
+    },
+    {
+      label: "archived",
+      effectiveRoles: ["ADMIN"] as EffectiveRolesHint,
+      workpapers: createWorkpapersModel({
+        closingFolderStatus: "ARCHIVED",
+        items: [
+          createCurrentItem({
+            workpaper: createWorkpaperDetails({
+              status: "READY_FOR_REVIEW",
+              noteText: "Archived"
+            }),
+            documents: [
+              createDocument({
+                id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee27"
+              })
+            ]
+          })
+        ]
+      }),
+      text: "dossier archive, verification document en lecture seule"
+    },
+    {
+      label: "readiness blocked",
+      effectiveRoles: ["ADMIN"] as EffectiveRolesHint,
+      workpapers: createWorkpapersModel({
+        readiness: "BLOCKED",
+        items: [
+          createCurrentItem({
+            workpaper: createWorkpaperDetails({
+              status: "READY_FOR_REVIEW",
+              noteText: "Blocked"
+            }),
+            documents: [
+              createDocument({
+                id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee28"
+              })
+            ]
+          })
+        ]
+      }),
+      text: "verification document non modifiable tant que les controles ne sont pas READY"
+    },
+    {
+      label: "invalid document id",
+      effectiveRoles: ["ADMIN"] as EffectiveRolesHint,
+      workpapers: createWorkpapersModel({
+        items: [
+          createCurrentItem({
+            workpaper: createWorkpaperDetails({
+              status: "READY_FOR_REVIEW",
+              noteText: "Ready"
+            }),
+            documents: [
+              createDocument({
+                id: "not-a-uuid"
+              })
+            ]
+          })
+        ]
+      }),
+      text: "decision document indisponible"
+    }
+  ])("does not render reviewer affordance or emit POST for $label", ({ effectiveRoles, text, workpapers }) => {
+    renderPanel({ effectiveRoles, initialState: createReadyState(workpapers) });
+
+    expect(screen.getByText(text)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Enregistrer la decision document" })
+    ).not.toBeInTheDocument();
+    expect(mockedReviewDecision).not.toHaveBeenCalled();
+    expect(mockedLoadWorkpapers).not.toHaveBeenCalled();
+  });
+
+  it("does not emit requests while editing a document decision, then submits VERIFIED and refreshes only Workpapers", async () => {
+    const user = userEvent.setup();
+    const refreshedWorkpapers = createWorkpapersModel({
+      items: [
+        createCurrentItem({
+          workpaper: createWorkpaperDetails({
+            status: "READY_FOR_REVIEW",
+            noteText: "Ready"
+          }),
+          documents: [
+            createDocument({
+              id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee29",
+              fileName: "refreshed-verified.pdf",
+              verificationStatus: "VERIFIED"
+            })
+          ]
+        })
+      ]
+    });
+
+    mockedReviewDecision.mockResolvedValue({ kind: "success" });
+    mockedLoadWorkpapers.mockResolvedValue(createReadyState(refreshedWorkpapers));
+
+    renderPanel({
+      effectiveRoles: ["REVIEWER"],
+      initialState: createReadyState(
+        createWorkpapersModel({
+          items: [
+            createCurrentItem({
+              workpaper: createWorkpaperDetails({
+                status: "READY_FOR_REVIEW",
+                noteText: "Ready"
+              }),
+              documents: [
+                createDocument({
+                  id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee29",
+                  verificationStatus: "UNVERIFIED"
+                })
+              ]
+            })
+          ]
+        })
+      )
+    });
+
+    const card = getWorkpaperCard("BS.ASSET.CURRENT_SECTION");
+    await user.selectOptions(within(card).getByLabelText("Decision reviewer document"), "VERIFIED");
+
+    expect(mockedReviewDecision).not.toHaveBeenCalled();
+
+    await user.click(
+      within(card).getByRole("button", { name: "Enregistrer la decision document" })
+    );
+
+    expect(await screen.findByText("decision document enregistree avec succes")).toBeInTheDocument();
+    expect(await screen.findByText(/refreshed-verified\.pdf/)).toBeInTheDocument();
+    expect(mockedReviewDecision).toHaveBeenCalledWith(CLOSING_FOLDER.id, ACTIVE_TENANT, {
+      documentId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee29",
+      decision: "VERIFIED"
+    });
+    expect(mockedLoadWorkpapers).toHaveBeenCalledTimes(1);
+    expect(mockedLoadWorkpapers).toHaveBeenCalledWith(
+      CLOSING_FOLDER.id,
+      CLOSING_FOLDER,
+      ACTIVE_TENANT
+    );
+  });
+
+  it("requires a reviewer comment for REJECTED and sends the trimmed comment after explicit save", async () => {
+    const user = userEvent.setup();
+    mockedReviewDecision.mockResolvedValue({ kind: "success" });
+    mockedLoadWorkpapers.mockResolvedValue(
+      createReadyState(
+        createWorkpapersModel({
+          items: [
+            createCurrentItem({
+              workpaper: createWorkpaperDetails({
+                status: "READY_FOR_REVIEW",
+                noteText: "Ready"
+              }),
+              documents: [
+                createDocument({
+                  id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee30",
+                  verificationStatus: "REJECTED",
+                  reviewComment: "Piece illisible"
+                })
+              ]
+            })
+          ]
+        })
+      )
+    );
+
+    renderPanel({
+      effectiveRoles: ["ADMIN"],
+      initialState: createReadyState(
+        createWorkpapersModel({
+          items: [
+            createCurrentItem({
+              workpaper: createWorkpaperDetails({
+                status: "READY_FOR_REVIEW",
+                noteText: "Ready"
+              }),
+              documents: [
+                createDocument({
+                  id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee30",
+                  verificationStatus: "UNVERIFIED"
+                })
+              ]
+            })
+          ]
+        })
+      )
+    });
+
+    const card = getWorkpaperCard("BS.ASSET.CURRENT_SECTION");
+    await user.selectOptions(within(card).getByLabelText("Decision reviewer document"), "REJECTED");
+
+    expect(within(card).getByText("commentaire reviewer requis")).toBeInTheDocument();
+    expect(
+      within(card).getByRole("button", { name: "Enregistrer la decision document" })
+    ).toBeDisabled();
+    expect(mockedReviewDecision).not.toHaveBeenCalled();
+
+    await user.type(within(card).getByLabelText("Commentaire reviewer"), "  Piece illisible  ");
+    await user.click(
+      within(card).getByRole("button", { name: "Enregistrer la decision document" })
+    );
+
+    expect(await screen.findByText("decision document enregistree avec succes")).toBeInTheDocument();
+    expect(mockedReviewDecision).toHaveBeenCalledWith(CLOSING_FOLDER.id, ACTIVE_TENANT, {
+      documentId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee30",
+      decision: "REJECTED",
+      comment: "Piece illisible"
+    });
+    expect(mockedLoadWorkpapers).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows only one document decision in flight and disables other Workpapers actions during the POST", async () => {
+    const user = userEvent.setup();
+    mockedReviewDecision.mockReturnValue(new Promise(() => {}));
+
+    renderPanel({
+      effectiveRoles: ["MANAGER"],
+      initialState: createReadyState(
+        createWorkpapersModel({
+          items: [
+            createCurrentItem({
+              anchorCode: "BS.ASSET.ONE",
+              anchorLabel: "Current assets one",
+              workpaper: createWorkpaperDetails({
+                status: "READY_FOR_REVIEW",
+                noteText: "One"
+              }),
+              documents: [
+                createDocument({
+                  id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee31",
+                  fileName: "one.pdf"
+                })
+              ]
+            }),
+            createCurrentItem({
+              anchorCode: "BS.ASSET.TWO",
+              anchorLabel: "Current assets two",
+              workpaper: createWorkpaperDetails({
+                status: "READY_FOR_REVIEW",
+                noteText: "Two"
+              }),
+              documents: [
+                createDocument({
+                  id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee32",
+                  fileName: "two.pdf"
+                })
+              ]
+            })
+          ]
+        })
+      )
+    });
+
+    const firstCard = getWorkpaperCard("BS.ASSET.ONE");
+    const secondCard = getWorkpaperCard("BS.ASSET.TWO");
+
+    await user.click(
+      within(firstCard).getByRole("button", { name: "Enregistrer la decision document" })
+    );
+
+    expect(await screen.findByText("decision document en cours")).toBeInTheDocument();
+    expect(mockedReviewDecision).toHaveBeenCalledTimes(1);
+    expect(
+      within(secondCard).getByRole("button", { name: "Enregistrer la decision document" })
+    ).toBeDisabled();
+    expect(
+      within(secondCard).getByRole("button", { name: "Telecharger le document" })
+    ).toBeDisabled();
+
+    await user.click(
+      within(secondCard).getByRole("button", { name: "Enregistrer la decision document" })
+    );
+
+    expect(mockedReviewDecision).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the last rendered workpapers block visible and shows the refresh failure after a valid document decision success", async () => {
+    const user = userEvent.setup();
+    mockedReviewDecision.mockResolvedValue({ kind: "success" });
+    mockedLoadWorkpapers.mockResolvedValue({ kind: "server_error" });
+
+    renderPanel({
+      effectiveRoles: ["REVIEWER"],
+      initialState: createReadyState(
+        createWorkpapersModel({
+          items: [
+            createCurrentItem({
+              workpaper: createWorkpaperDetails({
+                status: "READY_FOR_REVIEW",
+                noteText: "Ready"
+              }),
+              documents: [
+                createDocument({
+                  id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee33"
+                })
+              ]
+            })
+          ]
+        })
+      )
+    });
+
+    const card = getWorkpaperCard("BS.ASSET.CURRENT_SECTION");
+    await user.click(
+      within(card).getByRole("button", { name: "Enregistrer la decision document" })
+    );
+
+    expect(await screen.findByText("decision document enregistree avec succes")).toBeInTheDocument();
+    expect(
+      await screen.findByText("rafraichissement workpapers impossible")
+    ).toBeInTheDocument();
+    expect(getWorkpaperCard("BS.ASSET.CURRENT_SECTION")).toBeInTheDocument();
+  });
+
+  it.each([
+    { label: "400", result: { kind: "bad_request" }, text: "decision document invalide" },
+    { label: "401", result: { kind: "auth_required" }, text: "authentification requise" },
+    {
+      label: "403",
+      result: { kind: "forbidden" },
+      text: "acces verification document refuse"
+    },
+    {
+      label: "404",
+      result: { kind: "not_found" },
+      text: "document introuvable pour decision"
+    },
+    {
+      label: "409 archived",
+      result: { kind: "conflict_archived" },
+      text: "dossier archive, verification document non modifiable"
+    },
+    {
+      label: "409 readiness",
+      result: { kind: "conflict_not_ready" },
+      text: "verification document non modifiable tant que les controles ne sont pas READY"
+    },
+    {
+      label: "409 stale",
+      result: { kind: "conflict_stale" },
+      text: "document indisponible sur un workpaper stale"
+    },
+    {
+      label: "409 workpaper status",
+      result: { kind: "conflict_workpaper_status" },
+      text: "decision document disponible quand le workpaper est READY_FOR_REVIEW"
+    },
+    {
+      label: "409 other",
+      result: { kind: "conflict_other" },
+      text: "decision document impossible"
+    },
+    { label: "5xx", result: { kind: "server_error" }, text: "erreur serveur documents" },
+    { label: "network", result: { kind: "network_error" }, text: "erreur reseau documents" },
+    { label: "timeout", result: { kind: "timeout" }, text: "timeout documents" },
+    {
+      label: "invalid payload",
+      result: { kind: "invalid_payload" },
+      text: "payload decision document invalide"
+    },
+    { label: "unexpected", result: { kind: "unexpected" }, text: "decision document indisponible" }
+  ])("renders the exact document decision mutation error '$text' on $label", async ({ result, text }) => {
+    const user = userEvent.setup();
+    mockedReviewDecision.mockResolvedValue(result as ReviewDocumentVerificationDecisionState);
+
+    renderPanel({
+      effectiveRoles: ["REVIEWER"],
+      initialState: createReadyState(
+        createWorkpapersModel({
+          items: [
+            createCurrentItem({
+              workpaper: createWorkpaperDetails({
+                status: "READY_FOR_REVIEW",
+                noteText: "Ready"
+              }),
+              documents: [
+                createDocument({
+                  id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee34"
+                })
+              ]
+            })
+          ]
+        })
+      )
+    });
+
+    const card = getWorkpaperCard("BS.ASSET.CURRENT_SECTION");
+    await user.click(
+      within(card).getByRole("button", { name: "Enregistrer la decision document" })
+    );
+
+    expect(await screen.findByText(text)).toBeInTheDocument();
+    expect(mockedLoadWorkpapers).not.toHaveBeenCalled();
   });
 
   it.each([
