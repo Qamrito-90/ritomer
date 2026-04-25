@@ -1,7 +1,7 @@
 # 026 - Frontend workpapers panel decomposition v1
 
 ## Status
-Active
+Done
 
 ## Role de cette spec
 
@@ -399,10 +399,10 @@ Les helpers extraits doivent etre testes sous `frontend/src/app/workpapers-panel
 
 ## Criteres d'acceptation structurels exacts
 
-- `specs/active/026-frontend-workpapers-panel-decomposition-v1.md` existe et est la seule spec active.
+- `specs/done/026-frontend-workpapers-panel-decomposition-v1.md` existe avec `Status: Done`.
 - `specs/done/025-frontend-document-verification-decision-only-v1.md` existe avec `Status: Done`.
-- `docs/product/v1-plan.md` liste `025` en livre et `026` en active.
-- `docs/present/ux-cadrage-v1.md` et `docs/present/architecture-cadrage-v1.md` couvrent les capacites closes jusqu'a `025`.
+- `docs/product/v1-plan.md` liste `026` en livre et aucune spec active.
+- `docs/present/ux-cadrage-v1.md` et `docs/present/architecture-cadrage-v1.md` restent vrais sans changement car `026` ne change aucune verite UX ou architecture du present.
 - Aucun fichier `backend/**` n'est modifie.
 - Aucun fichier `contracts/**` n'est modifie.
 - Aucun nouveau fichier `contracts/**` n'est cree.
