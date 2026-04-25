@@ -91,12 +91,122 @@ Une mission est terminée seulement si :
 - les fichiers modifiés sont listés
 - les points de vigilance restants sont signalés
 
+## Fresh Evidence Pack obligatoire
+À la fin de toute tâche Codex, fournir un Fresh Evidence Pack final, court, factuel, vérifiable et proportionné à la surface de mission.
+
+Ne jamais inclure de secret, token, clé, cookie, DSN, credential ou valeur `.env` dans le Fresh Evidence Pack. Si une vérification dépend d’un secret local, indiquer seulement que le check n’a pas été exécuté et pourquoi.
+
+Si un élément du Fresh Evidence Pack n’est pas applicable, écrire `AUCUN`. Si une information n’est pas déterminée, écrire `NON DÉTERMINÉ` sans l’inventer.
+
+Surfaces possibles :
+- `DOCS_ONLY` / `DOCS_GIT`
+- `FRONTEND`
+- `BACKEND`
+- `DB/MIGRATION`
+- `CI/GIT`
+- `CONTRACTS`
+- `FULLSTACK`
+
+Le Fresh Evidence Pack final doit contenir :
+1. Résumé métier ou documentaire.
+2. Demande initiale ou plan validé.
+3. Surface de mission.
+4. Liste exacte des fichiers modifiés.
+5. Résumé précis du diff par fichier.
+6. Commandes réellement exécutées.
+7. Sorties fraîches des tests/checks.
+8. Statut Git final.
+9. Tests ajoutés ou modifiés.
+10. Tests non exécutés avec justification.
+11. Écarts éventuels par rapport au plan validé.
+12. Risques résiduels.
+13. Revue humaine recommandée ou non si le changement touche :
+    - migration DB ;
+    - authentification ;
+    - autorisation ;
+    - séparation tenant ;
+    - audit ;
+    - données sensibles ;
+    - suppression de données ;
+    - règle métier critique ;
+    - nouvelle dépendance ;
+    - changement d’architecture ;
+    - production ;
+    - irréversibilité métier.
+
 ## Commandes de base
-- Build : `cd backend && ./gradlew build`
-- Tests : `cd backend && ./gradlew test`
-- Tests DB optionnels : `cd backend && ./gradlew dbIntegrationTest` avec une configuration PostgreSQL explicite
-- Vérification modulith : `cd backend && ./gradlew test --tests *ApplicationModule*`
-- Lancer en local : `cd backend && ./gradlew bootRun --args='--spring.profiles.active=local'`
+- Build backend :
+```powershell
+Push-Location backend
+try {
+  .\gradlew.bat build
+} finally {
+  Pop-Location
+}
+```
+- Tests backend :
+```powershell
+Push-Location backend
+try {
+  .\gradlew.bat test
+} finally {
+  Pop-Location
+}
+```
+- Tests DB optionnels avec une configuration PostgreSQL explicite :
+```powershell
+Push-Location backend
+try {
+  .\gradlew.bat dbIntegrationTest
+} finally {
+  Pop-Location
+}
+```
+- Vérification modulith :
+```powershell
+Push-Location backend
+try {
+  .\gradlew.bat test --tests "*ApplicationModule*"
+} finally {
+  Pop-Location
+}
+```
+- Lancer le backend en local :
+```powershell
+Push-Location backend
+try {
+  .\gradlew.bat bootRun --args='--spring.profiles.active=local'
+} finally {
+  Pop-Location
+}
+```
+- Tests frontend CI :
+```powershell
+Push-Location frontend
+try {
+  pnpm test:ci
+} finally {
+  Pop-Location
+}
+```
+- Lint frontend :
+```powershell
+Push-Location frontend
+try {
+  pnpm lint
+} finally {
+  Pop-Location
+}
+```
+- Build frontend :
+```powershell
+Push-Location frontend
+try {
+  pnpm build
+} finally {
+  Pop-Location
+}
+```
 
 ## Interdits
 - Ne pas introduire de microservice sans ADR ni trigger clair.
