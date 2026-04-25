@@ -1,7 +1,7 @@
 # 025 - Frontend document verification decision only v1
 
 ## Status
-Active
+Done
 
 ## Role de cette spec
 
@@ -804,7 +804,7 @@ Rendu :
 
 ## Criteres d'acceptation frontend
 
-- `specs/active/025-frontend-document-verification-decision-only-v1.md` existe.
+- `specs/done/025-frontend-document-verification-decision-only-v1.md` existe.
 - `/closing-folders/:closingFolderId` reste l'unique route produit enrichie.
 - `WorkpapersPanel` reste la frontiere unique de la surface `Workpapers`.
 - Un seul nouvel endpoint frontend est ajoute :
