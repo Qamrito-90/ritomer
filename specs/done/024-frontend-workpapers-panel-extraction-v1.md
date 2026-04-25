@@ -1,7 +1,7 @@
 # 024 - Frontend workpapers panel extraction v1
 
 ## Status
-Active
+Done
 
 ## Role de cette spec
 
@@ -283,7 +283,7 @@ Elle borne le plus petit chantier de scalabilite frontend legitime apres `023` p
 
 ## Criteres d acceptation exacts
 
-- `specs/active/024-frontend-workpapers-panel-extraction-v1.md` existe
+- `specs/done/024-frontend-workpapers-panel-extraction-v1.md` existe
 - `frontend/src/app/router.tsx` n embarque plus la majorite de la logique locale `Workpapers`
 - `frontend/src/app/router.tsx` rend `Workpapers` via une frontiere dediee `WorkpapersPanel`
 - `router.tsx` conserve le routing, le shell global, `GET /api/me`, `GET /api/closing-folders/{id}`, le chargement initial parallele deja existant des blocs et la composition finale de la page
