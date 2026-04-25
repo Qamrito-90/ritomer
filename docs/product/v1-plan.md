@@ -51,9 +51,10 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `specs/done/022-frontend-document-upload-only-v1.md`
 - `specs/done/023-frontend-document-download-only-v1.md`
 - `specs/done/024-frontend-workpapers-panel-extraction-v1.md`
+- `specs/done/025-frontend-document-verification-decision-only-v1.md`
 
 ### Active
-- `specs/active/025-frontend-document-verification-decision-only-v1.md`
+- `specs/active/026-frontend-workpapers-panel-decomposition-v1.md`
 
 ### Decisions figees
 - Le flux V1 livre est maintenant `closing -> import -> mapping -> controls -> financial-summary -> financial-statements-structured -> workpapers -> document-storage-and-evidence-files -> exports-audit-ready`.
@@ -78,6 +79,7 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `022-frontend-document-upload-only-v1` ferme le premier upload frontend unitaire de document sur `/closing-folders/:closingFolderId`, strictement dans le bloc `Workpapers`, en gardant `GET /workpapers` comme read-model canonique avant et apres succes et en n'ajoutant que `POST /workpapers/{anchorCode}/documents`.
 - `023-frontend-document-download-only-v1` ferme le premier download frontend unitaire de document sur `/closing-folders/:closingFolderId`, strictement dans le bloc `Workpapers`, en gardant `GET /workpapers` comme read-model canonique avant le clic, en n'ajoutant que `GET /documents/{documentId}/content`, et sans refresh apres succes ou echec.
 - `024-frontend-workpapers-panel-extraction-v1` ferme l'extraction frontend stricte de la surface `Workpapers` dans `WorkpapersPanel`, sans nouvelle route produit, sans nouvel endpoint, sans changement backend ou OpenAPI, et sans reintroduire la logique locale Workpapers dans `router.tsx`.
+- `025-frontend-document-verification-decision-only-v1` ferme la decision reviewer document unitaire dans `WorkpapersPanel`, sur les documents current eligibles deja visibles, en ajoutant seulement `POST /documents/{documentId}/verification-decision`, avec refresh local strict de `GET /workpapers` apres succes payload valide, sans decision reviewer workpaper, sans nouveau backend ni contrat OpenAPI.
 - `evidence-review-and-verification-v1` ajoute `DOCUMENT.VERIFICATION_UPDATED` pour toute mutation reviewer reussie sur `document`, sans audit sur no-op, lecture, backfill ni creation automatique de la ligne initiale.
 - `document-storage-and-evidence-files-v1` persiste les metadata en PostgreSQL, stocke le binaire en object storage prive, et impose un download backend-only sans signed URL publique.
 - Le role de `document-storage-and-evidence-files-v1` dans la sequence V1 est de fermer le noyau evidence-first utile avant les couches futures d'export, d'annexe ou d'IA active.
