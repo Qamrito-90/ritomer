@@ -55,7 +55,7 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `specs/done/026-frontend-workpapers-panel-decomposition-v1.md`
 
 ### Active
-- Aucune spec active.
+- `specs/active/027-annexe-minimale-v1.md`
 
 ### Decisions figees
 - Le flux V1 livre est maintenant `closing -> import -> mapping -> controls -> financial-summary -> financial-statements-structured -> workpapers -> document-storage-and-evidence-files -> exports-audit-ready`.

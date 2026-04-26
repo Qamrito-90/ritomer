@@ -1,0 +1,558 @@
+openapi: 3.1.1
+info:
+  title: Minimal Annex API
+  version: 0.1.0
+paths:
+  /api/closing-folders/{closingFolderId}/minimal-annex:
+    get:
+      operationId: getClosingFolderMinimalAnnex
+      summary: Return the derived minimal operational annex read-model for a closing folder
+      description: >
+        Returns a deterministic, tenant-scoped, GET-only read-model derived at request time.
+        The payload is operational only, non-statutory, not a PDF, not a signature, and always
+        requires human review before any committed use.
+      parameters:
+        - in: header
+          name: X-Tenant-Id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: closingFolderId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Minimal annex read-model returned as READY or BLOCKED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MinimalAnnexReadModel"
+              examples:
+                readyNominal:
+                  summary: READY nominal
+                  value:
+                    closingFolderId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+                    closingFolderStatus: DRAFT
+                    readiness: READY
+                    annexState: READY
+                    presentationType: MINIMAL_OPERATIONAL_ANNEX
+                    isStatutory: false
+                    requiresHumanReview: true
+                    legalNotice:
+                      title: "Annexe minimale operationnelle, non statutaire."
+                      notOfficialCoAnnex: "Ne remplace pas une annexe officielle CO."
+                      noAutomaticValidation: "Aucune validation comptable automatique n'est effectuee."
+                      humanReviewRequired: "Revue humaine requise avant tout usage engageant."
+                    basis:
+                      controlsReadiness: READY
+                      latestImportVersion: 3
+                      taxonomyVersion: 2
+                      structuredStatementState: PREVIEW_READY
+                      structuredPresentationType: STRUCTURED_PREVIEW
+                      exportPack:
+                        exportPackId: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+                        createdAt: "2025-01-04T00:00:00Z"
+                        basisImportVersion: 3
+                        basisTaxonomyVersion: 2
+                    blockers: []
+                    warnings: []
+                    annex:
+                      financialStatements:
+                        presentationType: STRUCTURED_PREVIEW
+                        latestImportVersion: 3
+                        taxonomyVersion: 2
+                        balanceSheet:
+                          groups:
+                            - code: BS.ASSET
+                              label: Asset
+                              total: "100"
+                              breakdowns:
+                                - code: BS.ASSET.CURRENT_SECTION
+                                  label: Current assets
+                                  breakdownType: SECTION
+                                  total: "100"
+                          totals:
+                            totalAssets: "100"
+                            totalLiabilities: "0"
+                            totalEquity: "0"
+                            currentPeriodResult: "100"
+                            totalLiabilitiesAndEquity: "100"
+                        incomeStatement:
+                          groups:
+                            - code: PL.REVENUE
+                              label: Revenue
+                              total: "100"
+                              breakdowns:
+                                - code: PL.REVENUE.OPERATING_SECTION
+                                  label: Operating revenue
+                                  breakdownType: SECTION
+                                  total: "100"
+                          totals:
+                            totalRevenue: "100"
+                            totalExpenses: "0"
+                            netResult: "100"
+                      workpapers:
+                        - anchorCode: BS.ASSET.CURRENT_SECTION
+                          anchorLabel: Current assets
+                          summaryBucketCode: BS.ASSET
+                          statementKind: BALANCE_SHEET
+                          breakdownType: SECTION
+                          workpaperId: "cccccccc-cccc-cccc-cccc-cccccccccccc"
+                          noteText: "Cash tie-out reviewed."
+                          reviewedAt: "2025-01-03T00:00:00Z"
+                          reviewedByUserId: "dddddddd-dddd-dddd-dddd-dddddddddddd"
+                          documents:
+                            - documentId: "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"
+                              fileName: support.pdf
+                              mediaType: application/pdf
+                              byteSize: 128
+                              checksumSha256: "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+                              sourceLabel: ERP
+                              documentDate: "2024-12-31"
+                              verificationStatus: VERIFIED
+                              evidenceRole: VERIFIED_SUPPORT
+                      evidenceSummary:
+                        currentWorkpaperCount: 1
+                        attachedDocumentCount: 1
+                        verifiedDocumentCount: 1
+                        rejectedDocumentTraceCount: 0
+                        staleWorkpaperExcludedCount: 0
+                        currentWorkpaperWithoutDocumentCount: 0
+                      preparationLimits:
+                        - "Read-model operationnel derive au moment de la requete."
+                        - "Aucun snapshot d'annexe n'est persiste."
+                        - "Aucun PDF, signature ou validation automatique n'est produit."
+                        - "Revue humaine requise avant tout usage engageant."
+                blockedBusinessGate:
+                  summary: BLOCKED business gate
+                  value:
+                    closingFolderId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+                    closingFolderStatus: DRAFT
+                    readiness: BLOCKED
+                    annexState: BLOCKED
+                    presentationType: MINIMAL_OPERATIONAL_ANNEX
+                    isStatutory: false
+                    requiresHumanReview: true
+                    legalNotice:
+                      title: "Annexe minimale operationnelle, non statutaire."
+                      notOfficialCoAnnex: "Ne remplace pas une annexe officielle CO."
+                      noAutomaticValidation: "Aucune validation comptable automatique n'est effectuee."
+                      humanReviewRequired: "Revue humaine requise avant tout usage engageant."
+                    basis:
+                      controlsReadiness: BLOCKED
+                      latestImportVersion: null
+                      taxonomyVersion: 2
+                      structuredStatementState: NO_DATA
+                      structuredPresentationType: STRUCTURED_PREVIEW
+                      exportPack: null
+                    blockers:
+                      - code: CLOSING_NOT_READY
+                        message: Closing controls are not ready.
+                        source: CONTROLS
+                        target: null
+                      - code: EXPORT_PACK_MISSING
+                        message: No audit-ready export pack exists for this closing folder.
+                        source: EXPORT_PACK
+                        target: null
+                    warnings: []
+                    annex: null
+        "400":
+          description: Invalid tenant header, invalid identifier, or out-of-scope annex request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MinimalAnnexError"
+              examples:
+                invalidTenant:
+                  summary: Invalid tenant header
+                  value:
+                    code: INVALID_TENANT_HEADER
+                    message: X-Tenant-Id must be a valid UUID.
+                statutoryConfusion:
+                  summary: Statutory request rejected
+                  value:
+                    code: ANNEX_STATUTORY_CONFUSION_REJECTED
+                    message: Statutory, official, signed or definitive annex requests are out of scope.
+                formatOutOfScope:
+                  summary: PDF or storage output request rejected
+                  value:
+                    code: ANNEX_OUTPUT_FORMAT_OUT_OF_SCOPE
+                    message: Minimal annex is JSON-only in this slice.
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MinimalAnnexError"
+              examples:
+                authenticationRequired:
+                  value:
+                    code: AUTHENTICATION_REQUIRED
+                    message: Authentication is required.
+        "403":
+          description: Tenant inaccessible, inactive membership, inactive tenant, or role insufficient
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MinimalAnnexError"
+              examples:
+                forbidden:
+                  value:
+                    code: TENANT_OR_ROLE_FORBIDDEN
+                    message: Tenant or role does not allow reading the minimal annex.
+        "404":
+          description: Closing folder absent or outside tenant
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MinimalAnnexError"
+              examples:
+                notFound:
+                  value:
+                    code: CLOSING_FOLDER_NOT_FOUND
+                    message: Closing folder not found.
+components:
+  schemas:
+    MinimalAnnexReadModel:
+      type: object
+      additionalProperties: false
+      required:
+        - closingFolderId
+        - closingFolderStatus
+        - readiness
+        - annexState
+        - presentationType
+        - isStatutory
+        - requiresHumanReview
+        - legalNotice
+        - basis
+        - blockers
+        - warnings
+        - annex
+      properties:
+        closingFolderId: { type: string, format: uuid }
+        closingFolderStatus:
+          type: string
+          enum: [DRAFT, ARCHIVED]
+        readiness:
+          type: string
+          enum: [READY, BLOCKED]
+        annexState:
+          type: string
+          enum: [READY, BLOCKED]
+        presentationType:
+          type: string
+          enum: [MINIMAL_OPERATIONAL_ANNEX]
+        isStatutory:
+          type: boolean
+          enum: [false]
+          description: Always false. This read-model is not statutory.
+        requiresHumanReview:
+          type: boolean
+          enum: [true]
+          description: Always true. Human review is required before committed use.
+        legalNotice:
+          $ref: "#/components/schemas/MinimalAnnexLegalNotice"
+        basis:
+          $ref: "#/components/schemas/MinimalAnnexBasis"
+        blockers:
+          type: array
+          items:
+            $ref: "#/components/schemas/MinimalAnnexIssue"
+        warnings:
+          type: array
+          items:
+            $ref: "#/components/schemas/MinimalAnnexIssue"
+        annex:
+          oneOf:
+            - $ref: "#/components/schemas/MinimalAnnexContent"
+            - type: "null"
+          description: Null whenever annexState is BLOCKED.
+    MinimalAnnexLegalNotice:
+      type: object
+      additionalProperties: false
+      required: [title, notOfficialCoAnnex, noAutomaticValidation, humanReviewRequired]
+      properties:
+        title: { type: string }
+        notOfficialCoAnnex: { type: string }
+        noAutomaticValidation: { type: string }
+        humanReviewRequired: { type: string }
+    MinimalAnnexBasis:
+      type: object
+      additionalProperties: false
+      required:
+        - controlsReadiness
+        - latestImportVersion
+        - taxonomyVersion
+        - structuredStatementState
+        - structuredPresentationType
+        - exportPack
+      properties:
+        controlsReadiness:
+          type: [string, "null"]
+          enum: [READY, BLOCKED, null]
+        latestImportVersion:
+          type: [integer, "null"]
+          minimum: 1
+        taxonomyVersion:
+          type: [integer, "null"]
+          minimum: 1
+        structuredStatementState:
+          type: [string, "null"]
+          enum: [NO_DATA, BLOCKED, PREVIEW_READY, null]
+        structuredPresentationType:
+          type: [string, "null"]
+          enum: [STRUCTURED_PREVIEW, null]
+        exportPack:
+          oneOf:
+            - $ref: "#/components/schemas/MinimalAnnexExportPackBasis"
+            - type: "null"
+    MinimalAnnexExportPackBasis:
+      type: object
+      additionalProperties: false
+      required: [exportPackId, createdAt, basisImportVersion, basisTaxonomyVersion]
+      properties:
+        exportPackId: { type: string, format: uuid }
+        createdAt: { type: string, format: date-time }
+        basisImportVersion: { type: integer, minimum: 1 }
+        basisTaxonomyVersion: { type: integer, minimum: 1 }
+    MinimalAnnexIssue:
+      type: object
+      additionalProperties: false
+      required: [code, message, source, target]
+      properties:
+        code:
+          type: string
+          enum:
+            - CLOSING_NOT_READY
+            - STRUCTURED_FINANCIAL_STATEMENTS_MISSING
+            - STRUCTURED_FINANCIAL_STATEMENTS_NOT_PREVIEW_READY
+            - STATUTORY_SOURCE_REJECTED
+            - CURRENT_WORKPAPER_MISSING
+            - CURRENT_WORKPAPER_NOT_REVIEWED
+            - DOCUMENT_UNVERIFIED
+            - EXPORT_PACK_MISSING
+            - EXPORT_PACK_BASIS_MISMATCH
+            - STALE_WORKPAPERS_EXCLUDED
+            - DOCUMENT_REJECTED_INCLUDED_AS_TRACE
+            - NO_DOCUMENT_ATTACHED
+            - LEGACY_MAPPING_FALLBACK_USED
+        message: { type: string }
+        source:
+          type: string
+          enum: [CONTROLS, FINANCIAL_STATEMENTS_STRUCTURED, WORKPAPERS, DOCUMENTS, EXPORT_PACK]
+        target:
+          oneOf:
+            - $ref: "#/components/schemas/MinimalAnnexIssueTarget"
+            - type: "null"
+    MinimalAnnexIssueTarget:
+      type: object
+      additionalProperties: false
+      required: [type, code, id]
+      properties:
+        type:
+          type: string
+          enum: [WORKPAPER_ANCHOR, DOCUMENT, EXPORT_PACK]
+        code:
+          type: [string, "null"]
+        id:
+          type: [string, "null"]
+    MinimalAnnexContent:
+      type: object
+      additionalProperties: false
+      required: [financialStatements, workpapers, evidenceSummary, preparationLimits]
+      properties:
+        financialStatements:
+          $ref: "#/components/schemas/MinimalAnnexFinancialStatements"
+        workpapers:
+          type: array
+          items:
+            $ref: "#/components/schemas/MinimalAnnexWorkpaper"
+        evidenceSummary:
+          $ref: "#/components/schemas/MinimalAnnexEvidenceSummary"
+        preparationLimits:
+          type: array
+          minItems: 1
+          items: { type: string }
+    MinimalAnnexFinancialStatements:
+      type: object
+      additionalProperties: false
+      required: [presentationType, latestImportVersion, taxonomyVersion, balanceSheet, incomeStatement]
+      properties:
+        presentationType:
+          type: string
+          enum: [STRUCTURED_PREVIEW]
+        latestImportVersion: { type: integer, minimum: 1 }
+        taxonomyVersion: { type: integer, minimum: 1 }
+        balanceSheet:
+          $ref: "#/components/schemas/StructuredBalanceSheet"
+        incomeStatement:
+          $ref: "#/components/schemas/StructuredIncomeStatement"
+    StructuredBalanceSheet:
+      type: object
+      additionalProperties: false
+      required: [groups, totals]
+      properties:
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/StructuredStatementGroup"
+        totals:
+          $ref: "#/components/schemas/StructuredBalanceSheetTotals"
+    StructuredIncomeStatement:
+      type: object
+      additionalProperties: false
+      required: [groups, totals]
+      properties:
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/StructuredStatementGroup"
+        totals:
+          $ref: "#/components/schemas/StructuredIncomeStatementTotals"
+    StructuredStatementGroup:
+      type: object
+      additionalProperties: false
+      required: [code, label, total, breakdowns]
+      properties:
+        code: { type: string }
+        label: { type: string }
+        total: { type: string }
+        breakdowns:
+          type: array
+          items:
+            $ref: "#/components/schemas/StructuredStatementBreakdown"
+    StructuredStatementBreakdown:
+      type: object
+      additionalProperties: false
+      required: [code, label, breakdownType, total]
+      properties:
+        code: { type: string }
+        label: { type: string }
+        breakdownType:
+          type: string
+          enum: [SECTION, LEGACY_BUCKET_FALLBACK]
+        total: { type: string }
+    StructuredBalanceSheetTotals:
+      type: object
+      additionalProperties: false
+      required:
+        - totalAssets
+        - totalLiabilities
+        - totalEquity
+        - currentPeriodResult
+        - totalLiabilitiesAndEquity
+      properties:
+        totalAssets: { type: string }
+        totalLiabilities: { type: string }
+        totalEquity: { type: string }
+        currentPeriodResult: { type: string }
+        totalLiabilitiesAndEquity: { type: string }
+    StructuredIncomeStatementTotals:
+      type: object
+      additionalProperties: false
+      required: [totalRevenue, totalExpenses, netResult]
+      properties:
+        totalRevenue: { type: string }
+        totalExpenses: { type: string }
+        netResult: { type: string }
+    MinimalAnnexWorkpaper:
+      type: object
+      additionalProperties: false
+      required:
+        - anchorCode
+        - anchorLabel
+        - summaryBucketCode
+        - statementKind
+        - breakdownType
+        - workpaperId
+        - noteText
+        - reviewedAt
+        - reviewedByUserId
+        - documents
+      properties:
+        anchorCode: { type: string }
+        anchorLabel: { type: string }
+        summaryBucketCode: { type: string }
+        statementKind:
+          type: string
+          enum: [BALANCE_SHEET, INCOME_STATEMENT]
+        breakdownType:
+          type: string
+          enum: [SECTION, LEGACY_BUCKET_FALLBACK]
+        workpaperId: { type: string, format: uuid }
+        noteText: { type: string }
+        reviewedAt:
+          type: [string, "null"]
+          format: date-time
+        reviewedByUserId:
+          type: [string, "null"]
+          format: uuid
+        documents:
+          type: array
+          items:
+            $ref: "#/components/schemas/MinimalAnnexDocumentTrace"
+    MinimalAnnexDocumentTrace:
+      type: object
+      additionalProperties: false
+      required:
+        - documentId
+        - fileName
+        - mediaType
+        - byteSize
+        - checksumSha256
+        - sourceLabel
+        - documentDate
+        - verificationStatus
+        - evidenceRole
+      properties:
+        documentId: { type: string, format: uuid }
+        fileName: { type: string }
+        mediaType: { type: string }
+        byteSize: { type: integer, minimum: 1 }
+        checksumSha256:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
+        sourceLabel: { type: string }
+        documentDate:
+          type: [string, "null"]
+          format: date
+        verificationStatus:
+          type: string
+          enum: [VERIFIED, REJECTED]
+        evidenceRole:
+          type: string
+          enum: [VERIFIED_SUPPORT, REJECTED_TRACE]
+    MinimalAnnexEvidenceSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - currentWorkpaperCount
+        - attachedDocumentCount
+        - verifiedDocumentCount
+        - rejectedDocumentTraceCount
+        - staleWorkpaperExcludedCount
+        - currentWorkpaperWithoutDocumentCount
+      properties:
+        currentWorkpaperCount: { type: integer, minimum: 0 }
+        attachedDocumentCount: { type: integer, minimum: 0 }
+        verifiedDocumentCount: { type: integer, minimum: 0 }
+        rejectedDocumentTraceCount: { type: integer, minimum: 0 }
+        staleWorkpaperExcludedCount: { type: integer, minimum: 0 }
+        currentWorkpaperWithoutDocumentCount: { type: integer, minimum: 0 }
+    MinimalAnnexError:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum:
+            - INVALID_TENANT_HEADER
+            - INVALID_REQUEST
+            - ANNEX_STATUTORY_CONFUSION_REJECTED
+            - ANNEX_OUTPUT_FORMAT_OUT_OF_SCOPE
+            - AUTHENTICATION_REQUIRED
+            - TENANT_OR_ROLE_FORBIDDEN
+            - CLOSING_FOLDER_NOT_FOUND
+        message: { type: string }
