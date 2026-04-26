@@ -1,6 +1,6 @@
 # Pull Request
 
-Si un champ n’est pas applicable, écrire `AUCUN`.  
+Si un champ n’est pas applicable, écrire `AUCUN`.
 Si une information n’est pas déterminée, écrire `NON DÉTERMINÉ`.
 
 ## Résumé
