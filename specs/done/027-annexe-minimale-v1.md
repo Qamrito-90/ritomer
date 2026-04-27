@@ -1,7 +1,7 @@
 # 027 - Annexe minimale V1
 
 ## Status
-Active
+Done
 
 ## Phase
 HARDENING
@@ -9,11 +9,13 @@ HARDENING
 ## Risk
 C
 
-`027` cadre une future implementation a risque `C`, meme si cette mission de cadrage est `DOCS_ONLY`, car l'implementation touchera des donnees financieres, du tenant scope, du RBAC, des preuves, des workpapers, des exports et des regles metier de closing.
+`027` a cadre puis livre une implementation a risque `C`, car elle touche des donnees financieres, du tenant scope, du RBAC, des preuves, des workpapers, des exports et des regles metier de closing.
 
 ## Role de cette spec
 
-Transformer le plan `Annexe minimale` en une spec executable, petite, testable et bornee.
+Cette spec devient la verite normative de `027`.
+
+Elle transforme le plan `Annexe minimale` en une capacite executable, petite, testable et bornee.
 
 L'annexe minimale V1 est un livrable operationnel non statutaire. Elle aide une fiduciaire a relire le dossier de closing, les previews financieres, les workpapers et les preuves disponibles. Elle ne remplace pas une annexe officielle CO, ne constitue pas une validation comptable automatique et exige une revue humaine avant tout usage engageant.
 
@@ -46,10 +48,11 @@ L'annexe minimale V1 est un livrable operationnel non statutaire. Elle aide une 
 - `contracts/openapi/financial-summary-api.yaml`
 - `contracts/openapi/workpapers-api.yaml`
 - `contracts/openapi/documents-api.yaml`
+- `contracts/openapi/minimal-annex-api.yaml`
 
 ## Decision de premier slice
 
-Le premier slice futur de `027` est choisi et n'est pas une option ouverte :
+Le premier slice livre de `027` est choisi et n'est pas une option ouverte :
 
 - read-model backend deterministe
 - REST-first
@@ -63,11 +66,11 @@ Le premier slice futur de `027` est choisi et n'est pas une option ouverte :
 - sans UI riche dans ce slice
 - exposable plus tard a une UI ou a un export dedie par une autre spec
 
-Le chemin canonique cible pour l'implementation future est :
+Le chemin canonique livre est :
 
 - `GET /api/closing-folders/{closingFolderId}/minimal-annex`
 
-Cette mission documentaire ne cree pas le contrat OpenAPI. Le contrat devra etre ajoute seulement pendant la future implementation du read-model, dans une PR qui touche explicitement `contracts/openapi/*`.
+Le contrat OpenAPI livre est `contracts/openapi/minimal-annex-api.yaml`. Cette fermeture documentaire ne modifie pas les contrats OpenAPI.
 
 ## Decisions produit figees
 
@@ -83,9 +86,9 @@ Cette mission documentaire ne cree pas le contrat OpenAPI. Le contrat devra etre
 - Elle ne modifie aucun export pack existant.
 - Elle ne cree pas de nouveau snapshot durable en V1.
 
-## Forme du read-model cible
+## Forme du read-model
 
-Le read-model cible reste conceptuel dans cette spec tant que le contrat OpenAPI n'est pas cree.
+Le read-model est derive au moment de la requete et reste borne par le contrat OpenAPI livre.
 
 Top-level minimal attendu :
 
@@ -113,7 +116,7 @@ Regles :
 
 ## Wording obligatoire de prudence
 
-Le wording exact pourra etre ajuste par la future PR UI/contrat, mais les idees suivantes sont obligatoires et testables :
+Le wording exact pourra etre ajuste par une future PR UI ou contractuelle explicite, mais les idees suivantes restent obligatoires et testables :
 
 - "Annexe minimale operationnelle, non statutaire."
 - "Ne remplace pas une annexe officielle CO."
@@ -124,7 +127,7 @@ Le read-model ne doit jamais contenir de libelle qui presente cette annexe comme
 
 ## Sources de donnees autorisees
 
-Le read-model cible derive uniquement de sources deja presentes :
+Le read-model derive uniquement de sources deja presentes :
 
 - closing folder resolu tenant-safe
 - `controls::access` pour `readiness`, blockers et next action
@@ -199,9 +202,9 @@ Lecture autorisee pour :
 
 Le premier slice ne cree aucune mutation. Toute future mutation de validation, signature, export ou approbation devra faire l'objet d'une spec separee.
 
-## Architecture cible
+## Architecture livree
 
-- module proprietaire cible pour ce premier slice : `exports`
+- module proprietaire pour ce premier slice : `exports`
 - le read-model est implante dans `exports`, sans persistance additionnelle et sans modifier les packs existants
 - dependances autorisees :
   - `shared::application`
@@ -227,7 +230,7 @@ Le premier slice est `GET` only :
 
 Si une future spec introduit une validation, une signature, une generation persistante ou un export d'annexe, elle devra definir un audit append-only dedie.
 
-## In scope futur exact
+## In scope livre exact
 
 - contrat OpenAPI dedie pour `GET /api/closing-folders/{closingFolderId}/minimal-annex`
 - implementation backend du read-model deterministe
@@ -267,7 +270,7 @@ Si une future spec introduit une validation, une signature, une generation persi
 
 Aucun test runtime backend ou frontend ne doit etre lance pour cette mission documentaire.
 
-### Checks backend futurs
+### Checks backend de l'implementation
 
 - unit tests du calcul `annexState`, `blockers[]`, `warnings[]` et blocs
 - API tests auth/header/tenant/RBAC
@@ -276,7 +279,7 @@ Aucun test runtime backend ou frontend ne doit etre lance pour cette mission doc
 - API tests `ARCHIVED` lisible quand les sources sont coherentes
 - verification Modulith si dependances ou named interfaces sont ajoutees
 
-### Checks contrats futurs
+### Checks contrats de l'implementation
 
 - ajout ou mise a jour de `contracts/openapi/*` pour le read-model
 - exemples nominaux, bloques et erreurs
@@ -309,7 +312,7 @@ Seulement si une spec UI ulterieure expose l'annexe :
 - tests de navigation depuis dossier vers annex read-model sans nouvelle source de verite locale
 - lint, tests CI et build frontend selon `TESTING_STRATEGY.md`
 
-## Tests d'acceptation futurs minimaux
+## Tests d'acceptation minimaux
 
 ### Cas nominal
 
@@ -360,11 +363,11 @@ Seulement si une spec UI ulterieure expose l'annexe :
 
 ## Criteres d'acceptation de la spec
 
-- `specs/active/027-annexe-minimale-v1.md` existe avec `Status: Active`.
-- `docs/product/v1-plan.md` declare `027` comme spec active.
+- `specs/done/027-annexe-minimale-v1.md` existe avec `Status: Done`.
+- `docs/product/v1-plan.md` declare `027` comme spec livree et aucune spec active.
 - La spec choisit un seul premier slice : read-model backend deterministe, non persiste, non exporte, non statutaire.
 - La spec interdit explicitement annexe officielle/statutaire, PDF CO definitif, IA generative, GraphQL, signed URLs publiques, mutation retroactive d'export packs, validation comptable automatique, ecriture IA directe en base et migration DB tant que la persistance n'est pas decidee.
 - La spec definit les blocs minimaux avec sources, obligation, etat vide, conditions de blocage et wording de prudence.
 - La spec definit les gates demandes de facon testable.
-- La spec distingue les checks docs-only de cette PR et les checks backend, contrats, DB et frontend futurs.
-- Le risque futur reste `C`.
+- La spec distingue les checks docs-only de cette PR, les checks d'implementation et les checks DB/frontend futurs.
+- Le risque reste `C`.

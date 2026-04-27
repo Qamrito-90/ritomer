@@ -53,14 +53,15 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `specs/done/024-frontend-workpapers-panel-extraction-v1.md`
 - `specs/done/025-frontend-document-verification-decision-only-v1.md`
 - `specs/done/026-frontend-workpapers-panel-decomposition-v1.md`
+- `specs/done/027-annexe-minimale-v1.md`
 
 ### Active
-- `specs/active/027-annexe-minimale-v1.md`
+Aucune spec active.
 
 ### Decisions figees
-- Le flux V1 livre est maintenant `closing -> import -> mapping -> controls -> financial-summary -> financial-statements-structured -> workpapers -> document-storage-and-evidence-files -> exports-audit-ready`.
+- Le flux V1 livre est maintenant `closing -> import -> mapping -> controls -> financial-summary -> financial-statements-structured -> workpapers -> document-storage-and-evidence-files -> exports-audit-ready -> minimal-annex`.
 - Les endpoints canoniques restent sous `/api/closing-folders/...`.
-- `controls-v1`, `financial-summary-v1` et `financial-statements-structured-v1` sont des read-models derives, `GET only`, sans persistance de resultat.
+- `controls-v1`, `financial-summary-v1`, `financial-statements-structured-v1` et `minimal-annex-v1` sont des read-models derives, `GET only`, sans persistance de resultat.
 - `financial-summary-v1` reste une preview ultra-synthetique, non statutaire, non export final, non conforme a une presentation CO detaillee, et peut rester partielle tant que le closing n'est pas `PREVIEW_READY`.
 - `financial-statements-structured-v1` reste une `STRUCTURED_PREVIEW`, avec `isStatutory = false`, sans export final ni presentation CO detaillee complete, et n'expose aucun etat structure hors `PREVIEW_READY`.
 - La taxonomie de mapping publiee coexiste desormais en V1 / V2 ; les codes V1 restent legacy et compatibles, `financial-summary-v1` agrege via `summaryBucketCode`, et `financial-statements-structured-v1` structure via `summaryBucketCode` puis `sectionCode` avec fallback legacy explicite quand aucune section detaillee n'existe.
@@ -83,11 +84,12 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `025-frontend-document-verification-decision-only-v1` ferme la decision reviewer document unitaire dans `WorkpapersPanel`, sur les documents current eligibles deja visibles, en ajoutant seulement `POST /documents/{documentId}/verification-decision`, avec refresh local strict de `GET /workpapers` apres succes payload valide, sans decision reviewer workpaper, sans nouveau backend ni contrat OpenAPI.
 - `evidence-review-and-verification-v1` ajoute `DOCUMENT.VERIFICATION_UPDATED` pour toute mutation reviewer reussie sur `document`, sans audit sur no-op, lecture, backfill ni creation automatique de la ligne initiale.
 - `document-storage-and-evidence-files-v1` persiste les metadata en PostgreSQL, stocke le binaire en object storage prive, et impose un download backend-only sans signed URL publique.
-- Le role de `document-storage-and-evidence-files-v1` dans la sequence V1 est de fermer le noyau evidence-first utile avant les couches futures d'export, d'annexe ou d'IA active.
+- Le role de `document-storage-and-evidence-files-v1` dans la sequence V1 est de fermer le noyau evidence-first utile avant les couches d'export, d'annexe backend minimale et d'IA active future.
 - `exports-audit-ready-v1` ajoute le module proprietaire `exports`, une persistance immutable `export_pack`, un `ZIP` strictement deterministe et un replay idempotent durable borne par `export_pack` seul en V1.
 - `exports-audit-ready-v1` assemble `controls`, `financial-summary`, `financial-statements-structured`, les current workpapers persistants et leurs documents visibles, sans exposition de `storage_object_key`, sans signed URL publique et sans audit sur les lectures.
+- `027-annexe-minimale-v1` livre `GET /api/closing-folders/{closingFolderId}/minimal-annex` comme read-model backend deterministe, tenant-scoped, non statutaire, non persiste, non exporte, sans PDF, sans IA et sans `audit_event` sur `GET`.
 - Les lectures sur `ARCHIVED` restent autorisees si le tenant et le RBAC sont valides.
-- Les lectures `GET` sur `controls`, `financial-summary`, `financial-statements-structured` et `workpapers` n'ecrivent aucun `audit_event`.
+- Les lectures `GET` sur `controls`, `financial-summary`, `financial-statements-structured`, `workpapers` et `minimal-annex` n'ecrivent aucun `audit_event`.
 - Les tests PostgreSQL reels restent opt-in via `dbIntegrationTest`, sans Docker local requis.
 
 ### Validation PostgreSQL reelle locale
