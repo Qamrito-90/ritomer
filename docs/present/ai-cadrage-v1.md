@@ -9,13 +9,14 @@ Il ne remplace ni la vision IA, ni le playbook IA, ni les contrats et garde-fous
 ## Ce qui est vrai maintenant
 
 - Le produit est AI-ready, pas AI-led.
-- L'IA n'est pas encore une capacite structurante du runtime courant dans le present couvert par les specs closes jusqu'a `013`.
+- Le repo vivant est clos jusqu'a `027`, mais l'IA n'est toujours pas une capacite structurante du runtime courant.
 - Le coeur metier reste deterministe, tenant-scoped, audit-ready et utilisable sans IA.
 - L'IA future doit entrer via le backend et des ports applicatifs stables, pas par des appels modele directs depuis le frontend.
 - Toute capacite IA metier du present ou du futur proche doit rester evidence-first, structured-output et human-in-the-loop.
 - Aucune ecriture directe en base par l'IA n'est autorisee.
 - Le produit doit continuer a fonctionner si l'IA est indisponible.
-- La premiere capacite IA credible reste le mapping assiste, gouverne et activable plus tard dans la sequence V1, pas une conversation generale ni une autonomie agentique.
+- Aucune spec livree jusqu'a `027` n'active de microservice IA obligatoire, de flux metier pilote par modele ou de generation IA runtime.
+- La premiere capacite IA credible reste le mapping assiste, gouverne et candidat futur dans la sequence V1, pas une implementation runtime active, une conversation generale ni une autonomie agentique.
 - Le repo porte deja les premiers artefacts vivants de gouvernance IA : schema contractuel, prompt guardrail, evals, retrieval policy et runbook d'incident.
 
 ## Ce qui est explicitement hors scope maintenant
