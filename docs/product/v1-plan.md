@@ -54,9 +54,10 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `specs/done/025-frontend-document-verification-decision-only-v1.md`
 - `specs/done/026-frontend-workpapers-panel-decomposition-v1.md`
 - `specs/done/027-annexe-minimale-v1.md`
+- `specs/done/028-docs-present-realignment-after-027-v1.md`
 
 ### Active
-- `specs/active/028-docs-present-realignment-after-027-v1.md`
+Aucune spec active.
 
 ### Decisions figees
 - Le flux V1 livre est maintenant `closing -> import -> mapping -> controls -> financial-summary -> financial-statements-structured -> workpapers -> document-storage-and-evidence-files -> exports-audit-ready -> minimal-annex`.
@@ -88,7 +89,7 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `exports-audit-ready-v1` ajoute le module proprietaire `exports`, une persistance immutable `export_pack`, un `ZIP` strictement deterministe et un replay idempotent durable borne par `export_pack` seul en V1.
 - `exports-audit-ready-v1` assemble `controls`, `financial-summary`, `financial-statements-structured`, les current workpapers persistants et leurs documents visibles, sans exposition de `storage_object_key`, sans signed URL publique et sans audit sur les lectures.
 - `027-annexe-minimale-v1` livre `GET /api/closing-folders/{closingFolderId}/minimal-annex` comme read-model backend deterministe, tenant-scoped, non statutaire, non persiste, non exporte, sans PDF, sans IA et sans `audit_event` sur `GET`.
-- `028-docs-present-realignment-after-027-v1` est une spec `DOCS_ONLY` de realignement documentaire cible du present UX/IA apres `027`, sans creation de capacite produit, sans changement runtime, sans rouverture de `027` et sans ouverture d'une spec produit suivante.
+- `028-docs-present-realignment-after-027-v1` a ferme une spec `DOCS_ONLY` de realignement documentaire cible du present UX/IA apres `027`, sans creation de capacite produit, sans changement runtime, sans rouverture de `027` et sans ouverture d'une spec produit suivante.
 - Les lectures sur `ARCHIVED` restent autorisees si le tenant et le RBAC sont valides.
 - Les lectures `GET` sur `controls`, `financial-summary`, `financial-statements-structured`, `workpapers` et `minimal-annex` n'ecrivent aucun `audit_event`.
 - Les tests PostgreSQL reels restent opt-in via `dbIntegrationTest`, sans Docker local requis.

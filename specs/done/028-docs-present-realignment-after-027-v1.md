@@ -1,7 +1,7 @@
 # 028 - Docs present realignment after 027 v1
 
 ## Status
-Active
+Done
 
 ## Phase
 IMPLEMENTATION
