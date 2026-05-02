@@ -13,8 +13,9 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 7. Document storage and evidence files V1
 8. Exports audit-ready
 9. Annexe minimale
-10. IA mapping assiste
-11. Hardening
+10. Pilot closing workflow E2E confidence hardening
+11. IA mapping assiste
+12. Hardening
 
 ## Principes V1
 - workflow closing reel avant sophistication
@@ -57,7 +58,12 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `specs/done/028-docs-present-realignment-after-027-v1.md`
 
 ### Active
-Aucune spec active.
+- `specs/active/029-pilot-closing-workflow-e2e-confidence-hardening-v1.md`
+  - Titre : Spec 029 - Pilot Closing Workflow E2E Confidence Hardening V1
+  - Statut : Active
+  - Surface probable : FRONTEND_FIRST / POSSIBLE_FULLSTACK_IF_API_GAP
+  - Risque : C pour implementation future
+  - Objectif : rendre le workflow V1 pilotable de bout en bout depuis l'interface pour une fiduciaire pilote, en exposant ou finalisant les capacites backend/contrats deja livrees sans activer l'IA mapping assiste.
 
 ### Decisions figees
 - Le flux V1 livre est maintenant `closing -> import -> mapping -> controls -> financial-summary -> financial-statements-structured -> workpapers -> document-storage-and-evidence-files -> exports-audit-ready -> minimal-annex`.
