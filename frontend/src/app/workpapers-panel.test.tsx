@@ -6,11 +6,13 @@ import {
   downloadWorkpaperDocument,
   loadWorkpapersShellState,
   reviewDocumentVerificationDecision,
+  reviewWorkpaperDecision,
   uploadWorkpaperDocument,
   upsertWorkpaper,
   type ClosingWorkpapersReadModel,
   type DownloadWorkpaperDocumentState,
   type ReviewDocumentVerificationDecisionState,
+  type ReviewWorkpaperDecisionState,
   type UploadWorkpaperDocumentState,
   type WorkpaperEvidence,
   type WorkpapersShellState
@@ -27,6 +29,7 @@ vi.mock("../lib/api/workpapers", async () => {
     downloadWorkpaperDocument: vi.fn(),
     loadWorkpapersShellState: vi.fn(),
     reviewDocumentVerificationDecision: vi.fn(),
+    reviewWorkpaperDecision: vi.fn(),
     uploadWorkpaperDocument: vi.fn(),
     upsertWorkpaper: vi.fn()
   };
@@ -60,6 +63,7 @@ type WorkpaperDocument = {
 type WorkpaperDetails = {
   status: "DRAFT" | "READY_FOR_REVIEW" | "CHANGES_REQUESTED" | "REVIEWED";
   noteText: string;
+  reviewComment?: string | null;
   evidences: WorkpaperEvidence[];
 };
 
@@ -228,6 +232,7 @@ describe("workpapers panel", () => {
   const mockedDownload = vi.mocked(downloadWorkpaperDocument);
   const mockedLoadWorkpapers = vi.mocked(loadWorkpapersShellState);
   const mockedReviewDecision = vi.mocked(reviewDocumentVerificationDecision);
+  const mockedReviewWorkpaperDecision = vi.mocked(reviewWorkpaperDecision);
   const mockedUpload = vi.mocked(uploadWorkpaperDocument);
   const mockedUpsert = vi.mocked(upsertWorkpaper);
 
@@ -235,6 +240,7 @@ describe("workpapers panel", () => {
     mockedDownload.mockReset();
     mockedLoadWorkpapers.mockReset();
     mockedReviewDecision.mockReset();
+    mockedReviewWorkpaperDecision.mockReset();
     mockedUpload.mockReset();
     mockedUpsert.mockReset();
   });
@@ -1017,6 +1023,367 @@ describe("workpapers panel", () => {
 
     expect(await screen.findByText(text)).toBeInTheDocument();
     expect(mockedLoadWorkpapers).not.toHaveBeenCalled();
+  });
+
+  it("submits REVIEWED workpaper decision, refreshes Workpapers, and does not call unrelated flows", async () => {
+    const user = userEvent.setup();
+    const refreshedWorkpapers = createWorkpapersModel({
+      items: [
+        createCurrentItem({
+          anchorCode: "BS.ASSET.READY",
+          anchorLabel: "Current assets ready",
+          workpaper: createWorkpaperDetails({
+            status: "REVIEWED",
+            noteText: "Ready support"
+          })
+        })
+      ]
+    });
+
+    mockedReviewWorkpaperDecision.mockResolvedValue({ kind: "success" });
+    mockedLoadWorkpapers.mockResolvedValue(createReadyState(refreshedWorkpapers));
+
+    const { container } = renderPanel({
+      effectiveRoles: ["REVIEWER"],
+      initialState: createReadyState(
+        createWorkpapersModel({
+          items: [
+            createCurrentItem({
+              anchorCode: "BS.ASSET.READY",
+              anchorLabel: "Current assets ready",
+              workpaper: createWorkpaperDetails({
+                status: "READY_FOR_REVIEW",
+                noteText: "Ready support"
+              })
+            })
+          ]
+        })
+      )
+    });
+
+    const card = getWorkpaperCard("BS.ASSET.READY");
+    expect(within(card).getAllByText("Decision reviewer workpaper")).toHaveLength(2);
+    expect(within(card).getByLabelText("Decision reviewer workpaper")).toHaveValue("REVIEWED");
+
+    await user.click(within(card).getByRole("button", { name: "Save reviewer decision" }));
+
+    expect(await screen.findByText("workpaper decision saved")).toBeInTheDocument();
+    expect(screen.getByText("etat workpaper : REVIEWED")).toBeInTheDocument();
+    expect(mockedReviewWorkpaperDecision).toHaveBeenCalledWith(
+      CLOSING_FOLDER.id,
+      ACTIVE_TENANT,
+      {
+        anchorCode: "BS.ASSET.READY",
+        decision: "REVIEWED"
+      }
+    );
+    expect(mockedLoadWorkpapers).toHaveBeenCalledTimes(1);
+    expect(mockedLoadWorkpapers).toHaveBeenCalledWith(
+      CLOSING_FOLDER.id,
+      CLOSING_FOLDER,
+      ACTIVE_TENANT
+    );
+    expect(mockedUpsert).not.toHaveBeenCalled();
+    expect(mockedUpload).not.toHaveBeenCalled();
+    expect(mockedDownload).not.toHaveBeenCalled();
+    const hiddenStorageTerms = [
+      "storage" + "_object_key",
+      "storage" + "ObjectKey",
+      "signed" + " URL"
+    ];
+    const forbiddenWording = [
+      "CO" + "-ready",
+      "statutory" + "-ready",
+      "official" + " financial statements",
+      "automatically" + " approved",
+      "AI" + "-approved",
+      "final" + " CO annex",
+      "final" + " accounts approved",
+      "statutory" + " approval"
+    ];
+
+    for (const term of [...hiddenStorageTerms, ...forbiddenWording]) {
+      expect(container).not.toHaveTextContent(new RegExp(term, "i"));
+    }
+    expect(container.innerHTML).not.toContain("local" + "Storage");
+    expect(container.innerHTML).not.toContain("session" + "Storage");
+  });
+
+  it("shows an existing CHANGES_REQUESTED reviewer comment without calling any API or exposing forbidden terms", () => {
+    const { container } = renderPanel({
+      effectiveRoles: ["ACCOUNTANT"],
+      initialState: createReadyState(
+        createWorkpapersModel({
+          items: [
+            createCurrentItem({
+              anchorCode: "BS.ASSET.CHANGES",
+              anchorLabel: "Current assets changes",
+              workpaper: createWorkpaperDetails({
+                status: "CHANGES_REQUESTED",
+                noteText: "Ready support",
+                reviewComment: "  Add the missing bank reconciliation evidence.  "
+              })
+            })
+          ]
+        })
+      )
+    });
+
+    const card = getWorkpaperCard("BS.ASSET.CHANGES");
+    expect(within(card).getByText("Reviewer requested changes")).toBeInTheDocument();
+    expect(
+      within(card).getByText("Add the missing bank reconciliation evidence.")
+    ).toBeInTheDocument();
+    expect(mockedReviewWorkpaperDecision).not.toHaveBeenCalled();
+    expect(mockedReviewDecision).not.toHaveBeenCalled();
+    expect(mockedLoadWorkpapers).not.toHaveBeenCalled();
+    expect(mockedUpsert).not.toHaveBeenCalled();
+    expect(mockedUpload).not.toHaveBeenCalled();
+    expect(mockedDownload).not.toHaveBeenCalled();
+
+    const hiddenStorageTerms = [
+      "storage" + "_object_key",
+      "storage" + "ObjectKey",
+      "signed" + " URL"
+    ];
+    const forbiddenWording = [
+      "CO" + "-ready",
+      "statutory" + "-ready",
+      "official" + " financial statements",
+      "automatically" + " approved",
+      "AI" + "-approved",
+      "final" + " CO annex",
+      "final" + " accounts approved",
+      "statutory" + " approval"
+    ];
+
+    for (const term of [...hiddenStorageTerms, ...forbiddenWording]) {
+      expect(container).not.toHaveTextContent(new RegExp(term, "i"));
+    }
+    expect(container.innerHTML).not.toContain("local" + "Storage");
+    expect(container.innerHTML).not.toContain("session" + "Storage");
+  });
+
+  it("sends CHANGES_REQUESTED workpaper decision with a trimmed reviewer comment", async () => {
+    const user = userEvent.setup();
+    mockedReviewWorkpaperDecision.mockResolvedValue({ kind: "success" });
+    mockedLoadWorkpapers.mockResolvedValue(
+      createReadyState(
+        createWorkpapersModel({
+          items: [
+            createCurrentItem({
+              anchorCode: "BS.ASSET.READY",
+              anchorLabel: "Current assets ready",
+              workpaper: createWorkpaperDetails({
+                status: "CHANGES_REQUESTED",
+                noteText: "Ready support",
+                reviewComment: "Evidence incomplete"
+              })
+            })
+          ]
+        })
+      )
+    );
+
+    renderPanel({
+      effectiveRoles: ["ADMIN"],
+      initialState: createReadyState(
+        createWorkpapersModel({
+          items: [
+            createCurrentItem({
+              anchorCode: "BS.ASSET.READY",
+              anchorLabel: "Current assets ready",
+              workpaper: createWorkpaperDetails({
+                status: "READY_FOR_REVIEW",
+                noteText: "Ready support"
+              })
+            })
+          ]
+        })
+      )
+    });
+
+    const card = getWorkpaperCard("BS.ASSET.READY");
+    await user.selectOptions(
+      within(card).getByLabelText("Decision reviewer workpaper"),
+      "CHANGES_REQUESTED"
+    );
+    expect(mockedReviewWorkpaperDecision).not.toHaveBeenCalled();
+
+    await user.type(within(card).getByLabelText("Reviewer comment"), "  Evidence incomplete  ");
+    await user.click(within(card).getByRole("button", { name: "Save reviewer decision" }));
+
+    expect(await screen.findByText("workpaper decision saved")).toBeInTheDocument();
+    expect(mockedReviewWorkpaperDecision).toHaveBeenCalledWith(
+      CLOSING_FOLDER.id,
+      ACTIVE_TENANT,
+      {
+        anchorCode: "BS.ASSET.READY",
+        decision: "CHANGES_REQUESTED",
+        comment: "Evidence incomplete"
+      }
+    );
+    expect(mockedLoadWorkpapers).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses empty CHANGES_REQUESTED workpaper comments before the API call", async () => {
+    const user = userEvent.setup();
+
+    renderPanel({
+      effectiveRoles: ["MANAGER"],
+      initialState: createReadyState(
+        createWorkpapersModel({
+          items: [
+            createCurrentItem({
+              anchorCode: "BS.ASSET.READY",
+              anchorLabel: "Current assets ready",
+              workpaper: createWorkpaperDetails({
+                status: "READY_FOR_REVIEW",
+                noteText: "Ready support"
+              })
+            })
+          ]
+        })
+      )
+    });
+
+    const card = getWorkpaperCard("BS.ASSET.READY");
+    await user.selectOptions(
+      within(card).getByLabelText("Decision reviewer workpaper"),
+      "CHANGES_REQUESTED"
+    );
+    await user.type(within(card).getByLabelText("Reviewer comment"), "   ");
+
+    expect(within(card).getAllByText("Reviewer comment")).toHaveLength(2);
+    expect(within(card).getByRole("button", { name: "Save reviewer decision" })).toBeDisabled();
+    expect(mockedReviewWorkpaperDecision).not.toHaveBeenCalled();
+    expect(mockedLoadWorkpapers).not.toHaveBeenCalled();
+  });
+
+  it("prevents double-submit while a workpaper decision is loading", async () => {
+    const user = userEvent.setup();
+    mockedReviewWorkpaperDecision.mockReturnValue(new Promise(() => {}));
+
+    renderPanel({
+      effectiveRoles: ["REVIEWER"],
+      initialState: createReadyState(
+        createWorkpapersModel({
+          items: [
+            createCurrentItem({
+              anchorCode: "BS.ASSET.ONE",
+              anchorLabel: "Current assets one",
+              workpaper: createWorkpaperDetails({
+                status: "READY_FOR_REVIEW",
+                noteText: "One"
+              })
+            }),
+            createCurrentItem({
+              anchorCode: "BS.ASSET.TWO",
+              anchorLabel: "Current assets two",
+              workpaper: createWorkpaperDetails({
+                status: "READY_FOR_REVIEW",
+                noteText: "Two"
+              })
+            })
+          ]
+        })
+      )
+    });
+
+    const firstCard = getWorkpaperCard("BS.ASSET.ONE");
+    const secondCard = getWorkpaperCard("BS.ASSET.TWO");
+
+    await user.click(within(firstCard).getByRole("button", { name: "Save reviewer decision" }));
+
+    expect(mockedReviewWorkpaperDecision).toHaveBeenCalledTimes(1);
+    expect(
+      within(firstCard).getByRole("button", { name: "Save reviewer decision" })
+    ).toBeDisabled();
+    expect(
+      within(secondCard).getByRole("button", { name: "Save reviewer decision" })
+    ).toBeDisabled();
+
+    await user.click(within(secondCard).getByRole("button", { name: "Save reviewer decision" }));
+
+    expect(mockedReviewWorkpaperDecision).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    {
+      label: "403",
+      result: { kind: "forbidden" },
+      text: "workpaper decision refused"
+    },
+    {
+      label: "404",
+      result: { kind: "not_found" },
+      text: "workpaper not found for decision"
+    },
+    {
+      label: "409 generic",
+      result: { kind: "conflict_other" },
+      text: "workpaper decision blocked by current review gates"
+    }
+  ])("renders the exact workpaper decision error '$text' on $label without refreshing", async ({ result, text }) => {
+    const user = userEvent.setup();
+    mockedReviewWorkpaperDecision.mockResolvedValue(result as ReviewWorkpaperDecisionState);
+
+    renderPanel({
+      effectiveRoles: ["REVIEWER"],
+      initialState: createReadyState(
+        createWorkpapersModel({
+          items: [
+            createCurrentItem({
+              anchorCode: "BS.ASSET.READY",
+              anchorLabel: "Current assets ready",
+              workpaper: createWorkpaperDetails({
+                status: "READY_FOR_REVIEW",
+                noteText: "Ready support"
+              })
+            })
+          ]
+        })
+      )
+    });
+
+    const card = getWorkpaperCard("BS.ASSET.READY");
+    await user.click(within(card).getByRole("button", { name: "Save reviewer decision" }));
+
+    expect(await screen.findByText(text)).toBeInTheDocument();
+    expect(mockedLoadWorkpapers).not.toHaveBeenCalled();
+  });
+
+  it("keeps the last rendered block visible and reports refresh failure after workpaper decision success", async () => {
+    const user = userEvent.setup();
+    mockedReviewWorkpaperDecision.mockResolvedValue({ kind: "success" });
+    mockedLoadWorkpapers.mockResolvedValue({ kind: "server_error" });
+
+    renderPanel({
+      effectiveRoles: ["REVIEWER"],
+      initialState: createReadyState(
+        createWorkpapersModel({
+          items: [
+            createCurrentItem({
+              anchorCode: "BS.ASSET.READY",
+              anchorLabel: "Current assets ready",
+              workpaper: createWorkpaperDetails({
+                status: "READY_FOR_REVIEW",
+                noteText: "Ready support"
+              })
+            })
+          ]
+        })
+      )
+    });
+
+    const card = getWorkpaperCard("BS.ASSET.READY");
+    await user.click(within(card).getByRole("button", { name: "Save reviewer decision" }));
+
+    expect(await screen.findByText("workpaper decision saved")).toBeInTheDocument();
+    expect(
+      await screen.findByText("decision sent, but workpapers refresh failed")
+    ).toBeInTheDocument();
+    expect(getWorkpaperCard("BS.ASSET.READY")).toBeInTheDocument();
   });
 
   it.each([

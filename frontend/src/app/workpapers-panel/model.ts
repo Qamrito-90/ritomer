@@ -7,18 +7,22 @@ import {
   type MakerWorkpaperStatus,
   type WorkpaperDocument,
   type WorkpaperEvidence,
-  type WorkpaperReadModelItem
+  type WorkpaperReadModelItem,
+  type WorkpaperReviewDecision
 } from "../../lib/api/workpapers";
 import type {
   DocumentDecisionDraft,
   DocumentDecisionState,
   DocumentUploadDraft,
   DocumentUploadState,
+  WorkpaperDecisionDraft,
+  WorkpaperDecisionState,
   WorkpaperDraft,
   WorkpaperMutationState
 } from "./types";
 
 const workpaperWritableRoles = new Set(["ACCOUNTANT", "MANAGER", "ADMIN"]);
+const workpaperReviewerRoles = new Set(["REVIEWER", "MANAGER", "ADMIN"]);
 const documentReadableRoles = new Set(["ACCOUNTANT", "REVIEWER", "MANAGER", "ADMIN"]);
 const documentReviewerRoles = new Set(["REVIEWER", "MANAGER", "ADMIN"]);
 const documentUploadAllowedExtensions = new Set([
@@ -62,6 +66,12 @@ export function createDocumentDecisionDrafts(workpapers: ClosingWorkpapersReadMo
   return Object.fromEntries(entries) as Record<string, DocumentDecisionDraft>;
 }
 
+export function createWorkpaperDecisionDrafts(workpapers: ClosingWorkpapersReadModel) {
+  return Object.fromEntries(
+    workpapers.items.map((item) => [item.anchorCode, createWorkpaperDecisionDraft(item)])
+  ) as Record<string, WorkpaperDecisionDraft>;
+}
+
 export function createWorkpaperDraft(item: WorkpaperReadModelItem): WorkpaperDraft {
   if (item.workpaper === null) {
     return {
@@ -102,6 +112,18 @@ export function createDocumentDecisionDraft(document: WorkpaperDocument): Docume
   };
 }
 
+export function createWorkpaperDecisionDraft(
+  item: WorkpaperReadModelItem
+): WorkpaperDecisionDraft {
+  return {
+    decision: item.workpaper?.status === "CHANGES_REQUESTED" ? "CHANGES_REQUESTED" : "REVIEWED",
+    comment:
+      typeof item.workpaper?.reviewComment === "string" && item.workpaper.reviewComment.length > 0
+        ? item.workpaper.reviewComment
+        : ""
+  };
+}
+
 export function getWorkpaperDraft(
   drafts: Record<string, WorkpaperDraft>,
   item: WorkpaperReadModelItem
@@ -129,6 +151,13 @@ export function getDocumentDecisionDraft(
   return drafts[documentId] ?? createDocumentDecisionDraft(document);
 }
 
+export function getWorkpaperDecisionDraft(
+  drafts: Record<string, WorkpaperDecisionDraft>,
+  item: WorkpaperReadModelItem
+) {
+  return drafts[item.anchorCode] ?? createWorkpaperDecisionDraft(item);
+}
+
 export function hasWorkpaperWritableRole(effectiveRoles: EffectiveRolesHint) {
   return effectiveRoles?.some((role) => workpaperWritableRoles.has(role)) ?? false;
 }
@@ -141,6 +170,10 @@ export function hasDocumentReviewerRole(effectiveRoles: EffectiveRolesHint) {
   return effectiveRoles?.some((role) => documentReviewerRoles.has(role)) ?? false;
 }
 
+export function hasWorkpaperReviewerRole(effectiveRoles: EffectiveRolesHint) {
+  return effectiveRoles?.some((role) => workpaperReviewerRoles.has(role)) ?? false;
+}
+
 export function isMakerWorkpaperStatus(value: string): value is MakerWorkpaperStatus {
   return value === "DRAFT" || value === "READY_FOR_REVIEW";
 }
@@ -149,6 +182,10 @@ export function isDocumentVerificationDecision(
   value: string
 ): value is DocumentVerificationDecision {
   return value === "VERIFIED" || value === "REJECTED";
+}
+
+export function isWorkpaperReviewDecision(value: string): value is WorkpaperReviewDecision {
+  return value === "REVIEWED" || value === "CHANGES_REQUESTED";
 }
 
 export function isWorkpaperMakerEditable(item: WorkpaperReadModelItem) {
@@ -195,6 +232,34 @@ export function getDocumentDecisionAvailabilityMessage(
 
   if (getReadableDocumentId(document) === null) {
     return "decision document indisponible";
+  }
+
+  return null;
+}
+
+export function getWorkpaperDecisionAvailabilityMessage(
+  workpapers: ClosingWorkpapersReadModel,
+  effectiveRoles: EffectiveRolesHint,
+  item: WorkpaperReadModelItem
+) {
+  if (workpapers.closingFolderStatus === "ARCHIVED") {
+    return "workpaper decision unavailable for this status";
+  }
+
+  if (workpapers.readiness !== "READY") {
+    return "workpaper decision unavailable for this status";
+  }
+
+  if (!hasWorkpaperReviewerRole(effectiveRoles)) {
+    return "workpaper decision refused";
+  }
+
+  if (!item.isCurrentStructure || item.workpaper === null) {
+    return "workpaper decision unavailable for this status";
+  }
+
+  if (item.workpaper.status !== "READY_FOR_REVIEW") {
+    return "workpaper decision unavailable for this status";
   }
 
   return null;
@@ -419,6 +484,33 @@ export function canSubmitDocumentDecision(draft: DocumentDecisionDraft) {
   return draft.decision !== "REJECTED" || draft.comment.trim().length > 0;
 }
 
+export function canMarkWorkpaperReviewed(item: WorkpaperReadModelItem) {
+  if (item.workpaper?.status !== "READY_FOR_REVIEW" || item.documentVerificationSummary === null) {
+    return false;
+  }
+
+  return (
+    item.documentVerificationSummary.documentsCount === 0 ||
+    (item.documentVerificationSummary.unverifiedCount === 0 &&
+      item.documentVerificationSummary.verifiedCount >= 1)
+  );
+}
+
+export function canSubmitWorkpaperDecision(
+  item: WorkpaperReadModelItem,
+  draft: WorkpaperDecisionDraft
+) {
+  if (!isWorkpaperReviewDecision(draft.decision)) {
+    return false;
+  }
+
+  if (draft.decision === "CHANGES_REQUESTED") {
+    return draft.comment.trim().length > 0;
+  }
+
+  return canMarkWorkpaperReviewed(item);
+}
+
 export function clearDocumentUploadStateForAnchor(
   state: DocumentUploadState,
   anchorCode: string
@@ -435,6 +527,17 @@ export function clearDocumentDecisionStateForDocument(
   documentId: string
 ): DocumentDecisionState {
   if (state.kind === "idle" || state.kind === "submitting" || state.documentId !== documentId) {
+    return state;
+  }
+
+  return { kind: "idle" };
+}
+
+export function clearWorkpaperDecisionStateForAnchor(
+  state: WorkpaperDecisionState,
+  anchorCode: string
+): WorkpaperDecisionState {
+  if (state.kind === "idle" || state.kind === "submitting" || state.anchorCode !== anchorCode) {
     return state;
   }
 

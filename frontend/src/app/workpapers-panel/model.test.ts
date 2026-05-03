@@ -7,27 +7,36 @@ import type {
 } from "../../lib/api/workpapers";
 import {
   canSaveWorkpaperItem,
+  canMarkWorkpaperReviewed,
   canSubmitDocumentDecision,
+  canSubmitWorkpaperDecision,
   canUploadDocumentItem,
   createDocumentDecisionDraft,
   createDocumentDecisionDrafts,
   createDocumentUploadDraft,
+  createWorkpaperDecisionDraft,
+  createWorkpaperDecisionDrafts,
   createWorkpaperDraft,
   createWorkpaperEvidencePayload,
+  clearWorkpaperDecisionStateForAnchor,
   findCurrentDocumentInWorkpapers,
   findDocumentInWorkpapers,
   getCurrentWorkpaperReadOnlyMessage,
   getCurrentWorkpaperUploadAvailabilityMessage,
   getDocumentDecisionAvailabilityMessage,
   getReadableDocumentId,
+  getWorkpaperDecisionAvailabilityMessage,
+  getWorkpaperDecisionDraft,
   getWorkpapersGlobalReadOnlyMessage,
   hasDocumentReadableRole,
   hasDocumentReviewerRole,
+  hasWorkpaperReviewerRole,
   hasWorkpaperWritableRole,
   isDocumentUploadFileAllowed,
   isDocumentVerificationDecision,
   isIsoDateOnly,
   isMakerWorkpaperStatus,
+  isWorkpaperReviewDecision,
   validateDocumentUploadDraft
 } from "./model";
 
@@ -134,6 +143,8 @@ describe("workpapers-panel model helpers", () => {
   it("keeps role helpers and enum guards scoped to proven roles", () => {
     expect(hasWorkpaperWritableRole(["ACCOUNTANT"])).toBe(true);
     expect(hasWorkpaperWritableRole(["REVIEWER"])).toBe(false);
+    expect(hasWorkpaperReviewerRole(["REVIEWER"])).toBe(true);
+    expect(hasWorkpaperReviewerRole(["ACCOUNTANT"])).toBe(false);
     expect(hasDocumentReadableRole(["REVIEWER"])).toBe(true);
     expect(hasDocumentReadableRole(["UNKNOWN"])).toBe(false);
     expect(hasDocumentReviewerRole(["MANAGER"])).toBe(true);
@@ -142,6 +153,8 @@ describe("workpapers-panel model helpers", () => {
     expect(isMakerWorkpaperStatus("REVIEWED")).toBe(false);
     expect(isDocumentVerificationDecision("REJECTED")).toBe(true);
     expect(isDocumentVerificationDecision("UNVERIFIED")).toBe(false);
+    expect(isWorkpaperReviewDecision("REVIEWED")).toBe(true);
+    expect(isWorkpaperReviewDecision("VERIFIED")).toBe(false);
   });
 
   it("creates drafts and read-only messages without changing visible wording", () => {
@@ -173,6 +186,23 @@ describe("workpapers-panel model helpers", () => {
         })
       )
     ).toEqual({});
+    expect(
+      createWorkpaperDecisionDraft(
+        createItem({
+          workpaper: {
+            status: "CHANGES_REQUESTED",
+            noteText: "Fix",
+            reviewComment: "Needs evidence",
+            evidences: []
+          }
+        })
+      )
+    ).toEqual({ decision: "CHANGES_REQUESTED", comment: "Needs evidence" });
+    expect(
+      createWorkpaperDecisionDrafts(createWorkpapers({ items: [createItem()], staleWorkpapers: [] }))
+    ).toEqual({
+      "BS.ASSET.CURRENT_SECTION": { decision: "REVIEWED", comment: "" }
+    });
     expect(
       getCurrentWorkpaperReadOnlyMessage(
         createItem({ workpaper: { status: "REVIEWED", noteText: "Done", evidences: [] } }),
@@ -216,6 +246,20 @@ describe("workpapers-panel model helpers", () => {
         item.documents[0]
       )
     ).toBe("decision document disponible quand le workpaper est READY_FOR_REVIEW");
+    expect(getWorkpaperDecisionAvailabilityMessage(workpapers, ["REVIEWER"], item)).toBe(null);
+    expect(getWorkpaperDecisionAvailabilityMessage(workpapers, ["ACCOUNTANT"], item)).toBe(
+      "workpaper decision refused"
+    );
+    expect(
+      getWorkpaperDecisionAvailabilityMessage(
+        createWorkpapers({ readiness: "BLOCKED", items: [item] }),
+        ["REVIEWER"],
+        item
+      )
+    ).toBe("workpaper decision unavailable for this status");
+    expect(
+      getWorkpaperDecisionAvailabilityMessage(workpapers, ["REVIEWER"], createItem({ workpaper: null }))
+    ).toBe("workpaper decision unavailable for this status");
   });
 
   it("validates upload drafts and file allow-list inputs", () => {
@@ -328,5 +372,54 @@ describe("workpapers-panel model helpers", () => {
     ).toBe(false);
     expect(canSubmitDocumentDecision({ decision: "VERIFIED", comment: "" })).toBe(true);
     expect(canSubmitDocumentDecision({ decision: "REJECTED", comment: " " })).toBe(false);
+    expect(
+      canMarkWorkpaperReviewed(
+        createItem({
+          workpaper: { status: "READY_FOR_REVIEW", noteText: "Ready", evidences: [] },
+          documents: []
+        })
+      )
+    ).toBe(true);
+    expect(
+      canMarkWorkpaperReviewed(
+        createItem({
+          workpaper: { status: "READY_FOR_REVIEW", noteText: "Ready", evidences: [] },
+          documents: [createDocument({ verificationStatus: "VERIFIED" })],
+          documentVerificationSummary: {
+            documentsCount: 1,
+            unverifiedCount: 0,
+            verifiedCount: 1,
+            rejectedCount: 0
+          }
+        })
+      )
+    ).toBe(true);
+    expect(
+      canMarkWorkpaperReviewed(
+        createItem({
+          workpaper: { status: "READY_FOR_REVIEW", noteText: "Ready", evidences: [] },
+          documents: [createDocument({ verificationStatus: "UNVERIFIED" })],
+          documentVerificationSummary: {
+            documentsCount: 1,
+            unverifiedCount: 1,
+            verifiedCount: 0,
+            rejectedCount: 0
+          }
+        })
+      )
+    ).toBe(false);
+    expect(
+      canSubmitWorkpaperDecision(item, { decision: "CHANGES_REQUESTED", comment: " " })
+    ).toBe(false);
+    expect(
+      canSubmitWorkpaperDecision(item, { decision: "CHANGES_REQUESTED", comment: "Fix evidence" })
+    ).toBe(true);
+    expect(getWorkpaperDecisionDraft({}, item)).toEqual({ decision: "REVIEWED", comment: "" });
+    expect(
+      clearWorkpaperDecisionStateForAnchor(
+        { kind: "forbidden", anchorCode: item.anchorCode },
+        item.anchorCode
+      )
+    ).toEqual({ kind: "idle" });
   });
 });

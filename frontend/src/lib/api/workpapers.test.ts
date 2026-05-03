@@ -3,6 +3,7 @@ import {
   downloadWorkpaperDocument,
   loadWorkpapersShellState,
   reviewDocumentVerificationDecision,
+  reviewWorkpaperDecision,
   uploadWorkpaperDocument,
   upsertWorkpaper,
   type ClosingWorkpapersReadModel,
@@ -198,6 +199,47 @@ function createDocumentVerificationSuccessPayload({
     reviewComment,
     reviewedAt: "2026-02-02T10:00:00Z",
     reviewedByUserId: "ffffffff-ffff-4fff-8fff-ffffffffffff"
+  };
+}
+
+function createWorkpaperReviewDecisionSuccessPayload({
+  anchorCode,
+  decision,
+  reviewComment
+}: {
+  anchorCode: string;
+  decision: "REVIEWED" | "CHANGES_REQUESTED";
+  reviewComment: string | null;
+}) {
+  return {
+    anchorCode,
+    anchorLabel: "Current assets",
+    summaryBucketCode: "BS.ASSET",
+    statementKind: "BALANCE_SHEET",
+    breakdownType: "SECTION",
+    isCurrentStructure: true,
+    workpaper: {
+      id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      status: decision,
+      noteText: "Ready support",
+      reviewComment,
+      basisImportVersion: 2,
+      basisTaxonomyVersion: 1,
+      createdAt: "2026-02-01T10:00:00Z",
+      createdByUserId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+      updatedAt: "2026-02-01T10:00:00Z",
+      updatedByUserId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+      reviewedAt: "2026-02-02T10:00:00Z",
+      reviewedByUserId: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+      evidences: []
+    },
+    documents: [],
+    documentVerificationSummary: {
+      documentsCount: 0,
+      unverifiedCount: 0,
+      verifiedCount: 0,
+      rejectedCount: 0
+    }
   };
 }
 
@@ -1127,6 +1169,214 @@ describe("workpapers api", () => {
         request ?? {
           documentId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1",
           decision: "VERIFIED"
+        },
+        fetcher
+      )
+    ).resolves.toEqual({ kind: "invalid_payload" });
+  });
+
+  it("calls the exact POST /workpapers/{anchorCode}/review-decision path with the REVIEWED body and JSON headers", async () => {
+    const request = {
+      anchorCode: "BS.ASSET/CURRENT SECTION",
+      decision: "REVIEWED" as const
+    };
+    const fetcher = vi.fn().mockResolvedValue(
+      jsonResponse(
+        200,
+        createWorkpaperReviewDecisionSuccessPayload({
+          anchorCode: request.anchorCode,
+          decision: "REVIEWED",
+          reviewComment: null
+        })
+      )
+    );
+
+    await expect(
+      reviewWorkpaperDecision(CLOSING_FOLDER.id, ACTIVE_TENANT, request, fetcher)
+    ).resolves.toEqual({ kind: "success" });
+
+    const [path, init] = fetcher.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+
+    expect(path).toBe(
+      `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers/${encodeURIComponent(request.anchorCode)}/review-decision`
+    );
+    expect(init.method).toBe("POST");
+    expect(init.headers).toEqual(
+      expect.objectContaining({
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "X-Tenant-Id": ACTIVE_TENANT.tenantId
+      })
+    );
+    expect(Object.keys(body)).toEqual(["decision"]);
+    expect(body).toEqual({ decision: "REVIEWED" });
+    expect(body).not.toHaveProperty("comment");
+    expect(body).not.toHaveProperty("reviewComment");
+  });
+
+  it("calls POST /workpapers/{anchorCode}/review-decision with the trimmed CHANGES_REQUESTED comment only", async () => {
+    const request = {
+      anchorCode: "BS.ASSET.CURRENT_SECTION",
+      decision: "CHANGES_REQUESTED" as const,
+      comment: "  Piece insuffisante  "
+    };
+    const fetcher = vi.fn().mockResolvedValue(
+      jsonResponse(
+        200,
+        createWorkpaperReviewDecisionSuccessPayload({
+          anchorCode: request.anchorCode,
+          decision: "CHANGES_REQUESTED",
+          reviewComment: "Piece insuffisante"
+        })
+      )
+    );
+
+    await expect(
+      reviewWorkpaperDecision(CLOSING_FOLDER.id, ACTIVE_TENANT, request, fetcher)
+    ).resolves.toEqual({ kind: "success" });
+
+    const [path, init] = fetcher.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+
+    expect(path).toBe(
+      `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers/${request.anchorCode}/review-decision`
+    );
+    expect(Object.keys(body)).toEqual(["decision", "comment"]);
+    expect(body).toEqual({
+      decision: "CHANGES_REQUESTED",
+      comment: "Piece insuffisante"
+    });
+    expect(body).not.toHaveProperty("anchorCode");
+    expect(body).not.toHaveProperty("workpaperId");
+    expect(body).not.toHaveProperty("reviewComment");
+  });
+
+  it("rejects CHANGES_REQUESTED without a useful workpaper reviewer comment before fetch", async () => {
+    const fetcher = vi.fn();
+
+    await expect(
+      reviewWorkpaperDecision(
+        CLOSING_FOLDER.id,
+        ACTIVE_TENANT,
+        {
+          anchorCode: "BS.ASSET.CURRENT_SECTION",
+          decision: "CHANGES_REQUESTED",
+          comment: "   "
+        },
+        fetcher
+      )
+    ).resolves.toEqual({ kind: "comment_required" });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { status: 400, response: () => jsonResponse(400, {}), kind: "bad_request" },
+    { status: 401, response: () => jsonResponse(401, {}), kind: "auth_required" },
+    { status: 403, response: () => jsonResponse(403, {}), kind: "forbidden" },
+    { status: 404, response: () => jsonResponse(404, {}), kind: "not_found" },
+    {
+      status: 409,
+      response: () => jsonResponse(409, { message: "any backend text stays opaque" }),
+      kind: "conflict_other"
+    },
+    { status: 500, response: () => jsonResponse(500, {}), kind: "server_error" },
+    { status: 418, response: () => jsonResponse(418, {}), kind: "unexpected" }
+  ])("maps POST /workpapers/{anchorCode}/review-decision HTTP $status to $kind", async ({ response, kind }) => {
+    const fetcher = vi.fn().mockResolvedValue(response());
+
+    await expect(
+      reviewWorkpaperDecision(
+        CLOSING_FOLDER.id,
+        ACTIVE_TENANT,
+        {
+          anchorCode: "BS.ASSET.CURRENT_SECTION",
+          decision: "REVIEWED"
+        },
+        fetcher
+      )
+    ).resolves.toEqual({ kind });
+  });
+
+  it("maps POST /workpapers/{anchorCode}/review-decision timeout and network failures", async () => {
+    const timeoutFetcher = vi.fn().mockRejectedValue(new Error("timeout"));
+    const networkFetcher = vi.fn().mockRejectedValue(new Error("network"));
+    const request = {
+      anchorCode: "BS.ASSET.CURRENT_SECTION",
+      decision: "REVIEWED" as const
+    };
+
+    await expect(
+      reviewWorkpaperDecision(CLOSING_FOLDER.id, ACTIVE_TENANT, request, timeoutFetcher)
+    ).resolves.toEqual({ kind: "timeout" });
+    await expect(
+      reviewWorkpaperDecision(CLOSING_FOLDER.id, ACTIVE_TENANT, request, networkFetcher)
+    ).resolves.toEqual({ kind: "network_error" });
+  });
+
+  it.each([
+    {
+      label: "anchorCode mismatch",
+      payload: () =>
+        createWorkpaperReviewDecisionSuccessPayload({
+          anchorCode: "PL.REVENUE.CURRENT_SECTION",
+          decision: "REVIEWED",
+          reviewComment: null
+        })
+    },
+    {
+      label: "isCurrentStructure false",
+      payload: () => ({
+        ...createWorkpaperReviewDecisionSuccessPayload({
+          anchorCode: "BS.ASSET.CURRENT_SECTION",
+          decision: "REVIEWED",
+          reviewComment: null
+        }),
+        isCurrentStructure: false
+      })
+    },
+    {
+      label: "decision mismatch",
+      payload: () =>
+        createWorkpaperReviewDecisionSuccessPayload({
+          anchorCode: "BS.ASSET.CURRENT_SECTION",
+          decision: "CHANGES_REQUESTED",
+          reviewComment: "Piece insuffisante"
+        })
+    },
+    {
+      label: "reviewed with comment",
+      payload: () =>
+        createWorkpaperReviewDecisionSuccessPayload({
+          anchorCode: "BS.ASSET.CURRENT_SECTION",
+          decision: "REVIEWED",
+          reviewComment: "Unexpected"
+        })
+    },
+    {
+      label: "changes comment mismatch",
+      request: {
+        anchorCode: "BS.ASSET.CURRENT_SECTION",
+        decision: "CHANGES_REQUESTED" as const,
+        comment: "Expected"
+      },
+      payload: () =>
+        createWorkpaperReviewDecisionSuccessPayload({
+          anchorCode: "BS.ASSET.CURRENT_SECTION",
+          decision: "CHANGES_REQUESTED",
+          reviewComment: "Other"
+        })
+    }
+  ])("returns invalid_payload on POST /workpaper review-decision success payload $label", async ({ payload, request }) => {
+    const fetcher = vi.fn().mockResolvedValue(jsonResponse(200, payload()));
+
+    await expect(
+      reviewWorkpaperDecision(
+        CLOSING_FOLDER.id,
+        ACTIVE_TENANT,
+        request ?? {
+          anchorCode: "BS.ASSET.CURRENT_SECTION",
+          decision: "REVIEWED"
         },
         fetcher
       )

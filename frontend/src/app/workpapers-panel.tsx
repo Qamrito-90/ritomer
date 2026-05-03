@@ -6,6 +6,7 @@ import {
   downloadWorkpaperDocument,
   loadWorkpapersShellState,
   reviewDocumentVerificationDecision,
+  reviewWorkpaperDecision,
   uploadWorkpaperDocument,
   upsertWorkpaper,
   type WorkpapersShellState
@@ -20,22 +21,28 @@ import {
 import {
   clearDocumentDecisionStateForDocument,
   clearDocumentUploadStateForAnchor,
+  clearWorkpaperDecisionStateForAnchor,
   createDocumentDecisionDrafts,
   createDocumentUploadDrafts,
+  createWorkpaperDecisionDrafts,
   createWorkpaperDrafts,
   createWorkpaperEvidencePayload,
+  canMarkWorkpaperReviewed,
   findCurrentDocumentInWorkpapers,
   findDocumentInWorkpapers,
   getDocumentDecisionDraft,
   getDocumentUploadDraft,
   getReadableDocumentId,
+  getWorkpaperDecisionDraft,
   getWorkpaperDraft,
   hasDocumentReadableRole,
   hasDocumentReviewerRole,
+  hasWorkpaperReviewerRole,
   hasWorkpaperDraftChanges,
   hasWorkpaperWritableRole,
   isDocumentVerificationDecision,
   isMakerWorkpaperStatus,
+  isWorkpaperReviewDecision,
   isWorkpaperDocumentUploadEditable,
   isWorkpaperMakerEditable,
   validateDocumentUploadDraft
@@ -44,6 +51,7 @@ import {
   mapDocumentDecisionResult,
   mapDocumentDownloadResult,
   mapDocumentUploadResult,
+  mapWorkpaperDecisionResult,
   mapWorkpaperMutationResult
 } from "./workpapers-panel/status-lines";
 import type {
@@ -52,6 +60,8 @@ import type {
   DocumentDownloadState,
   DocumentUploadDraft,
   DocumentUploadState,
+  WorkpaperDecisionDraft,
+  WorkpaperDecisionState,
   WorkpaperDraft,
   WorkpaperMutationState
 } from "./workpapers-panel/types";
@@ -81,6 +91,9 @@ export function WorkpapersPanel({
   const [documentDecisionDrafts, setDocumentDecisionDrafts] = useState<
     Record<string, DocumentDecisionDraft>
   >({});
+  const [workpaperDecisionDrafts, setWorkpaperDecisionDrafts] = useState<
+    Record<string, WorkpaperDecisionDraft>
+  >({});
   const [workpaperMutationState, setWorkpaperMutationState] =
     useState<WorkpaperMutationState>({ kind: "idle" });
   const [documentUploadState, setDocumentUploadState] = useState<DocumentUploadState>({
@@ -92,10 +105,14 @@ export function WorkpapersPanel({
   const [documentDecisionState, setDocumentDecisionState] = useState<DocumentDecisionState>({
     kind: "idle"
   });
+  const [workpaperDecisionState, setWorkpaperDecisionState] = useState<WorkpaperDecisionState>({
+    kind: "idle"
+  });
   const workpaperMutationInFlightRef = useRef(false);
   const documentUploadInFlightRef = useRef(false);
   const documentDownloadInFlightRef = useRef(false);
   const documentDecisionInFlightRef = useRef(false);
+  const workpaperDecisionInFlightRef = useRef(false);
   const workpapersState = workpapersStateOverride ?? initialState;
 
   function handleWorkpaperNoteChange(anchorCode: string, noteText: string) {
@@ -233,6 +250,7 @@ export function WorkpapersPanel({
     if (
       documentUploadInFlightRef.current ||
       documentDecisionInFlightRef.current ||
+      workpaperDecisionInFlightRef.current ||
       workpaperMutationInFlightRef.current
     ) {
       return;
@@ -322,6 +340,7 @@ export function WorkpapersPanel({
     if (
       workpaperMutationInFlightRef.current ||
       documentDecisionInFlightRef.current ||
+      workpaperDecisionInFlightRef.current ||
       documentUploadInFlightRef.current
     ) {
       return;
@@ -376,7 +395,11 @@ export function WorkpapersPanel({
       return;
     }
 
-    if (documentDownloadInFlightRef.current || documentDecisionInFlightRef.current) {
+    if (
+      documentDownloadInFlightRef.current ||
+      documentDecisionInFlightRef.current ||
+      workpaperDecisionInFlightRef.current
+    ) {
       return;
     }
 
@@ -472,6 +495,56 @@ export function WorkpapersPanel({
     );
   }
 
+  function handleWorkpaperDecisionChange(anchorCode: string, decision: string) {
+    if (workpapersState.kind !== "ready" || !isWorkpaperReviewDecision(decision)) {
+      return;
+    }
+
+    const item = workpapersState.workpapers.items.find(
+      (candidate) => candidate.anchorCode === anchorCode
+    );
+
+    if (item === undefined) {
+      return;
+    }
+
+    setWorkpaperDecisionDrafts((currentDrafts) => ({
+      ...currentDrafts,
+      [anchorCode]: {
+        ...getWorkpaperDecisionDraft(currentDrafts, item),
+        decision
+      }
+    }));
+    setWorkpaperDecisionState((currentState) =>
+      clearWorkpaperDecisionStateForAnchor(currentState, anchorCode)
+    );
+  }
+
+  function handleWorkpaperDecisionCommentChange(anchorCode: string, comment: string) {
+    if (workpapersState.kind !== "ready") {
+      return;
+    }
+
+    const item = workpapersState.workpapers.items.find(
+      (candidate) => candidate.anchorCode === anchorCode
+    );
+
+    if (item === undefined) {
+      return;
+    }
+
+    setWorkpaperDecisionDrafts((currentDrafts) => ({
+      ...currentDrafts,
+      [anchorCode]: {
+        ...getWorkpaperDecisionDraft(currentDrafts, item),
+        comment
+      }
+    }));
+    setWorkpaperDecisionState((currentState) =>
+      clearWorkpaperDecisionStateForAnchor(currentState, anchorCode)
+    );
+  }
+
   async function handleSaveDocumentDecision(documentId: string) {
     if (workpapersState.kind !== "ready") {
       return;
@@ -557,6 +630,93 @@ export function WorkpapersPanel({
     setDocumentDecisionState(mapDocumentDecisionResult(result, documentId));
   }
 
+  async function handleSaveWorkpaperDecision(anchorCode: string) {
+    if (workpapersState.kind !== "ready") {
+      return;
+    }
+
+    const workpapers = workpapersState.workpapers;
+
+    if (workpapers.closingFolderStatus === "ARCHIVED") {
+      setWorkpaperDecisionState({ kind: "read_only_archived", anchorCode });
+      return;
+    }
+
+    if (workpapers.readiness !== "READY") {
+      setWorkpaperDecisionState({ kind: "read_only_not_ready", anchorCode });
+      return;
+    }
+
+    if (!hasWorkpaperReviewerRole(effectiveRoles)) {
+      setWorkpaperDecisionState({ kind: "read_only_role", anchorCode });
+      return;
+    }
+
+    const currentItem = workpapers.items.find((item) => item.anchorCode === anchorCode);
+
+    if (
+      currentItem === undefined ||
+      !currentItem.isCurrentStructure ||
+      currentItem.workpaper === null ||
+      currentItem.workpaper.status !== "READY_FOR_REVIEW"
+    ) {
+      setWorkpaperDecisionState({ kind: "unavailable_status", anchorCode });
+      return;
+    }
+
+    if (
+      workpaperMutationInFlightRef.current ||
+      documentUploadInFlightRef.current ||
+      documentDecisionInFlightRef.current ||
+      workpaperDecisionInFlightRef.current
+    ) {
+      return;
+    }
+
+    const draft = getWorkpaperDecisionDraft(workpaperDecisionDrafts, currentItem);
+
+    if (!isWorkpaperReviewDecision(draft.decision)) {
+      setWorkpaperDecisionState({ kind: "unexpected", anchorCode });
+      return;
+    }
+
+    if (draft.decision === "REVIEWED" && !canMarkWorkpaperReviewed(currentItem)) {
+      setWorkpaperDecisionState({ kind: "mark_reviewed_blocked", anchorCode });
+      return;
+    }
+
+    const trimmedComment = draft.comment.trim();
+
+    if (draft.decision === "CHANGES_REQUESTED" && trimmedComment.length === 0) {
+      setWorkpaperDecisionState({ kind: "comment_required", anchorCode });
+      return;
+    }
+
+    workpaperDecisionInFlightRef.current = true;
+    setWorkpaperDecisionState({ kind: "submitting", anchorCode });
+
+    const result =
+      draft.decision === "REVIEWED"
+        ? await reviewWorkpaperDecision(closingFolderId, activeTenant, {
+            anchorCode,
+            decision: "REVIEWED"
+          })
+        : await reviewWorkpaperDecision(closingFolderId, activeTenant, {
+            anchorCode,
+            decision: "CHANGES_REQUESTED",
+            comment: trimmedComment
+          });
+
+    if (result.kind === "success") {
+      setWorkpaperDecisionState({ kind: "success", anchorCode, refreshFailed: false });
+      await refreshWorkpapersAfterWorkpaperDecision(anchorCode);
+      return;
+    }
+
+    workpaperDecisionInFlightRef.current = false;
+    setWorkpaperDecisionState(mapWorkpaperDecisionResult(result, anchorCode));
+  }
+
   async function refreshWorkpapersAfterWorkpaperMutation() {
     const refreshedWorkpapersState = await loadWorkpapersShellState(
       closingFolderId,
@@ -575,6 +735,7 @@ export function WorkpapersPanel({
     setWorkpaperDrafts(createWorkpaperDrafts(refreshedWorkpapersState.workpapers));
     setDocumentUploadDrafts(createDocumentUploadDrafts(refreshedWorkpapersState.workpapers));
     setDocumentDecisionDrafts(createDocumentDecisionDrafts(refreshedWorkpapersState.workpapers));
+    setWorkpaperDecisionDrafts(createWorkpaperDecisionDrafts(refreshedWorkpapersState.workpapers));
     setWorkpaperMutationState({ kind: "success", refreshFailed: false });
     setDocumentUploadState({ kind: "idle" });
   }
@@ -597,6 +758,7 @@ export function WorkpapersPanel({
     setWorkpaperDrafts(createWorkpaperDrafts(refreshedWorkpapersState.workpapers));
     setDocumentUploadDrafts(createDocumentUploadDrafts(refreshedWorkpapersState.workpapers));
     setDocumentDecisionDrafts(createDocumentDecisionDrafts(refreshedWorkpapersState.workpapers));
+    setWorkpaperDecisionDrafts(createWorkpaperDecisionDrafts(refreshedWorkpapersState.workpapers));
     setDocumentUploadState({ kind: "success", anchorCode, refreshFailed: false });
   }
 
@@ -618,7 +780,30 @@ export function WorkpapersPanel({
     setWorkpaperDrafts(createWorkpaperDrafts(refreshedWorkpapersState.workpapers));
     setDocumentUploadDrafts(createDocumentUploadDrafts(refreshedWorkpapersState.workpapers));
     setDocumentDecisionDrafts(createDocumentDecisionDrafts(refreshedWorkpapersState.workpapers));
+    setWorkpaperDecisionDrafts(createWorkpaperDecisionDrafts(refreshedWorkpapersState.workpapers));
     setDocumentDecisionState({ kind: "success", documentId, refreshFailed: false });
+  }
+
+  async function refreshWorkpapersAfterWorkpaperDecision(anchorCode: string) {
+    const refreshedWorkpapersState = await loadWorkpapersShellState(
+      closingFolderId,
+      closingFolder,
+      activeTenant
+    );
+
+    workpaperDecisionInFlightRef.current = false;
+
+    if (refreshedWorkpapersState.kind !== "ready") {
+      setWorkpaperDecisionState({ kind: "success", anchorCode, refreshFailed: true });
+      return;
+    }
+
+    setWorkpapersStateOverride(refreshedWorkpapersState);
+    setWorkpaperDrafts(createWorkpaperDrafts(refreshedWorkpapersState.workpapers));
+    setDocumentUploadDrafts(createDocumentUploadDrafts(refreshedWorkpapersState.workpapers));
+    setDocumentDecisionDrafts(createDocumentDecisionDrafts(refreshedWorkpapersState.workpapers));
+    setWorkpaperDecisionDrafts(createWorkpaperDecisionDrafts(refreshedWorkpapersState.workpapers));
+    setWorkpaperDecisionState({ kind: "success", anchorCode, refreshFailed: false });
   }
 
   return (
@@ -647,7 +832,12 @@ export function WorkpapersPanel({
           onNoteChange={handleWorkpaperNoteChange}
           onSave={handleSaveWorkpaper}
           onStatusChange={handleWorkpaperStatusChange}
+          onWorkpaperDecisionChange={handleWorkpaperDecisionChange}
+          onWorkpaperDecisionCommentChange={handleWorkpaperDecisionCommentChange}
+          onWorkpaperDecisionSave={handleSaveWorkpaperDecision}
           state={workpapersState}
+          workpaperDecisionDrafts={workpaperDecisionDrafts}
+          workpaperDecisionState={workpaperDecisionState}
           workpaperDrafts={workpaperDrafts}
         />
       </div>

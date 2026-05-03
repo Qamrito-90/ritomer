@@ -8,8 +8,10 @@ import type {
   WorkpapersShellState
 } from "../../lib/api/workpapers";
 import {
+  canMarkWorkpaperReviewed,
   canSaveWorkpaperItem,
   canSubmitDocumentDecision,
+  canSubmitWorkpaperDecision,
   canUploadDocumentItem,
   documentUploadInputAccept,
   getCurrentWorkpaperReadOnlyMessage,
@@ -18,6 +20,8 @@ import {
   getDocumentDecisionDraft,
   getDocumentUploadDraft,
   getReadableDocumentId,
+  getWorkpaperDecisionAvailabilityMessage,
+  getWorkpaperDecisionDraft,
   getWorkpaperDraft,
   getWorkpapersGlobalReadOnlyMessage,
   hasDocumentReadableRole,
@@ -27,7 +31,8 @@ import {
   formatWorkpaperMutationState,
   getDocumentDecisionStatusLines,
   getDocumentDownloadStatusLine,
-  getDocumentUploadStatusLines
+  getDocumentUploadStatusLines,
+  getWorkpaperDecisionStatusLines
 } from "./status-lines";
 import type {
   DocumentDecisionDraft,
@@ -35,6 +40,8 @@ import type {
   DocumentDownloadState,
   DocumentUploadDraft,
   DocumentUploadState,
+  WorkpaperDecisionDraft,
+  WorkpaperDecisionState,
   WorkpaperDraft,
   WorkpaperMutationState
 } from "./types";
@@ -58,7 +65,12 @@ export function WorkpapersSlot({
   onNoteChange,
   onSave,
   onStatusChange,
+  onWorkpaperDecisionChange,
+  onWorkpaperDecisionCommentChange,
+  onWorkpaperDecisionSave,
   state,
+  workpaperDecisionDrafts,
+  workpaperDecisionState,
   workpaperDrafts
 }: {
   documentDecisionDrafts: Record<string, DocumentDecisionDraft>;
@@ -79,7 +91,12 @@ export function WorkpapersSlot({
   onNoteChange: (anchorCode: string, noteText: string) => void;
   onSave: (anchorCode: string) => void;
   onStatusChange: (anchorCode: string, status: string) => void;
+  onWorkpaperDecisionChange: (anchorCode: string, decision: string) => void;
+  onWorkpaperDecisionCommentChange: (anchorCode: string, comment: string) => void;
+  onWorkpaperDecisionSave: (anchorCode: string) => void;
   state: WorkpapersShellState;
+  workpaperDecisionDrafts: Record<string, WorkpaperDecisionDraft>;
+  workpaperDecisionState: WorkpaperDecisionState;
   workpaperDrafts: Record<string, WorkpaperDraft>;
 }) {
   if (state.kind === "loading") {
@@ -138,6 +155,11 @@ export function WorkpapersSlot({
       onNoteChange={onNoteChange}
       onSave={onSave}
       onStatusChange={onStatusChange}
+      onWorkpaperDecisionChange={onWorkpaperDecisionChange}
+      onWorkpaperDecisionCommentChange={onWorkpaperDecisionCommentChange}
+      onWorkpaperDecisionSave={onWorkpaperDecisionSave}
+      workpaperDecisionDrafts={workpaperDecisionDrafts}
+      workpaperDecisionState={workpaperDecisionState}
       workpaperDrafts={workpaperDrafts}
       workpapers={state.workpapers}
     />
@@ -163,6 +185,11 @@ function WorkpapersNominalBlocks({
   onNoteChange,
   onSave,
   onStatusChange,
+  onWorkpaperDecisionChange,
+  onWorkpaperDecisionCommentChange,
+  onWorkpaperDecisionSave,
+  workpaperDecisionDrafts,
+  workpaperDecisionState,
   workpaperDrafts,
   workpapers
 }: {
@@ -184,6 +211,11 @@ function WorkpapersNominalBlocks({
   onNoteChange: (anchorCode: string, noteText: string) => void;
   onSave: (anchorCode: string) => void;
   onStatusChange: (anchorCode: string, status: string) => void;
+  onWorkpaperDecisionChange: (anchorCode: string, decision: string) => void;
+  onWorkpaperDecisionCommentChange: (anchorCode: string, comment: string) => void;
+  onWorkpaperDecisionSave: (anchorCode: string) => void;
+  workpaperDecisionDrafts: Record<string, WorkpaperDecisionDraft>;
+  workpaperDecisionState: WorkpaperDecisionState;
   workpaperDrafts: Record<string, WorkpaperDraft>;
   workpapers: ClosingWorkpapersReadModel;
 }) {
@@ -199,10 +231,16 @@ function WorkpapersNominalBlocks({
   const makerControlsDisabled =
     mutationState.kind === "submitting" ||
     documentDecisionState.kind === "submitting" ||
-    documentUploadState.kind === "submitting";
+    documentUploadState.kind === "submitting" ||
+    workpaperDecisionState.kind === "submitting";
   const downloadControlsDisabled =
-    documentDecisionState.kind === "submitting" || documentDownloadState.kind === "submitting";
-  const documentDecisionControlsDisabled = documentDecisionState.kind === "submitting";
+    documentDecisionState.kind === "submitting" ||
+    documentDownloadState.kind === "submitting" ||
+    workpaperDecisionState.kind === "submitting";
+  const documentDecisionControlsDisabled =
+    documentDecisionState.kind === "submitting" ||
+    workpaperDecisionState.kind === "submitting";
+  const workpaperDecisionControlsDisabled = workpaperDecisionState.kind === "submitting";
 
   return (
     <div className="grid gap-4">
@@ -279,6 +317,9 @@ function WorkpapersNominalBlocks({
                     onNoteChange={showMakerForm ? onNoteChange : undefined}
                     onSave={showMakerForm ? onSave : undefined}
                     onStatusChange={showMakerForm ? onStatusChange : undefined}
+                    onWorkpaperDecisionChange={onWorkpaperDecisionChange}
+                    onWorkpaperDecisionCommentChange={onWorkpaperDecisionCommentChange}
+                    onWorkpaperDecisionSave={onWorkpaperDecisionSave}
                     saveDisabled={
                       !showMakerForm ||
                       !canSaveWorkpaperItem(
@@ -302,6 +343,10 @@ function WorkpapersNominalBlocks({
                       )
                     }
                     workpapersForDocumentDecision={workpapers}
+                    workpapersForWorkpaperDecision={workpapers}
+                    workpaperDecisionControlsDisabled={workpaperDecisionControlsDisabled}
+                    workpaperDecisionDrafts={workpaperDecisionDrafts}
+                    workpaperDecisionState={workpaperDecisionState}
                   />
                 </li>
               );
@@ -361,10 +406,17 @@ function WorkpaperCard({
   onNoteChange,
   onSave,
   onStatusChange,
+  onWorkpaperDecisionChange,
+  onWorkpaperDecisionCommentChange,
+  onWorkpaperDecisionSave,
   saveDisabled = true,
   uploadAvailabilityMessage = null,
   uploadDisabled = true,
-  workpapersForDocumentDecision = null
+  workpapersForDocumentDecision = null,
+  workpapersForWorkpaperDecision = null,
+  workpaperDecisionControlsDisabled = false,
+  workpaperDecisionDrafts = {},
+  workpaperDecisionState = { kind: "idle" }
 }: {
   controlsDisabled?: boolean;
   documentDecisionControlsDisabled?: boolean;
@@ -389,10 +441,17 @@ function WorkpaperCard({
   onNoteChange?: (anchorCode: string, noteText: string) => void;
   onSave?: (anchorCode: string) => void;
   onStatusChange?: (anchorCode: string, status: string) => void;
+  onWorkpaperDecisionChange?: (anchorCode: string, decision: string) => void;
+  onWorkpaperDecisionCommentChange?: (anchorCode: string, comment: string) => void;
+  onWorkpaperDecisionSave?: (anchorCode: string) => void;
   saveDisabled?: boolean;
   uploadAvailabilityMessage?: string | null;
   uploadDisabled?: boolean;
   workpapersForDocumentDecision?: ClosingWorkpapersReadModel | null;
+  workpapersForWorkpaperDecision?: ClosingWorkpapersReadModel | null;
+  workpaperDecisionControlsDisabled?: boolean;
+  workpaperDecisionDrafts?: Record<string, WorkpaperDecisionDraft>;
+  workpaperDecisionState?: WorkpaperDecisionState;
 }) {
   const lines = [
     `anchor code : ${item.anchorCode}`,
@@ -415,6 +474,45 @@ function WorkpaperCard({
   const documentUploadStatusLines = canRenderDocumentUploadSection
     ? getDocumentUploadStatusLines(item.anchorCode, documentUploadDraft, documentUploadState)
     : [];
+  const workpaperDecisionAvailabilityMessage =
+    workpapersForWorkpaperDecision === null
+      ? null
+      : getWorkpaperDecisionAvailabilityMessage(
+          workpapersForWorkpaperDecision,
+          effectiveRoles,
+          item
+        );
+  const canRenderWorkpaperDecision =
+    workpapersForWorkpaperDecision !== null &&
+    workpaperDecisionAvailabilityMessage === null &&
+    onWorkpaperDecisionChange !== undefined &&
+    onWorkpaperDecisionCommentChange !== undefined &&
+    onWorkpaperDecisionSave !== undefined;
+  const resolvedWorkpaperDecisionDraft =
+    workpapersForWorkpaperDecision !== null
+      ? getWorkpaperDecisionDraft(workpaperDecisionDrafts, item)
+      : null;
+  const workpaperDecisionDraft = canRenderWorkpaperDecision
+    ? resolvedWorkpaperDecisionDraft
+    : null;
+  const shouldShowWorkpaperDecisionState =
+    workpaperDecisionState.kind !== "idle" && workpaperDecisionState.anchorCode === item.anchorCode;
+  const workpaperDecisionStatusLines =
+    (canRenderWorkpaperDecision || shouldShowWorkpaperDecisionState) &&
+    resolvedWorkpaperDecisionDraft !== null
+      ? getWorkpaperDecisionStatusLines(
+          item.anchorCode,
+          item,
+          resolvedWorkpaperDecisionDraft,
+          workpaperDecisionState
+        )
+      : [];
+  const existingReviewerComment =
+    item.workpaper?.status === "CHANGES_REQUESTED" &&
+    typeof item.workpaper.reviewComment === "string" &&
+    item.workpaper.reviewComment.trim().length > 0
+      ? item.workpaper.reviewComment.trim()
+      : null;
 
   if (item.workpaper !== null) {
     lines.push(`note workpaper : ${item.workpaper.noteText}`);
@@ -431,6 +529,13 @@ function WorkpaperCard({
 
         {makerReadOnlyMessage !== null ? (
           <p className="text-sm font-medium text-foreground">{makerReadOnlyMessage}</p>
+        ) : null}
+
+        {existingReviewerComment !== null ? (
+          <div className="grid gap-2 rounded-md border border-border bg-muted/30 p-3">
+            <p className="text-sm font-semibold text-foreground">Reviewer requested changes</p>
+            <p className="whitespace-pre-wrap text-sm text-foreground">{existingReviewerComment}</p>
+          </div>
         ) : null}
 
         {canRenderMakerForm ? (
@@ -572,6 +677,107 @@ function WorkpaperCard({
                 </Button>
               </div>
             </div>
+          </ControlsBlock>
+        ) : null}
+
+        {workpapersForWorkpaperDecision !== null ? (
+          <ControlsBlock title="Decision reviewer workpaper">
+            {canRenderWorkpaperDecision && workpaperDecisionDraft !== null ? (
+              <div
+                aria-busy={
+                  workpaperDecisionState.kind === "submitting" &&
+                  workpaperDecisionState.anchorCode === item.anchorCode
+                }
+                className="grid gap-3"
+              >
+                <div className="grid gap-2">
+                  <label
+                    className="text-sm font-medium text-foreground"
+                    htmlFor={`workpaper-decision-${item.anchorCode}`}
+                  >
+                    Decision reviewer workpaper
+                  </label>
+                  <select
+                    className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground disabled:cursor-not-allowed disabled:bg-muted"
+                    disabled={workpaperDecisionControlsDisabled}
+                    id={`workpaper-decision-${item.anchorCode}`}
+                    onChange={(event) => {
+                      onWorkpaperDecisionChange(item.anchorCode, event.currentTarget.value);
+                    }}
+                    value={workpaperDecisionDraft.decision}
+                  >
+                    <option disabled={!canMarkWorkpaperReviewed(item)} value="REVIEWED">
+                      Mark reviewed
+                    </option>
+                    <option value="CHANGES_REQUESTED">Request changes</option>
+                  </select>
+                </div>
+
+                {workpaperDecisionDraft.decision === "CHANGES_REQUESTED" ? (
+                  <div className="grid gap-2">
+                    <label
+                      className="text-sm font-medium text-foreground"
+                      htmlFor={`workpaper-decision-comment-${item.anchorCode}`}
+                    >
+                      Reviewer comment
+                    </label>
+                    <textarea
+                      className="min-h-24 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground disabled:cursor-not-allowed disabled:bg-muted"
+                      disabled={workpaperDecisionControlsDisabled}
+                      id={`workpaper-decision-comment-${item.anchorCode}`}
+                      onChange={(event) => {
+                        onWorkpaperDecisionCommentChange(
+                          item.anchorCode,
+                          event.currentTarget.value
+                        );
+                      }}
+                      value={workpaperDecisionDraft.comment}
+                    />
+                  </div>
+                ) : null}
+
+                {workpaperDecisionStatusLines.length > 0 ? (
+                  <div aria-live="polite" className="grid gap-2">
+                    {workpaperDecisionStatusLines.map((line) => (
+                      <p className="text-sm font-medium text-foreground" key={line}>
+                        {line}
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
+
+                <div>
+                  <Button
+                    disabled={
+                      workpaperDecisionControlsDisabled ||
+                      !canSubmitWorkpaperDecision(item, workpaperDecisionDraft)
+                    }
+                    onClick={() => {
+                      void onWorkpaperDecisionSave(item.anchorCode);
+                    }}
+                    type="button"
+                  >
+                    Save reviewer decision
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid gap-2">
+                <p className="text-sm font-medium text-foreground">
+                  {workpaperDecisionAvailabilityMessage ??
+                    "workpaper decision unavailable for this status"}
+                </p>
+                {workpaperDecisionStatusLines.length > 0 ? (
+                  <div aria-live="polite" className="grid gap-2">
+                    {workpaperDecisionStatusLines.map((line) => (
+                      <p className="text-sm font-medium text-foreground" key={line}>
+                        {line}
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            )}
           </ControlsBlock>
         ) : null}
 

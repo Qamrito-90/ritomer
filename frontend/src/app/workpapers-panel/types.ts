@@ -1,6 +1,7 @@
 import type {
   DocumentVerificationDecision,
-  MakerWorkpaperStatus
+  MakerWorkpaperStatus,
+  WorkpaperReviewDecision
 } from "../../lib/api/workpapers";
 
 export type WorkpaperDraft = {
@@ -17,6 +18,11 @@ export type DocumentUploadDraft = {
 
 export type DocumentDecisionDraft = {
   decision: DocumentVerificationDecision;
+  comment: string;
+};
+
+export type WorkpaperDecisionDraft = {
+  decision: WorkpaperReviewDecision;
   comment: string;
 };
 
@@ -102,3 +108,24 @@ export type DocumentDecisionState =
   | { kind: "timeout"; documentId: string }
   | { kind: "invalid_payload"; documentId: string }
   | { kind: "unexpected"; documentId: string };
+
+export type WorkpaperDecisionState =
+  | { kind: "idle" }
+  | { kind: "submitting"; anchorCode: string }
+  | { kind: "success"; anchorCode: string; refreshFailed: boolean }
+  | { kind: "comment_required"; anchorCode: string }
+  | { kind: "read_only_archived"; anchorCode: string }
+  | { kind: "read_only_not_ready"; anchorCode: string }
+  | { kind: "read_only_role"; anchorCode: string }
+  | { kind: "unavailable_status"; anchorCode: string }
+  | { kind: "mark_reviewed_blocked"; anchorCode: string }
+  | { kind: "bad_request"; anchorCode: string }
+  | { kind: "auth_required"; anchorCode: string }
+  | { kind: "forbidden"; anchorCode: string }
+  | { kind: "not_found"; anchorCode: string }
+  | { kind: "conflict_other"; anchorCode: string }
+  | { kind: "server_error"; anchorCode: string }
+  | { kind: "network_error"; anchorCode: string }
+  | { kind: "timeout"; anchorCode: string }
+  | { kind: "invalid_payload"; anchorCode: string }
+  | { kind: "unexpected"; anchorCode: string };

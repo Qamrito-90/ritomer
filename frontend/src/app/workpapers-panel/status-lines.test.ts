@@ -1,13 +1,15 @@
 import { describe, expect, it } from "vitest";
-import type { WorkpaperDocument } from "../../lib/api/workpapers";
+import type { WorkpaperDocument, WorkpaperReadModelItem } from "../../lib/api/workpapers";
 import {
   formatWorkpaperMutationState,
   getDocumentDecisionStatusLines,
   getDocumentDownloadStatusLine,
   getDocumentUploadStatusLines,
+  getWorkpaperDecisionStatusLines,
   mapDocumentDecisionResult,
   mapDocumentDownloadResult,
   mapDocumentUploadResult,
+  mapWorkpaperDecisionResult,
   mapWorkpaperMutationResult
 } from "./status-lines";
 import type { DocumentUploadDraft } from "./types";
@@ -32,6 +34,31 @@ function validUploadDraft(overrides: Partial<DocumentUploadDraft> = {}): Documen
     selectedFileCount: 1,
     sourceLabel: "ERP",
     documentDate: "",
+    ...overrides
+  };
+}
+
+function createWorkpaperItem(
+  overrides: Partial<WorkpaperReadModelItem> = {}
+): WorkpaperReadModelItem {
+  return {
+    anchorCode: "BS.ASSET.CURRENT_SECTION",
+    anchorLabel: "Current assets",
+    statementKind: "BALANCE_SHEET",
+    breakdownType: "SECTION",
+    isCurrentStructure: true,
+    workpaper: {
+      status: "READY_FOR_REVIEW",
+      noteText: "Ready support",
+      evidences: []
+    },
+    documents: [],
+    documentVerificationSummary: {
+      documentsCount: 0,
+      unverifiedCount: 0,
+      verifiedCount: 0,
+      rejectedCount: 0
+    },
     ...overrides
   };
 }
@@ -125,6 +152,53 @@ describe("workpapers-panel status line helpers", () => {
     ).toEqual(["upload document indisponible"]);
   });
 
+  it("maps workpaper decision states and draft validation to exact visible lines", () => {
+    expect(
+      getWorkpaperDecisionStatusLines(
+        "BS.ASSET.CURRENT_SECTION",
+        createWorkpaperItem({
+          documents: [createDocument()],
+          documentVerificationSummary: {
+            documentsCount: 1,
+            unverifiedCount: 1,
+            verifiedCount: 0,
+            rejectedCount: 0
+          }
+        }),
+        { decision: "REVIEWED", comment: "" },
+        { kind: "idle" }
+      )
+    ).toEqual(["Mark reviewed available once evidence is verified or no documents are attached"]);
+    expect(
+      getWorkpaperDecisionStatusLines(
+        "BS.ASSET.CURRENT_SECTION",
+        createWorkpaperItem(),
+        { decision: "CHANGES_REQUESTED", comment: " " },
+        { kind: "idle" }
+      )
+    ).toEqual(["Reviewer comment"]);
+    expect(
+      getWorkpaperDecisionStatusLines(
+        "BS.ASSET.CURRENT_SECTION",
+        createWorkpaperItem(),
+        { decision: "REVIEWED", comment: "" },
+        {
+          kind: "success",
+          anchorCode: "BS.ASSET.CURRENT_SECTION",
+          refreshFailed: true
+        }
+      )
+    ).toEqual(["workpaper decision saved", "decision sent, but workpapers refresh failed"]);
+    expect(
+      getWorkpaperDecisionStatusLines(
+        "BS.ASSET.CURRENT_SECTION",
+        createWorkpaperItem(),
+        { decision: "REVIEWED", comment: "" },
+        { kind: "conflict_other", anchorCode: "BS.ASSET.CURRENT_SECTION" }
+      )
+    ).toEqual(["workpaper decision blocked by current review gates"]);
+  });
+
   it("keeps API result mappers pure and scoped to local UI states", () => {
     expect(mapWorkpaperMutationResult({ kind: "bad_request" })).toEqual({
       kind: "invalid_workpaper"
@@ -143,6 +217,10 @@ describe("workpapers-panel status line helpers", () => {
     expect(mapDocumentDecisionResult({ kind: "conflict_stale" }, DOCUMENT_ID)).toEqual({
       kind: "conflict_stale",
       documentId: DOCUMENT_ID
+    });
+    expect(mapWorkpaperDecisionResult({ kind: "not_found" }, "A")).toEqual({
+      kind: "not_found",
+      anchorCode: "A"
     });
   });
 

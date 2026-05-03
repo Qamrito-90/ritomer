@@ -282,6 +282,9 @@ describe("router workpapers smoke", () => {
       false
     );
     expect(getRequestPaths(fetchMock).some((path) => path.includes("/exports"))).toBe(false);
+    expect(getRequestPaths(fetchMock).some((path) => path.includes("/minimal-annex"))).toBe(
+      false
+    );
     expect(
       getRequestPaths(fetchMock).some((path) => path.includes("/imports/balance/versions"))
     ).toBe(false);
