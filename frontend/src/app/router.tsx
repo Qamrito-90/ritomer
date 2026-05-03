@@ -6,6 +6,7 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { WorkflowBadge } from "../components/ui/workflow-badge";
 import { DossierProgressSummary } from "./dossier-progress-summary";
+import { ExportAuditPackPanel } from "./export-audit-pack-panel";
 import { WorkpapersPanel } from "./workpapers-panel";
 import {
   loadClosingFolderShellState,
@@ -853,7 +854,7 @@ function ClosingFolderRoute() {
         { label: "Dossiers de closing", href: "/" },
         { label: "Dossier" }
       ]}
-      description="Shell produit borne a GET /api/me, GET /api/closing-folders/{id}, GET /api/closing-folders/{closingFolderId}/controls, GET /api/closing-folders/{closingFolderId}/mappings/manual, GET /api/closing-folders/{closingFolderId}/financial-summary, GET /api/closing-folders/{closingFolderId}/financial-statements/structured, GET /api/closing-folders/{closingFolderId}/workpapers, PUT /api/closing-folders/{closingFolderId}/workpapers/{anchorCode}, POST /api/closing-folders/{closingFolderId}/workpapers/{anchorCode}/documents, GET /api/closing-folders/{closingFolderId}/documents/{documentId}/content puis POST /api/closing-folders/{closingFolderId}/imports/balance."
+      description="Shell produit borne a GET /api/me, GET /api/closing-folders/{id}, GET /api/closing-folders/{closingFolderId}/controls, GET /api/closing-folders/{closingFolderId}/mappings/manual, GET /api/closing-folders/{closingFolderId}/financial-summary, GET /api/closing-folders/{closingFolderId}/financial-statements/structured, GET /api/closing-folders/{closingFolderId}/workpapers, PUT /api/closing-folders/{closingFolderId}/workpapers/{anchorCode}, POST /api/closing-folders/{closingFolderId}/workpapers/{anchorCode}/documents, GET /api/closing-folders/{closingFolderId}/documents/{documentId}/content, GET/POST /api/closing-folders/{closingFolderId}/export-packs, GET /api/closing-folders/{closingFolderId}/export-packs/{exportPackId}/content puis POST /api/closing-folders/{closingFolderId}/imports/balance."
       eyebrow="Route shell produit"
       sidebarItems={[
         { href: "/", label: "Dossiers" },
@@ -999,6 +1000,12 @@ function ClosingFolderRoute() {
             effectiveRoles={state.effectiveRoles}
             initialState={state.workpapersState}
             key={`${state.activeTenant.tenantId}-${state.closingFolder.id}`}
+          />
+
+          <ExportAuditPackPanel
+            activeTenant={state.activeTenant}
+            closingFolderId={state.closingFolder.id}
+            key={`exports-${state.activeTenant.tenantId}-${state.closingFolder.id}`}
           />
         </div>
       ) : (

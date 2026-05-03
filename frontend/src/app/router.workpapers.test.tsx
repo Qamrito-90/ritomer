@@ -179,6 +179,10 @@ const READY_WORKPAPERS = {
   staleWorkpapers: []
 };
 
+const EMPTY_EXPORT_PACKS = {
+  items: []
+};
+
 const ACCOUNTANT_ME = {
   activeTenant: ACTIVE_TENANT,
   effectiveRoles: ["ACCOUNTANT"]
@@ -208,12 +212,25 @@ function waitForNominalShell() {
     screen.findByText("Mapping manuel"),
     screen.findByText("Financial summary"),
     screen.findByText("Financial statements structured"),
-    screen.findByText("Workpapers")
+    screen.findByText("Workpapers"),
+    screen.findByText("Audit-ready export pack"),
+    screen.findByText("No audit-ready pack generated yet.")
   ]);
 }
 
 function getRequestPaths(fetchMock: ReturnType<typeof vi.fn>) {
   return fetchMock.mock.calls.map((call) => String(call[0]));
+}
+
+function getRequests(fetchMock: ReturnType<typeof vi.fn>) {
+  return fetchMock.mock.calls.map((call) => {
+    const [path, init] = call as [string, RequestInit];
+
+    return {
+      method: init.method,
+      path
+    };
+  });
 }
 
 function primeNominalRoute(fetchMock: ReturnType<typeof vi.fn>) {
@@ -226,7 +243,8 @@ function primeNominalRoute(fetchMock: ReturnType<typeof vi.fn>) {
     .mockImplementationOnce(() =>
       Promise.resolve(jsonResponse(200, READY_FINANCIAL_STATEMENTS_STRUCTURED))
     )
-    .mockImplementationOnce(() => Promise.resolve(jsonResponse(200, READY_WORKPAPERS)));
+    .mockImplementationOnce(() => Promise.resolve(jsonResponse(200, READY_WORKPAPERS)))
+    .mockImplementationOnce(() => Promise.resolve(jsonResponse(200, EMPTY_EXPORT_PACKS)));
 }
 
 function expectNodeBefore(first: HTMLElement, second: HTMLElement) {
@@ -265,13 +283,33 @@ describe("router workpapers smoke", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/manual`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-summary`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
-      `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`
+      `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`
     ]);
     expect(
       getRequestPaths(fetchMock).filter((path) => path.endsWith("/workpapers"))
     ).toHaveLength(1);
     expect(
+      getRequests(fetchMock).filter(
+        (request) =>
+          request.path === `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs` &&
+          request.method === "GET"
+      )
+    ).toHaveLength(1);
+    expect(
       getRequestPaths(fetchMock).some((path) => /\/documents\/[^/]+\/content$/.test(path))
+    ).toBe(false);
+    expect(
+      getRequests(fetchMock).some(
+        (request) =>
+          request.path === `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs` &&
+          request.method === "POST"
+      )
+    ).toBe(false);
+    expect(
+      getRequestPaths(fetchMock).some((path) =>
+        /\/export-packs\/[^/]+\/content$/.test(path)
+      )
     ).toBe(false);
     expect(
       getRequestPaths(fetchMock).some((path) =>
@@ -281,7 +319,6 @@ describe("router workpapers smoke", () => {
     expect(getRequestPaths(fetchMock).some((path) => path.includes("/review-decision"))).toBe(
       false
     );
-    expect(getRequestPaths(fetchMock).some((path) => path.includes("/exports"))).toBe(false);
     expect(getRequestPaths(fetchMock).some((path) => path.includes("/minimal-annex"))).toBe(
       false
     );

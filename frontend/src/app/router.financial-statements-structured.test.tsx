@@ -264,6 +264,10 @@ const INITIAL_WORKPAPERS = {
   staleWorkpapers: []
 };
 
+const EMPTY_EXPORT_PACKS = {
+  items: []
+};
+
 const CLOSING_ROUTE = `/closing-folders/${CLOSING_FOLDER.id}`;
 
 type ResponseFactory = () => Response | Promise<Response>;
@@ -314,7 +318,8 @@ function primeNominalRoute(
     .mockImplementationOnce(() => Promise.resolve(manualMapping()))
     .mockImplementationOnce(() => Promise.resolve(financialSummary()))
     .mockImplementationOnce(() => Promise.resolve(financialStatementsStructured()))
-    .mockImplementationOnce(() => Promise.resolve(workpapers()));
+    .mockImplementationOnce(() => Promise.resolve(workpapers()))
+    .mockResolvedValueOnce(jsonResponse(200, EMPTY_EXPORT_PACKS));
 }
 
 async function waitForNominalShell() {
@@ -325,6 +330,8 @@ async function waitForNominalShell() {
   expect(await screen.findByText("Financial summary")).toBeInTheDocument();
   expect(await screen.findByText("Financial statements structured")).toBeInTheDocument();
   expect(await screen.findByText("Workpapers")).toBeInTheDocument();
+  expect(await screen.findByText("Audit-ready export pack")).toBeInTheDocument();
+  expect(await screen.findByText("No audit-ready pack generated yet.")).toBeInTheDocument();
 }
 
 function getRequestPaths(fetchMock: ReturnType<typeof vi.fn>) {
@@ -339,7 +346,7 @@ function expectNoForbiddenPaths(paths: string[]) {
   expect(paths.filter((path) => path.includes("/workpapers"))).toHaveLength(1);
   expect(paths.some((path) => /\/workpapers\/[^/]+/.test(path))).toBe(false);
   expect(paths.some((path) => path.includes("/documents"))).toBe(false);
-  expect(paths.some((path) => path.includes("/exports"))).toBe(false);
+  expect(paths.some((path) => /\/export-packs\/[^/]+\/content$/.test(path))).toBe(false);
   expect(paths.some((path) => path.includes("/ai"))).toBe(false);
 }
 
@@ -397,7 +404,8 @@ describe("router financial statements structured", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/manual`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-summary`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
-      `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`
+      `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`
     ]);
     expectNoForbiddenPaths(paths);
   });
@@ -418,7 +426,7 @@ describe("router financial statements structured", () => {
         "Preview structuree non statutaire. Ne pas utiliser comme export final, annexe officielle ou document CO."
       )
     ).not.toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(7);
+    expect(fetchMock).toHaveBeenCalledTimes(8);
   });
 
   it.each([

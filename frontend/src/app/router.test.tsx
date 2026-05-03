@@ -221,6 +221,10 @@ const DEFAULT_WORKPAPERS = {
   staleWorkpapers: []
 };
 
+const EMPTY_EXPORT_PACKS = {
+  items: []
+};
+
 const CLOSING_ROUTE = `/closing-folders/${CLOSING_FOLDER.id}`;
 
 function jsonResponse(status: number, payload: unknown) {
@@ -279,7 +283,8 @@ function primeClosingRoute(
     .mockImplementationOnce(() => manualMappingResponse)
     .mockImplementationOnce(() => financialSummaryResponse)
     .mockImplementationOnce(() => financialStatementsStructuredResponse)
-    .mockImplementationOnce(() => workpapersResponse);
+    .mockImplementationOnce(() => workpapersResponse)
+    .mockResolvedValueOnce(jsonResponse(200, EMPTY_EXPORT_PACKS));
 }
 
 function expectNoControlsNominalBlocks() {
@@ -294,6 +299,7 @@ async function expectControlsState(text: string) {
   expect(screen.getByText("Dossier courant")).toBeInTheDocument();
   expect(screen.getByText("Closing FY26")).toBeInTheDocument();
   expect(screen.getByText("Controles")).toBeInTheDocument();
+  expect(await screen.findByText("No audit-ready pack generated yet.")).toBeInTheDocument();
   expectNoControlsNominalBlocks();
 }
 
@@ -484,7 +490,8 @@ describe("router", () => {
         .mockResolvedValueOnce(jsonResponse(200, DEFAULT_MANUAL_MAPPING))
         .mockResolvedValueOnce(jsonResponse(200, DEFAULT_FINANCIAL_SUMMARY))
         .mockResolvedValueOnce(jsonResponse(200, DEFAULT_FINANCIAL_STATEMENTS_STRUCTURED))
-        .mockResolvedValueOnce(jsonResponse(200, DEFAULT_WORKPAPERS));
+        .mockResolvedValueOnce(jsonResponse(200, DEFAULT_WORKPAPERS))
+        .mockResolvedValueOnce(jsonResponse(200, EMPTY_EXPORT_PACKS));
 
       renderRoute("/");
 
@@ -500,8 +507,9 @@ describe("router", () => {
       expect(await screen.findByText("Dossier courant")).toBeInTheDocument();
       expect(await screen.findByText("Cockpit read-only")).toBeInTheDocument();
       expect(await screen.findByText("Workpapers")).toBeInTheDocument();
+      expect(await screen.findByText("No audit-ready pack generated yet.")).toBeInTheDocument();
       expect(await screen.findByLabelText("tenant actif")).toHaveTextContent("Tenant Alpha");
-      expect(fetchMock).toHaveBeenCalledTimes(9);
+      expect(fetchMock).toHaveBeenCalledTimes(10);
       expect(fetchMock.mock.calls[2]?.[0]).toBe("/api/me");
       expect(fetchMock.mock.calls[3]?.[0]).toBe(`/api/closing-folders/${CLOSING_FOLDER.id}`);
       expect(fetchMock.mock.calls[4]?.[0]).toBe(
@@ -518,6 +526,9 @@ describe("router", () => {
       );
       expect(fetchMock.mock.calls[8]?.[0]).toBe(
         `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`
+      );
+      expect(fetchMock.mock.calls[9]?.[0]).toBe(
+        `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`
       );
     });
   });
@@ -724,7 +735,8 @@ describe("router", () => {
       expect(await screen.findByText("Closing FY26")).toBeInTheDocument();
       expect(screen.getByText("Dossier courant")).toBeInTheDocument();
       expect(await expectVisibleText("chargement controls")).toBeInTheDocument();
-      expect(fetchMock).toHaveBeenCalledTimes(7);
+      expect(await screen.findByText("No audit-ready pack generated yet.")).toBeInTheDocument();
+      expect(fetchMock).toHaveBeenCalledTimes(8);
       expectNoControlsNominalBlocks();
     });
 
@@ -741,7 +753,7 @@ describe("router", () => {
       renderRoute(CLOSING_ROUTE);
 
       await expectControlsState(text);
-      expect(fetchMock).toHaveBeenCalledTimes(7);
+      expect(fetchMock).toHaveBeenCalledTimes(8);
     });
 
     it("renders erreur reseau controls on a controls network failure", async () => {
@@ -753,12 +765,13 @@ describe("router", () => {
         .mockResolvedValueOnce(jsonResponse(200, DEFAULT_MANUAL_MAPPING))
         .mockResolvedValueOnce(jsonResponse(200, DEFAULT_FINANCIAL_SUMMARY))
         .mockResolvedValueOnce(jsonResponse(200, DEFAULT_FINANCIAL_STATEMENTS_STRUCTURED))
-        .mockResolvedValueOnce(jsonResponse(200, DEFAULT_WORKPAPERS));
+        .mockResolvedValueOnce(jsonResponse(200, DEFAULT_WORKPAPERS))
+        .mockResolvedValueOnce(jsonResponse(200, EMPTY_EXPORT_PACKS));
 
       renderRoute(CLOSING_ROUTE);
 
       await expectControlsState("erreur reseau controls");
-      expect(fetchMock).toHaveBeenCalledTimes(7);
+      expect(fetchMock).toHaveBeenCalledTimes(8);
     });
 
     it("renders timeout controls on a controls timeout failure", async () => {
@@ -770,12 +783,13 @@ describe("router", () => {
         .mockResolvedValueOnce(jsonResponse(200, DEFAULT_MANUAL_MAPPING))
         .mockResolvedValueOnce(jsonResponse(200, DEFAULT_FINANCIAL_SUMMARY))
         .mockResolvedValueOnce(jsonResponse(200, DEFAULT_FINANCIAL_STATEMENTS_STRUCTURED))
-        .mockResolvedValueOnce(jsonResponse(200, DEFAULT_WORKPAPERS));
+        .mockResolvedValueOnce(jsonResponse(200, DEFAULT_WORKPAPERS))
+        .mockResolvedValueOnce(jsonResponse(200, EMPTY_EXPORT_PACKS));
 
       renderRoute(CLOSING_ROUTE);
 
       await expectControlsState("timeout controls");
-      expect(fetchMock).toHaveBeenCalledTimes(7);
+      expect(fetchMock).toHaveBeenCalledTimes(8);
     });
 
     it("renders payload controls invalide when the controls payload is incomplete", async () => {
@@ -793,7 +807,7 @@ describe("router", () => {
       renderRoute(CLOSING_ROUTE);
 
       await expectControlsState("payload controls invalide");
-      expect(fetchMock).toHaveBeenCalledTimes(7);
+      expect(fetchMock).toHaveBeenCalledTimes(8);
     });
 
     it("renders the exact READY controls blocks in order and stays accessible", async () => {
@@ -850,7 +864,8 @@ describe("router", () => {
 
       expect(screen.queryByText(ACTIVE_TENANT.tenantId)).not.toBeInTheDocument();
       expect(screen.queryByText(CLOSING_FOLDER.id)).not.toBeInTheDocument();
-      expect(fetchMock).toHaveBeenCalledTimes(7);
+      expect(await screen.findByText("No audit-ready pack generated yet.")).toBeInTheDocument();
+      expect(fetchMock).toHaveBeenCalledTimes(8);
 
       expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/me");
       expect(fetchMock.mock.calls[1]?.[0]).toBe(`/api/closing-folders/${CLOSING_FOLDER.id}`);
@@ -882,6 +897,7 @@ describe("router", () => {
       renderRoute(CLOSING_ROUTE);
 
       expect(await screen.findByText("Closing FY26")).toBeInTheDocument();
+      expect(await screen.findByText("No audit-ready pack generated yet.")).toBeInTheDocument();
 
       const readinessBlock = screen.getByRole("heading", { name: "Readiness" }).closest("section");
       const controlsBlock = screen.getByRole("heading", { name: "Controles" }).closest("section");
@@ -939,7 +955,7 @@ describe("router", () => {
       expect(rows[1]).toHaveTextContent("Revenue");
       expect(rows[2]).toHaveTextContent("0500");
       expect(rows[2]).toHaveTextContent("Receivable");
-      expect(fetchMock).toHaveBeenCalledTimes(7);
+      expect(fetchMock).toHaveBeenCalledTimes(8);
     });
   });
 });
