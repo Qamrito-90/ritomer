@@ -70,6 +70,7 @@ const workpaperEvidenceSchema = z.object({
 const workpaperDetailsSchema = z.object({
   status: workpaperStatusSchema,
   noteText: z.string(),
+  reviewComment: z.string().nullable().optional(),
   evidences: z.array(workpaperEvidenceSchema)
 });
 
@@ -125,6 +126,15 @@ const documentVerificationDecisionSuccessSchema = z.object({
   reviewComment: z.string().nullable()
 });
 
+const workpaperReviewDecisionSuccessSchema = z.object({
+  anchorCode: z.string(),
+  isCurrentStructure: z.boolean(),
+  workpaper: z.object({
+    status: workpaperStatusSchema,
+    reviewComment: z.string().nullable()
+  })
+});
+
 export const DOCUMENT_UPLOAD_ALLOWED_MEDIA_TYPES = uploadedDocumentMediaTypes;
 export const DOCUMENT_UPLOAD_MAX_BYTES = 25 * 1024 * 1024;
 
@@ -134,6 +144,7 @@ export type WorkpaperStatus = z.infer<typeof workpaperStatusSchema>;
 export type MakerWorkpaperStatus = z.infer<typeof makerWorkpaperStatusSchema>;
 export type DocumentVerificationStatus = z.infer<typeof documentVerificationStatusSchema>;
 export type DocumentVerificationDecision = z.infer<typeof documentVerificationDecisionSchema>;
+export type WorkpaperReviewDecision = "REVIEWED" | "CHANGES_REQUESTED";
 export type WorkpaperSummaryCounts = z.infer<typeof summaryCountsSchema>;
 export type WorkpaperDocument = z.infer<typeof workpaperDocumentSchema>;
 export type DocumentVerificationSummary = z.infer<typeof documentVerificationSummarySchema>;
@@ -164,6 +175,16 @@ export type ReviewDocumentVerificationDecisionRequest =
   | {
       documentId: string;
       decision: "REJECTED";
+      comment: string;
+    };
+export type ReviewWorkpaperDecisionRequest =
+  | {
+      anchorCode: string;
+      decision: "REVIEWED";
+    }
+  | {
+      anchorCode: string;
+      decision: "CHANGES_REQUESTED";
       comment: string;
     };
 
@@ -241,6 +262,20 @@ export type ReviewDocumentVerificationDecisionState =
   | { kind: "conflict_not_ready" }
   | { kind: "conflict_stale" }
   | { kind: "conflict_workpaper_status" }
+  | { kind: "conflict_other" }
+  | { kind: "server_error" }
+  | { kind: "timeout" }
+  | { kind: "network_error" }
+  | { kind: "invalid_payload" }
+  | { kind: "unexpected" };
+
+export type ReviewWorkpaperDecisionState =
+  | { kind: "success" }
+  | { kind: "comment_required" }
+  | { kind: "bad_request" }
+  | { kind: "auth_required" }
+  | { kind: "forbidden" }
+  | { kind: "not_found" }
   | { kind: "conflict_other" }
   | { kind: "server_error" }
   | { kind: "timeout" }
@@ -624,6 +659,92 @@ export async function reviewDocumentVerificationDecision(
   }
 }
 
+export async function reviewWorkpaperDecision(
+  closingFolderId: string,
+  activeTenant: ActiveTenant,
+  request: ReviewWorkpaperDecisionRequest,
+  fetcher: Fetcher = fetch
+): Promise<ReviewWorkpaperDecisionState> {
+  let body:
+    | { decision: "REVIEWED" }
+    | { decision: "CHANGES_REQUESTED"; comment: string };
+
+  if (request.decision === "CHANGES_REQUESTED") {
+    const trimmedComment = request.comment.trim();
+
+    if (trimmedComment.length === 0) {
+      return { kind: "comment_required" };
+    }
+
+    body = { decision: "CHANGES_REQUESTED", comment: trimmedComment };
+  } else {
+    body = { decision: "REVIEWED" };
+  }
+
+  try {
+    const response = await requestJson(
+      `/api/closing-folders/${encodeURIComponent(closingFolderId)}/workpapers/${encodeURIComponent(request.anchorCode)}/review-decision`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Tenant-Id": activeTenant.tenantId
+        },
+        body: JSON.stringify(body)
+      },
+      fetcher
+    );
+
+    if (response.status === 200) {
+      const payload = await readJsonBody(response);
+
+      if (payload === undefined) {
+        return { kind: "invalid_payload" };
+      }
+
+      const parsed = workpaperReviewDecisionSuccessSchema.safeParse(payload);
+
+      if (!parsed.success || !isWorkpaperReviewDecisionSuccessCoherent(parsed.data, request)) {
+        return { kind: "invalid_payload" };
+      }
+
+      return { kind: "success" };
+    }
+
+    if (response.status === 400) {
+      return { kind: "bad_request" };
+    }
+
+    if (response.status === 401) {
+      return { kind: "auth_required" };
+    }
+
+    if (response.status === 403) {
+      return { kind: "forbidden" };
+    }
+
+    if (response.status === 404) {
+      return { kind: "not_found" };
+    }
+
+    if (response.status === 409) {
+      return { kind: "conflict_other" };
+    }
+
+    if (response.status >= 500 && response.status <= 599) {
+      return { kind: "server_error" };
+    }
+
+    return { kind: "unexpected" };
+  } catch (error) {
+    if (error instanceof Error && error.message === "timeout") {
+      return { kind: "timeout" };
+    }
+
+    return { kind: "network_error" };
+  }
+}
+
 function isClosingWorkpapersCoherent(
   workpapers: ClosingWorkpapersReadModel,
   closingFolderId: string,
@@ -724,6 +845,25 @@ function isDocumentVerificationDecisionSuccessCoherent(
   }
 
   return payload.reviewComment === request.comment.trim();
+}
+
+function isWorkpaperReviewDecisionSuccessCoherent(
+  payload: z.infer<typeof workpaperReviewDecisionSuccessSchema>,
+  request: ReviewWorkpaperDecisionRequest
+) {
+  if (
+    payload.anchorCode !== request.anchorCode ||
+    !payload.isCurrentStructure ||
+    payload.workpaper.status !== request.decision
+  ) {
+    return false;
+  }
+
+  if (request.decision === "REVIEWED") {
+    return payload.workpaper.reviewComment === null;
+  }
+
+  return payload.workpaper.reviewComment === request.comment.trim();
 }
 
 function isWorkpaperItemCoherent(item: WorkpaperReadModelItem, isCurrentStructure: boolean) {

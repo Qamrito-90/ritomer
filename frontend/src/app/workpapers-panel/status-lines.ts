@@ -1,17 +1,25 @@
 import type {
   DownloadWorkpaperDocumentState,
   ReviewDocumentVerificationDecisionState,
+  ReviewWorkpaperDecisionState,
   UpsertWorkpaperState,
   UploadWorkpaperDocumentState,
-  WorkpaperDocument
+  WorkpaperDocument,
+  WorkpaperReadModelItem
 } from "../../lib/api/workpapers";
-import { getReadableDocumentId, validateDocumentUploadDraft } from "./model";
+import {
+  canMarkWorkpaperReviewed,
+  getReadableDocumentId,
+  validateDocumentUploadDraft
+} from "./model";
 import type {
   DocumentDecisionDraft,
   DocumentDecisionState,
   DocumentDownloadState,
   DocumentUploadDraft,
   DocumentUploadState,
+  WorkpaperDecisionDraft,
+  WorkpaperDecisionState,
   WorkpaperMutationState
 } from "./types";
 
@@ -249,6 +257,61 @@ export function getDocumentUploadStatusLines(
   return [validation.kind === "valid" ? "fichier pret pour upload" : validation.message];
 }
 
+export function getWorkpaperDecisionStatusLines(
+  anchorCode: string,
+  item: WorkpaperReadModelItem,
+  draft: WorkpaperDecisionDraft,
+  state: WorkpaperDecisionState
+) {
+  if (state.kind !== "idle" && state.anchorCode === anchorCode) {
+    if (state.kind === "submitting") {
+      return ["Decision reviewer workpaper"];
+    }
+
+    if (state.kind === "success") {
+      return state.refreshFailed
+        ? ["workpaper decision saved", "decision sent, but workpapers refresh failed"]
+        : ["workpaper decision saved"];
+    }
+
+    if (state.kind === "comment_required") {
+      return ["Reviewer comment"];
+    }
+
+    if (
+      state.kind === "read_only_archived" ||
+      state.kind === "read_only_not_ready" ||
+      state.kind === "unavailable_status"
+    ) {
+      return ["workpaper decision unavailable for this status"];
+    }
+
+    if (state.kind === "read_only_role" || state.kind === "bad_request" || state.kind === "forbidden") {
+      return ["workpaper decision refused"];
+    }
+
+    if (state.kind === "not_found") {
+      return ["workpaper not found for decision"];
+    }
+
+    if (state.kind === "conflict_other" || state.kind === "mark_reviewed_blocked") {
+      return ["workpaper decision blocked by current review gates"];
+    }
+
+    return ["workpaper decision refused"];
+  }
+
+  if (draft.decision === "CHANGES_REQUESTED" && draft.comment.trim().length === 0) {
+    return ["Reviewer comment"];
+  }
+
+  if (draft.decision === "REVIEWED" && !canMarkWorkpaperReviewed(item)) {
+    return ["Mark reviewed available once evidence is verified or no documents are attached"];
+  }
+
+  return [];
+}
+
 export function mapWorkpaperMutationResult(
   result: Exclude<UpsertWorkpaperState, { kind: "success" }>
 ): WorkpaperMutationState {
@@ -326,6 +389,16 @@ export function mapDocumentDecisionResult(
   return {
     ...result,
     documentId
+  };
+}
+
+export function mapWorkpaperDecisionResult(
+  result: Exclude<ReviewWorkpaperDecisionState, { kind: "success" }>,
+  anchorCode: string
+): WorkpaperDecisionState {
+  return {
+    ...result,
+    anchorCode
   };
 }
 
