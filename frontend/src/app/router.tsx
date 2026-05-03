@@ -5,6 +5,7 @@ import { AppShell } from "../components/workbench/app-shell";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { WorkflowBadge } from "../components/ui/workflow-badge";
+import { DossierProgressSummary } from "./dossier-progress-summary";
 import { WorkpapersPanel } from "./workpapers-panel";
 import {
   loadClosingFolderShellState,
@@ -885,6 +886,14 @@ function ClosingFolderRoute() {
               </dl>
             </div>
           </section>
+
+          <DossierProgressSummary
+            controlsState={state.controlsState}
+            financialStatementsStructuredState={state.financialStatementsStructuredState}
+            financialSummaryState={state.financialSummaryState}
+            manualMappingState={state.manualMappingState}
+            workpapersState={state.workpapersState}
+          />
 
           <section className="panel p-6">
             <div className="grid gap-6">

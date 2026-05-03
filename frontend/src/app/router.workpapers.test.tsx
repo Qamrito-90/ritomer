@@ -203,6 +203,7 @@ function renderClosingRoute() {
 function waitForNominalShell() {
   return Promise.all([
     screen.findByText("Dossier courant"),
+    screen.findByText("Progression dossier"),
     screen.findByText("Import balance"),
     screen.findByText("Mapping manuel"),
     screen.findByText("Financial summary"),
@@ -251,6 +252,8 @@ describe("router workpapers smoke", () => {
     renderClosingRoute();
     await waitForNominalShell();
 
+    expectNodeBefore(screen.getByText("Dossier courant"), screen.getByText("Progression dossier"));
+    expectNodeBefore(screen.getByText("Progression dossier"), screen.getByText("Import balance"));
     expectNodeBefore(
       screen.getByText("Financial statements structured"),
       screen.getByText("Workpapers")
