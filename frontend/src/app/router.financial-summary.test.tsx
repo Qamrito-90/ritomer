@@ -229,6 +229,33 @@ const EMPTY_EXPORT_PACKS = {
   items: []
 };
 
+const BLOCKED_MINIMAL_ANNEX = {
+  closingFolderId: CLOSING_FOLDER.id,
+  closingFolderStatus: "DRAFT",
+  readiness: "BLOCKED",
+  annexState: "BLOCKED",
+  presentationType: "MINIMAL_OPERATIONAL_ANNEX",
+  isStatutory: false,
+  requiresHumanReview: true,
+  legalNotice: {
+    title: "Preview non statutaire.",
+    notOfficialCoAnnex: "Not a final CO deliverable.",
+    noAutomaticValidation: "Aucune decision automatique.",
+    humanReviewRequired: "Human review required."
+  },
+  basis: {
+    controlsReadiness: "BLOCKED",
+    latestImportVersion: null,
+    taxonomyVersion: 2,
+    structuredStatementState: "NO_DATA",
+    structuredPresentationType: "STRUCTURED_PREVIEW",
+    exportPack: null
+  },
+  blockers: [],
+  warnings: [],
+  annex: null
+};
+
 const CLOSING_ROUTE = `/closing-folders/${CLOSING_FOLDER.id}`;
 
 type ResponseFactory = () => Response | Promise<Response>;
@@ -281,7 +308,8 @@ function primeNominalRoute(
     .mockImplementationOnce(() => Promise.resolve(financialSummary()))
     .mockImplementationOnce(() => Promise.resolve(financialStatementsStructured()))
     .mockImplementationOnce(() => Promise.resolve(workpapers()))
-    .mockResolvedValueOnce(jsonResponse(200, EMPTY_EXPORT_PACKS));
+    .mockResolvedValueOnce(jsonResponse(200, EMPTY_EXPORT_PACKS))
+    .mockResolvedValueOnce(jsonResponse(200, BLOCKED_MINIMAL_ANNEX));
 }
 
 async function waitForNominalShell() {
@@ -294,6 +322,7 @@ async function waitForNominalShell() {
   expect(await screen.findByText("Workpapers")).toBeInTheDocument();
   expect(await screen.findByText("Audit-ready export pack")).toBeInTheDocument();
   expect(await screen.findByText("No audit-ready pack generated yet.")).toBeInTheDocument();
+  expect(await screen.findByText("Minimal annex preview")).toBeInTheDocument();
 }
 
 function getRequestPaths(fetchMock: ReturnType<typeof vi.fn>) {
@@ -358,7 +387,8 @@ describe("router financial summary", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-summary`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`,
-      `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`
+      `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/minimal-annex`
     ]);
     expect(paths.filter((path) => path.includes("/financial-summary"))).toHaveLength(1);
     expectNoForbiddenPaths(paths);
@@ -377,10 +407,10 @@ describe("router financial summary", () => {
     expectExistingBlocksVisible();
     expect(
       screen.queryByText(
-        "Preview non statutaire. Ne pas utiliser comme export final, annexe officielle ou document CO."
+        "Preview non statutaire. Not a final CO deliverable. Do not use as statutory filing."
       )
     ).not.toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(8);
+    expect(fetchMock).toHaveBeenCalledTimes(9);
   });
 
   it.each([
@@ -406,7 +436,7 @@ describe("router financial summary", () => {
     expect(screen.queryByRole("heading", { name: "Etat preview" })).not.toBeInTheDocument();
     expect(
       screen.queryByText(
-        "Preview non statutaire. Ne pas utiliser comme export final, annexe officielle ou document CO."
+        "Preview non statutaire. Not a final CO deliverable. Do not use as statutory filing."
       )
     ).not.toBeInTheDocument();
   });
@@ -496,7 +526,7 @@ describe("router financial summary", () => {
 
     expect(
       await screen.findByText(
-        "Preview non statutaire. Ne pas utiliser comme export final, annexe officielle ou document CO."
+        "Preview non statutaire. Not a final CO deliverable. Do not use as statutory filing."
       )
     ).toBeInTheDocument();
     expect(screen.getByText("etat preview : aucune donnee")).toBeInTheDocument();
@@ -529,7 +559,7 @@ describe("router financial summary", () => {
 
     expect(
       await summary.findByText(
-        "Preview non statutaire. Ne pas utiliser comme export final, annexe officielle ou document CO."
+        "Preview non statutaire. Not a final CO deliverable. Do not use as statutory filing."
       )
     ).toBeInTheDocument();
     expect(summary.getByText("etat preview : preview partielle")).toBeInTheDocument();
@@ -576,7 +606,7 @@ describe("router financial summary", () => {
 
     expect(
       await summary.findByText(
-        "Preview non statutaire. Ne pas utiliser comme export final, annexe officielle ou document CO."
+        "Preview non statutaire. Not a final CO deliverable. Do not use as statutory filing."
       )
     ).toBeInTheDocument();
     expect(summary.getByText("etat preview : preview prete")).toBeInTheDocument();

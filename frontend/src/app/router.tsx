@@ -7,6 +7,7 @@ import { Input } from "../components/ui/input";
 import { WorkflowBadge } from "../components/ui/workflow-badge";
 import { DossierProgressSummary } from "./dossier-progress-summary";
 import { ExportAuditPackPanel } from "./export-audit-pack-panel";
+import { MinimalAnnexPanel } from "./minimal-annex-panel";
 import { WorkpapersPanel } from "./workpapers-panel";
 import {
   loadClosingFolderShellState,
@@ -854,7 +855,7 @@ function ClosingFolderRoute() {
         { label: "Dossiers de closing", href: "/" },
         { label: "Dossier" }
       ]}
-      description="Shell produit borne a GET /api/me, GET /api/closing-folders/{id}, GET /api/closing-folders/{closingFolderId}/controls, GET /api/closing-folders/{closingFolderId}/mappings/manual, GET /api/closing-folders/{closingFolderId}/financial-summary, GET /api/closing-folders/{closingFolderId}/financial-statements/structured, GET /api/closing-folders/{closingFolderId}/workpapers, PUT /api/closing-folders/{closingFolderId}/workpapers/{anchorCode}, POST /api/closing-folders/{closingFolderId}/workpapers/{anchorCode}/documents, GET /api/closing-folders/{closingFolderId}/documents/{documentId}/content, GET/POST /api/closing-folders/{closingFolderId}/export-packs, GET /api/closing-folders/{closingFolderId}/export-packs/{exportPackId}/content puis POST /api/closing-folders/{closingFolderId}/imports/balance."
+      description="Shell produit borne a GET /api/me, GET /api/closing-folders/{id}, GET /api/closing-folders/{closingFolderId}/controls, GET /api/closing-folders/{closingFolderId}/mappings/manual, GET /api/closing-folders/{closingFolderId}/financial-summary, GET /api/closing-folders/{closingFolderId}/financial-statements/structured, GET /api/closing-folders/{closingFolderId}/workpapers, PUT /api/closing-folders/{closingFolderId}/workpapers/{anchorCode}, POST /api/closing-folders/{closingFolderId}/workpapers/{anchorCode}/documents, GET /api/closing-folders/{closingFolderId}/documents/{documentId}/content, GET/POST /api/closing-folders/{closingFolderId}/export-packs, GET /api/closing-folders/{closingFolderId}/export-packs/{exportPackId}/content, GET /api/closing-folders/{closingFolderId}/minimal-annex puis POST /api/closing-folders/{closingFolderId}/imports/balance."
       eyebrow="Route shell produit"
       sidebarItems={[
         { href: "/", label: "Dossiers" },
@@ -1006,6 +1007,12 @@ function ClosingFolderRoute() {
             activeTenant={state.activeTenant}
             closingFolderId={state.closingFolder.id}
             key={`exports-${state.activeTenant.tenantId}-${state.closingFolder.id}`}
+          />
+
+          <MinimalAnnexPanel
+            activeTenant={state.activeTenant}
+            closingFolderId={state.closingFolder.id}
+            key={`minimal-annex-${state.activeTenant.tenantId}-${state.closingFolder.id}`}
           />
         </div>
       ) : (
@@ -1671,8 +1678,7 @@ function FinancialSummaryNominalBlocks({ summary }: { summary: FinancialSummaryP
   return (
     <div className="grid gap-4">
       <p className="rounded-lg border bg-background/80 p-4 text-sm font-medium text-foreground">
-        Preview non statutaire. Ne pas utiliser comme export final, annexe officielle ou
-        document CO.
+        Preview non statutaire. Not a final CO deliverable. Do not use as statutory filing.
       </p>
 
       <ControlsBlock title="Etat preview">
@@ -1738,8 +1744,8 @@ function FinancialStatementsStructuredNominalBlocks({
   return (
     <div className="grid gap-4">
       <p className="rounded-lg border bg-background/80 p-4 text-sm font-medium text-foreground">
-        Preview structuree non statutaire. Ne pas utiliser comme export final, annexe
-        officielle ou document CO.
+        Preview structuree non statutaire. Not a final CO deliverable. Do not use as
+        statutory filing.
       </p>
 
       <ControlsBlock title="Etat structured preview">
