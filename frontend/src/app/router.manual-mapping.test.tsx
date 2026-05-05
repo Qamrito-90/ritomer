@@ -247,6 +247,33 @@ const EMPTY_EXPORT_PACKS = {
   items: []
 };
 
+const BLOCKED_MINIMAL_ANNEX = {
+  closingFolderId: CLOSING_FOLDER.id,
+  closingFolderStatus: "DRAFT",
+  readiness: "BLOCKED",
+  annexState: "BLOCKED",
+  presentationType: "MINIMAL_OPERATIONAL_ANNEX",
+  isStatutory: false,
+  requiresHumanReview: true,
+  legalNotice: {
+    title: "Preview non statutaire.",
+    notOfficialCoAnnex: "Not a final CO deliverable.",
+    noAutomaticValidation: "Aucune decision automatique.",
+    humanReviewRequired: "Human review required."
+  },
+  basis: {
+    controlsReadiness: "BLOCKED",
+    latestImportVersion: null,
+    taxonomyVersion: 2,
+    structuredStatementState: "NO_DATA",
+    structuredPresentationType: "STRUCTURED_PREVIEW",
+    exportPack: null
+  },
+  blockers: [],
+  warnings: [],
+  annex: null
+};
+
 const CLOSING_ROUTE = `/closing-folders/${CLOSING_FOLDER.id}`;
 
 type ResponseFactory = () => Response | Promise<Response>;
@@ -302,7 +329,8 @@ function primeNominalRoute(
     .mockImplementationOnce(() => Promise.resolve(financialSummary()))
     .mockImplementationOnce(() => Promise.resolve(financialStatementsStructured()))
     .mockImplementationOnce(() => Promise.resolve(workpapers()))
-    .mockResolvedValueOnce(jsonResponse(200, EMPTY_EXPORT_PACKS));
+    .mockResolvedValueOnce(jsonResponse(200, EMPTY_EXPORT_PACKS))
+    .mockResolvedValueOnce(jsonResponse(200, BLOCKED_MINIMAL_ANNEX));
 
   extras.forEach((response) => {
     fetchMock.mockImplementationOnce(() => Promise.resolve(response()));
@@ -319,6 +347,7 @@ async function waitForNominalShell() {
   expect(await screen.findByText("Workpapers")).toBeInTheDocument();
   expect(await screen.findByText("Audit-ready export pack")).toBeInTheDocument();
   expect(await screen.findByText("No audit-ready pack generated yet.")).toBeInTheDocument();
+  expect(await screen.findByText("Minimal annex preview")).toBeInTheDocument();
 }
 
 function getRequestHeaders(fetchMock: ReturnType<typeof vi.fn>, index: number) {
@@ -432,7 +461,8 @@ describe("router manual mapping", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-summary`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`,
-      `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`
+      `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/minimal-annex`
     ]);
     expect(getRequestHeaders(fetchMock, 0)["X-Tenant-Id"]).toBeUndefined();
     expect(getRequestHeaders(fetchMock, 1)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
@@ -604,13 +634,13 @@ describe("router manual mapping", () => {
 
     await user.selectOptions(getLineTargetSelect("2000"), "PL.REVENUE");
 
-    expect(fetchMock).toHaveBeenCalledTimes(8);
+    expect(fetchMock).toHaveBeenCalledTimes(9);
     expect(getLineSaveButton("2000")).toBeEnabled();
 
     await user.click(getLineSaveButton("2000"));
 
     expect(await screen.findByText("enregistrement mapping en cours")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(9);
+    expect(fetchMock).toHaveBeenCalledTimes(10);
     expect(getLineTargetSelect("1000")).toBeDisabled();
     expect(getLineTargetSelect("2000")).toBeDisabled();
     expect(getLineSaveButton("1000")).toBeDisabled();
@@ -618,7 +648,7 @@ describe("router manual mapping", () => {
     expect(getLineDeleteButton("1000")).toBeDisabled();
 
     await user.click(getLineDeleteButton("1000"));
-    expect(fetchMock).toHaveBeenCalledTimes(9);
+    expect(fetchMock).toHaveBeenCalledTimes(10);
     expectNoOutOfScopePaths(getRequestPaths(fetchMock));
   });
 
@@ -662,12 +692,13 @@ describe("router manual mapping", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/minimal-annex`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/manual`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/manual`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/controls`
     ]);
 
-    const putInit = fetchMock.mock.calls[8]?.[1] as RequestInit;
+    const putInit = fetchMock.mock.calls[9]?.[1] as RequestInit;
     const putHeaders = putInit.headers as Record<string, string>;
     expect(putInit.method).toBe("PUT");
     expect(putHeaders.Accept).toBe("application/json");
@@ -700,7 +731,7 @@ describe("router manual mapping", () => {
     await user.click(getLineSaveButton("2000"));
 
     expect(await screen.findByText("payload mapping invalide")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(9);
+    expect(fetchMock).toHaveBeenCalledTimes(10);
   });
 
   it.each([
@@ -782,7 +813,7 @@ describe("router manual mapping", () => {
     await user.click(getLineSaveButton("2000"));
 
     expect(await screen.findByText(text)).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(9);
+    expect(fetchMock).toHaveBeenCalledTimes(10);
   });
 
   it("sends the exact DELETE query param, keeps no body, and refreshes mapping plus controls after success", async () => {
@@ -811,12 +842,13 @@ describe("router manual mapping", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/minimal-annex`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/manual?accountCode=1000`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/manual`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/controls`
     ]);
 
-    const deleteInit = fetchMock.mock.calls[8]?.[1] as RequestInit;
+    const deleteInit = fetchMock.mock.calls[9]?.[1] as RequestInit;
     const deleteHeaders = deleteInit.headers as Record<string, string>;
     expect(deleteInit.method).toBe("DELETE");
     expect(deleteHeaders.Accept).toBe("application/json");

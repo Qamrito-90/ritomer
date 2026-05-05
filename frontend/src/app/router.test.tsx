@@ -225,6 +225,33 @@ const EMPTY_EXPORT_PACKS = {
   items: []
 };
 
+const BLOCKED_MINIMAL_ANNEX = {
+  closingFolderId: CLOSING_FOLDER.id,
+  closingFolderStatus: "DRAFT",
+  readiness: "BLOCKED",
+  annexState: "BLOCKED",
+  presentationType: "MINIMAL_OPERATIONAL_ANNEX",
+  isStatutory: false,
+  requiresHumanReview: true,
+  legalNotice: {
+    title: "Preview non statutaire.",
+    notOfficialCoAnnex: "Not a final CO deliverable.",
+    noAutomaticValidation: "Aucune decision automatique.",
+    humanReviewRequired: "Human review required."
+  },
+  basis: {
+    controlsReadiness: "BLOCKED",
+    latestImportVersion: null,
+    taxonomyVersion: 2,
+    structuredStatementState: "NO_DATA",
+    structuredPresentationType: "STRUCTURED_PREVIEW",
+    exportPack: null
+  },
+  blockers: [],
+  warnings: [],
+  annex: null
+};
+
 const CLOSING_ROUTE = `/closing-folders/${CLOSING_FOLDER.id}`;
 
 function jsonResponse(status: number, payload: unknown) {
@@ -284,7 +311,8 @@ function primeClosingRoute(
     .mockImplementationOnce(() => financialSummaryResponse)
     .mockImplementationOnce(() => financialStatementsStructuredResponse)
     .mockImplementationOnce(() => workpapersResponse)
-    .mockResolvedValueOnce(jsonResponse(200, EMPTY_EXPORT_PACKS));
+    .mockResolvedValueOnce(jsonResponse(200, EMPTY_EXPORT_PACKS))
+    .mockResolvedValueOnce(jsonResponse(200, BLOCKED_MINIMAL_ANNEX));
 }
 
 function expectNoControlsNominalBlocks() {
@@ -300,6 +328,7 @@ async function expectControlsState(text: string) {
   expect(screen.getByText("Closing FY26")).toBeInTheDocument();
   expect(screen.getByText("Controles")).toBeInTheDocument();
   expect(await screen.findByText("No audit-ready pack generated yet.")).toBeInTheDocument();
+  expect(await screen.findByText("Minimal annex preview")).toBeInTheDocument();
   expectNoControlsNominalBlocks();
 }
 
@@ -491,7 +520,8 @@ describe("router", () => {
         .mockResolvedValueOnce(jsonResponse(200, DEFAULT_FINANCIAL_SUMMARY))
         .mockResolvedValueOnce(jsonResponse(200, DEFAULT_FINANCIAL_STATEMENTS_STRUCTURED))
         .mockResolvedValueOnce(jsonResponse(200, DEFAULT_WORKPAPERS))
-        .mockResolvedValueOnce(jsonResponse(200, EMPTY_EXPORT_PACKS));
+        .mockResolvedValueOnce(jsonResponse(200, EMPTY_EXPORT_PACKS))
+        .mockResolvedValueOnce(jsonResponse(200, BLOCKED_MINIMAL_ANNEX));
 
       renderRoute("/");
 
@@ -508,8 +538,9 @@ describe("router", () => {
       expect(await screen.findByText("Cockpit read-only")).toBeInTheDocument();
       expect(await screen.findByText("Workpapers")).toBeInTheDocument();
       expect(await screen.findByText("No audit-ready pack generated yet.")).toBeInTheDocument();
+      expect(await screen.findByText("Minimal annex preview")).toBeInTheDocument();
       expect(await screen.findByLabelText("tenant actif")).toHaveTextContent("Tenant Alpha");
-      expect(fetchMock).toHaveBeenCalledTimes(10);
+      expect(fetchMock).toHaveBeenCalledTimes(11);
       expect(fetchMock.mock.calls[2]?.[0]).toBe("/api/me");
       expect(fetchMock.mock.calls[3]?.[0]).toBe(`/api/closing-folders/${CLOSING_FOLDER.id}`);
       expect(fetchMock.mock.calls[4]?.[0]).toBe(
@@ -529,6 +560,9 @@ describe("router", () => {
       );
       expect(fetchMock.mock.calls[9]?.[0]).toBe(
         `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`
+      );
+      expect(fetchMock.mock.calls[10]?.[0]).toBe(
+        `/api/closing-folders/${CLOSING_FOLDER.id}/minimal-annex`
       );
     });
   });
@@ -736,7 +770,7 @@ describe("router", () => {
       expect(screen.getByText("Dossier courant")).toBeInTheDocument();
       expect(await expectVisibleText("chargement controls")).toBeInTheDocument();
       expect(await screen.findByText("No audit-ready pack generated yet.")).toBeInTheDocument();
-      expect(fetchMock).toHaveBeenCalledTimes(8);
+      expect(fetchMock).toHaveBeenCalledTimes(9);
       expectNoControlsNominalBlocks();
     });
 
@@ -753,7 +787,7 @@ describe("router", () => {
       renderRoute(CLOSING_ROUTE);
 
       await expectControlsState(text);
-      expect(fetchMock).toHaveBeenCalledTimes(8);
+      expect(fetchMock).toHaveBeenCalledTimes(9);
     });
 
     it("renders erreur reseau controls on a controls network failure", async () => {
@@ -771,7 +805,7 @@ describe("router", () => {
       renderRoute(CLOSING_ROUTE);
 
       await expectControlsState("erreur reseau controls");
-      expect(fetchMock).toHaveBeenCalledTimes(8);
+      expect(fetchMock).toHaveBeenCalledTimes(9);
     });
 
     it("renders timeout controls on a controls timeout failure", async () => {
@@ -789,7 +823,7 @@ describe("router", () => {
       renderRoute(CLOSING_ROUTE);
 
       await expectControlsState("timeout controls");
-      expect(fetchMock).toHaveBeenCalledTimes(8);
+      expect(fetchMock).toHaveBeenCalledTimes(9);
     });
 
     it("renders payload controls invalide when the controls payload is incomplete", async () => {
@@ -807,7 +841,7 @@ describe("router", () => {
       renderRoute(CLOSING_ROUTE);
 
       await expectControlsState("payload controls invalide");
-      expect(fetchMock).toHaveBeenCalledTimes(8);
+      expect(fetchMock).toHaveBeenCalledTimes(9);
     });
 
     it("renders the exact READY controls blocks in order and stays accessible", async () => {
@@ -865,7 +899,7 @@ describe("router", () => {
       expect(screen.queryByText(ACTIVE_TENANT.tenantId)).not.toBeInTheDocument();
       expect(screen.queryByText(CLOSING_FOLDER.id)).not.toBeInTheDocument();
       expect(await screen.findByText("No audit-ready pack generated yet.")).toBeInTheDocument();
-      expect(fetchMock).toHaveBeenCalledTimes(8);
+      expect(fetchMock).toHaveBeenCalledTimes(9);
 
       expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/me");
       expect(fetchMock.mock.calls[1]?.[0]).toBe(`/api/closing-folders/${CLOSING_FOLDER.id}`);
@@ -955,7 +989,7 @@ describe("router", () => {
       expect(rows[1]).toHaveTextContent("Revenue");
       expect(rows[2]).toHaveTextContent("0500");
       expect(rows[2]).toHaveTextContent("Receivable");
-      expect(fetchMock).toHaveBeenCalledTimes(8);
+      expect(fetchMock).toHaveBeenCalledTimes(9);
     });
   });
 });
