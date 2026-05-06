@@ -9,13 +9,15 @@ Il ne remplace ni la vision IA, ni le playbook IA, ni les contrats et garde-fous
 ## Ce qui est vrai maintenant
 
 - Le produit est AI-ready, pas AI-led.
-- Le repo vivant est clos jusqu'a `027`, mais l'IA n'est toujours pas une capacite structurante du runtime courant.
+- Le repo vivant est clos jusqu'a `029`, mais l'IA n'est toujours pas une capacite structurante du runtime courant.
 - Le coeur metier reste deterministe, tenant-scoped, audit-ready et utilisable sans IA.
 - L'IA future doit entrer via le backend et des ports applicatifs stables, pas par des appels modele directs depuis le frontend.
 - Toute capacite IA metier du present ou du futur proche doit rester evidence-first, structured-output et human-in-the-loop.
 - Aucune ecriture directe en base par l'IA n'est autorisee.
 - Le produit doit continuer a fonctionner si l'IA est indisponible.
-- Aucune spec livree jusqu'a `027` n'active de microservice IA obligatoire, de flux metier pilote par modele ou de generation IA runtime.
+- Aucune spec livree jusqu'a `029` n'active de microservice IA obligatoire, de flux metier pilote par modele ou de generation IA runtime.
+- `029` livre des surfaces frontend de confiance E2E, pas une capacite IA : aucune IA runtime, aucune redaction IA d'annexe, aucune decision automatique et aucune action engageante sans revue humaine.
+- La minimal annex preview exposee par `029` reste un read-model deterministe prepare pour revue humaine ; elle n'est pas une annexe redigee ou approuvee par IA.
 - La premiere capacite IA credible reste le mapping assiste, gouverne et candidat futur dans la sequence V1, pas une implementation runtime active, une conversation generale ni une autonomie agentique.
 - Le repo porte deja les premiers artefacts vivants de gouvernance IA : schema contractuel, prompt guardrail, evals, retrieval policy et runbook d'incident.
 
@@ -29,6 +31,8 @@ Il ne remplace ni la vision IA, ni le playbook IA, ni les contrats et garde-fous
 - orchestration multi-agentes complexe dans le produit courant
 - requirement GraphQL pour activer l'IA
 - service IA dedie obligatoire dans la V1 courante
+- redaction IA runtime d'une annexe
+- decision automatique ou approbation par IA d'un acte comptable, reglementaire ou financier
 
 ## Decisions non negociables du present
 
@@ -51,6 +55,7 @@ Il ne remplace ni la vision IA, ni le playbook IA, ni les contrats et garde-fous
 - `knowledge/retrieval-policy.md`
 - `runbooks/ai-incident-response.md`
 - `docs/ui/ui-foundations-v1.md`
+- `specs/done/029-pilot-closing-workflow-e2e-confidence-hardening-v1.md`
 - `docs/vision/ai-native.md`
 - `docs/playbooks/ai.md`
 

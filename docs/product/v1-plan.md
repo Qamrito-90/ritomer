@@ -56,14 +56,10 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `specs/done/026-frontend-workpapers-panel-decomposition-v1.md`
 - `specs/done/027-annexe-minimale-v1.md`
 - `specs/done/028-docs-present-realignment-after-027-v1.md`
+- `specs/done/029-pilot-closing-workflow-e2e-confidence-hardening-v1.md`
 
 ### Active
-- `specs/active/029-pilot-closing-workflow-e2e-confidence-hardening-v1.md`
-  - Titre : Spec 029 - Pilot Closing Workflow E2E Confidence Hardening V1
-  - Statut : Active
-  - Surface probable : FRONTEND_FIRST / POSSIBLE_FULLSTACK_IF_API_GAP
-  - Risque : C pour implementation future
-  - Objectif : rendre le workflow V1 pilotable de bout en bout depuis l'interface pour une fiduciaire pilote, en exposant ou finalisant les capacites backend/contrats deja livrees sans activer l'IA mapping assiste.
+- AUCUN. La vague `029-pilot-closing-workflow-e2e-confidence-hardening-v1` est livree et classee dans `specs/done/`.
 
 ### Decisions figees
 - Le flux V1 livre est maintenant `closing -> import -> mapping -> controls -> financial-summary -> financial-statements-structured -> workpapers -> document-storage-and-evidence-files -> exports-audit-ready -> minimal-annex`.
@@ -96,6 +92,13 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `exports-audit-ready-v1` assemble `controls`, `financial-summary`, `financial-statements-structured`, les current workpapers persistants et leurs documents visibles, sans exposition de `storage_object_key`, sans signed URL publique et sans audit sur les lectures.
 - `027-annexe-minimale-v1` livre `GET /api/closing-folders/{closingFolderId}/minimal-annex` comme read-model backend deterministe, tenant-scoped, non statutaire, non persiste, non exporte, sans PDF, sans IA et sans `audit_event` sur `GET`.
 - `028-docs-present-realignment-after-027-v1` a ferme une spec `DOCS_ONLY` de realignement documentaire cible du present UX/IA apres `027`, sans creation de capacite produit, sans changement runtime, sans rouverture de `027` et sans ouverture d'une spec produit suivante.
+- `029-pilot-closing-workflow-e2e-confidence-hardening-v1` livre la vague frontend E2E pilote : dossier progress summary, audit-ready export pack UI, minimal annex preview UI et reviewer workpaper decision UI.
+- `029a` rend l'etat global du dossier plus lisible depuis l'interface, sans validation automatique du closing.
+- `029b` expose l'audit-ready export pack depuis l'interface avec creation/liste/telechargement backend-only, sans `storage_object_key`, sans signed URL publique et sans promesse de depot statutaire.
+- `029c` expose la minimal annex preview en lecture seule avec posture non statutaire et revue humaine requise ; elle ne devient pas une annexe legale finale.
+- `029d` expose la decision reviewer workpaper humaine via les gates existants ; elle ne constitue pas une approbation statutaire.
+- `029` ne change pas la posture d'architecture : REST-first maintenu, aucun GraphQL, aucun backend nouveau a creer, aucune migration DB, aucun microservice IA et aucun contrat OpenAPI modifie par cette cloture.
+- `029` ne change pas la posture IA : AI-ready, pas AI-led ; aucune IA runtime, aucune redaction IA d'annexe et aucune decision automatique.
 - Les lectures sur `ARCHIVED` restent autorisees si le tenant et le RBAC sont valides.
 - Les lectures `GET` sur `controls`, `financial-summary`, `financial-statements-structured`, `workpapers` et `minimal-annex` n'ecrivent aucun `audit_event`.
 - Les tests PostgreSQL reels restent opt-in via `dbIntegrationTest`, sans Docker local requis.
