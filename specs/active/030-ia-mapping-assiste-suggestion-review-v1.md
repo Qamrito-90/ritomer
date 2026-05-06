@@ -148,9 +148,10 @@ Livrables attendus :
 
 - durcir `contracts/ai/mapping-suggestion.schema.json` ;
 - aligner le schema IA sur les noms canoniques `accountCode`, `accountLabel`, `suggestedTargetCode` ;
-- documenter si le futur endpoint vit dans `manual-mapping-api.yaml` ou dans un contrat REST dedie ;
+- documenter que le futur endpoint vit dans le contrat REST dedie `contracts/openapi/mapping-suggestions-api.yaml` ;
+- garder `contracts/openapi/manual-mapping-api.yaml` comme autorite des mutations manuelles de mapping ;
 - conserver le contrat legacy `contracts/openapi/closing-api.yaml` comme trace uniquement, sans le prendre comme source canonique ;
-- definir les decisions humaines accept/correct/reject au niveau contractuel ;
+- definir les decisions humaines unitaires `ACCEPT`, `CORRECT` et `REJECT` au niveau contractuel, sans bulk et sans auto-apply ;
 - ne pas creer de backend runtime.
 
 ### 030b - backend read model et adapter stub sans modele reel
@@ -221,7 +222,7 @@ Les contrats canoniques de mapping utilisent :
 - `accountLabel` pour le libelle de compte ;
 - `targetCode` pour le code de mapping applique par l'utilisateur.
 
-Le schema IA existant `contracts/ai/mapping-suggestion.schema.json` utilise actuellement `accountId` et `targetRubricId`. `030a` doit durcir ou remplacer ces noms pour eviter une divergence avec `manual-mapping-api.yaml`.
+Avant `030a`, le schema IA `contracts/ai/mapping-suggestion.schema.json` utilisait `accountId` et `targetRubricId`. `030a` remplace ces noms par les noms canoniques pour eviter une divergence avec `manual-mapping-api.yaml`.
 
 ### Forme cible minimale
 
@@ -282,21 +283,39 @@ Exemple indicatif de forme cible :
 
 ### Accept
 
-L'utilisateur accepte une suggestion unitaire. Le backend applique alors une mutation humaine de mapping vers le `targetCode` choisi. Cette mutation doit reutiliser ou etendre la discipline existante de `MANUAL_MAPPING.CREATED` / `MANUAL_MAPPING.UPDATED`.
+L'utilisateur accepte une suggestion unitaire. `ACCEPT` est valide uniquement si le `targetCode` envoye correspond au `suggestedTargetCode` serveur courant pour le meme tenant, `closingFolderId`, `accountCode` et `latestImportVersion`.
+
+Si `targetCode` differe du `suggestedTargetCode` courant, la decision doit etre `CORRECT` ou etre rejetee.
+
+Quand `ACCEPT` est valide, le backend applique alors une mutation humaine de mapping vers le `targetCode` confirme. Cette mutation doit reutiliser ou etendre la discipline existante de `MANUAL_MAPPING.CREATED` / `MANUAL_MAPPING.UPDATED`.
 
 ### Correct
 
-L'utilisateur choisit une autre cible que `suggestedTargetCode`. Le backend applique la cible corrigee comme mapping humain explicite. L'audit ou la metadata doivent permettre de distinguer une correction issue d'une suggestion IA si le contrat l'introduit.
+L'utilisateur choisit explicitement une cible humaine differente du `suggestedTargetCode` courant. `CORRECT` represente donc une correction humaine de la suggestion, pas une acceptation avec une cible modifiee silencieusement.
+
+Le backend applique la cible corrigee comme mapping humain explicite. L'audit ou la metadata doivent permettre de distinguer une correction issue d'une suggestion IA si le contrat l'introduit.
 
 ### Reject
 
-L'utilisateur rejette une suggestion sans creer de mapping. Le rejet doit au minimum alimenter metrics/evals tenant-scoped et, si une persistance de feedback est introduite, passer par une table tenant-scopee et un audit ou journal de decision dedie.
+L'utilisateur rejette une suggestion sans creer de mapping. `REJECT` ne cree ni ne modifie jamais un mapping manuel. Le rejet doit au minimum alimenter metrics/evals tenant-scoped et, si une persistance de feedback est introduite, passer par une table tenant-scopee et un audit ou journal de decision dedie.
 
 ### Regles communes
 
 - aucune decision ne peut etre prise en bulk dans la premiere version ;
+- `POST /api/closing-folders/{closingFolderId}/mappings/suggestions/{accountCode}/decision` exige un header `Idempotency-Key` ;
+- l'`Idempotency-Key` est evaluee au minimum dans le scope tenant + `closingFolderId` + endpoint + `accountCode` + payload canonique ;
+- la meme cle avec le meme payload canonique doit rejouer le meme resultat ou etre traitee comme no-op sans dupliquer mapping, audit ou feedback ;
+- la meme cle avec un payload canonique different doit etre rejetee en `409` ;
+- cette cle d'idempotence concerne uniquement `POST /api/closing-folders/{closingFolderId}/mappings/suggestions/{accountCode}/decision` et jamais `GET /api/closing-folders/{closingFolderId}/mappings/suggestions` ;
+- aucune decision n'est acceptee si la suggestion est absente ;
+- aucune decision n'est acceptee si la suggestion est stale, si la suggestion courante a change depuis la revue, ou si `latestImportVersion` ne correspond plus ;
+- aucune decision n'est acceptee si le feature flag est desactive ;
+- aucune decision n'est acceptee si le read-model courant est `DISABLED`, `NO_IMPORT`, `UNAVAILABLE`, `TIMEOUT`, `INVALID_MODEL_OUTPUT` ou `INSUFFICIENT_EVIDENCE` ;
+- aucune decision n'est acceptee si `evidence[]` est absente ou invalide ;
 - aucune decision n'est acceptee si le compte n'est plus present dans la derniere balance importee ;
 - les writes restent bloques sur closing `ARCHIVED`, comme le mapping manuel ;
+- aucune decision `ACCEPT` ou `CORRECT` n'est acceptee si `targetCode` n'est pas selectable ;
+- aucune decision n'est acceptee si le tenant, le RBAC ou l'autorite backend refuse l'action ;
 - le mapping manuel reste entierement utilisable sans suggestion IA.
 
 ## Donnees d'entree autorisees
@@ -431,8 +450,9 @@ Erreurs HTTP attendues :
 - `400` pour payload invalide ou parametre malforme ;
 - `401` pour authentification requise ;
 - `403` pour tenant inaccessible ou role insuffisant ;
+- `403` aussi si l'autorite backend refuse l'action malgre un payload syntaxiquement valide ;
 - `404` pour closing folder absent ou hors tenant ;
-- `409` pour tentative de write sur closing archive, import absent ou compte absent du dernier import ;
+- `409` pour tentative de write sur closing archive, import absent, suggestion absente, suggestion stale, suggestion courante changee, feature flag desactive, read-model non decisionable, evidence absente ou invalide, `latestImportVersion` obsolete, compte absent du dernier import ou reutilisation d'`Idempotency-Key` avec payload canonique different ;
 - `503` seulement si le contrat choisit une erreur transport pour indisponibilite IA, mais le read-model degrade en `200 + state` est prefere pour preserver le flux manuel.
 
 ## Securite, tenant isolation et RBAC
@@ -449,16 +469,19 @@ Erreurs HTTP attendues :
 
 ## Impacts contracts
 
-Impacts futurs probables :
+Impacts `030a` :
 
 - durcissement de `contracts/ai/mapping-suggestion.schema.json` ;
-- ajout d'un contrat REST de suggestion sous les endpoints canoniques `/api/closing-folders/{closingFolderId}/...` ;
-- eventuelle extension additive de `contracts/openapi/manual-mapping-api.yaml` ou nouveau contrat `mapping-suggestions-api.yaml` ;
-- alignement des decisions accept/correct/reject avec les mutations `targetCode` existantes ;
+- ajout du contrat REST cible dedie `contracts/openapi/mapping-suggestions-api.yaml` sous les endpoints canoniques `/api/closing-folders/{closingFolderId}/...` ;
+- maintien de `contracts/openapi/manual-mapping-api.yaml` comme autorite des mappings manuels appliques en `targetCode` ;
+- alignement des decisions humaines `ACCEPT`, `CORRECT` et `REJECT` avec les mutations `targetCode` existantes, sans bulk et sans auto-apply ;
+- clarification que `ACCEPT` confirme seulement le `suggestedTargetCode` serveur courant, que `CORRECT` porte une cible humaine differente et que `REJECT` ne cree aucun mapping ;
+- preconditions contractuelles du futur `POST /decision` : suggestion presente, non stale, inchangee, evidence valide, feature flag actif, read-model decisionable, import courant, compte present, closing non `ARCHIVED`, cible selectable et autorite tenant/RBAC/backend valide ;
+- exigence d'un header `Idempotency-Key` sur le futur `POST /decision`, evalue au minimum dans le scope tenant + `closingFolderId` + endpoint + `accountCode` + payload canonique, afin d'eviter les doublons de mapping, audit ou feedback en cas de retry ou double-submit ;
 - documentation des etats de degradation ;
 - maintien de `contracts/openapi/closing-api.yaml` comme legacy seulement, sans en faire la source du nouveau naming.
 
-Aucun contrat n'est modifie par cette spec docs-only.
+`030a` reste contracts/docs only : aucun backend runtime, frontend, provider IA, modele, DB, migration, dependance ou secret n'est livre.
 
 ## Impacts backend
 
@@ -521,8 +544,12 @@ Aucun runbook ou document de present n'est modifie par cette spec de creation.
 - `git diff --name-status`
 - `git diff --stat`
 - `git diff --check`
-- validation JSON Schema du contrat IA si modifie
-- verification qu'aucun runtime backend/frontend n'a ete modifie
+- check structurel OpenAPI/YAML du contrat `contracts/openapi/mapping-suggestions-api.yaml`
+- `rg "ACCEPT|CORRECT|REJECT|Idempotency-Key|stale|latestImportVersion|suggestedTargetCode"`
+- `rg "accountId|targetRubricId"` pour classifier les occurrences restantes comme legacy explicite uniquement
+- controle anti-scope backend/frontend/DB/migration/dependency/secret
+- validation JSON Schema du contrat IA si `contracts/ai/mapping-suggestion.schema.json` est modifie
+- validation d'exemples valides et invalides contre le JSON Schema durci si `contracts/ai/mapping-suggestion.schema.json` est modifie et que l'outillage est disponible
 
 ### 030b
 
@@ -589,11 +616,27 @@ Chaque sous-livrable doit fournir un Fresh Evidence Pack court, factuel et verif
 
 Le pack ne doit jamais inclure secret, token, cle, cookie, DSN, credential ou valeur `.env`.
 
-## Acceptance de cette spec de creation
+## Acceptance 030a contracts/docs
+
+- `contracts/ai/mapping-suggestion.schema.json` utilise les noms canoniques `accountCode`, `accountLabel` et `suggestedTargetCode`.
+- `requiresHumanReview` est strictement `true`.
+- `evidence[]` est obligatoire, non vide et bornee.
+- `contracts/openapi/mapping-suggestions-api.yaml` existe comme contrat REST cible dedie.
+- `GET /api/closing-folders/{closingFolderId}/mappings/suggestions` expose `state`, `closingFolderId`, `latestImportVersion`, `taxonomyVersion`, `suggestions[]` et `errors[]`.
+- Les decisions humaines futures `ACCEPT`, `CORRECT` et `REJECT` sont documentees comme unitaires, sans bulk et sans auto-apply.
+- `ACCEPT` est valide uniquement quand `targetCode` correspond au `suggestedTargetCode` serveur courant pour le meme tenant, `closingFolderId`, `accountCode` et `latestImportVersion`; sinon la decision doit etre `CORRECT` ou rejetee.
+- `CORRECT` represente explicitement une cible humaine differente de la suggestion courante.
+- `REJECT` ne cree ni ne modifie aucun mapping manuel.
+- `POST /api/closing-folders/{closingFolderId}/mappings/suggestions/{accountCode}/decision` rejette les decisions sans suggestion courante valide, stale, modifiee depuis la revue, sans evidence valide, avec feature flag desactive, read-model non decisionable, `latestImportVersion` obsolete, compte absent du dernier import, closing `ARCHIVED`, cible non selectable ou refus tenant/RBAC/backend authority.
+- `POST /api/closing-folders/{closingFolderId}/mappings/suggestions/{accountCode}/decision` exige `Idempotency-Key`, l'evalue au minimum dans le scope tenant + `closingFolderId` + endpoint + `accountCode` + payload canonique, rejoue/no-op la meme cle avec le meme payload canonique sans dupliquer mapping/audit/feedback, rejette la meme cle avec payload canonique different, et cette idempotence ne concerne jamais le GET de suggestions.
+- Aucun backend runtime, frontend, appel modele, provider IA, DB, migration, dependance, secret, commit, push ou PR n'est livre par `030a`.
+- Les anciennes occurrences `accountId` / `targetRubricId` ne restent que dans le contrat legacy explicite `contracts/openapi/closing-api.yaml` ou dans l'historique documentaire classe comme legacy.
+
+## Acceptance initiale de cette spec de creation
 
 - La spec active `specs/active/030-ia-mapping-assiste-suggestion-review-v1.md` existe.
 - Aucun code backend ou frontend n'est modifie.
-- Aucun contrat OpenAPI n'est modifie.
+- Aucun contrat OpenAPI n'etait modifie par la spec de creation initiale ; `030a` est le sous-livrable contracts/docs qui autorise le contrat REST cible dedie.
 - Aucune DB, migration, dependance, CI, secret, runbook operationnel ou configuration Git n'est modifie.
 - Aucun appel modele IA n'est effectue.
 - Aucun `git add`, commit, push ou PR n'est effectue.
