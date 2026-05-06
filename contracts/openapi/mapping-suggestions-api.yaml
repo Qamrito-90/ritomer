@@ -1,0 +1,401 @@
+openapi: 3.1.1
+info:
+  title: Mapping Suggestions API
+  version: 0.1.0
+  description: >
+    Target REST contract for assisted manual mapping suggestions. This contract is added by 030a
+    for schema and API hardening only; it does not mean that a backend runtime, AI provider,
+    model call, frontend surface, DB migration or auto-apply capability is delivered.
+jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
+paths:
+  /api/closing-folders/{closingFolderId}/mappings/suggestions:
+    get:
+      operationId: getMappingSuggestions
+      summary: Return the target read-model for assisted manual mapping suggestions
+      description: >
+        Future tenant-scoped read-model for assisted mapping suggestions on the latest balance
+        import. Suggestions are evidence-first, schema-validated and always require human review.
+        This endpoint must not create or update manual mappings. It must degrade with a 200 read-model
+        state whenever possible so the existing manual mapping workflow remains usable without AI.
+      parameters:
+        - in: header
+          name: X-Tenant-Id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: closingFolderId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Mapping suggestions read-model returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MappingSuggestionsReadModel"
+              examples:
+                ready:
+                  value:
+                    state: READY
+                    closingFolderId: "00000000-0000-0000-0000-000000000000"
+                    latestImportVersion: 3
+                    taxonomyVersion: 2
+                    suggestions:
+                      - accountCode: "1000"
+                        accountLabel: Bank CHF
+                        suggestedTargetCode: BS.ASSET.CASH_AND_EQUIVALENTS
+                        confidence: 0.82
+                        riskLevel: MEDIUM
+                        rationale: Account label and target taxonomy are consistent with cash.
+                        evidence:
+                          - type: ACCOUNT_LABEL
+                            ref: balance_import_line:1000
+                            snippet: Bank CHF
+                          - type: TARGET_TAXONOMY
+                            ref: manual-mapping-targets-v2:BS.ASSET.CASH_AND_EQUIVALENTS
+                            snippet: Cash and cash equivalents
+                        requiresHumanReview: true
+                        schemaVersion: mapping-suggestion-v1
+                        promptVersion: not_applicable_for_contract_only
+                        modelVersion: not_applicable_for_contract_only
+                    errors: []
+                disabled:
+                  value:
+                    state: DISABLED
+                    closingFolderId: "00000000-0000-0000-0000-000000000000"
+                    latestImportVersion: null
+                    taxonomyVersion: 2
+                    suggestions: []
+                    errors:
+                      - code: AI_MAPPING_SUGGESTIONS_DISABLED
+                        message: Mapping suggestions are disabled.
+        "400":
+          description: Missing, blank or malformed X-Tenant-Id
+        "401":
+          description: Authentication required
+        "403":
+          description: Tenant inaccessible or role insufficient
+        "404":
+          description: Closing folder absent or outside tenant
+  /api/closing-folders/{closingFolderId}/mappings/suggestions/{accountCode}/decision:
+    post:
+      operationId: recordMappingSuggestionDecision
+      summary: Target contract for one human decision on one mapping suggestion
+      description: >
+        Future target contract for a single human ACCEPT, CORRECT or REJECT decision. This endpoint
+        is explicitly not a bulk endpoint and must never auto-apply suggestions. ACCEPT and CORRECT
+        are human mapping decisions that may create or update the manual mapping through the same
+        business rules as `/api/closing-folders/{closingFolderId}/mappings/manual`. ACCEPT is valid
+        only when `targetCode` equals the current server-side `suggestedTargetCode` for the same
+        tenant, `closingFolderId`, `accountCode` and `latestImportVersion`; otherwise the decision
+        must be CORRECT or rejected. CORRECT is an explicit human-selected target different from the
+        current suggestion. REJECT must not create a manual mapping. The future implementation must
+        reject a decision when the suggestion is absent, stale, changed since review, has missing or
+        invalid evidence, or when the feature flag is disabled. It must also reject when the current
+        read-model state is `DISABLED`, `NO_IMPORT`, `UNAVAILABLE`, `TIMEOUT`, `INVALID_MODEL_OUTPUT`
+        or `INSUFFICIENT_EVIDENCE`, when `latestImportVersion` no longer matches, when the account is
+        absent from the latest import, when the closing folder is `ARCHIVED`, when `targetCode` is not
+        selectable, or when tenant, RBAC or backend authority rejects the action. This POST requires
+        an `Idempotency-Key` header evaluated at minimum in the scope tenant + `closingFolderId` +
+        endpoint + `accountCode` + canonical payload. Retrying the same key with the same canonical
+        payload must return the same result or be treated as a no-op, without duplicating mapping,
+        audit or feedback effects. Reusing the same key with a different canonical payload must be
+        rejected with `409`. This idempotency rule applies only to this decision POST, never to
+        `GET /api/closing-folders/{closingFolderId}/mappings/suggestions`.
+      parameters:
+        - in: header
+          name: X-Tenant-Id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: header
+          name: Idempotency-Key
+          required: true
+          description: >
+            Required for human decision retries. The key is scoped at minimum by tenant,
+            closingFolderId, endpoint, accountCode and canonical payload. The same key and same
+            canonical payload must replay the same result or be handled as a no-op without duplicate
+            mapping, audit or feedback effects. The same key with a different canonical payload must
+            be rejected with `409`. This rule is limited to this POST and never applies to the
+            suggestions GET read-model.
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 200
+        - in: path
+          name: closingFolderId
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: accountCode
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/MappingSuggestionAcceptRequest"
+                - $ref: "#/components/schemas/MappingSuggestionCorrectRequest"
+                - $ref: "#/components/schemas/MappingSuggestionRejectRequest"
+      responses:
+        "200":
+          description: Human decision recorded or applied according to the decision type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MappingSuggestionDecisionResult"
+        "400":
+          description: Invalid payload, unknown decision, missing targetCode for ACCEPT/CORRECT, ACCEPT targetCode different from the current suggestedTargetCode, CORRECT targetCode not different from the current suggestedTargetCode, or non-selectable targetCode
+        "401":
+          description: Authentication required
+        "403":
+          description: Tenant inaccessible, role insufficient, or backend authority refuses the action
+        "404":
+          description: Closing folder absent or outside tenant
+        "409":
+          description: Suggestion absent, stale or changed; feature flag disabled; read-model not decisionable; missing or invalid evidence; closing folder archived; no balance import available; latestImportVersion mismatch; account absent from latest import; or Idempotency-Key reused with a different canonical payload
+components:
+  schemas:
+    MappingSuggestionsReadModel:
+      type: object
+      additionalProperties: false
+      required: [state, closingFolderId, latestImportVersion, taxonomyVersion, suggestions, errors]
+      properties:
+        state:
+          $ref: "#/components/schemas/MappingSuggestionsState"
+        closingFolderId:
+          type: string
+          format: uuid
+        latestImportVersion:
+          type: [integer, "null"]
+          minimum: 1
+          description: Latest balance import version used for the suggestions, or null when no import is available.
+        taxonomyVersion:
+          type: integer
+          minimum: 1
+          description: Active mapping target taxonomy version from contracts/reference/manual-mapping-targets-v2.yaml.
+        suggestions:
+          type: array
+          description: Suggestions for accounts present in the latest balance import only.
+          items:
+            $ref: "#/components/schemas/MappingSuggestion"
+        errors:
+          type: array
+          description: Non-sensitive degradation or validation messages. Must not contain secrets, prompts, raw CSV payloads or cross-tenant data.
+          items:
+            $ref: "#/components/schemas/MappingSuggestionError"
+    MappingSuggestionsState:
+      type: string
+      enum:
+        - DISABLED
+        - NO_IMPORT
+        - READY
+        - PARTIAL
+        - UNAVAILABLE
+        - TIMEOUT
+        - INVALID_MODEL_OUTPUT
+        - INSUFFICIENT_EVIDENCE
+        - ARCHIVED_READ_ONLY
+    MappingSuggestion:
+      type: object
+      additionalProperties: false
+      required:
+        - accountCode
+        - accountLabel
+        - suggestedTargetCode
+        - confidence
+        - riskLevel
+        - rationale
+        - evidence
+        - requiresHumanReview
+        - schemaVersion
+        - promptVersion
+        - modelVersion
+      properties:
+        accountCode:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: Canonical account code from the latest balance import line.
+        accountLabel:
+          type: string
+          minLength: 1
+          maxLength: 300
+          description: Canonical account label from the latest balance import line.
+        suggestedTargetCode:
+          type: string
+          minLength: 1
+          maxLength: 120
+          description: >
+            Suggested target code. It must resolve to a selectable target from the active
+            `manual-mapping-targets-v2.yaml` taxonomy or an explicitly accepted selectable legacy
+            target before exposure.
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        riskLevel:
+          type: string
+          enum: [LOW, MEDIUM, HIGH]
+        rationale:
+          type: string
+          minLength: 1
+          maxLength: 600
+          description: Short rationale for human review. It never replaces the evidence list.
+        evidence:
+          type: array
+          minItems: 1
+          maxItems: 8
+          items:
+            $ref: "#/components/schemas/MappingSuggestionEvidence"
+        requiresHumanReview:
+          const: true
+          description: Strict human-in-the-loop gate. Any other value is invalid.
+        schemaVersion:
+          type: string
+          const: mapping-suggestion-v1
+        promptVersion:
+          type: string
+          minLength: 1
+          maxLength: 120
+          description: Pinned prompt version, or a documented not_applicable value before runtime activation.
+        modelVersion:
+          type: string
+          minLength: 1
+          maxLength: 120
+          description: Pinned model version, or a documented not_applicable value before runtime activation.
+    MappingSuggestionEvidence:
+      type: object
+      additionalProperties: false
+      required: [type, ref, snippet]
+      properties:
+        type:
+          type: string
+          enum:
+            - ACCOUNT_LABEL
+            - BALANCE_IMPORT_LINE
+            - TARGET_TAXONOMY
+            - HISTORICAL_MAPPING
+            - RULE_DOC
+            - NOTE_TEMPLATE
+        ref:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Tenant-scoped reference, never a secret, storage key, signed URL or raw prompt payload.
+        snippet:
+          type: string
+          minLength: 1
+          maxLength: 300
+          description: Minimal non-sensitive excerpt sufficient for human review.
+    MappingSuggestionError:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum:
+            - AI_MAPPING_SUGGESTIONS_DISABLED
+            - NO_LATEST_IMPORT
+            - AI_MAPPING_UNAVAILABLE
+            - AI_MAPPING_TIMEOUT
+            - INVALID_MODEL_OUTPUT
+            - INSUFFICIENT_EVIDENCE
+            - ARCHIVED_READ_ONLY
+            - PARTIAL_SUGGESTIONS
+        message:
+          type: string
+          minLength: 1
+          maxLength: 300
+    MappingSuggestionAcceptRequest:
+      type: object
+      additionalProperties: false
+      description: >
+        Human confirmation of the current server suggestion. `targetCode` is valid only when it
+        equals the current `suggestedTargetCode` for the same tenant, closingFolderId, accountCode
+        and latestImportVersion.
+      required: [decision, latestImportVersion, targetCode]
+      properties:
+        decision:
+          type: string
+          const: ACCEPT
+        latestImportVersion:
+          type: integer
+          minimum: 1
+          description: Must match the latest import version used by the current server suggestion.
+        targetCode:
+          type: string
+          minLength: 1
+          maxLength: 120
+          description: Human-confirmed target code. It must equal the current server-side suggestedTargetCode.
+    MappingSuggestionCorrectRequest:
+      type: object
+      additionalProperties: false
+      description: >
+        Human correction of the current server suggestion. `targetCode` represents a selectable
+        human-selected replacement target different from the current `suggestedTargetCode`.
+      required: [decision, latestImportVersion, targetCode]
+      properties:
+        decision:
+          type: string
+          const: CORRECT
+        latestImportVersion:
+          type: integer
+          minimum: 1
+          description: Must match the latest import version used by the current server suggestion.
+        targetCode:
+          type: string
+          minLength: 1
+          maxLength: 120
+          description: Human-selected replacement target code. It must be different from the current server-side suggestedTargetCode.
+        reviewComment:
+          type: string
+          maxLength: 600
+    MappingSuggestionRejectRequest:
+      type: object
+      additionalProperties: false
+      description: Human rejection of the current server suggestion. It never creates or updates a manual mapping.
+      required: [decision, latestImportVersion]
+      properties:
+        decision:
+          type: string
+          const: REJECT
+        latestImportVersion:
+          type: integer
+          minimum: 1
+          description: Must match the latest import version used by the current server suggestion.
+        reviewComment:
+          type: string
+          maxLength: 600
+    MappingSuggestionDecisionResult:
+      type: object
+      additionalProperties: false
+      required: [decision, accountCode, appliedMapping]
+      properties:
+        decision:
+          type: string
+          enum: [ACCEPT, CORRECT, REJECT]
+        accountCode:
+          type: string
+          minLength: 1
+          maxLength: 64
+        appliedMapping:
+          oneOf:
+            - $ref: "#/components/schemas/AppliedManualMapping"
+            - type: "null"
+          description: ACCEPT/CORRECT may return the human-applied mapping. REJECT returns null.
+    AppliedManualMapping:
+      type: object
+      additionalProperties: false
+      required: [accountCode, targetCode]
+      properties:
+        accountCode:
+          type: string
+          minLength: 1
+          maxLength: 64
+        targetCode:
+          type: string
+          minLength: 1
+          maxLength: 120

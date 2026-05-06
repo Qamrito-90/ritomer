@@ -1,24 +1,40 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "MappingSuggestion",
+  "description": "Canonical structured output for one assisted manual mapping suggestion. This contract prepares a future evidence-first runtime, but does not imply that a runtime model is delivered.",
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "accountId",
-    "targetRubricId",
+    "accountCode",
+    "accountLabel",
+    "suggestedTargetCode",
     "confidence",
     "riskLevel",
+    "rationale",
     "requiresHumanReview",
-    "evidence"
+    "evidence",
+    "schemaVersion",
+    "promptVersion",
+    "modelVersion"
   ],
   "properties": {
-    "accountId": {
+    "accountCode": {
+      "description": "Canonical account code from the latest balance import line.",
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "maxLength": 64
     },
-    "targetRubricId": {
+    "accountLabel": {
+      "description": "Canonical account label from the latest balance import line.",
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "suggestedTargetCode": {
+      "description": "Suggested mapping target code. It must resolve to a selectable target from the active taxonomy or an explicitly accepted selectable legacy code before it is exposed.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
     },
     "confidence": {
       "type": "number",
@@ -34,13 +50,16 @@
       ]
     },
     "requiresHumanReview": {
-      "type": "boolean"
+      "description": "All mapping suggestions require explicit human review. Any output with another value is invalid.",
+      "const": true
     },
     "rationale": {
       "type": "string",
+      "minLength": 1,
       "maxLength": 600
     },
     "evidence": {
+      "description": "Evidence used for the suggestion. It must be tenant-scoped, non-sensitive, and sufficient for human review.",
       "type": "array",
       "minItems": 1,
       "maxItems": 8,
@@ -57,6 +76,8 @@
             "type": "string",
             "enum": [
               "ACCOUNT_LABEL",
+              "BALANCE_IMPORT_LINE",
+              "TARGET_TAXONOMY",
               "HISTORICAL_MAPPING",
               "RULE_DOC",
               "NOTE_TEMPLATE"
@@ -64,14 +85,33 @@
           },
           "ref": {
             "type": "string",
+            "minLength": 1,
             "maxLength": 200
           },
           "snippet": {
             "type": "string",
+            "minLength": 1,
             "maxLength": 300
           }
         }
       }
+    },
+    "schemaVersion": {
+      "description": "Pinned schema version used to validate this structured output.",
+      "type": "string",
+      "const": "mapping-suggestion-v1"
+    },
+    "promptVersion": {
+      "description": "Pinned prompt version. Stub or contract-only implementations may use a documented not_applicable value.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "modelVersion": {
+      "description": "Pinned model version. Stub or contract-only implementations may use a documented not_applicable value.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
     }
   }
 }
