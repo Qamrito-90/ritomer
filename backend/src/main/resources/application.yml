@@ -29,6 +29,9 @@ ritomer:
   security:
     jwt:
       hmac-secret: ${RITOMER_SECURITY_JWT_HMAC_SECRET}
+  ai:
+    mapping-suggestions:
+      enabled: ${RITOMER_AI_MAPPING_SUGGESTIONS_ENABLED:false}
   workpapers:
     documents:
       storage:
