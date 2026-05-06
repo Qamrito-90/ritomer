@@ -59,7 +59,8 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `specs/done/029-pilot-closing-workflow-e2e-confidence-hardening-v1.md`
 
 ### Active
-- AUCUN. La vague `029-pilot-closing-workflow-e2e-confidence-hardening-v1` est livree et classee dans `specs/done/`.
+- `specs/active/030-ia-mapping-assiste-suggestion-review-v1.md` est la spec active et prochaine tranche V1 : mapping assiste evidence-first, human-in-the-loop et contract-first, sans capacite IA runtime livree par cette spec de creation.
+- Le futur runtime IA reste soumis a CTO Gate avant implementation ; aucune ecriture automatique, aucun provider IA, aucun modele, aucun microservice, aucun GraphQL, aucun RAG et aucun auto-apply ne sont actives par ce cadrage.
 
 ### Decisions figees
 - Le flux V1 livre est maintenant `closing -> import -> mapping -> controls -> financial-summary -> financial-statements-structured -> workpapers -> document-storage-and-evidence-files -> exports-audit-ready -> minimal-annex`.
