@@ -188,6 +188,43 @@ Les graphiques restent secondaires par rapport au tableau de preuve, mais leur s
 - **Finalisé**
 - **Exporté**
 
+### Wording durable des surfaces 029
+
+Les surfaces `029` doivent employer un vocabulaire de revue humaine et de preview operationnelle. Elles ne doivent jamais laisser croire a une finalisation CO, a un depot statutaire ou a une approbation automatique.
+
+Termes canoniques autorises :
+
+- **Audit-ready export pack**
+- **Minimal annex preview**
+- **Preview non statutaire**
+- **Non statutory**
+- **Prepared for human review**
+- **Human review required**
+- **Not a final CO deliverable**
+- **Do not use as statutory filing**
+
+Usage attendu :
+
+- `Audit-ready export pack` designe un pack de handoff et de revue, pas un livrable final.
+- `Minimal annex preview` designe une preview read-only, non statutaire et preparee pour revue humaine.
+- `Prepared for human review` et `Human review required` doivent accompagner les surfaces proches d'une decision engageante.
+- `Not a final CO deliverable` et `Do not use as statutory filing` doivent etre utilises quand une ambiguite de finalisation pourrait exister.
+
+Termes explicitement interdits dans l'UX produit :
+
+- **CO-ready**
+- **statutory-ready**
+- **official financial statements**
+- **annexe officielle**
+- **annexe CO finale**
+- **final CO annex**
+- **final accounts approved**
+- **automatically approved**
+- **AI-approved**
+- **ready to file**
+- **certified**
+- **signature** quand le terme implique une finalisation officielle
+
 ## 9. Contrats d'interaction IA-native
 
 Toute interaction IA doit être :
