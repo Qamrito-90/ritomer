@@ -2,7 +2,7 @@
 
 ## Statut
 
-Ce runbook prepare l'exploitation IA future. `030d0` ne livre aucun provider reel, aucun modele et aucun appel modele.
+Ce runbook prepare l'exploitation IA future. `030d1` ne livre aucun provider reel, aucun modele et aucun appel modele.
 
 Le principe permanent reste : le closing et le mapping manuel continuent meme si l'IA est desactivee, lente, indisponible ou invalide.
 
