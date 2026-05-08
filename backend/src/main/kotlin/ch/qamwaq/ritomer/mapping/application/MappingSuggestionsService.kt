@@ -1,7 +1,6 @@
 package ch.qamwaq.ritomer.mapping.application
 
 import ch.qamwaq.ritomer.ai.access.AiMappingSuggestion
-import ch.qamwaq.ritomer.ai.access.AiMappingSuggestionAccount
 import ch.qamwaq.ritomer.ai.access.AiMappingSuggestionGenerationRequest
 import ch.qamwaq.ritomer.ai.access.AiMappingSuggestionTarget
 import ch.qamwaq.ritomer.ai.access.MappingSuggestionGenerationAccess
@@ -163,10 +162,9 @@ class MappingSuggestionsService(
     val result = try {
       mappingSuggestionGenerationAccess.generate(
         AiMappingSuggestionGenerationRequest(
-          closingFolderId = closingFolderId,
           latestImportVersion = latestImportVersion,
           taxonomyVersion = taxonomyVersion,
-          accounts = eligibleLines.map { it.toAiAccount() },
+          accounts = eligibleLines.map { MappingSuggestionPayloadMinimizer.minimize(it) },
           targets = selectableTargets.map { it.toAiTarget() }
         )
       )
@@ -243,14 +241,6 @@ class MappingSuggestionsService(
       errors = emptyList()
     )
 
-  private fun ProjectedManualMappingLine.toAiAccount(): AiMappingSuggestionAccount =
-    AiMappingSuggestionAccount(
-      accountCode = accountCode,
-      accountLabel = accountLabel,
-      debit = debit,
-      credit = credit
-    )
-
   private fun ManualMappingTarget.toAiTarget(): AiMappingSuggestionTarget =
     AiMappingSuggestionTarget(
       code = code,
@@ -276,11 +266,17 @@ class MappingSuggestionsService(
       if (evidenceItem.ref.isBlank() || evidenceItem.snippet.isBlank()) return@mapNotNull null
       if (evidenceItem.ref.length > MAX_EVIDENCE_REF_LENGTH || evidenceItem.snippet.length > MAX_EVIDENCE_SNIPPET_LENGTH) return@mapNotNull null
       if (evidenceItem.ref.containsForbiddenContent() || evidenceItem.snippet.containsForbiddenContent()) return@mapNotNull null
+      val snippet = if (evidenceItem.type.name == MappingSuggestionEvidenceType.ACCOUNT_LABEL.name) {
+        MappingSuggestionPayloadMinimizer.sanitizeAccountLabel(evidenceItem.snippet)
+      } else {
+        evidenceItem.snippet
+      }
+      if (snippet.length > MAX_EVIDENCE_SNIPPET_LENGTH || snippet.containsForbiddenContent()) return@mapNotNull null
 
       MappingSuggestionEvidence(
         type = MappingSuggestionEvidenceType.valueOf(evidenceItem.type.name),
         ref = evidenceItem.ref,
-        snippet = evidenceItem.snippet
+        snippet = snippet
       )
     }
     if (safeEvidence.size != evidence.size || safeEvidence.isEmpty()) return null

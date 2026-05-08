@@ -134,10 +134,11 @@ Cette spec couvre le cadrage de :
 | `030b` | BACKEND + CONTRACTS | Ajouter le read-model backend et un adapter stub sans modele reel, derriere feature flag. |
 | `030c` | IA GOVERNANCE + DOCS_GIT | Ajouter golden set, evals, prompt/schema/model governance et runbook minimal. |
 | `030d1` | DOCS_ONLY + IA_GOVERNANCE + SECURITY_PRIVACY + PROVIDER_READINESS + DEPENDENCY_REVIEW | Formaliser le provider-readiness record et la dependency/security review sans runtime, provider reel, modele, SDK, secret ni dependance. |
+| `030d2` | BACKEND | Durcir la minimisation du payload entre `mapping.application` et `ai::access`, sans provider reel, modele, SDK, dependance, reseau, DB, migration, frontend ni changement de contrat public. |
 | `030d` | BACKEND + IA GOVERNANCE | Activer un provider modele reel seulement apres validation de `030d1` et gates, avec schema validation stricte et fallback. |
 | `030e` | FRONTEND | Afficher la suggestion et collecter accept/correct/reject seulement si le backend contractuel est pret. |
 
-`030d runtime` reste bloque tant que `030d1` n'est pas valide et signe. `030d1` ne peut pas etre interprete comme une approbation provider : il prepare seulement les conditions de passage.
+`030d runtime` reste bloque tant que `030d1` n'est pas valide et signe, que `030d2` n'a pas prouve la minimisation backend et que les autres gates ne sont pas verts. `030d1` ne peut pas etre interprete comme une approbation provider : il prepare seulement les conditions de passage.
 
 Les sous-livrables `030d` et `030e` ne doivent pas etre fusionnes dans une meme PR : activation modele et experience utilisateur sont deux risques distincts.
 
@@ -206,6 +207,25 @@ Livrables attendus :
 - logs/metrics autorises et interdits, cout/latence, kill switch et rollback documentes dans le runbook ;
 - rappel dans `evals/mapping/README.md` que `030c` vert et `030d1` valide sont obligatoires avant provider reel ;
 - aucun backend runtime, provider reel, modele, appel modele, SDK, dependance, secret, contrat OpenAPI/IA, DB, migration, frontend, commit, push ou PR.
+
+### 030d2 - backend payload minimization no-provider
+
+Objectif : durcir la frontiere backend entre `mapping.application` et `ai::access` pour que le futur provider IA ne puisse pas recevoir de donnees financieres brutes.
+
+Livrables attendus :
+
+- minimizer pur dans `mapping.application`, execute avant `MappingSuggestionGenerationAccess.generate()`;
+- DTO d'entree `ai::access` minimise, sans `closingFolderId`, `debit`, `credit`, libelle brut, tenant, client, actor, roles, provider metadata, prompt, secret ou payload reseau;
+- `AiMappingSuggestionAccount` borne a `accountCode`, `sanitizedAccountLabel` et `balanceSignal`;
+- `balanceSignal` derive non reversible parmi `DEBIT_ONLY`, `CREDIT_ONLY`, `DEBIT_DOMINANT`, `CREDIT_DOMINANT`, `BALANCED_NON_ZERO` et `ZERO`, sans montant brut, magnitude ou ratio reversible;
+- sanitizer minimal : trim, collapse whitespace, suppression caracteres de controle, emails, URLs, IBAN-like, UUID, telephones, longues references numeriques et identifiants client evidents, longueur maximale bornee et fallback explicite si le libelle devient vide ou quasi vide;
+- conservation des signaux comptables utiles comme `bank`, `cash`, `receivable`, `payable`, `supplier`, `revenue`, `expense`;
+- targets envoyees au port IA filtrees `selectable=true && deprecated=false` et limitees a des metadonnees publiques utiles;
+- stub deterministe local utilisant `sanitizedAccountLabel` pour ses signaux et snippets d'evidence;
+- `AiMappingSuggestion` interne non autoritaire sur `accountLabel`; le read-model API reconstruit toujours `accountLabel` depuis la ligne tenant-scoped originale;
+- GET `/api/closing-folders/{closingFolderId}/mappings/suggestions` inchange cote contrat public, sans audit_event et sans ecriture `manual_mapping`;
+- tests unitaires minimizer, balance signal, service/port, API no-scope et Modulith;
+- aucun provider reel, modele, SDK, nouvelle dependance, appel reseau, prompt runtime actif, secret, `.env`, frontend, POST `/decision`, DB, migration, GraphQL, RAG/vector store, microservice, contrat OpenAPI public ou `contracts/ai` sans decision CPO explicite.
 
 ### 030d - activation provider modele reel, gated apres 030d1
 
@@ -606,6 +626,15 @@ Impacts `030d1` :
 - recherche anti-scope sur les fichiers modifies : backend, frontend, contracts/openapi, contracts/ai, DB/migration, build/dependency, `.env`, secret, token, credential, DSN, provider key, Spring AI, SDK, GraphQL, RAG, vector store
 - recherche confirmant qu'aucune valeur secrete n'est ajoutee
 
+### 030d2
+
+- backend `.\gradlew.bat test --tests "ch.qamwaq.ritomer.mapping.application.MappingSuggestionsServiceTest" --tests "ch.qamwaq.ritomer.MappingSuggestionsApiTest" --tests "ch.qamwaq.ritomer.ApplicationModuleStructureTest"`
+- backend `.\gradlew.bat test`
+- `.\evals\mapping\validate-golden-set.ps1`
+- `git diff --check`
+- `git status --short --branch`
+- recherche anti-scope par `rg` sur les fichiers modifies et la surface backend : aucun `RestClient`, `WebClient`, `HttpClient`, Spring AI, provider runtime, SDK, GraphQL, RAG, vector store, prompt runtime, frontend, `PostMapping`, nouveau `/decision`, migration, `.sql`, changement `build.gradle` ou dependance, secret, token, credential, DSN ou `.env`.
+
 ### 030d
 
 - tous les gates de `030d1` ;
@@ -678,6 +707,20 @@ Le pack ne doit jamais inclure secret, token, cle, cookie, DSN, credential ou va
 - `runbooks/ai-incident-response.md` couvre kill switch, provider outage, timeout, invalid schema/output, no evidence, data exposure, sensitive logs, cost spike, rollback model/prompt/schema et escalation owner.
 - `evals/mapping/README.md` rappelle que `030c` vert et `030d1` valide sont obligatoires avant provider reel.
 - Aucun backend runtime, frontend, contrat OpenAPI, contrat IA, DB, migration, dependance, provider IA, modele, appel modele, prompt runtime actif, secret, commit, push ou PR n'est livre par `030d1`.
+
+## Acceptance 030d2 backend payload minimization no-provider
+
+- Le minimizer vit dans `mapping.application` et s'execute avant `MappingSuggestionGenerationAccess.generate()`.
+- Le DTO d'entree `ai::access` ne contient plus `closingFolderId`, `debit`, `credit`, libelle brut, tenant id, client id, actor id, roles, provider metadata, prompt, secret ou payload reseau.
+- `AiMappingSuggestionAccount` expose uniquement `accountCode`, `sanitizedAccountLabel` et `balanceSignal`.
+- `balanceSignal` est non reversible et ne contient ni montant brut, ni bucket de magnitude, ni ratio reversible.
+- Le sanitizer couvre trim/collapse whitespace, caracteres de controle, email, URL, IBAN-like, UUID, telephone, longues references numeriques, longueur maximale, fallback empty/quasi-empty et preservation des termes comptables utiles.
+- `AiMappingSuggestion` interne n'est plus autorite sur `accountLabel`; le read-model API retourne l'`accountLabel` original depuis la ligne tenant-scoped.
+- Le stub deterministe utilise `sanitizedAccountLabel` pour ses signaux et evidence snippets.
+- Les targets envoyees au port IA sont filtrees `selectable=true && deprecated=false`.
+- Le GET public `/api/closing-folders/{closingFolderId}/mappings/suggestions` reste inchange, n'ecrit aucun `audit_event` et ne cree/modifie aucun `manual_mapping`.
+- `POST /api/closing-folders/{closingFolderId}/mappings/suggestions/{accountCode}/decision` reste absent tant qu'un sous-livrable futur ne l'implemente pas explicitement.
+- Aucun provider reel, reseau, SDK, nouvelle dependance, DB, migration, frontend, GraphQL, RAG/vector store, prompt runtime actif, secret, `.env`, contrat OpenAPI public ou `contracts/ai` n'est ajoute par `030d2`.
 
 ## Acceptance 030a contracts/docs
 

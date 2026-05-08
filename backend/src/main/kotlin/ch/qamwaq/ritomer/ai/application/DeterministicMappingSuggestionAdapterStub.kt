@@ -2,6 +2,7 @@ package ch.qamwaq.ritomer.ai.application
 
 import ch.qamwaq.ritomer.ai.access.AiMappingSuggestion
 import ch.qamwaq.ritomer.ai.access.AiMappingSuggestionAccount
+import ch.qamwaq.ritomer.ai.access.AiMappingSuggestionBalanceSignal
 import ch.qamwaq.ritomer.ai.access.AiMappingSuggestionEvidence
 import ch.qamwaq.ritomer.ai.access.AiMappingSuggestionEvidenceType
 import ch.qamwaq.ritomer.ai.access.AiMappingSuggestionGenerationRequest
@@ -16,7 +17,7 @@ class DeterministicMappingSuggestionAdapterStub : MappingSuggestionGenerationAcc
     val suggestion = request.accounts
       .sortedBy { it.accountCode }
       .firstNotNullOfOrNull { account ->
-        val targetCode = suggestedTargetCodeFor(account)
+        val targetCode = suggestedTargetCodeFor(account) ?: return@firstNotNullOfOrNull null
         val target = request.targets
           .filter { it.selectable && !it.deprecated }
           .firstOrNull { it.code == targetCode }
@@ -24,7 +25,6 @@ class DeterministicMappingSuggestionAdapterStub : MappingSuggestionGenerationAcc
 
         AiMappingSuggestion(
           accountCode = account.accountCode,
-          accountLabel = account.accountLabel,
           suggestedTargetCode = target.code,
           confidence = 0.82,
           riskLevel = AiMappingSuggestionRiskLevel.MEDIUM,
@@ -33,7 +33,7 @@ class DeterministicMappingSuggestionAdapterStub : MappingSuggestionGenerationAcc
             AiMappingSuggestionEvidence(
               type = AiMappingSuggestionEvidenceType.ACCOUNT_LABEL,
               ref = "balance_import_line:${account.accountCode}",
-              snippet = account.accountLabel.take(MAX_EVIDENCE_SNIPPET_LENGTH)
+              snippet = account.sanitizedAccountLabel.take(MAX_EVIDENCE_SNIPPET_LENGTH)
             ),
             AiMappingSuggestionEvidence(
               type = AiMappingSuggestionEvidenceType.TARGET_TAXONOMY,
@@ -51,8 +51,8 @@ class DeterministicMappingSuggestionAdapterStub : MappingSuggestionGenerationAcc
     return AiMappingSuggestionGenerationResult(suggestions = listOfNotNull(suggestion))
   }
 
-  private fun suggestedTargetCodeFor(account: AiMappingSuggestionAccount): String {
-    val normalized = account.accountLabel.lowercase()
+  private fun suggestedTargetCodeFor(account: AiMappingSuggestionAccount): String? {
+    val normalized = account.sanitizedAccountLabel.lowercase()
     return when {
       listOf("bank", "cash", "banque", "caisse").any { it in normalized } ->
         "BS.ASSET.CASH_AND_EQUIVALENTS"
@@ -64,10 +64,13 @@ class DeterministicMappingSuggestionAdapterStub : MappingSuggestionGenerationAcc
         "PL.REVENUE.OPERATING_REVENUE"
       listOf("expense", "charges", "frais").any { it in normalized } ->
         "PL.EXPENSE.OTHER_OPERATING_EXPENSES"
-      account.debit >= account.credit ->
+      account.balanceSignal == AiMappingSuggestionBalanceSignal.DEBIT_ONLY ||
+        account.balanceSignal == AiMappingSuggestionBalanceSignal.DEBIT_DOMINANT ->
         "BS.ASSET.CASH_AND_EQUIVALENTS"
-      else ->
+      account.balanceSignal == AiMappingSuggestionBalanceSignal.CREDIT_ONLY ||
+        account.balanceSignal == AiMappingSuggestionBalanceSignal.CREDIT_DOMINANT ->
         "PL.REVENUE.OPERATING_REVENUE"
+      else -> null
     }
   }
 

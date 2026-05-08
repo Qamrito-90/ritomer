@@ -212,13 +212,14 @@ class MappingSuggestionsApiTest {
   fun `ready state returns deterministic safe suggestion without creating audit or manual mapping`() {
     val tenantId = uuid("11111111-1111-1111-1111-111111111111")
     val closingFolder = seedClosingFolder(tenantId = tenantId)
+    val rawAccountLabel = "Bank CHF jane.doe@example.com +41 79 123 45 67 ref 987654321012"
     seedMembership("user-123", tenantId, TenantRole.ACCOUNTANT)
     seedImportVersion(
       tenantId,
       closingFolder.id,
       3,
       listOf(
-        BalanceImportLine(2, "1000", "Bank CHF", decimal("100.00"), decimal("0.00")),
+        BalanceImportLine(2, "1000", rawAccountLabel, decimal("100.00"), decimal("0.00")),
         BalanceImportLine(3, "2000", "Revenue", decimal("0.00"), decimal("100.00"))
       )
     )
@@ -241,11 +242,12 @@ class MappingSuggestionsApiTest {
       jsonPath("$.taxonomyVersion") { value(2) }
       jsonPath("$.suggestions.length()") { value(1) }
       jsonPath("$.suggestions[0].accountCode") { value("1000") }
-      jsonPath("$.suggestions[0].accountLabel") { value("Bank CHF") }
+      jsonPath("$.suggestions[0].accountLabel") { value(rawAccountLabel) }
       jsonPath("$.suggestions[0].suggestedTargetCode") { value("BS.ASSET.CASH_AND_EQUIVALENTS") }
       jsonPath("$.suggestions[0].confidence") { value(0.82) }
       jsonPath("$.suggestions[0].riskLevel") { value("MEDIUM") }
       jsonPath("$.suggestions[0].evidence.length()") { value(2) }
+      jsonPath("$.suggestions[0].evidence[0].snippet") { value("Bank CHF") }
       jsonPath("$.suggestions[0].requiresHumanReview") { value(true) }
       jsonPath("$.suggestions[0].schemaVersion") { value("mapping-suggestion-v1") }
       jsonPath("$.suggestions[0].promptVersion") { value("not_applicable_for_stub") }

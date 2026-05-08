@@ -1,10 +1,6 @@
 package ch.qamwaq.ritomer.ai.access
 
-import java.math.BigDecimal
-import java.util.UUID
-
 data class AiMappingSuggestionGenerationRequest(
-  val closingFolderId: UUID,
   val latestImportVersion: Int,
   val taxonomyVersion: Int,
   val accounts: List<AiMappingSuggestionAccount>,
@@ -13,10 +9,18 @@ data class AiMappingSuggestionGenerationRequest(
 
 data class AiMappingSuggestionAccount(
   val accountCode: String,
-  val accountLabel: String,
-  val debit: BigDecimal,
-  val credit: BigDecimal
+  val sanitizedAccountLabel: String,
+  val balanceSignal: AiMappingSuggestionBalanceSignal
 )
+
+enum class AiMappingSuggestionBalanceSignal {
+  DEBIT_ONLY,
+  CREDIT_ONLY,
+  DEBIT_DOMINANT,
+  CREDIT_DOMINANT,
+  BALANCED_NON_ZERO,
+  ZERO
+}
 
 data class AiMappingSuggestionTarget(
   val code: String,
@@ -31,7 +35,6 @@ data class AiMappingSuggestionGenerationResult(
 
 data class AiMappingSuggestion(
   val accountCode: String,
-  val accountLabel: String,
   val suggestedTargetCode: String,
   val confidence: Double,
   val riskLevel: AiMappingSuggestionRiskLevel,

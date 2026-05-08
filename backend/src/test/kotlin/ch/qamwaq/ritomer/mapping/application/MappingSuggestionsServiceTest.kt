@@ -1,12 +1,15 @@
 package ch.qamwaq.ritomer.mapping.application
 
 import ch.qamwaq.ritomer.ai.access.AiMappingSuggestion
+import ch.qamwaq.ritomer.ai.access.AiMappingSuggestionAccount
+import ch.qamwaq.ritomer.ai.access.AiMappingSuggestionBalanceSignal
 import ch.qamwaq.ritomer.ai.access.AiMappingSuggestionEvidence
 import ch.qamwaq.ritomer.ai.access.AiMappingSuggestionEvidenceType
 import ch.qamwaq.ritomer.ai.access.AiMappingSuggestionGenerationRequest
 import ch.qamwaq.ritomer.ai.access.AiMappingSuggestionGenerationResult
 import ch.qamwaq.ritomer.ai.access.AiMappingSuggestionRiskLevel
 import ch.qamwaq.ritomer.ai.access.MappingSuggestionGenerationAccess
+import ch.qamwaq.ritomer.ai.application.DeterministicMappingSuggestionAdapterStub
 import ch.qamwaq.ritomer.closing.access.ClosingFolderAccess
 import ch.qamwaq.ritomer.closing.access.ClosingFolderAccessStatus
 import ch.qamwaq.ritomer.closing.access.ClosingFolderAccessView
@@ -74,7 +77,7 @@ class MappingSuggestionsServiceTest {
   }
 
   @Test
-  fun `latest import version taxonomy version and eligible accounts are passed deterministically`() {
+  fun `latest import version taxonomy version and minimized eligible accounts are passed deterministically`() {
     val generationAccess = RecordingGenerationAccess(
       AiMappingSuggestionGenerationResult(
         suggestions = listOf(validSuggestion(accountCode = "2000", accountLabel = "Revenue"))
@@ -86,8 +89,8 @@ class MappingSuggestionsServiceTest {
         latestImportVersion = 7,
         lines = listOf(
           line("1000", "Cash"),
-          line("2000", "Revenue"),
-          line("3000", "Payable")
+          line("2000", "Revenue john@example.com ref 123456789", debit = BigDecimal.ZERO, credit = BigDecimal("100.00")),
+          line("3000", "Payable +41 79 123 45 67", debit = BigDecimal("40.00"), credit = BigDecimal("100.00"))
         ),
         mappings = listOf(ProjectedManualMappingEntry("1000", "BS.ASSET.CASH_AND_EQUIVALENTS", "BS.ASSET"))
       )
@@ -103,7 +106,79 @@ class MappingSuggestionsServiceTest {
     assertThat(generationAccess.requests.single().taxonomyVersion).isEqualTo(2)
     assertThat(generationAccess.requests.single().accounts.map { it.accountCode })
       .containsExactly("2000", "3000")
+    assertThat(generationAccess.requests.single().accounts.map { it.sanitizedAccountLabel })
+      .containsExactly("Revenue", "Payable")
+    assertThat(generationAccess.requests.single().accounts.map { it.balanceSignal })
+      .containsExactly(AiMappingSuggestionBalanceSignal.CREDIT_ONLY, AiMappingSuggestionBalanceSignal.CREDIT_DOMINANT)
+    assertThat(generationAccess.requests.single().targets)
+      .allSatisfy {
+        assertThat(it.selectable).isTrue()
+        assertThat(it.deprecated).isFalse()
+      }
+    assertThat(generationAccess.requests.single().targets.map { it.code })
+      .doesNotContain("BS.ASSET", "BS.ASSET.CURRENT_SECTION")
     assertThat(readModel.suggestions.map { it.accountCode }).containsExactly("2000")
+  }
+
+  @Test
+  fun `captured ai access request contains no raw identifiers amounts prompt provider or secrets`() {
+    val rawLabel = "Bank CHF secret@example.com +41 79 123 45 67 ref 987654321012"
+    val generationAccess = RecordingGenerationAccess()
+    val service = service(
+      generationAccess = generationAccess,
+      projection = projection(
+        latestImportVersion = 7,
+        lines = listOf(line("1000", rawLabel, debit = BigDecimal("12345.67"), credit = BigDecimal.ZERO))
+      )
+    )
+
+    service.getSuggestions(access(), CLOSING_FOLDER_ID)
+
+    val request = generationAccess.requests.single()
+    assertThat(request::class.java.declaredFields.map { it.name })
+      .doesNotContain("tenantId", "actorId", "roles", "closingFolderId", "debit", "credit", "prompt", "provider", "secret")
+    assertThat(AiMappingSuggestionAccount::class.java.declaredFields.map { it.name })
+      .containsExactlyInAnyOrder("accountCode", "sanitizedAccountLabel", "balanceSignal")
+    assertThat(request.toString())
+      .doesNotContain(
+        TENANT_ID.toString(),
+        CLOSING_FOLDER_ID.toString(),
+        "99999999-9999-9999-9999-999999999999",
+        "ACCOUNTANT",
+        rawLabel,
+        "secret@example.com",
+        "+41 79 123 45 67",
+        "987654321012",
+        "12345.67",
+        "prompt",
+        "provider",
+        "secret"
+      )
+    assertThat(request.accounts.single().sanitizedAccountLabel).isEqualTo("Bank CHF")
+    assertThat(request.accounts.single().balanceSignal).isEqualTo(AiMappingSuggestionBalanceSignal.DEBIT_ONLY)
+  }
+
+  @Test
+  fun `deterministic stub uses sanitized label for evidence while read model keeps original tenant scoped label`() {
+    val rawLabel = "Bank CHF jane.doe@example.com +41 79 123 45 67 ref 987654321012"
+    val service = service(
+      generationAccess = DeterministicMappingSuggestionAdapterStub(),
+      projection = projection(
+        latestImportVersion = 2,
+        lines = listOf(line("1000", rawLabel))
+      )
+    )
+
+    val firstReadModel = service.getSuggestions(access(), CLOSING_FOLDER_ID)
+    val secondReadModel = service.getSuggestions(access(), CLOSING_FOLDER_ID)
+    val suggestion = firstReadModel.suggestions.single()
+
+    assertThat(secondReadModel).isEqualTo(firstReadModel)
+    assertThat(suggestion.accountLabel).isEqualTo(rawLabel)
+    assertThat(suggestion.evidence.first { it.type == MappingSuggestionEvidenceType.ACCOUNT_LABEL }.snippet)
+      .isEqualTo("Bank CHF")
+    assertThat(suggestion.evidence.joinToString(" ") { it.snippet })
+      .doesNotContain("jane.doe@example.com", "+41 79 123 45 67", "987654321012")
   }
 
   @Test
@@ -336,7 +411,6 @@ class MappingSuggestionsServiceTest {
     ): AiMappingSuggestion =
       AiMappingSuggestion(
         accountCode = accountCode,
-        accountLabel = accountLabel,
         suggestedTargetCode = suggestedTargetCode,
         confidence = 0.82,
         riskLevel = AiMappingSuggestionRiskLevel.MEDIUM,
