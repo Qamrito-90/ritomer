@@ -86,6 +86,8 @@ Avant toute activation de provider reel :
 - tous les cas de rejet attendus correctement marques `NO_SUGGESTION`, `REJECTED` ou `DEFERRED` ;
 - aucune activation provider reel tant que le check local n'est pas vert.
 
+`030c` vert est obligatoire avant `030d runtime`. Un provider reel reste aussi bloque tant que `030d0 provider-readiness` n'est pas valide.
+
 ## Regles donnees
 
 Les fixtures doivent rester synthetiques. Elles ne doivent contenir :
@@ -126,6 +128,7 @@ Le script affiche `Total cases`, `Passed` et `Failed`, puis sort avec un code no
 030d ne doit pas brancher de modele reel tant que :
 
 - le check local 030c est vert ;
+- le provider-readiness pack `030d0` est valide ;
 - le golden set reste synthetique et sans donnee sensible ;
 - les cas legacy restent differes tant que le backend 030b reste strict sur V2 selectable et non deprecated ;
 - la revue IA/gouvernance valide model pinning, prompt pinning, schema pinning, logs et fallback ;

@@ -133,8 +133,11 @@ Cette spec couvre le cadrage de :
 | `030a` | DOCS_GIT + CONTRACTS | Durcir la spec, le schema IA et le contrat REST cible sans runtime. |
 | `030b` | BACKEND + CONTRACTS | Ajouter le read-model backend et un adapter stub sans modele reel, derriere feature flag. |
 | `030c` | IA GOVERNANCE + DOCS_GIT | Ajouter golden set, evals, prompt/schema/model governance et runbook minimal. |
-| `030d` | BACKEND + IA GOVERNANCE | Activer un provider modele reel seulement apres gates, avec schema validation stricte et fallback. |
+| `030d0` | DOCS_ONLY + IA_GOVERNANCE + SECURITY_PRIVACY + PROVIDER_READINESS | Formaliser le provider-readiness pack sans runtime, provider reel, modele, SDK, secret ni dependance. |
+| `030d` | BACKEND + IA GOVERNANCE | Activer un provider modele reel seulement apres validation de `030d0` et gates, avec schema validation stricte et fallback. |
 | `030e` | FRONTEND | Afficher la suggestion et collecter accept/correct/reject seulement si le backend contractuel est pret. |
+
+`030d runtime` reste bloque tant que `030d0` n'est pas valide. `030d0` ne peut pas etre interprete comme une approbation provider : il prepare seulement les conditions de passage.
 
 Les sous-livrables `030d` et `030e` ne doivent pas etre fusionnes dans une meme PR : activation modele et experience utilisateur sont deux risques distincts.
 
@@ -182,12 +185,33 @@ Livrables attendus :
 - documentation du seuil minimum pour passer a un modele reel ;
 - aucun secret ni donnee client brute dans les fixtures.
 
-### 030d - activation provider modele reel, gated
+### 030d0 - provider-readiness docs/config sans runtime
+
+Objectif : formaliser les conditions minimales avant toute future activation provider IA.
+
+Livrables attendus :
+
+- policy `policies/ai-provider-readiness.md` decrivant le statut non-runtime, la decision provider non approuvee et les gates de passage ;
+- provider candidat et modele candidat traites comme `NON DETERMINE` ou `CANDIDAT`, jamais comme approuves ;
+- exigences obligatoires sur region de traitement, retention provider, training/non-training, logging provider, sous-traitants, DPA/SCC, deletion et incident process ;
+- payload whitelist explicite avec donnees autorisables seulement si minimisees ;
+- liste de donnees interdites couvrant secrets, tokens, credentials, cookies, DSN, `.env`, storage keys, signed URLs, raw CSV, documents, workpapers, audit brut, cross-tenant, identifiants non necessaires, prompts, outputs et payloads complets en logs ;
+- strategie de dependance privilegiant `RestClient` ou client HTTP controle, avec SDK provider et librairie JSON Schema runtime interdits avant review ;
+- exigences de prompt pinning, schema pinning, schema hash, model exact ID et interdiction d'alias auto-upgrade ;
+- regle feature flag off : aucune construction prompt/request, zero reseau, zero cout et zero log provider ;
+- validation de sortie modele fail-closed : JSON strict, schema complet, `additionalProperties=false`, evidence non vide, `requiresHumanReview=true`, confidence bornee, risk enum, target selectable/non deprecated et compte present dans le dernier import ;
+- fallback documente pour `TIMEOUT`, `UNAVAILABLE`, `INVALID_MODEL_OUTPUT` et `INSUFFICIENT_EVIDENCE`, avec mapping manuel intact ;
+- logs/metrics autorises et interdits, cout/latence, kill switch et rollback documentes dans le runbook ;
+- rappel dans `evals/mapping/README.md` que `030c` vert et `030d0` valide sont obligatoires avant provider reel ;
+- aucun backend runtime, provider reel, modele, appel modele, SDK, dependance, secret, contrat OpenAPI/IA, DB, migration, frontend, commit, push ou PR.
+
+### 030d - activation provider modele reel, gated apres 030d0
 
 Objectif : brancher un modele uniquement quand les gates sont passes.
 
 Livrables attendus :
 
+- `030d0` valide avant implementation ;
 - CTO Gate valide avant implementation ;
 - revue IA/gouvernance avant tout appel modele ;
 - provider configure derriere feature flag ;
@@ -526,15 +550,16 @@ Toute table future doit porter `tenant_id`, respecter le scoping applicatif et e
 
 ## Impacts docs/runbooks
 
-Impacts futurs probables :
+Impacts `030d0` :
 
-- `runbooks/ai-incident-response.md` si une capacite runtime est activee ;
-- `evals/mapping/README.md` et golden set ;
-- `prompts/guardrails/*` ou prompts dedies si un modele reel est appele ;
+- ajout de `policies/ai-provider-readiness.md` comme policy de passage provider sans runtime ;
+- mise a jour de `runbooks/ai-incident-response.md` pour kill switch, outage, timeout, invalid output, no evidence, data exposure, sensitive logs, cost spike, rollback et escalation owner ;
+- mise a jour de `evals/mapping/README.md` pour rappeler que `030c` vert et `030d0` valide sont obligatoires avant provider reel ;
+- aucun prompt runtime actif, aucun fichier prompt dedie et aucun appel modele ;
 - `docs/present/ai-cadrage-v1.md` seulement quand la verite du present change reellement, c'est-a-dire a l'activation d'une capacite IA runtime ;
 - `docs/product/v1-plan.md` lors du classement done ou changement durable de sequencing.
 
-Aucun runbook ou document de present n'est modifie par cette spec de creation.
+`030d0` ne modifie pas `docs/present/ai-cadrage-v1.md` ni `docs/product/v1-plan.md` car aucune capacite IA runtime n'est activee et le sequencing V1 durable ne change pas.
 
 ## Checks attendus par sous-livrable
 
@@ -567,8 +592,19 @@ Aucun runbook ou document de present n'est modifie par cette spec de creation.
 - controles no cross-tenant ;
 - documentation des seuils et versions.
 
+### 030d0
+
+- `git status --short --branch`
+- `git diff --name-status`
+- `git diff --stat`
+- `git diff --check`
+- `.\evals\mapping\validate-golden-set.ps1`
+- recherche anti-scope sur les fichiers modifies : backend, frontend, contracts/openapi, contracts/ai, DB/migration, build/dependency, `.env`, secret, token, credential, DSN, provider key, Spring AI, SDK, GraphQL, RAG, vector store
+- recherche confirmant qu'aucune valeur secrete n'est ajoutee
+
 ### 030d
 
+- tous les gates de `030d0` ;
 - tous les checks de `030b` et `030c` ;
 - tests timeout/provider unavailable ;
 - tests sortie hors schema ;
@@ -590,6 +626,7 @@ Aucun runbook ou document de present n'est modifie par cette spec de creation.
 ## Gates necessaires avant implementation
 
 - CTO Gate obligatoire avant toute implementation runtime.
+- `030d0` provider-readiness valide obligatoire avant `030d runtime`.
 - Revue IA/gouvernance recommandee avant tout appel modele reel.
 - Revue humaine technique recommandee avant merge de tout sous-livrable risque C.
 - Contract Gate obligatoire avant frontend : schema IA et contrat REST doivent etre stables.
@@ -615,6 +652,26 @@ Chaque sous-livrable doit fournir un Fresh Evidence Pack court, factuel et verif
 13. Revue humaine recommandee ou non, notamment si migration DB, auth, autorisation, separation tenant, audit, donnees sensibles, suppression, regle metier critique, dependance, architecture, production ou irreversibilite metier sont touches.
 
 Le pack ne doit jamais inclure secret, token, cle, cookie, DSN, credential ou valeur `.env`.
+
+## Acceptance 030d0 provider-readiness docs/config
+
+- `policies/ai-provider-readiness.md` existe et indique explicitement que `030d0` est non-runtime.
+- La policy indique que le provider reel n'est pas approuve a ce stade.
+- Tout provider ou modele futur est traite comme `NON DETERMINE` ou `CANDIDAT`, jamais comme approuve sans gates.
+- Le modele futur doit etre renseigne par identifiant exact, sans alias auto-upgrade.
+- La region de traitement, la retention provider, le training/non-training des donnees, le logging provider, les sous-traitants, DPA/SCC, deletion et incident process sont marques comme obligatoires avant activation.
+- La payload whitelist couvre les champs autorisables minimises et indique source, transformation/minimisation, envoi provider, loggabilite et justification.
+- Les donnees interdites couvrent secrets, tokens, credentials, cookies, DSN, `.env`, storage keys, signed URLs, raw CSV, documents, workpapers, audit brut, cross-tenant, identifiants non necessaires, prompt brut, output brut et payload complet en logs.
+- La strategie de dependance privilegie `RestClient` ou client HTTP controle ; SDK provider et librairie runtime JSON Schema restent interdits avant dependency/security review.
+- Le prompt/schema/model pinning documente prompt file path futur, prompt version, `schemaVersion`, schema hash, model exact ID et interdiction d'alias auto-upgrade.
+- Le comportement feature flag off exige zero construction prompt/request provider, zero reseau, zero cout et zero log provider.
+- La validation de sortie modele est fail-closed, JSON strict uniquement, schema complet, `additionalProperties=false`, `requiresHumanReview=true`, evidence non vide, confidence bornee, `riskLevel` enum, target connu/selectable/non deprecated et compte present dans le dernier import.
+- Le fallback documente `TIMEOUT`, `UNAVAILABLE`, `INVALID_MODEL_OUTPUT` et `INSUFFICIENT_EVIDENCE`, avec mapping manuel intact.
+- Les logs/metrics autorises et interdits sont documentes sans payload, prompt, output, account labels, montants, evidence snippets, tenant/client identifiers non minimises ni secrets.
+- Les gates `CPO approval`, `CTO Gate`, security/privacy review, dependency review si dependance, IA governance review, golden set `030c` vert, payload whitelist signee, runbook pret et feature flag policy validee sont obligatoires avant `030d runtime`.
+- `runbooks/ai-incident-response.md` couvre kill switch, provider outage, timeout, invalid schema/output, no evidence, data exposure, sensitive logs, cost spike, rollback model/prompt/schema et escalation owner.
+- `evals/mapping/README.md` rappelle que `030c` vert et `030d0` valide sont obligatoires avant provider reel.
+- Aucun backend runtime, frontend, contrat OpenAPI, contrat IA, DB, migration, dependance, provider IA, modele, appel modele, prompt runtime actif, secret, commit, push ou PR n'est livre par `030d0`.
 
 ## Acceptance 030a contracts/docs
 
