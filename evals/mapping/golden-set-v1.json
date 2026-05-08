@@ -1,0 +1,534 @@
+{
+  "schemaVersion": "mapping-golden-set-v1",
+  "createdFor": "030c",
+  "description": "Synthetic assisted mapping golden set used before any real AI provider activation.",
+  "cases": [
+    {
+      "id": "cash-bank-simple",
+      "tenantId": "00000000-0000-4000-8000-000000000101",
+      "closingFolderId": "00000000-0000-4000-8001-000000000101",
+      "latestImportVersion": 3,
+      "taxonomyVersion": 2,
+      "input": {
+        "accountCode": "1000",
+        "accountLabel": "Synthetic bank CHF account",
+        "debit": "25000.00",
+        "credit": "0.00"
+      },
+      "context": {
+        "eligibility": {
+          "presentInLatestImport": true,
+          "alreadyMapped": false
+        },
+        "sanitizedSignals": [
+          "label contains bank",
+          "debit-side asset balance"
+        ]
+      },
+      "expected": {
+        "outcome": "SUGGESTION",
+        "suggestion": {
+          "accountCode": "1000",
+          "accountLabel": "Synthetic bank CHF account",
+          "suggestedTargetCode": "BS.ASSET.CASH_AND_EQUIVALENTS",
+          "confidence": 0.86,
+          "riskLevel": "LOW",
+          "rationale": "Bank label and debit-side balance are consistent with cash and equivalents.",
+          "evidence": [
+            {
+              "type": "ACCOUNT_LABEL",
+              "ref": "balance_import_line:1000:accountLabel",
+              "snippet": "Synthetic bank CHF account"
+            },
+            {
+              "type": "TARGET_TAXONOMY",
+              "ref": "manual-mapping-targets-v2:BS.ASSET.CASH_AND_EQUIVALENTS",
+              "snippet": "Cash and cash equivalents"
+            }
+          ],
+          "requiresHumanReview": true,
+          "schemaVersion": "mapping-suggestion-v1",
+          "promptVersion": "mapping-prompt-not-activated-030c",
+          "modelVersion": "model-not-activated-030c"
+        },
+        "rejectionReason": null,
+        "evidenceConstraints": {
+          "minItems": 2,
+          "maxItems": 4,
+          "requiredTypes": [
+            "ACCOUNT_LABEL",
+            "TARGET_TAXONOMY"
+          ],
+          "forbidCrossTenant": true
+        }
+      },
+      "tags": [
+        "positive",
+        "cash-bank",
+        "simple"
+      ]
+    },
+    {
+      "id": "revenue-simple",
+      "tenantId": "00000000-0000-4000-8000-000000000101",
+      "closingFolderId": "00000000-0000-4000-8001-000000000101",
+      "latestImportVersion": 3,
+      "taxonomyVersion": 2,
+      "input": {
+        "accountCode": "3000",
+        "accountLabel": "Synthetic operating revenue",
+        "debit": "0.00",
+        "credit": "78000.00"
+      },
+      "context": {
+        "eligibility": {
+          "presentInLatestImport": true,
+          "alreadyMapped": false
+        },
+        "sanitizedSignals": [
+          "label contains revenue",
+          "credit-side income balance"
+        ]
+      },
+      "expected": {
+        "outcome": "SUGGESTION",
+        "suggestion": {
+          "accountCode": "3000",
+          "accountLabel": "Synthetic operating revenue",
+          "suggestedTargetCode": "PL.REVENUE.OPERATING_REVENUE",
+          "confidence": 0.84,
+          "riskLevel": "LOW",
+          "rationale": "Revenue label and credit-side amount match the operating revenue leaf target.",
+          "evidence": [
+            {
+              "type": "ACCOUNT_LABEL",
+              "ref": "balance_import_line:3000:accountLabel",
+              "snippet": "Synthetic operating revenue"
+            },
+            {
+              "type": "TARGET_TAXONOMY",
+              "ref": "manual-mapping-targets-v2:PL.REVENUE.OPERATING_REVENUE",
+              "snippet": "Operating revenue"
+            }
+          ],
+          "requiresHumanReview": true,
+          "schemaVersion": "mapping-suggestion-v1",
+          "promptVersion": "mapping-prompt-not-activated-030c",
+          "modelVersion": "model-not-activated-030c"
+        },
+        "rejectionReason": null,
+        "evidenceConstraints": {
+          "minItems": 2,
+          "maxItems": 4,
+          "requiredTypes": [
+            "ACCOUNT_LABEL",
+            "TARGET_TAXONOMY"
+          ],
+          "forbidCrossTenant": true
+        }
+      },
+      "tags": [
+        "positive",
+        "revenue",
+        "simple"
+      ]
+    },
+    {
+      "id": "receivable-simple",
+      "tenantId": "00000000-0000-4000-8000-000000000102",
+      "closingFolderId": "00000000-0000-4000-8001-000000000102",
+      "latestImportVersion": 2,
+      "taxonomyVersion": 2,
+      "input": {
+        "accountCode": "1100",
+        "accountLabel": "Synthetic trade debtor receivable",
+        "debit": "18500.00",
+        "credit": "0.00"
+      },
+      "context": {
+        "eligibility": {
+          "presentInLatestImport": true,
+          "alreadyMapped": false
+        },
+        "sanitizedSignals": [
+          "label contains debtor receivable",
+          "debit-side current asset balance"
+        ]
+      },
+      "expected": {
+        "outcome": "SUGGESTION",
+        "suggestion": {
+          "accountCode": "1100",
+          "accountLabel": "Synthetic trade debtor receivable",
+          "suggestedTargetCode": "BS.ASSET.TRADE_RECEIVABLES",
+          "confidence": 0.82,
+          "riskLevel": "LOW",
+          "rationale": "Trade debtor wording supports the trade receivables current asset leaf.",
+          "evidence": [
+            {
+              "type": "ACCOUNT_LABEL",
+              "ref": "balance_import_line:1100:accountLabel",
+              "snippet": "Synthetic trade debtor receivable"
+            },
+            {
+              "type": "TARGET_TAXONOMY",
+              "ref": "manual-mapping-targets-v2:BS.ASSET.TRADE_RECEIVABLES",
+              "snippet": "Trade receivables"
+            }
+          ],
+          "requiresHumanReview": true,
+          "schemaVersion": "mapping-suggestion-v1",
+          "promptVersion": "mapping-prompt-not-activated-030c",
+          "modelVersion": "model-not-activated-030c"
+        },
+        "rejectionReason": null,
+        "evidenceConstraints": {
+          "minItems": 2,
+          "maxItems": 4,
+          "requiredTypes": [
+            "ACCOUNT_LABEL",
+            "TARGET_TAXONOMY"
+          ],
+          "forbidCrossTenant": true
+        }
+      },
+      "tags": [
+        "positive",
+        "receivable",
+        "simple"
+      ]
+    },
+    {
+      "id": "payable-simple",
+      "tenantId": "00000000-0000-4000-8000-000000000102",
+      "closingFolderId": "00000000-0000-4000-8001-000000000102",
+      "latestImportVersion": 2,
+      "taxonomyVersion": 2,
+      "input": {
+        "accountCode": "2000",
+        "accountLabel": "Synthetic supplier payable",
+        "debit": "0.00",
+        "credit": "14600.00"
+      },
+      "context": {
+        "eligibility": {
+          "presentInLatestImport": true,
+          "alreadyMapped": false
+        },
+        "sanitizedSignals": [
+          "label contains supplier payable",
+          "credit-side current liability balance"
+        ]
+      },
+      "expected": {
+        "outcome": "SUGGESTION",
+        "suggestion": {
+          "accountCode": "2000",
+          "accountLabel": "Synthetic supplier payable",
+          "suggestedTargetCode": "BS.LIABILITY.TRADE_PAYABLES",
+          "confidence": 0.83,
+          "riskLevel": "LOW",
+          "rationale": "Supplier payable wording supports the trade payables current liability leaf.",
+          "evidence": [
+            {
+              "type": "ACCOUNT_LABEL",
+              "ref": "balance_import_line:2000:accountLabel",
+              "snippet": "Synthetic supplier payable"
+            },
+            {
+              "type": "TARGET_TAXONOMY",
+              "ref": "manual-mapping-targets-v2:BS.LIABILITY.TRADE_PAYABLES",
+              "snippet": "Trade payables"
+            }
+          ],
+          "requiresHumanReview": true,
+          "schemaVersion": "mapping-suggestion-v1",
+          "promptVersion": "mapping-prompt-not-activated-030c",
+          "modelVersion": "model-not-activated-030c"
+        },
+        "rejectionReason": null,
+        "evidenceConstraints": {
+          "minItems": 2,
+          "maxItems": 4,
+          "requiredTypes": [
+            "ACCOUNT_LABEL",
+            "TARGET_TAXONOMY"
+          ],
+          "forbidCrossTenant": true
+        }
+      },
+      "tags": [
+        "positive",
+        "payable",
+        "simple"
+      ]
+    },
+    {
+      "id": "ambiguous-clearing",
+      "tenantId": "00000000-0000-4000-8000-000000000103",
+      "closingFolderId": "00000000-0000-4000-8001-000000000103",
+      "latestImportVersion": 4,
+      "taxonomyVersion": 2,
+      "input": {
+        "accountCode": "2099",
+        "accountLabel": "Synthetic suspense clearing balance",
+        "debit": "0.00",
+        "credit": "4300.00"
+      },
+      "context": {
+        "eligibility": {
+          "presentInLatestImport": true,
+          "alreadyMapped": false
+        },
+        "sanitizedSignals": [
+          "label contains suspense clearing",
+          "credit-side current balance but purpose remains ambiguous"
+        ]
+      },
+      "expected": {
+        "outcome": "SUGGESTION",
+        "suggestion": {
+          "accountCode": "2099",
+          "accountLabel": "Synthetic suspense clearing balance",
+          "suggestedTargetCode": "BS.LIABILITY.OTHER_CURRENT_LIABILITIES",
+          "confidence": 0.46,
+          "riskLevel": "HIGH",
+          "rationale": "Clearing wording is ambiguous; the credit balance only supports a cautious current liability suggestion.",
+          "evidence": [
+            {
+              "type": "ACCOUNT_LABEL",
+              "ref": "balance_import_line:2099:accountLabel",
+              "snippet": "Synthetic suspense clearing balance"
+            },
+            {
+              "type": "BALANCE_IMPORT_LINE",
+              "ref": "balance_import_line:2099:normalSide",
+              "snippet": "Credit-side balance"
+            },
+            {
+              "type": "TARGET_TAXONOMY",
+              "ref": "manual-mapping-targets-v2:BS.LIABILITY.OTHER_CURRENT_LIABILITIES",
+              "snippet": "Other current liabilities"
+            }
+          ],
+          "requiresHumanReview": true,
+          "schemaVersion": "mapping-suggestion-v1",
+          "promptVersion": "mapping-prompt-not-activated-030c",
+          "modelVersion": "model-not-activated-030c"
+        },
+        "rejectionReason": null,
+        "acceptableRiskLevels": [
+          "MEDIUM",
+          "HIGH"
+        ],
+        "maxConfidence": 0.6,
+        "evidenceConstraints": {
+          "minItems": 2,
+          "maxItems": 4,
+          "requiredTypes": [
+            "ACCOUNT_LABEL",
+            "TARGET_TAXONOMY"
+          ],
+          "forbidCrossTenant": true
+        }
+      },
+      "tags": [
+        "positive",
+        "ambiguous",
+        "confidence-calibration"
+      ]
+    },
+    {
+      "id": "no-suggestion-expected",
+      "tenantId": "00000000-0000-4000-8000-000000000104",
+      "closingFolderId": "00000000-0000-4000-8001-000000000104",
+      "latestImportVersion": 5,
+      "taxonomyVersion": 2,
+      "input": {
+        "accountCode": "1005",
+        "accountLabel": "Synthetic prior import bank account",
+        "debit": "0.00",
+        "credit": "0.00"
+      },
+      "context": {
+        "eligibility": {
+          "presentInLatestImport": false,
+          "alreadyMapped": true,
+          "currentTargetCode": "BS.ASSET.CASH_AND_EQUIVALENTS"
+        },
+        "sanitizedSignals": [
+          "account is not present in latest import version",
+          "existing human mapping is already present"
+        ]
+      },
+      "expected": {
+        "outcome": "NO_SUGGESTION",
+        "suggestion": null,
+        "rejectionReason": "ACCOUNT_NOT_ELIGIBLE_ALREADY_MAPPED_OR_NOT_IN_LATEST_IMPORT",
+        "evidenceConstraints": {
+          "mustBeEmpty": true,
+          "forbidCrossTenant": true
+        }
+      },
+      "tags": [
+        "negative",
+        "already-mapped",
+        "not-latest-import"
+      ]
+    },
+    {
+      "id": "non-selectable-target-rejected",
+      "tenantId": "00000000-0000-4000-8000-000000000105",
+      "closingFolderId": "00000000-0000-4000-8001-000000000105",
+      "latestImportVersion": 1,
+      "taxonomyVersion": 2,
+      "input": {
+        "accountCode": "1090",
+        "accountLabel": "Synthetic current assets rollup",
+        "debit": "9500.00",
+        "credit": "0.00"
+      },
+      "context": {
+        "eligibility": {
+          "presentInLatestImport": true,
+          "alreadyMapped": false
+        },
+        "candidateTargetCode": "BS.ASSET.CURRENT_SECTION",
+        "sanitizedSignals": [
+          "candidate target is a section",
+          "section targets are not selectable"
+        ]
+      },
+      "expected": {
+        "outcome": "REJECTED",
+        "suggestion": null,
+        "rejectionReason": "TARGET_NOT_SELECTABLE",
+        "rejectedTargetCode": "BS.ASSET.CURRENT_SECTION",
+        "evidenceConstraints": {
+          "mustBeEmpty": true,
+          "forbidCrossTenant": true
+        }
+      },
+      "tags": [
+        "negative",
+        "target-validation",
+        "non-selectable"
+      ]
+    },
+    {
+      "id": "legacy-target-deferred",
+      "tenantId": "00000000-0000-4000-8000-000000000106",
+      "closingFolderId": "00000000-0000-4000-8001-000000000106",
+      "latestImportVersion": 1,
+      "taxonomyVersion": 2,
+      "input": {
+        "accountCode": "1010",
+        "accountLabel": "Synthetic legacy asset mapping candidate",
+        "debit": "7000.00",
+        "credit": "0.00"
+      },
+      "context": {
+        "eligibility": {
+          "presentInLatestImport": true,
+          "alreadyMapped": false
+        },
+        "candidateTargetCode": "BS.ASSET",
+        "note": "Legacy target is deferred while 030b remains strict on selectable and non-deprecated V2 leaves."
+      },
+      "expected": {
+        "outcome": "DEFERRED",
+        "suggestion": null,
+        "rejectionReason": "LEGACY_TARGET_DEFERRED",
+        "rejectedTargetCode": "BS.ASSET",
+        "deferredReason": "Legacy deprecated target is documented but not active for 030c or strict 030b behavior.",
+        "evidenceConstraints": {
+          "mustBeEmpty": true,
+          "forbidCrossTenant": true
+        }
+      },
+      "tags": [
+        "negative",
+        "legacy",
+        "deferred"
+      ]
+    },
+    {
+      "id": "cross-tenant-history-forbidden",
+      "tenantId": "00000000-0000-4000-8000-000000000107",
+      "closingFolderId": "00000000-0000-4000-8001-000000000107",
+      "latestImportVersion": 2,
+      "taxonomyVersion": 2,
+      "input": {
+        "accountCode": "1150",
+        "accountLabel": "Synthetic receivable requiring scoped history",
+        "debit": "3200.00",
+        "credit": "0.00"
+      },
+      "context": {
+        "eligibility": {
+          "presentInLatestImport": true,
+          "alreadyMapped": false
+        },
+        "history": {
+          "status": "candidate_detected",
+          "tenantScope": "other-tenant",
+          "usable": false,
+          "reason": "CROSS_TENANT_HISTORY_FORBIDDEN"
+        },
+        "sanitizedSignals": [
+          "only available historical signal is outside the current tenant scope"
+        ]
+      },
+      "expected": {
+        "outcome": "REJECTED",
+        "suggestion": null,
+        "rejectionReason": "CROSS_TENANT_HISTORY_FORBIDDEN",
+        "evidenceConstraints": {
+          "mustBeEmpty": true,
+          "forbidCrossTenant": true
+        }
+      },
+      "tags": [
+        "negative",
+        "tenant-isolation",
+        "history"
+      ]
+    },
+    {
+      "id": "insufficient-evidence",
+      "tenantId": "00000000-0000-4000-8000-000000000108",
+      "closingFolderId": "00000000-0000-4000-8001-000000000108",
+      "latestImportVersion": 1,
+      "taxonomyVersion": 2,
+      "input": {
+        "accountCode": "4999",
+        "accountLabel": "Synthetic miscellaneous balance",
+        "debit": "1200.00",
+        "credit": "1200.00"
+      },
+      "context": {
+        "eligibility": {
+          "presentInLatestImport": true,
+          "alreadyMapped": false
+        },
+        "sanitizedSignals": [
+          "label is generic",
+          "debit and credit do not support a clear normal side"
+        ]
+      },
+      "expected": {
+        "outcome": "NO_SUGGESTION",
+        "suggestion": null,
+        "rejectionReason": "INSUFFICIENT_EVIDENCE",
+        "evidenceConstraints": {
+          "mustBeEmpty": true,
+          "forbidCrossTenant": true
+        }
+      },
+      "tags": [
+        "negative",
+        "insufficient-evidence"
+      ]
+    }
+  ]
+}
