@@ -1,25 +1,30 @@
-# AI Provider Readiness Policy - 030d0
+# AI Provider Readiness Policy - 030d1
 
 ## Objectif et statut
 
-`030d0` est un livrable de preparation provider IA, docs/config only, sans runtime.
+`030d1` est un livrable de preparation provider IA, docs/config only, sans runtime.
 
 Il conditionne toute activation future de provider IA pour le mapping assiste. Il formalise les exigences privacy, securite, gouvernance IA, dependance, pinning, logs, metrics, cout, latence, fallback et gates avant `030d`.
 
-`030d0` ne livre aucun provider reel, aucun modele, aucun appel modele, aucun SDK, aucun secret, aucune valeur de configuration sensible et aucune activation runtime.
+`030d1` ne livre aucun provider reel, aucun modele, aucun appel modele, aucun SDK, aucun secret, aucune valeur de configuration sensible, aucune dependance et aucune activation runtime.
+
+Artefacts 030d1 lies :
+
+- `policies/ai-provider-readiness-record-030d1.md`
+- `policies/dependency-security-review-030d1.md`
 
 ## Decision actuelle
 
 - Provider reel : non approuve a ce stade.
-- Provider candidat : `NON DETERMINE`. Un provider peut etre documente plus tard comme `CANDIDAT`, jamais comme approuve tant que les gates de cette policy ne sont pas passes.
-- Modele candidat : `NON DETERMINE`. `030d` devra renseigner un identifiant exact de modele provider, sans alias auto-upgrade et sans resolution automatique vers une version plus recente.
-- Region de traitement : obligatoire a documenter avant activation ; `NON DETERMINE` pour `030d0`.
-- Retention provider : obligatoire a documenter avant activation ; `NON DETERMINE` pour `030d0`.
-- Training / non-training des donnees : obligation de non-training ou option contractuelle equivalente a documenter avant activation ; `NON DETERMINE` pour `030d0`.
-- Logging provider : obligatoire a documenter avant activation, incluant contenu loggue, duree, acces support et opt-out ; `NON DETERMINE` pour `030d0`.
-- Sous-traitants, DPA, SCC, deletion et incident process : obligatoires a documenter avant activation ; `NON DETERMINE` pour `030d0`.
+- Provider candidat : `NON_DETERMINE`. Un provider peut etre documente plus tard comme `CANDIDAT`, jamais comme approuve tant que les gates de cette policy ne sont pas passes.
+- Modele candidat : `NON_DETERMINE`. `030d` devra renseigner un identifiant exact de modele provider, sans alias auto-upgrade et sans resolution automatique vers une version plus recente.
+- Region de traitement : obligatoire a documenter avant activation ; `NON_DETERMINE` pour `030d1`.
+- Retention provider : obligatoire a documenter avant activation ; `NON_DETERMINE` pour `030d1`.
+- Training / non-training des donnees : obligation de non-training ou option contractuelle equivalente a documenter avant activation ; `NON_DETERMINE` pour `030d1`.
+- Logging provider : obligatoire a documenter avant activation, incluant contenu loggue, duree, acces support et opt-out ; `NON_DETERMINE` pour `030d1`.
+- Sous-traitants, DPA, SCC, deletion et incident process : obligatoires a documenter avant activation ; `NON_DETERMINE` pour `030d1`.
 
-Aucune equipe ne peut traiter ces champs `NON DETERMINE` comme une approbation implicite.
+Aucune equipe ne peut traiter ces champs `NON_DETERMINE` comme une approbation implicite.
 
 ## Provider readiness record obligatoire
 
@@ -47,14 +52,14 @@ Seuls les champs ci-dessous sont autorisables pour un appel provider futur, et u
 | `accountCode` | derniere balance importee tenant-scopee | normaliser comme code de compte, longueur bornee | oui | non | cle metier necessaire pour produire une suggestion sur la ligne cible |
 | `accountLabel` sanitise | derniere balance importee tenant-scopee | retirer noms, emails, identifiants client inutiles, normaliser espaces, tronquer | oui | non | signal principal de mapping, seulement sous forme minimisee |
 | signal debit/credit minimise ou derive | derniere balance importee tenant-scopee | envoyer uniquement direction, signe, bucket ou indicateur derive ; jamais montant brut si non necessaire | oui | non | aide a distinguer actif, passif, produit ou charge sans exposer le montant |
-| `latestImportVersion` | import courant autorise | version seulement, sans contenu CSV | oui | oui | ancrage anti-stale et reproductibilite |
-| `taxonomyVersion` | referentiel de mapping publie | version seulement | oui | oui | ancrage de la cible selectable |
-| target `code` | targets selectable non deprecated | filtrer selectable = true et deprecated = false | oui | oui | code cible candidat a selectionner |
-| target `label` | targets selectable non deprecated | label public du referentiel, sans enrichissement client | oui | oui | libelle necessaire a la selection humaine et modele |
-| target `statement` | targets selectable non deprecated | enum ou valeur publiee du referentiel | oui | oui | contexte de classement |
-| target `bucket` / `section` | targets selectable non deprecated | envoyer uniquement bucket/section publies | oui | oui | contexte de granularite comptable |
-| target `normalSide` | targets selectable non deprecated | valeur publiee du referentiel | oui | oui | signal debit/credit attendu |
-| target `granularity` | targets selectable non deprecated | valeur publiee du referentiel | oui | oui | evite une cible trop large ou non selectable |
+| `latestImportVersion` | import courant autorise | version seulement, sans contenu CSV | oui | non | ancrage anti-stale et reproductibilite |
+| `taxonomyVersion` | referentiel de mapping publie | version seulement | oui | non | ancrage de la cible selectable |
+| target `code` | targets selectable non deprecated | filtrer selectable = true et deprecated = false | oui | non par defaut | code cible candidat a selectionner |
+| target `label` | targets selectable non deprecated | label public du referentiel, sans enrichissement client | oui | non par defaut | libelle necessaire a la selection humaine et modele |
+| target `statement` | targets selectable non deprecated | enum ou valeur publiee du referentiel | oui | non par defaut | contexte de classement |
+| target `bucket` / `section` | targets selectable non deprecated | envoyer uniquement bucket/section publies | oui | non par defaut | contexte de granularite comptable |
+| target `normalSide` | targets selectable non deprecated | valeur publiee du referentiel | oui | non par defaut | signal debit/credit attendu |
+| target `granularity` | targets selectable non deprecated | valeur publiee du referentiel | oui | non par defaut | evite une cible trop large ou non selectable |
 | evidence refs minimales non sensibles | sources tenant-scopees autorisees | refs courtes, typees, sans extrait sensible et sans chemin prive | oui | non | preuve exploitable par revue humaine sans exposer le document brut |
 | `schemaVersion` | contrat IA versionne | valeur exacte, par exemple `mapping-suggestion-v1` | oui | oui | validation stricte et reproductibilite |
 | `promptVersion` | prompt futur versionne | valeur exacte approuvee | oui | oui | audit de prompt pinning |
@@ -175,7 +180,7 @@ Dans tous les cas :
 - aucune ecriture automatique n'est faite ;
 - les erreurs provider ne bloquent pas le closing.
 
-## Logs et metrics autorises
+## Logs autorises
 
 Sont autorises, sous forme structuree et minimisee :
 
@@ -183,14 +188,12 @@ Sont autorises, sous forme structuree et minimisee :
 - state final ;
 - provider logique ;
 - `schemaVersion`, `promptVersion`, schema hash et model exact ID ;
-- latence agregee, p50/p95 et timeout count ;
+- latence agregee ;
 - nombre de comptes envoyes ;
 - nombre de suggestions valides ;
 - nombre d'outputs rejetes ;
 - raison de rejet normalisee ;
-- cout estime agrege ;
-- taux de fallback ;
-- taux accept/reject/correct apres decision humaine, agrege et tenant-safe.
+- cout estime agrege.
 
 ## Logs interdits
 
@@ -234,6 +237,7 @@ Un cost spike doit pouvoir etre traite sans redeployer : couper le flag, revenir
 - golden set 030c vert ;
 - payload whitelist signee ;
 - provider readiness record complet et signe ;
+- dependency/security review signee ;
 - runbook IA pret ;
 - feature flag policy validee ;
 - region, retention, training/non-training, logging provider, DPA/SCC, deletion et incident process documentes ;
