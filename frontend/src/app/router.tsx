@@ -5,6 +5,7 @@ import { AppShell } from "../components/workbench/app-shell";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { WorkflowBadge } from "../components/ui/workflow-badge";
+import { AiMappingSuggestionsPanel } from "./ai-mapping-suggestions-panel";
 import { DossierProgressSummary } from "./dossier-progress-summary";
 import { ExportAuditPackPanel } from "./export-audit-pack-panel";
 import { MinimalAnnexPanel } from "./minimal-annex-panel";
@@ -958,6 +959,11 @@ function ClosingFolderRoute() {
                 onDelete={handleDeleteManualMapping}
                 onSave={handleSaveManualMapping}
                 onTargetChange={handleManualMappingTargetChange}
+              />
+              <AiMappingSuggestionsPanel
+                activeTenant={state.activeTenant}
+                closingFolderId={state.closingFolder.id}
+                key={`ai-mapping-suggestion-${state.activeTenant.tenantId}-${state.closingFolder.id}`}
               />
             </div>
           </section>

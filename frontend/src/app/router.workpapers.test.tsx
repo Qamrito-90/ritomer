@@ -210,6 +210,20 @@ const BLOCKED_MINIMAL_ANNEX = {
   annex: null
 };
 
+const EMPTY_MAPPING_SUGGESTIONS = {
+  state: "DISABLED",
+  closingFolderId: CLOSING_FOLDER.id,
+  latestImportVersion: null,
+  taxonomyVersion: 2,
+  suggestions: [],
+  errors: [
+    {
+      code: "AI_MAPPING_SUGGESTIONS_DISABLED",
+      message: "Mapping suggestions are disabled."
+    }
+  ]
+};
+
 const ACCOUNTANT_ME = {
   activeTenant: ACTIVE_TENANT,
   effectiveRoles: ["ACCOUNTANT"]
@@ -240,6 +254,7 @@ function waitForNominalShell() {
     screen.findByText("Financial summary"),
     screen.findByText("Financial statements structured"),
     screen.findByText("Workpapers"),
+    screen.findByText("AI mapping suggestion"),
     screen.findByText("Audit-ready export pack"),
     screen.findByText("No audit-ready pack generated yet."),
     screen.findByText("Minimal annex preview")
@@ -272,6 +287,7 @@ function primeNominalRoute(fetchMock: ReturnType<typeof vi.fn>) {
       Promise.resolve(jsonResponse(200, READY_FINANCIAL_STATEMENTS_STRUCTURED))
     )
     .mockImplementationOnce(() => Promise.resolve(jsonResponse(200, READY_WORKPAPERS)))
+    .mockImplementationOnce(() => Promise.resolve(jsonResponse(200, EMPTY_MAPPING_SUGGESTIONS)))
     .mockImplementationOnce(() => Promise.resolve(jsonResponse(200, EMPTY_EXPORT_PACKS)))
     .mockImplementationOnce(() => Promise.resolve(jsonResponse(200, BLOCKED_MINIMAL_ANNEX)));
 }
@@ -313,6 +329,7 @@ describe("router workpapers smoke", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-summary`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/minimal-annex`
     ]);

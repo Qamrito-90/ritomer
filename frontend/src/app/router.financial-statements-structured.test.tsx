@@ -295,6 +295,20 @@ const BLOCKED_MINIMAL_ANNEX = {
   annex: null
 };
 
+const EMPTY_MAPPING_SUGGESTIONS = {
+  state: "DISABLED",
+  closingFolderId: CLOSING_FOLDER.id,
+  latestImportVersion: null,
+  taxonomyVersion: 2,
+  suggestions: [],
+  errors: [
+    {
+      code: "AI_MAPPING_SUGGESTIONS_DISABLED",
+      message: "Mapping suggestions are disabled."
+    }
+  ]
+};
+
 const CLOSING_ROUTE = `/closing-folders/${CLOSING_FOLDER.id}`;
 
 type ResponseFactory = () => Response | Promise<Response>;
@@ -346,6 +360,7 @@ function primeNominalRoute(
     .mockImplementationOnce(() => Promise.resolve(financialSummary()))
     .mockImplementationOnce(() => Promise.resolve(financialStatementsStructured()))
     .mockImplementationOnce(() => Promise.resolve(workpapers()))
+    .mockResolvedValueOnce(jsonResponse(200, EMPTY_MAPPING_SUGGESTIONS))
     .mockResolvedValueOnce(jsonResponse(200, EMPTY_EXPORT_PACKS))
     .mockResolvedValueOnce(jsonResponse(200, BLOCKED_MINIMAL_ANNEX));
 }
@@ -358,6 +373,7 @@ async function waitForNominalShell() {
   expect(await screen.findByText("Financial summary")).toBeInTheDocument();
   expect(await screen.findByText("Financial statements structured")).toBeInTheDocument();
   expect(await screen.findByText("Workpapers")).toBeInTheDocument();
+  expect(await screen.findByText("AI mapping suggestion")).toBeInTheDocument();
   expect(await screen.findByText("Audit-ready export pack")).toBeInTheDocument();
   expect(await screen.findByText("No audit-ready pack generated yet.")).toBeInTheDocument();
   expect(await screen.findByText("Minimal annex preview")).toBeInTheDocument();
@@ -434,6 +450,7 @@ describe("router financial statements structured", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-summary`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/minimal-annex`
     ]);
@@ -456,7 +473,7 @@ describe("router financial statements structured", () => {
         "Preview structuree non statutaire. Not a final CO deliverable. Do not use as statutory filing."
       )
     ).not.toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(9);
+    expect(fetchMock).toHaveBeenCalledTimes(10);
   });
 
   it.each([
