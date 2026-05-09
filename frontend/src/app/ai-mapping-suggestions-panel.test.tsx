@@ -39,7 +39,8 @@ const READY_MAPPING_SUGGESTIONS: MappingSuggestionsReadModel = {
       requiresHumanReview: true,
       schemaVersion: "mapping-suggestion-v1",
       promptVersion: "not_applicable_for_stub",
-      modelVersion: "not_applicable_for_stub"
+      modelVersion: "not_applicable_for_stub",
+      suggestionFingerprint: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
     }
   ],
   errors: []

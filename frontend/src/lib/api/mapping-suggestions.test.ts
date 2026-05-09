@@ -40,7 +40,8 @@ const READY_MAPPING_SUGGESTIONS: MappingSuggestionsReadModel = {
       requiresHumanReview: true,
       schemaVersion: "mapping-suggestion-v1",
       promptVersion: "not_applicable_for_stub",
-      modelVersion: "not_applicable_for_stub"
+      modelVersion: "not_applicable_for_stub",
+      suggestionFingerprint: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
     }
   ],
   errors: []
@@ -178,6 +179,13 @@ describe("mapping suggestions api", () => {
     {
       label: "unknown state",
       payload: () => cloneReadyMappingSuggestions({ state: "UNKNOWN" })
+    },
+    {
+      label: "malformed suggestion fingerprint",
+      payload: () =>
+        cloneReadyMappingSuggestions({
+          suggestions: [cloneReadySuggestion({ suggestionFingerprint: "not-a-fingerprint" })]
+        })
     }
   ])("returns invalid_payload for $label", async ({ payload }) => {
     const fetcher = vi.fn().mockResolvedValue(jsonResponse(200, payload()));
