@@ -136,11 +136,14 @@ Cette spec couvre le cadrage de :
 | `030d1` | DOCS_ONLY + IA_GOVERNANCE + SECURITY_PRIVACY + PROVIDER_READINESS + DEPENDENCY_REVIEW | Formaliser le provider-readiness record et la dependency/security review sans runtime, provider reel, modele, SDK, secret ni dependance. |
 | `030d2` | BACKEND | Durcir la minimisation du payload entre `mapping.application` et `ai::access`, sans provider reel, modele, SDK, dependance, reseau, DB, migration, frontend ni changement de contrat public. |
 | `030d` | BACKEND + IA GOVERNANCE | Activer un provider modele reel seulement apres validation de `030d1` et gates, avec schema validation stricte et fallback. |
+| `030e0` | FRONTEND | Afficher en lecture seule les suggestions preparees pour revue humaine, sans mutation de suggestion ni preselection du mapping manuel. |
 | `030e` | FRONTEND | Afficher la suggestion et collecter accept/correct/reject seulement si le backend contractuel est pret. |
 
 `030d runtime` reste bloque tant que `030d1` n'est pas valide et signe, que `030d2` n'a pas prouve la minimisation backend et que les autres gates ne sont pas verts. `030d1` ne peut pas etre interprete comme une approbation provider : il prepare seulement les conditions de passage.
 
 Les sous-livrables `030d` et `030e` ne doivent pas etre fusionnes dans une meme PR : activation modele et experience utilisateur sont deux risques distincts.
+
+`030e0` est un sous-livrable intermediaire read-only : il peut etre livre quand le read-model backend `GET /api/closing-folders/{closingFolderId}/mappings/suggestions` est disponible, sans attendre la future experience de decision humaine.
 
 ## Decoupage recommande
 
@@ -243,6 +246,22 @@ Livrables attendus :
 - fallback sans bloquer le mapping manuel ;
 - logs/traces/metrics sans donnees sensibles ;
 - tests d'indisponibilite, timeout, sortie invalide, evidence absente et cout/latence.
+
+### 030e0 - frontend read-only mapping suggestions
+
+Objectif : exposer les suggestions de mapping IA preparees pour revue humaine sans deplacer l'autorite metier hors du mapping manuel.
+
+Livrables attendus :
+
+- client frontend dedie pour `GET /api/closing-folders/{closingFolderId}/mappings/suggestions` ;
+- header `X-Tenant-Id`, `Accept: application/json` et encodage du `closingFolderId` ;
+- validation stricte du read-model, des suggestions et des preuves ;
+- panneau read-only autonome dans ou pres du bloc de mapping manuel sur `/closing-folders/:closingFolderId` ;
+- affichage des etats `DISABLED`, `NO_IMPORT`, `READY`, `PARTIAL`, `ARCHIVED_READ_ONLY`, `UNAVAILABLE`, `TIMEOUT`, `INVALID_MODEL_OUTPUT` et `INSUFFICIENT_EVIDENCE` ;
+- affichage visible de `accountCode`, `accountLabel`, `suggestedTargetCode`, `confidence`, `riskLevel`, rationale courte, `evidence[]` et `requiresHumanReview` ;
+- evidence visible directement, jamais hover-only ;
+- wording obligatoire : `AI mapping suggestion`, `Prepared for human review`, `Human review required`, `Read-only suggestion`, `Manual mapping remains the authority` ;
+- aucune mutation de suggestion, aucun controle decisionnel, aucun autofill, aucune preselection du mapping manuel et aucun stockage navigateur.
 
 ### 030e - frontend suggestion review UI
 
@@ -646,6 +665,18 @@ Impacts `030d1` :
 - verification logs/metrics sans donnees sensibles ;
 - revue IA/gouvernance avant merge.
 
+### 030e0
+
+- frontend `pnpm test:ci`
+- frontend `pnpm lint`
+- frontend `pnpm build`
+- `git diff --check`
+- `git status --short --branch`
+- tests client : endpoint exact, `X-Tenant-Id`, `Accept`, encodage du `closingFolderId`, validation stricte, rejet `requiresHumanReview=false`, rejet `evidence[]` vide, rejet confidence hors borne, rejet state inconnu et rejet `closingFolderId` incoherent ;
+- tests UI : loading, erreur HTTP/reseau, tous les etats du read-model, suggestions presentes, `READY` sans suggestion, evidence visible et absence de controle decisionnel ;
+- tests route : appel GET attendu, headers attendus et absence d'appel mutationnel lie aux suggestions ;
+- recherches anti-scope proportionnees sur les fichiers impactes.
+
 ### 030e
 
 - frontend `pnpm test:ci`
@@ -685,6 +716,19 @@ Chaque sous-livrable doit fournir un Fresh Evidence Pack court, factuel et verif
 13. Revue humaine recommandee ou non, notamment si migration DB, auth, autorisation, separation tenant, audit, donnees sensibles, suppression, regle metier critique, dependance, architecture, production ou irreversibilite metier sont touches.
 
 Le pack ne doit jamais inclure secret, token, cle, cookie, DSN, credential ou valeur `.env`.
+
+## Acceptance 030e0 frontend read-only mapping suggestions
+
+- Un client frontend dedie consomme uniquement `GET /api/closing-folders/{closingFolderId}/mappings/suggestions`.
+- Le client envoie `X-Tenant-Id`, demande `application/json`, encode le `closingFolderId` et ne transmet aucun body.
+- Le payload est valide strictement : state connu, `closingFolderId` coherent, `requiresHumanReview=true`, confidence entre `0` et `1`, `evidence[]` non vide et aucune propriete libre.
+- La route `/closing-folders/:closingFolderId` affiche un panneau read-only dans ou pres du bloc de mapping manuel.
+- Les etats `DISABLED`, `NO_IMPORT`, `READY`, `PARTIAL`, `ARCHIVED_READ_ONLY`, `UNAVAILABLE`, `TIMEOUT`, `INVALID_MODEL_OUTPUT` et `INSUFFICIENT_EVIDENCE` sont visibles et explicites.
+- En succes, l'UI affiche `accountCode`, `accountLabel`, `suggestedTargetCode`, `confidence`, `riskLevel`, rationale courte, `evidence[]` et `requiresHumanReview`.
+- Les preuves sont visibles directement dans le panneau, sans hover-only.
+- Le wording `AI mapping suggestion`, `Prepared for human review`, `Human review required`, `Read-only suggestion` et `Manual mapping remains the authority` est present.
+- Le mapping manuel reste l'autorite : aucune mutation de suggestion, aucun controle decisionnel, aucun autofill, aucune preselection et aucun stockage navigateur ne sont ajoutes.
+- Aucun backend, contrat OpenAPI, contrat IA, DB, migration, dependance, secret, commit, push ou PR n'est livre par `030e0`.
 
 ## Acceptance 030d1 provider-readiness record and dependency review
 

@@ -274,6 +274,20 @@ const BLOCKED_MINIMAL_ANNEX = {
   annex: null
 };
 
+const EMPTY_MAPPING_SUGGESTIONS = {
+  state: "DISABLED",
+  closingFolderId: CLOSING_FOLDER.id,
+  latestImportVersion: null,
+  taxonomyVersion: 2,
+  suggestions: [],
+  errors: [
+    {
+      code: "AI_MAPPING_SUGGESTIONS_DISABLED",
+      message: "Mapping suggestions are disabled."
+    }
+  ]
+};
+
 const CLOSING_ROUTE = `/closing-folders/${CLOSING_FOLDER.id}`;
 
 type ResponseFactory = () => Response | Promise<Response>;
@@ -329,6 +343,7 @@ function primeNominalRoute(
     .mockImplementationOnce(() => Promise.resolve(financialSummary()))
     .mockImplementationOnce(() => Promise.resolve(financialStatementsStructured()))
     .mockImplementationOnce(() => Promise.resolve(workpapers()))
+    .mockResolvedValueOnce(jsonResponse(200, EMPTY_MAPPING_SUGGESTIONS))
     .mockResolvedValueOnce(jsonResponse(200, EMPTY_EXPORT_PACKS))
     .mockResolvedValueOnce(jsonResponse(200, BLOCKED_MINIMAL_ANNEX));
 
@@ -345,6 +360,7 @@ async function waitForNominalShell() {
   expect(await screen.findByText("Financial summary")).toBeInTheDocument();
   expect(await screen.findByText("Financial statements structured")).toBeInTheDocument();
   expect(await screen.findByText("Workpapers")).toBeInTheDocument();
+  expect(await screen.findByText("AI mapping suggestion")).toBeInTheDocument();
   expect(await screen.findByText("Audit-ready export pack")).toBeInTheDocument();
   expect(await screen.findByText("No audit-ready pack generated yet.")).toBeInTheDocument();
   expect(await screen.findByText("Minimal annex preview")).toBeInTheDocument();
@@ -461,6 +477,7 @@ describe("router manual mapping", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-summary`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/minimal-annex`
     ]);
@@ -472,6 +489,7 @@ describe("router manual mapping", () => {
     expect(getRequestHeaders(fetchMock, 5)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
     expect(getRequestHeaders(fetchMock, 6)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
     expect(getRequestHeaders(fetchMock, 7)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
+    expect(getRequestHeaders(fetchMock, 8)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
     expectNoOutOfScopePaths(getRequestPaths(fetchMock));
   });
 
@@ -634,13 +652,13 @@ describe("router manual mapping", () => {
 
     await user.selectOptions(getLineTargetSelect("2000"), "PL.REVENUE");
 
-    expect(fetchMock).toHaveBeenCalledTimes(9);
+    expect(fetchMock).toHaveBeenCalledTimes(10);
     expect(getLineSaveButton("2000")).toBeEnabled();
 
     await user.click(getLineSaveButton("2000"));
 
     expect(await screen.findByText("enregistrement mapping en cours")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(10);
+    expect(fetchMock).toHaveBeenCalledTimes(11);
     expect(getLineTargetSelect("1000")).toBeDisabled();
     expect(getLineTargetSelect("2000")).toBeDisabled();
     expect(getLineSaveButton("1000")).toBeDisabled();
@@ -648,7 +666,7 @@ describe("router manual mapping", () => {
     expect(getLineDeleteButton("1000")).toBeDisabled();
 
     await user.click(getLineDeleteButton("1000"));
-    expect(fetchMock).toHaveBeenCalledTimes(10);
+    expect(fetchMock).toHaveBeenCalledTimes(11);
     expectNoOutOfScopePaths(getRequestPaths(fetchMock));
   });
 
@@ -691,6 +709,7 @@ describe("router manual mapping", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-summary`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/minimal-annex`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/manual`,
@@ -698,7 +717,7 @@ describe("router manual mapping", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/controls`
     ]);
 
-    const putInit = fetchMock.mock.calls[9]?.[1] as RequestInit;
+    const putInit = fetchMock.mock.calls[10]?.[1] as RequestInit;
     const putHeaders = putInit.headers as Record<string, string>;
     expect(putInit.method).toBe("PUT");
     expect(putHeaders.Accept).toBe("application/json");
@@ -731,7 +750,7 @@ describe("router manual mapping", () => {
     await user.click(getLineSaveButton("2000"));
 
     expect(await screen.findByText("payload mapping invalide")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(10);
+    expect(fetchMock).toHaveBeenCalledTimes(11);
   });
 
   it.each([
@@ -813,7 +832,7 @@ describe("router manual mapping", () => {
     await user.click(getLineSaveButton("2000"));
 
     expect(await screen.findByText(text)).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(10);
+    expect(fetchMock).toHaveBeenCalledTimes(11);
   });
 
   it("sends the exact DELETE query param, keeps no body, and refreshes mapping plus controls after success", async () => {
@@ -841,6 +860,7 @@ describe("router manual mapping", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-summary`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/minimal-annex`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/manual?accountCode=1000`,
@@ -848,7 +868,7 @@ describe("router manual mapping", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/controls`
     ]);
 
-    const deleteInit = fetchMock.mock.calls[9]?.[1] as RequestInit;
+    const deleteInit = fetchMock.mock.calls[10]?.[1] as RequestInit;
     const deleteHeaders = deleteInit.headers as Record<string, string>;
     expect(deleteInit.method).toBe("DELETE");
     expect(deleteHeaders.Accept).toBe("application/json");
