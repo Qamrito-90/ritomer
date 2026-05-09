@@ -1,17 +1,34 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Button } from "../components/ui/button";
 import type {
   MappingSuggestion,
+  MappingSuggestionDecision,
+  MappingSuggestionDecisionRequest,
+  MappingSuggestionDecisionResult,
+  MappingSuggestionDecisionState,
   MappingSuggestionError,
   MappingSuggestionsReadModel,
   MappingSuggestionsShellState,
   MappingSuggestionsState
 } from "../lib/api/mapping-suggestions";
-import { loadMappingSuggestionsShellState } from "../lib/api/mapping-suggestions";
+import {
+  generateMappingSuggestionDecisionIdempotencyKey,
+  loadMappingSuggestionsShellState,
+  recordMappingSuggestionDecision
+} from "../lib/api/mapping-suggestions";
 import type { ActiveTenant } from "../lib/api/me";
+
+export type AiMappingSuggestionReviewTarget = {
+  code: string;
+  label: string;
+  selectable: boolean;
+};
 
 type AiMappingSuggestionsPanelProps = {
   activeTenant: ActiveTenant;
   closingFolderId: string;
+  selectableTargets?: AiMappingSuggestionReviewTarget[];
+  onManualMappingMutationConfirmed?: () => Promise<void> | void;
 };
 
 const stateLabels: Record<MappingSuggestionsState, string> = {
@@ -26,11 +43,38 @@ const stateLabels: Record<MappingSuggestionsState, string> = {
   INSUFFICIENT_EVIDENCE: "Insufficient evidence for AI mapping suggestion."
 };
 
+type DecisionReviewState =
+  | { kind: "idle" }
+  | { kind: "submitting"; decision: MappingSuggestionDecision }
+  | {
+      kind: "success";
+      result: MappingSuggestionDecisionResult;
+      refreshSuggestionsFailed: boolean;
+      refreshManualMappingFailed: boolean;
+    }
+  | (Exclude<MappingSuggestionDecisionState, { kind: "success" }> & {
+      decision: MappingSuggestionDecision;
+    });
+
+type DecisionAttempt = {
+  canonicalPayload: string;
+  idempotencyKey: string;
+};
+
 export function AiMappingSuggestionsPanel({
   activeTenant,
-  closingFolderId
+  closingFolderId,
+  selectableTargets = [],
+  onManualMappingMutationConfirmed
 }: AiMappingSuggestionsPanelProps) {
   const [state, setState] = useState<MappingSuggestionsShellState>({ kind: "loading" });
+  const [correctTargetByAccount, setCorrectTargetByAccount] = useState<Record<string, string>>({});
+  const [reviewCommentByAccount, setReviewCommentByAccount] = useState<Record<string, string>>({});
+  const [decisionStateByAccount, setDecisionStateByAccount] = useState<
+    Record<string, DecisionReviewState | undefined>
+  >({});
+  const decisionAttemptByAccountRef = useRef<Record<string, DecisionAttempt | undefined>>({});
+  const inFlightAccountsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -52,6 +96,140 @@ export function AiMappingSuggestionsPanel({
     };
   }, [activeTenant, closingFolderId]);
 
+  async function refreshSuggestionsAfterDecision() {
+    const nextState = await loadMappingSuggestionsShellState(closingFolderId, activeTenant);
+
+    if (nextState.kind !== "ready") {
+      setState(nextState);
+      return false;
+    }
+
+    setState(nextState);
+    return true;
+  }
+
+  function resetDecisionAttempt(accountCode: string) {
+    delete decisionAttemptByAccountRef.current[accountCode];
+    setDecisionStateByAccount((current) => ({
+      ...current,
+      [accountCode]: { kind: "idle" }
+    }));
+  }
+
+  function handleCorrectTargetChange(accountCode: string, targetCode: string) {
+    setCorrectTargetByAccount((current) => ({
+      ...current,
+      [accountCode]: targetCode
+    }));
+    resetDecisionAttempt(accountCode);
+  }
+
+  function handleReviewCommentChange(accountCode: string, reviewComment: string) {
+    setReviewCommentByAccount((current) => ({
+      ...current,
+      [accountCode]: reviewComment
+    }));
+    resetDecisionAttempt(accountCode);
+  }
+
+  async function handleDecision(
+    readModel: MappingSuggestionsReadModel,
+    suggestion: MappingSuggestion,
+    decision: MappingSuggestionDecision
+  ) {
+    if (inFlightAccountsRef.current.has(suggestion.accountCode)) {
+      return;
+    }
+
+    const decisionRequest = buildDecisionRequest(
+      readModel,
+      suggestion,
+      decision,
+      correctTargetByAccount[suggestion.accountCode] ?? "",
+      reviewCommentByAccount[suggestion.accountCode] ?? "",
+      selectableTargets
+    );
+
+    if (decisionRequest === null) {
+      setDecisionStateByAccount((current) => ({
+        ...current,
+        [suggestion.accountCode]: {
+          kind: "bad_request",
+          decision
+        }
+      }));
+      delete decisionAttemptByAccountRef.current[suggestion.accountCode];
+      return;
+    }
+
+    const canonicalPayload = createCanonicalDecisionPayload(suggestion.accountCode, decisionRequest);
+    const previousAttempt = decisionAttemptByAccountRef.current[suggestion.accountCode];
+    const idempotencyKey =
+      previousAttempt?.canonicalPayload === canonicalPayload
+        ? previousAttempt.idempotencyKey
+        : generateMappingSuggestionDecisionIdempotencyKey();
+
+    decisionAttemptByAccountRef.current[suggestion.accountCode] = {
+      canonicalPayload,
+      idempotencyKey
+    };
+    inFlightAccountsRef.current.add(suggestion.accountCode);
+    setDecisionStateByAccount((current) => ({
+      ...current,
+      [suggestion.accountCode]: {
+        kind: "submitting",
+        decision
+      }
+    }));
+
+    const result = await recordMappingSuggestionDecision(
+      closingFolderId,
+      suggestion.accountCode,
+      activeTenant,
+      idempotencyKey,
+      decisionRequest
+    );
+
+    inFlightAccountsRef.current.delete(suggestion.accountCode);
+
+    if (result.kind === "success") {
+      delete decisionAttemptByAccountRef.current[suggestion.accountCode];
+      const refreshSuggestionsSucceeded = await refreshSuggestionsAfterDecision();
+      let refreshManualMappingFailed = false;
+
+      if (isManualMappingMutationResult(result.result)) {
+        try {
+          await onManualMappingMutationConfirmed?.();
+        } catch {
+          refreshManualMappingFailed = true;
+        }
+      }
+
+      setDecisionStateByAccount((current) => ({
+        ...current,
+        [suggestion.accountCode]: {
+          kind: "success",
+          result: result.result,
+          refreshSuggestionsFailed: !refreshSuggestionsSucceeded,
+          refreshManualMappingFailed
+        }
+      }));
+      return;
+    }
+
+    if (!shouldReuseDecisionAttemptForRetry(result)) {
+      delete decisionAttemptByAccountRef.current[suggestion.accountCode];
+    }
+
+    setDecisionStateByAccount((current) => ({
+      ...current,
+      [suggestion.accountCode]: {
+        ...result,
+        decision
+      }
+    }));
+  }
+
   return (
     <section aria-labelledby="ai-mapping-suggestion-title" className="rounded-lg border bg-muted/20 p-4">
       <div className="grid gap-4">
@@ -61,21 +239,51 @@ export function AiMappingSuggestionsPanel({
             className="text-lg font-semibold text-foreground"
             id="ai-mapping-suggestion-title"
           >
-            Read-only suggestion
+            Human decision
           </h4>
           <p className="text-sm text-muted-foreground">
-            Prepared for human review. Human review required. Manual mapping remains the
-            authority.
+            Human review required. Manual mapping remains the authority.
           </p>
         </div>
 
-        <MappingSuggestionsStateSlot state={state} />
+        <MappingSuggestionsStateSlot
+          decisionStateByAccount={decisionStateByAccount}
+          correctTargetByAccount={correctTargetByAccount}
+          reviewCommentByAccount={reviewCommentByAccount}
+          selectableTargets={selectableTargets}
+          state={state}
+          onCorrectTargetChange={handleCorrectTargetChange}
+          onDecision={handleDecision}
+          onReviewCommentChange={handleReviewCommentChange}
+        />
       </div>
     </section>
   );
 }
 
-function MappingSuggestionsStateSlot({ state }: { state: MappingSuggestionsShellState }) {
+function MappingSuggestionsStateSlot({
+  state,
+  selectableTargets,
+  correctTargetByAccount,
+  reviewCommentByAccount,
+  decisionStateByAccount,
+  onCorrectTargetChange,
+  onReviewCommentChange,
+  onDecision
+}: {
+  state: MappingSuggestionsShellState;
+  selectableTargets: AiMappingSuggestionReviewTarget[];
+  correctTargetByAccount: Record<string, string>;
+  reviewCommentByAccount: Record<string, string>;
+  decisionStateByAccount: Record<string, DecisionReviewState | undefined>;
+  onCorrectTargetChange: (accountCode: string, targetCode: string) => void;
+  onReviewCommentChange: (accountCode: string, reviewComment: string) => void;
+  onDecision: (
+    readModel: MappingSuggestionsReadModel,
+    suggestion: MappingSuggestion,
+    decision: MappingSuggestionDecision
+  ) => void;
+}) {
   if (state.kind === "loading") {
     return <StateMessage text="loading AI mapping suggestion" />;
   }
@@ -84,10 +292,43 @@ function MappingSuggestionsStateSlot({ state }: { state: MappingSuggestionsShell
     return <StateMessage text={formatShellState(state)} />;
   }
 
-  return <ReadModelView readModel={state.readModel} />;
+  return (
+    <ReadModelView
+      correctTargetByAccount={correctTargetByAccount}
+      decisionStateByAccount={decisionStateByAccount}
+      readModel={state.readModel}
+      reviewCommentByAccount={reviewCommentByAccount}
+      selectableTargets={selectableTargets}
+      onCorrectTargetChange={onCorrectTargetChange}
+      onDecision={onDecision}
+      onReviewCommentChange={onReviewCommentChange}
+    />
+  );
 }
 
-function ReadModelView({ readModel }: { readModel: MappingSuggestionsReadModel }) {
+function ReadModelView({
+  readModel,
+  selectableTargets,
+  correctTargetByAccount,
+  reviewCommentByAccount,
+  decisionStateByAccount,
+  onCorrectTargetChange,
+  onReviewCommentChange,
+  onDecision
+}: {
+  readModel: MappingSuggestionsReadModel;
+  selectableTargets: AiMappingSuggestionReviewTarget[];
+  correctTargetByAccount: Record<string, string>;
+  reviewCommentByAccount: Record<string, string>;
+  decisionStateByAccount: Record<string, DecisionReviewState | undefined>;
+  onCorrectTargetChange: (accountCode: string, targetCode: string) => void;
+  onReviewCommentChange: (accountCode: string, reviewComment: string) => void;
+  onDecision: (
+    readModel: MappingSuggestionsReadModel,
+    suggestion: MappingSuggestion,
+    decision: MappingSuggestionDecision
+  ) => void;
+}) {
   return (
     <div className="grid gap-4">
       <div className="rounded-lg border bg-background/80 p-4">
@@ -114,16 +355,74 @@ function ReadModelView({ readModel }: { readModel: MappingSuggestionsReadModel }
         <ul className="grid gap-4">
           {readModel.suggestions.map((suggestion) => (
             <li key={suggestion.accountCode}>
-              <SuggestionCard suggestion={suggestion} />
+              <SuggestionCard
+                correctTargetCode={correctTargetByAccount[suggestion.accountCode] ?? ""}
+                decisionState={decisionStateByAccount[suggestion.accountCode] ?? { kind: "idle" }}
+                readModel={readModel}
+                reviewComment={reviewCommentByAccount[suggestion.accountCode] ?? ""}
+                selectableTargets={selectableTargets}
+                suggestion={suggestion}
+                onCorrectTargetChange={onCorrectTargetChange}
+                onDecision={onDecision}
+                onReviewCommentChange={onReviewCommentChange}
+              />
             </li>
           ))}
         </ul>
       )}
+
+      <RetainedDecisionStatuses
+        decisionStateByAccount={decisionStateByAccount}
+        visibleAccountCodes={new Set(readModel.suggestions.map((suggestion) => suggestion.accountCode))}
+      />
     </div>
   );
 }
 
-function SuggestionCard({ suggestion }: { suggestion: MappingSuggestion }) {
+function SuggestionCard({
+  readModel,
+  suggestion,
+  selectableTargets,
+  correctTargetCode,
+  reviewComment,
+  decisionState,
+  onCorrectTargetChange,
+  onReviewCommentChange,
+  onDecision
+}: {
+  readModel: MappingSuggestionsReadModel;
+  suggestion: MappingSuggestion;
+  selectableTargets: AiMappingSuggestionReviewTarget[];
+  correctTargetCode: string;
+  reviewComment: string;
+  decisionState: DecisionReviewState;
+  onCorrectTargetChange: (accountCode: string, targetCode: string) => void;
+  onReviewCommentChange: (accountCode: string, reviewComment: string) => void;
+  onDecision: (
+    readModel: MappingSuggestionsReadModel,
+    suggestion: MappingSuggestion,
+    decision: MappingSuggestionDecision
+  ) => void;
+}) {
+  const selectableTargetOptions = selectableTargets.filter((target) => target.selectable);
+  const selectableTargetCodes = new Set(selectableTargetOptions.map((target) => target.code));
+  const decisionable =
+    (readModel.state === "READY" || readModel.state === "PARTIAL") &&
+    readModel.latestImportVersion !== null;
+  const submitting = decisionState.kind === "submitting";
+  const normalizedReviewComment = reviewComment.trim();
+  const reviewCommentOverLimit = normalizedReviewComment.length > 600;
+  const correctTargetSelectable = selectableTargetCodes.has(correctTargetCode);
+  const correctTargetDifferent = correctTargetCode !== suggestion.suggestedTargetCode;
+  const correctDisabled =
+    !decisionable ||
+    submitting ||
+    reviewCommentOverLimit ||
+    correctTargetCode === "" ||
+    !correctTargetSelectable ||
+    !correctTargetDifferent;
+  const primaryDecisionDisabled = !decisionable || submitting || reviewCommentOverLimit;
+
   return (
     <article
       aria-label={`AI mapping suggestion ${suggestion.accountCode}`}
@@ -164,6 +463,112 @@ function SuggestionCard({ suggestion }: { suggestion: MappingSuggestion }) {
             </li>
           ))}
         </ul>
+      </div>
+
+      <div className="grid gap-4 rounded-lg border bg-muted/20 p-4">
+        <div className="grid gap-2">
+          <h5 className="text-sm font-semibold text-foreground">Human decision</h5>
+          <p className="text-sm text-muted-foreground">
+            Human review required. Manual mapping remains the authority.
+          </p>
+        </div>
+
+        <div className="grid gap-2">
+          <label
+            className="text-sm font-medium text-foreground"
+            htmlFor={`ai-review-comment-${suggestion.accountCode}`}
+          >
+            Human decision reviewComment
+          </label>
+          <textarea
+            className="min-h-20 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:bg-muted"
+            disabled={submitting}
+            id={`ai-review-comment-${suggestion.accountCode}`}
+            maxLength={600}
+            onChange={(event) => {
+              onReviewCommentChange(suggestion.accountCode, event.currentTarget.value);
+            }}
+            value={reviewComment}
+          />
+          <p className="text-sm text-muted-foreground">
+            {normalizedReviewComment.length}/600
+          </p>
+          {reviewCommentOverLimit ? (
+            <p className="text-sm font-medium text-[hsl(var(--error-default))]">
+              Human decision reviewComment is limited to 600 characters.
+            </p>
+          ) : null}
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto] lg:items-end">
+          <div className="grid gap-2">
+            <label
+              className="text-sm font-medium text-foreground"
+              htmlFor={`ai-correction-target-${suggestion.accountCode}`}
+            >
+              Correct with another target
+            </label>
+            <select
+              className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground disabled:cursor-not-allowed disabled:bg-muted"
+              disabled={!decisionable || submitting}
+              id={`ai-correction-target-${suggestion.accountCode}`}
+              onChange={(event) => {
+                onCorrectTargetChange(suggestion.accountCode, event.currentTarget.value);
+              }}
+              value={correctTargetCode}
+            >
+              <option value="">Correct with another target</option>
+              {selectableTargetOptions.map((target) => (
+                <option key={target.code} value={target.code}>
+                  {formatTargetOption(target)}
+                </option>
+              ))}
+            </select>
+            {correctTargetCode === suggestion.suggestedTargetCode ? (
+              <p className="text-sm font-medium text-foreground">
+                Correct with another target must differ from suggestedTargetCode.
+              </p>
+            ) : null}
+          </div>
+
+          <Button
+            disabled={primaryDecisionDisabled}
+            onClick={() => {
+              onDecision(readModel, suggestion, "ACCEPT");
+            }}
+            type="button"
+          >
+            Accept suggestion
+          </Button>
+
+          <Button
+            disabled={correctDisabled}
+            onClick={() => {
+              onDecision(readModel, suggestion, "CORRECT");
+            }}
+            type="button"
+            variant="outline"
+          >
+            Correct with another target
+          </Button>
+
+          <Button
+            disabled={primaryDecisionDisabled}
+            onClick={() => {
+              onDecision(readModel, suggestion, "REJECT");
+            }}
+            type="button"
+            variant="outline"
+          >
+            Reject suggestion
+          </Button>
+        </div>
+
+        {!decisionable ? (
+          <p className="text-sm font-medium text-foreground">Human review required.</p>
+        ) : null}
+
+        <DecisionStatus state={decisionState} />
       </div>
     </article>
   );
@@ -213,6 +618,73 @@ function StateMessage({ text }: { text: string }) {
   );
 }
 
+function DecisionStatus({ state }: { state: DecisionReviewState }) {
+  if (state.kind === "idle") {
+    return null;
+  }
+
+  if (state.kind === "submitting") {
+    return (
+      <p aria-live="polite" className="text-sm font-medium text-foreground">
+        Human decision in progress: {state.decision}.
+      </p>
+    );
+  }
+
+  if (state.kind === "success") {
+    return (
+      <div aria-live="polite" className="grid gap-2 text-sm font-medium text-foreground">
+        <p>
+          Human decision recorded: {state.result.decision}. resultKind:{" "}
+          {state.result.resultKind}.
+        </p>
+        {state.refreshSuggestionsFailed ? <p>AI mapping suggestion refresh failed.</p> : null}
+        {state.refreshManualMappingFailed ? (
+          <p>Manual mapping remains the authority. Refresh failed.</p>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <p aria-live="polite" className="text-sm font-medium text-foreground">
+      {formatDecisionState(state)}
+    </p>
+  );
+}
+
+function RetainedDecisionStatuses({
+  decisionStateByAccount,
+  visibleAccountCodes
+}: {
+  decisionStateByAccount: Record<string, DecisionReviewState | undefined>;
+  visibleAccountCodes: Set<string>;
+}) {
+  const retainedStates: Array<[string, DecisionReviewState]> = [];
+
+  Object.entries(decisionStateByAccount).forEach(([accountCode, state]) => {
+    if (state !== undefined && state.kind !== "idle" && !visibleAccountCodes.has(accountCode)) {
+      retainedStates.push([accountCode, state]);
+    }
+  });
+
+  if (retainedStates.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="grid gap-3 rounded-lg border bg-background/80 p-4">
+      <h5 className="text-sm font-semibold text-foreground">Human decision</h5>
+      {retainedStates.map(([accountCode, state]) => (
+        <div className="grid gap-1" key={accountCode}>
+          <p className="text-sm text-muted-foreground">accountCode {accountCode}</p>
+          <DecisionStatus state={state} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function formatShellState(
   state: Exclude<MappingSuggestionsShellState, { kind: "loading" | "ready" }>
 ) {
@@ -239,6 +711,146 @@ function formatShellState(
   return "AI mapping suggestion unavailable.";
 }
 
+function formatDecisionState(
+  state: Exclude<DecisionReviewState, { kind: "idle" | "submitting" | "success" }>
+) {
+  if (state.kind === "bad_request") {
+    return "Human decision invalid payload.";
+  }
+
+  if (state.kind === "auth_required") {
+    return "Human decision authentication required.";
+  }
+
+  if (state.kind === "forbidden") {
+    return "Human decision forbidden.";
+  }
+
+  if (state.kind === "not_found") {
+    return "Human decision suggestion not found.";
+  }
+
+  if (state.kind === "conflict") {
+    return state.result === null
+      ? "Human decision conflict: suggestion changed or no longer decisionable."
+      : `Human decision conflict: ${state.result.resultKind}.`;
+  }
+
+  if (state.kind === "server_error") {
+    return "Human decision server error.";
+  }
+
+  if (state.kind === "network_error") {
+    return "Human decision network error.";
+  }
+
+  if (state.kind === "timeout") {
+    return "Human decision timeout.";
+  }
+
+  if (state.kind === "invalid_payload") {
+    return "Human decision invalid response payload.";
+  }
+
+  return "Human decision unavailable.";
+}
+
 function formatConfidence(confidence: number) {
   return `${Math.round(confidence * 100)} %`;
+}
+
+function buildDecisionRequest(
+  readModel: MappingSuggestionsReadModel,
+  suggestion: MappingSuggestion,
+  decision: MappingSuggestionDecision,
+  correctTargetCode: string,
+  reviewComment: string,
+  selectableTargets: AiMappingSuggestionReviewTarget[]
+): MappingSuggestionDecisionRequest | null {
+  if (
+    readModel.latestImportVersion === null ||
+    !["READY", "PARTIAL"].includes(readModel.state)
+  ) {
+    return null;
+  }
+
+  const trimmedComment = reviewComment.trim();
+
+  if (trimmedComment.length > 600) {
+    return null;
+  }
+
+  const base = {
+    latestImportVersion: readModel.latestImportVersion,
+    suggestionFingerprint: suggestion.suggestionFingerprint,
+    ...(trimmedComment.length === 0 ? {} : { reviewComment: trimmedComment })
+  };
+
+  if (decision === "ACCEPT") {
+    return {
+      ...base,
+      decision,
+      targetCode: suggestion.suggestedTargetCode
+    };
+  }
+
+  if (decision === "REJECT") {
+    return {
+      ...base,
+      decision
+    };
+  }
+
+  const selectableTargetCodes = new Set(
+    selectableTargets.filter((target) => target.selectable).map((target) => target.code)
+  );
+
+  if (
+    correctTargetCode === "" ||
+    correctTargetCode === suggestion.suggestedTargetCode ||
+    !selectableTargetCodes.has(correctTargetCode)
+  ) {
+    return null;
+  }
+
+  return {
+    ...base,
+    decision,
+    targetCode: correctTargetCode
+  };
+}
+
+function createCanonicalDecisionPayload(
+  accountCode: string,
+  decisionRequest: MappingSuggestionDecisionRequest
+) {
+  return JSON.stringify({
+    accountCode,
+    decision: decisionRequest.decision,
+    latestImportVersion: decisionRequest.latestImportVersion,
+    suggestionFingerprint: decisionRequest.suggestionFingerprint,
+    targetCode: "targetCode" in decisionRequest ? decisionRequest.targetCode : null,
+    reviewComment: decisionRequest.reviewComment?.trim() ?? null
+  });
+}
+
+function shouldReuseDecisionAttemptForRetry(
+  result: Exclude<MappingSuggestionDecisionState, { kind: "success" }>
+) {
+  return (
+    result.kind === "network_error" ||
+    result.kind === "timeout" ||
+    result.kind === "server_error"
+  );
+}
+
+function isManualMappingMutationResult(result: MappingSuggestionDecisionResult) {
+  return (
+    result.resultKind === "MANUAL_MAPPING_CREATED" ||
+    result.resultKind === "MANUAL_MAPPING_UPDATED"
+  );
+}
+
+function formatTargetOption(target: AiMappingSuggestionReviewTarget) {
+  return `${target.label} (${target.code})`;
 }

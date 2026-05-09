@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AiMappingSuggestionsPanel } from "./ai-mapping-suggestions-panel";
 import type { MappingSuggestionsReadModel } from "../lib/api/mapping-suggestions";
@@ -46,6 +47,29 @@ const READY_MAPPING_SUGGESTIONS: MappingSuggestionsReadModel = {
   errors: []
 };
 
+const REFRESHED_MAPPING_SUGGESTIONS: MappingSuggestionsReadModel = {
+  ...READY_MAPPING_SUGGESTIONS,
+  suggestions: []
+};
+
+const SELECTABLE_TARGETS = [
+  {
+    code: "BS.ASSET.CASH_AND_EQUIVALENTS",
+    label: "Cash and cash equivalents",
+    selectable: true
+  },
+  {
+    code: "BS.ASSET.TRADE_RECEIVABLES",
+    label: "Trade receivables",
+    selectable: true
+  },
+  {
+    code: "BS.ASSET.CURRENT_SECTION",
+    label: "Current assets",
+    selectable: false
+  }
+];
+
 function jsonResponse(status: number, payload: unknown) {
   return new Response(JSON.stringify(payload), {
     status,
@@ -55,11 +79,17 @@ function jsonResponse(status: number, payload: unknown) {
   });
 }
 
-function renderPanel() {
+function renderPanel({
+  onManualMappingMutationConfirmed
+}: {
+  onManualMappingMutationConfirmed?: () => Promise<void> | void;
+} = {}) {
   return render(
     <AiMappingSuggestionsPanel
       activeTenant={ACTIVE_TENANT}
       closingFolderId={CLOSING_FOLDER_ID}
+      selectableTargets={SELECTABLE_TARGETS}
+      onManualMappingMutationConfirmed={onManualMappingMutationConfirmed}
     />
   );
 }
@@ -78,6 +108,61 @@ function readModelForState(
     errors: [],
     ...overrides
   };
+}
+
+function stubRandomUUID(...values: string[]) {
+  const randomUUID = vi.fn();
+
+  values.forEach((value) => {
+    randomUUID.mockReturnValueOnce(value);
+  });
+  vi.stubGlobal("crypto", {
+    ...globalThis.crypto,
+    randomUUID
+  });
+
+  return randomUUID;
+}
+
+function getSuggestionCard() {
+  return screen.getByLabelText("AI mapping suggestion 1000");
+}
+
+function getAcceptButton() {
+  return within(getSuggestionCard()).getByRole("button", { name: "Accept suggestion" });
+}
+
+function getCorrectButton() {
+  return within(getSuggestionCard()).getByRole("button", {
+    name: "Correct with another target"
+  });
+}
+
+function getRejectButton() {
+  return within(getSuggestionCard()).getByRole("button", { name: "Reject suggestion" });
+}
+
+function getCorrectionSelect() {
+  return within(getSuggestionCard()).getByLabelText(
+    "Correct with another target"
+  ) as HTMLSelectElement;
+}
+
+function getReviewComment() {
+  return within(getSuggestionCard()).getByLabelText(
+    "Human decision reviewComment"
+  ) as HTMLTextAreaElement;
+}
+
+function getRequestHeaders(fetchMock: ReturnType<typeof vi.fn>, index: number) {
+  return ((fetchMock.mock.calls[index]?.[1] as RequestInit | undefined)?.headers ?? {}) as Record<
+    string,
+    string
+  >;
+}
+
+function getRequestBody(fetchMock: ReturnType<typeof vi.fn>, index: number) {
+  return JSON.parse(String((fetchMock.mock.calls[index]?.[1] as RequestInit).body));
 }
 
 describe("AiMappingSuggestionsPanel", () => {
@@ -125,8 +210,8 @@ describe("AiMappingSuggestionsPanel", () => {
     expect(await screen.findByText(expectedText)).toBeInTheDocument();
     expect(screen.getByText(state)).toBeInTheDocument();
     expect(screen.getByText("AI mapping suggestion")).toBeInTheDocument();
-    expect(screen.getByText("Prepared for human review. Human review required. Manual mapping remains the authority.")).toBeInTheDocument();
-    expect(screen.getByText("Read-only suggestion")).toBeInTheDocument();
+    expect(screen.getAllByText("Human review required. Manual mapping remains the authority.").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Human decision").length).toBeGreaterThan(0);
   });
 
   it("renders READY with visible suggestion details and evidence", async () => {
@@ -157,6 +242,10 @@ describe("AiMappingSuggestionsPanel", () => {
     ).toBeInTheDocument();
     expect(within(card).getByText("Cash and cash equivalents")).toBeInTheDocument();
     expect(container).toHaveTextContent("Evidence");
+
+    const evidenceHeading = within(card).getByText("Evidence");
+    const acceptButton = within(card).getByRole("button", { name: "Accept suggestion" });
+    expect(Boolean(evidenceHeading.compareDocumentPosition(acceptButton) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
   });
 
   it("renders READY with no suggestions as an empty read-only state", async () => {
@@ -193,7 +282,7 @@ describe("AiMappingSuggestionsPanel", () => {
     ).toBeInTheDocument();
   });
 
-  it("does not expose decision controls or browser storage writes", async () => {
+  it("exposes only unit human decision controls and does not write browser storage", async () => {
     const fetchMock = vi.mocked(global.fetch);
     const storageSetItem = vi.spyOn(Storage.prototype, "setItem");
     const storageGetItem = vi.spyOn(Storage.prototype, "getItem");
@@ -202,12 +291,264 @@ describe("AiMappingSuggestionsPanel", () => {
     const { container } = renderPanel();
     await screen.findByLabelText("AI mapping suggestion 1000");
 
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Accept suggestion" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Correct with another target" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reject suggestion" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /bulk/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
     expect(container).not.toHaveTextContent("/mappings/suggestions/");
     expect(container).not.toHaveTextContent("Auto-" + "appl" + "y");
+    expect(container).not.toHaveTextContent("Apply " + "automatically");
     expect(container).not.toHaveTextContent("AI-" + "approved");
+    expect(container).not.toHaveTextContent("AI " + "validated");
     expect(storageSetItem).not.toHaveBeenCalled();
     expect(storageGetItem).not.toHaveBeenCalled();
+  });
+
+  it("sends ACCEPT only after a human click and refreshes suggestions after backend success", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    const randomUUID = stubRandomUUID("accept-key-1");
+    const user = userEvent.setup();
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, READY_MAPPING_SUGGESTIONS))
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          decision: "ACCEPT",
+          accountCode: "1000",
+          resultKind: "MANUAL_MAPPING_CREATED",
+          appliedMapping: {
+            accountCode: "1000",
+            targetCode: "BS.ASSET.CASH_AND_EQUIVALENTS"
+          }
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_MAPPING_SUGGESTIONS));
+
+    renderPanel();
+    await screen.findByLabelText("AI mapping suggestion 1000");
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(randomUUID).not.toHaveBeenCalled();
+
+    await user.click(getAcceptButton());
+
+    expect(await screen.findByText(/Human decision recorded: ACCEPT/)).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(randomUUID).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      `/api/closing-folders/${CLOSING_FOLDER_ID}/mappings/suggestions/1000/decision`
+    );
+    expect(getRequestHeaders(fetchMock, 1)["Idempotency-Key"]).toBe("accept-key-1");
+    expect(getRequestBody(fetchMock, 1)).toEqual({
+      decision: "ACCEPT",
+      latestImportVersion: 3,
+      suggestionFingerprint:
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      targetCode: "BS.ASSET.CASH_AND_EQUIVALENTS"
+    });
+    expect(fetchMock.mock.calls[2]?.[0]).toBe(
+      `/api/closing-folders/${CLOSING_FOLDER_ID}/mappings/suggestions`
+    );
+  });
+
+  it("keeps CORRECT accessible, blocks the suggested target, and sends another selectable target", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    const user = userEvent.setup();
+    stubRandomUUID("correct-key-1");
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, READY_MAPPING_SUGGESTIONS))
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          decision: "CORRECT",
+          accountCode: "1000",
+          resultKind: "MANUAL_MAPPING_UPDATED",
+          appliedMapping: {
+            accountCode: "1000",
+            targetCode: "BS.ASSET.TRADE_RECEIVABLES"
+          }
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_MAPPING_SUGGESTIONS));
+
+    renderPanel();
+    await screen.findByLabelText("AI mapping suggestion 1000");
+
+    expect(getCorrectionSelect()).toBeEnabled();
+    expect(getCorrectButton()).toBeDisabled();
+
+    await user.selectOptions(getCorrectionSelect(), "BS.ASSET.CASH_AND_EQUIVALENTS");
+    expect(getCorrectButton()).toBeDisabled();
+    expect(
+      within(getSuggestionCard()).getByText(
+        "Correct with another target must differ from suggestedTargetCode."
+      )
+    ).toBeInTheDocument();
+
+    await user.selectOptions(getCorrectionSelect(), "BS.ASSET.TRADE_RECEIVABLES");
+    expect(getCorrectButton()).toBeEnabled();
+    await user.click(getCorrectButton());
+
+    expect(await screen.findByText(/Human decision recorded: CORRECT/)).toBeInTheDocument();
+    expect(getRequestBody(fetchMock, 1)).toEqual({
+      decision: "CORRECT",
+      latestImportVersion: 3,
+      suggestionFingerprint:
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      targetCode: "BS.ASSET.TRADE_RECEIVABLES"
+    });
+  });
+
+  it("sends REJECT without targetCode and records a human decision state", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    const user = userEvent.setup();
+    stubRandomUUID("reject-key-1");
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, READY_MAPPING_SUGGESTIONS))
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          decision: "REJECT",
+          accountCode: "1000",
+          resultKind: "REJECT_RECORDED",
+          appliedMapping: null
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_MAPPING_SUGGESTIONS));
+
+    renderPanel();
+    await screen.findByLabelText("AI mapping suggestion 1000");
+
+    await user.type(getReviewComment(), "  reject with evidence  ");
+    await user.click(getRejectButton());
+
+    expect(await screen.findByText(/Human decision recorded: REJECT/)).toBeInTheDocument();
+    expect(getRequestBody(fetchMock, 1)).toEqual({
+      decision: "REJECT",
+      latestImportVersion: 3,
+      suggestionFingerprint:
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      reviewComment: "reject with evidence"
+    });
+    expect(String((fetchMock.mock.calls[1]?.[1] as RequestInit).body)).not.toContain(
+      "targetCode"
+    );
+  });
+
+  it("blocks double-submit while a decision is pending", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    const user = userEvent.setup();
+    stubRandomUUID("pending-key-1");
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, READY_MAPPING_SUGGESTIONS))
+      .mockImplementationOnce(() => new Promise<Response>(() => {}));
+
+    renderPanel();
+    await screen.findByLabelText("AI mapping suggestion 1000");
+
+    await user.click(getAcceptButton());
+    await user.click(getAcceptButton());
+
+    expect(await screen.findByText("Human decision in progress: ACCEPT.")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(getAcceptButton()).toBeDisabled();
+    expect(getCorrectButton()).toBeDisabled();
+    expect(getRejectButton()).toBeDisabled();
+  });
+
+  it("retries the same canonical decision with the same Idempotency-Key after a network error", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    const user = userEvent.setup();
+    const randomUUID = stubRandomUUID("retry-key-1", "retry-key-2");
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, READY_MAPPING_SUGGESTIONS))
+      .mockRejectedValueOnce(new Error("network"))
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          decision: "ACCEPT",
+          accountCode: "1000",
+          resultKind: "MANUAL_MAPPING_CREATED",
+          appliedMapping: {
+            accountCode: "1000",
+            targetCode: "BS.ASSET.CASH_AND_EQUIVALENTS"
+          }
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_MAPPING_SUGGESTIONS));
+
+    renderPanel();
+    await screen.findByLabelText("AI mapping suggestion 1000");
+
+    await user.click(getAcceptButton());
+    expect(await screen.findByText("Human decision network error.")).toBeInTheDocument();
+
+    await user.click(getAcceptButton());
+    expect(await screen.findByText(/Human decision recorded: ACCEPT/)).toBeInTheDocument();
+
+    expect(randomUUID).toHaveBeenCalledTimes(1);
+    expect(getRequestHeaders(fetchMock, 1)["Idempotency-Key"]).toBe("retry-key-1");
+    expect(getRequestHeaders(fetchMock, 2)["Idempotency-Key"]).toBe("retry-key-1");
+  });
+
+  it("starts a new decision attempt when reviewComment changes after a retryable failure", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    const user = userEvent.setup();
+    const randomUUID = stubRandomUUID("comment-key-1", "comment-key-2");
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, READY_MAPPING_SUGGESTIONS))
+      .mockRejectedValueOnce(new Error("network"))
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          decision: "ACCEPT",
+          accountCode: "1000",
+          resultKind: "MANUAL_MAPPING_CREATED",
+          appliedMapping: {
+            accountCode: "1000",
+            targetCode: "BS.ASSET.CASH_AND_EQUIVALENTS"
+          }
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_MAPPING_SUGGESTIONS));
+
+    renderPanel();
+    await screen.findByLabelText("AI mapping suggestion 1000");
+
+    await user.type(getReviewComment(), "first");
+    await user.click(getAcceptButton());
+    expect(await screen.findByText("Human decision network error.")).toBeInTheDocument();
+
+    await user.clear(getReviewComment());
+    await user.type(getReviewComment(), "second");
+    await user.click(getAcceptButton());
+
+    expect(await screen.findByText(/Human decision recorded: ACCEPT/)).toBeInTheDocument();
+    expect(randomUUID).toHaveBeenCalledTimes(2);
+    expect(getRequestHeaders(fetchMock, 1)["Idempotency-Key"]).toBe("comment-key-1");
+    expect(getRequestHeaders(fetchMock, 2)["Idempotency-Key"]).toBe("comment-key-2");
+    expect(getRequestBody(fetchMock, 2).reviewComment).toBe("second");
+  });
+
+  it("shows 409 conflicts clearly", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    const user = userEvent.setup();
+    stubRandomUUID("conflict-key-1");
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, READY_MAPPING_SUGGESTIONS))
+      .mockResolvedValueOnce(
+        jsonResponse(409, {
+          decision: "ACCEPT",
+          accountCode: "1000",
+          resultKind: "CONFLICT_FINGERPRINT_MISMATCH",
+          appliedMapping: null
+        })
+      );
+
+    renderPanel();
+    await screen.findByLabelText("AI mapping suggestion 1000");
+
+    await user.click(getAcceptButton());
+
+    expect(
+      await screen.findByText("Human decision conflict: CONFLICT_FINGERPRINT_MISMATCH.")
+    ).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

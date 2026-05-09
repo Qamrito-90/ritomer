@@ -288,6 +288,46 @@ const EMPTY_MAPPING_SUGGESTIONS = {
   ]
 };
 
+const READY_MAPPING_SUGGESTIONS = {
+  state: "READY",
+  closingFolderId: CLOSING_FOLDER.id,
+  latestImportVersion: 2,
+  taxonomyVersion: 2,
+  suggestions: [
+    {
+      accountCode: "2000",
+      accountLabel: "Revenue",
+      suggestedTargetCode: "PL.REVENUE",
+      confidence: 0.91,
+      riskLevel: "LOW",
+      rationale: "Account label and target taxonomy are consistent with revenue.",
+      evidence: [
+        {
+          type: "ACCOUNT_LABEL",
+          ref: "balance_import_line:2000",
+          snippet: "Revenue"
+        },
+        {
+          type: "TARGET_TAXONOMY",
+          ref: "manual-mapping-targets-v2:PL.REVENUE",
+          snippet: "Produit"
+        }
+      ],
+      requiresHumanReview: true,
+      schemaVersion: "mapping-suggestion-v1",
+      promptVersion: "not_applicable_for_stub",
+      modelVersion: "not_applicable_for_stub",
+      suggestionFingerprint: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    }
+  ],
+  errors: []
+};
+
+const REFRESHED_EMPTY_MAPPING_SUGGESTIONS = {
+  ...READY_MAPPING_SUGGESTIONS,
+  suggestions: []
+};
+
 const CLOSING_ROUTE = `/closing-folders/${CLOSING_FOLDER.id}`;
 
 type ResponseFactory = () => Response | Promise<Response>;
@@ -323,6 +363,7 @@ function primeNominalRoute(
     financialStatementsStructured = () =>
       jsonResponse(200, INITIAL_FINANCIAL_STATEMENTS_STRUCTURED),
     workpapers = () => jsonResponse(200, INITIAL_WORKPAPERS),
+    mappingSuggestions = () => jsonResponse(200, EMPTY_MAPPING_SUGGESTIONS),
     extras = []
   }: {
     me?: Record<string, unknown>;
@@ -332,6 +373,7 @@ function primeNominalRoute(
     financialSummary?: ResponseFactory;
     financialStatementsStructured?: ResponseFactory;
     workpapers?: ResponseFactory;
+    mappingSuggestions?: ResponseFactory;
     extras?: ResponseFactory[];
   } = {}
 ) {
@@ -343,7 +385,7 @@ function primeNominalRoute(
     .mockImplementationOnce(() => Promise.resolve(financialSummary()))
     .mockImplementationOnce(() => Promise.resolve(financialStatementsStructured()))
     .mockImplementationOnce(() => Promise.resolve(workpapers()))
-    .mockResolvedValueOnce(jsonResponse(200, EMPTY_MAPPING_SUGGESTIONS))
+    .mockImplementationOnce(() => Promise.resolve(mappingSuggestions()))
     .mockResolvedValueOnce(jsonResponse(200, EMPTY_EXPORT_PACKS))
     .mockResolvedValueOnce(jsonResponse(200, BLOCKED_MINIMAL_ANNEX));
 
@@ -375,6 +417,20 @@ function getRequestHeaders(fetchMock: ReturnType<typeof vi.fn>, index: number) {
 
 function getRequestPaths(fetchMock: ReturnType<typeof vi.fn>) {
   return fetchMock.mock.calls.map((call) => String(call[0]));
+}
+
+function stubRandomUUID(...values: string[]) {
+  const randomUUID = vi.fn();
+
+  values.forEach((value) => {
+    randomUUID.mockReturnValueOnce(value);
+  });
+  vi.stubGlobal("crypto", {
+    ...globalThis.crypto,
+    randomUUID
+  });
+
+  return randomUUID;
 }
 
 function getMappingHeading() {
@@ -668,6 +724,154 @@ describe("router manual mapping", () => {
     await user.click(getLineDeleteButton("1000"));
     expect(fetchMock).toHaveBeenCalledTimes(11);
     expectNoOutOfScopePaths(getRequestPaths(fetchMock));
+  });
+
+  it("does not POST a suggestion decision before click, then refreshes suggestions, mapping and controls after ACCEPT mutation", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    const user = userEvent.setup();
+    stubRandomUUID("route-accept-key-1");
+    primeNominalRoute(fetchMock, {
+      mappingSuggestions: () => jsonResponse(200, READY_MAPPING_SUGGESTIONS),
+      extras: [
+        () =>
+          jsonResponse(200, {
+            decision: "ACCEPT",
+            accountCode: "2000",
+            resultKind: "MANUAL_MAPPING_CREATED",
+            appliedMapping: {
+              accountCode: "2000",
+              targetCode: "PL.REVENUE"
+            }
+          }),
+        () => jsonResponse(200, REFRESHED_EMPTY_MAPPING_SUGGESTIONS),
+        () => jsonResponse(200, REFRESHED_MANUAL_MAPPING_AFTER_PUT),
+        () => jsonResponse(200, REFRESHED_CONTROLS)
+      ]
+    });
+
+    renderClosingRoute();
+    await waitForNominalShell();
+    await screen.findByLabelText("AI mapping suggestion 2000");
+
+    expect(fetchMock).toHaveBeenCalledTimes(10);
+    expect(getRequestPaths(fetchMock)).not.toContain(
+      `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions/2000/decision`
+    );
+    expect(
+      fetchMock.mock.calls.some(
+        (call) => ((call[1] as RequestInit | undefined)?.method ?? "GET") === "POST"
+      )
+    ).toBe(false);
+    expect(getLineTargetSelect("2000")).toHaveValue("");
+
+    await user.click(screen.getByRole("button", { name: "Accept suggestion" }));
+
+    expect(await screen.findByText(/Human decision recorded: ACCEPT/)).toBeInTheDocument();
+    expect(getRequestPaths(fetchMock)).toEqual([
+      "/api/me",
+      `/api/closing-folders/${CLOSING_FOLDER.id}`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/controls`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/manual`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/financial-summary`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/minimal-annex`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions/2000/decision`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/manual`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/controls`
+    ]);
+
+    const postInit = fetchMock.mock.calls[10]?.[1] as RequestInit;
+    const postHeaders = postInit.headers as Record<string, string>;
+    expect(postInit.method).toBe("POST");
+    expect(postHeaders.Accept).toBe("application/json");
+    expect(postHeaders["Content-Type"]).toBe("application/json");
+    expect(postHeaders["Idempotency-Key"]).toBe("route-accept-key-1");
+    expect(postHeaders["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
+    expect(JSON.parse(String(postInit.body))).toEqual({
+      decision: "ACCEPT",
+      latestImportVersion: 2,
+      suggestionFingerprint:
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      targetCode: "PL.REVENUE"
+    });
+
+    expect(
+      await within(getLineDetailCard("2000", "Mapping courant")).findByText("Produit (PL.REVENUE)")
+    ).toBeInTheDocument();
+    expect(await screen.findByText("Manual mapping is complete on the latest import.")).toBeInTheDocument();
+  });
+
+  it("refreshes suggestions only after REJECT and never refreshes manual mapping or controls", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    const user = userEvent.setup();
+    stubRandomUUID("route-reject-key-1");
+    primeNominalRoute(fetchMock, {
+      mappingSuggestions: () => jsonResponse(200, READY_MAPPING_SUGGESTIONS),
+      extras: [
+        () =>
+          jsonResponse(200, {
+            decision: "REJECT",
+            accountCode: "2000",
+            resultKind: "REJECT_RECORDED",
+            appliedMapping: null
+          }),
+        () => jsonResponse(200, REFRESHED_EMPTY_MAPPING_SUGGESTIONS)
+      ]
+    });
+
+    renderClosingRoute();
+    await waitForNominalShell();
+    await screen.findByLabelText("AI mapping suggestion 2000");
+
+    await user.click(screen.getByRole("button", { name: "Reject suggestion" }));
+
+    expect(await screen.findByText(/Human decision recorded: REJECT/)).toBeInTheDocument();
+    expect(getRequestPaths(fetchMock)).toEqual([
+      "/api/me",
+      `/api/closing-folders/${CLOSING_FOLDER.id}`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/controls`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/manual`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/financial-summary`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/minimal-annex`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions/2000/decision`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`
+    ]);
+    expect(JSON.parse(String((fetchMock.mock.calls[10]?.[1] as RequestInit).body))).toEqual({
+      decision: "REJECT",
+      latestImportVersion: 2,
+      suggestionFingerprint:
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    });
+    expect(getRequestPaths(fetchMock).filter((path) => path.endsWith("/mappings/manual"))).toHaveLength(1);
+    expect(getRequestPaths(fetchMock).filter((path) => path.endsWith("/controls"))).toHaveLength(1);
+  });
+
+  it("does not prefill the manual mapping select while an ACCEPT decision is pending", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    const user = userEvent.setup();
+    stubRandomUUID("route-pending-key-1");
+    primeNominalRoute(fetchMock, {
+      mappingSuggestions: () => jsonResponse(200, READY_MAPPING_SUGGESTIONS),
+      extras: [() => new Promise<Response>(() => {})]
+    });
+
+    renderClosingRoute();
+    await waitForNominalShell();
+    await screen.findByLabelText("AI mapping suggestion 2000");
+
+    await user.click(screen.getByRole("button", { name: "Accept suggestion" }));
+
+    expect(await screen.findByText("Human decision in progress: ACCEPT.")).toBeInTheDocument();
+    expect(getLineTargetSelect("2000")).toHaveValue("");
+    expect(fetchMock).toHaveBeenCalledTimes(11);
   });
 
   it("sends the exact PUT payload on explicit save, shows success before refresh, and refreshes mapping plus controls", async () => {
