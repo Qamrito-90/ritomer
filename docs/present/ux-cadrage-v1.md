@@ -9,11 +9,11 @@ Il ne remplace ni la vision UX, ni le playbook UX, ni la source de verite UI. Il
 ## Ce qui est vrai maintenant
 
 - La V1 reste orientee workbench de closing, pas SaaS generique.
-- Le flux reel deja fige dans le repo est : `closing -> import -> mapping -> controls -> financial-summary -> financial-statements-structured -> workpapers -> document-storage-and-evidence-files -> exports-audit-ready -> minimal-annex`.
+- Le flux reel deja fige dans le repo est : `closing -> import -> mapping manuel + mapping assiste no-provider -> controls -> financial-summary -> financial-statements-structured -> workpapers -> document-storage-and-evidence-files -> exports-audit-ready -> minimal-annex`.
 - Le present UX inclut maintenant un frontend borne sur `/` et `/closing-folders/:closingFolderId`, avec entree dossiers, detail dossier, import balance CSV borne, mapping manuel unitaire borne, cockpit controls/readiness read-only, dossier progress summary, preview `Financial summary` read-only, preview `Financial statements structured` read-only et bloc `Workpapers` avec maker update unitaire borne sur les items courants, upload document unitaire borne sur les current items avec workpaper persistant, download document unitaire explicite sur les documents deja visibles, frontiere dediee `WorkpapersPanel`, decision reviewer document unitaire sur les documents current eligibles deja visibles, decision reviewer workpaper humaine sur les anchors eligibles, audit-ready export pack UI et minimal annex preview read-only.
-- Les surfaces UX visibles/frontend du present sont closes jusqu'a `029`, avec `026` comme decompression frontend sans changement visible et `029` comme vague de confiance E2E pilote.
+- Les surfaces UX visibles/frontend du present sont closes jusqu'a `030`, avec `026` comme decompression frontend sans changement visible, `029` comme vague de confiance E2E pilote et `030` comme experience de revue humaine du mapping assiste no-provider.
 - La V1 reste bornee : les surfaces frontend 029 exposent des capacites existantes, mais ne transforment ni les previews financieres, ni l'audit-ready export pack, ni la minimal annex preview en livrables statutaires finaux.
-- La V1 reste progressive, desktop-first, AI-ready et non AI-led ; les surfaces 029 ameliorent le pilotage humain sans rendre l'IA centrale dans l'experience courante.
+- La V1 reste progressive, desktop-first, AI-ready et non AI-led ; les surfaces 029 ameliorent le pilotage humain et `030` ajoute une assistance de mapping no-provider sans rendre l'IA autonome ni centrale dans l'experience courante.
 - La source de verite UI codable reste `docs/ui/ui-foundations-v1.md`.
 - Le produit doit rester clair sous pression : contexte tenant, dossier, statut, blockers, next action et preuves doivent etre explicites.
 - Les lectures sur `ARCHIVED` restent autorisees sur les surfaces closes qui le prevoient ; les writes restent bloques quand le workflow le demande.
@@ -26,6 +26,7 @@ Il ne remplace ni la vision UX, ni le playbook UX, ni la source de verite UI. Il
 - `exports-audit-ready-v1` ajoute un pack `ZIP` immutable, prive, idempotent et telecharge backend-only pour handoff audit-ready du closing.
 - `029-pilot-closing-workflow-e2e-confidence-hardening-v1` livre les surfaces frontend durables de pilotage E2E : dossier progress summary, audit-ready export pack UI, minimal annex preview UI et reviewer workpaper decision UI.
 - `minimal-annex-v1` est maintenant visible en frontend comme minimal annex preview non statutaire, read-only et preparee pour revue humaine ; elle ne devient pas une annexe legale finale.
+- `030-ia-mapping-assiste-suggestion-review-v1` livre l'affichage et la revue humaine de suggestions de mapping IA no-provider, avec preuves visibles, `requiresHumanReview = true`, actions unitaires `ACCEPT`, `CORRECT`, `REJECT` via backend et mapping manuel comme autorite.
 
 ## Ce qui est explicitement hors scope maintenant
 
@@ -35,6 +36,7 @@ Deja livre en frontend read-only ou controle :
 - workpaper reviewer decision UI
 - audit-ready export pack UI
 - minimal annex preview UI
+- mapping suggestion review UI no-provider
 
 Toujours hors scope maintenant :
 
@@ -51,7 +53,7 @@ Toujours hors scope maintenant :
 - un PDF/ZIP final CO deliverable
 - une approbation statutaire derivee d'une decision reviewer workpaper
 - une IA active au centre de l'experience courante
-- une IA runtime
+- une IA provider runtime, un modele reel, un SDK provider, un prompt runtime actif ou un appel modele direct depuis le frontend
 - les commentaires threades, la generation automatique et les signed URLs publiques pour les documents
 
 ## Decisions non negociables du present
@@ -65,8 +67,10 @@ Toujours hors scope maintenant :
 - L'audit-ready export pack UI doit rester un handoff audit-ready soumis a revue humaine, pas un pack final pret au depot.
 - La minimal annex preview doit rester non statutaire, read-only et explicitement preparee pour revue humaine.
 - Les surfaces 029 proches d'une decision engageante doivent porter la posture `Prepared for human review` / `Human review required`.
+- Les surfaces 030 de mapping assiste doivent porter la posture `AI mapping suggestion`, `Prepared for human review`, `Human review required`, `Read-only suggestion` et `Manual mapping remains the authority`.
 - Quand une ambiguite de finalisation existe, le wording doit rester compatible avec `Not a final CO deliverable` et `Do not use as statutory filing`.
 - La decision reviewer workpaper UI reste une decision humaine de workflow, pas une approbation statutaire.
+- Les decisions `ACCEPT`, `CORRECT` et `REJECT` sur suggestion de mapping restent des decisions humaines unitaires via backend ; aucune UI ne doit introduire bulk auto-apply, auto-fill non confirme ou preselection silencieuse du mapping manuel.
 - L'UX du present doit distinguer clairement courant, stale, historique et archive.
 - Toute future UI doit rester coherente avec `docs/ui/ui-foundations-v1.md` et avec les contrats reels exposes par le backend.
 
@@ -90,6 +94,7 @@ Toujours hors scope maintenant :
 - `specs/done/027-annexe-minimale-v1.md`
 - `specs/done/028-docs-present-realignment-after-027-v1.md`
 - `specs/done/029-pilot-closing-workflow-e2e-confidence-hardening-v1.md`
+- `specs/done/030-ia-mapping-assiste-suggestion-review-v1.md`
 - `specs/done/006-controls-v1.md`
 - `specs/done/007-financial-summary-v1.md`
 - `specs/done/009-financial-statements-structured-v1.md`
@@ -103,6 +108,7 @@ Toujours hors scope maintenant :
 - `contracts/openapi/workpapers-api.yaml`
 - `contracts/openapi/documents-api.yaml`
 - `contracts/openapi/exports-api.yaml`
+- `contracts/openapi/mapping-suggestions-api.yaml`
 
 ## Regle de maintenance
 
@@ -121,7 +127,7 @@ Ne pas y recopier les specs ni la prose des Word.
 
 Le Word `1.4` est un snapshot de cadrage. Ses hors-scope historiques sur `controls`, `financial-summary`, `financial-statements-structured`, `workpapers`, `document-storage-and-evidence-files`, `evidence-review-and-verification` et `exports-audit-ready` ne sont plus valides dans le present du repo vivant.
 
-Apres `029`, les formulations qui placent strictement hors scope les surfaces frontend d'audit-ready export pack, de minimal annex preview ou de decision reviewer workpaper ne sont plus valides pour le present du repo vivant.
+Apres `030`, les formulations qui placent strictement hors scope les surfaces frontend d'audit-ready export pack, de minimal annex preview, de decision reviewer workpaper ou de revue humaine des suggestions de mapping no-provider ne sont plus valides pour le present du repo vivant.
 
 ## Note de precedence
 

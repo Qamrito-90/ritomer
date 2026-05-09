@@ -9,17 +9,21 @@ Il ne remplace ni la vision IA, ni le playbook IA, ni les contrats et garde-fous
 ## Ce qui est vrai maintenant
 
 - Le produit est AI-ready, pas AI-led.
-- Le repo vivant est clos jusqu'a `029`, mais l'IA n'est toujours pas une capacite structurante du runtime courant.
+- Le repo vivant est clos jusqu'a `030`.
 - Le coeur metier reste deterministe, tenant-scoped, audit-ready et utilisable sans IA.
-- L'IA future doit entrer via le backend et des ports applicatifs stables, pas par des appels modele directs depuis le frontend.
+- `030` livre une capacite de mapping assiste no-provider, evidence-first et human-in-the-loop.
+- La capacite livree expose des suggestions structurees de mapping, des preuves visibles et une decision humaine unitaire `ACCEPT`, `CORRECT` ou `REJECT`.
+- Le mapping manuel et le backend restent l'autorite metier : l'IA suggere, mais ne valide pas et n'applique jamais seule un mapping.
+- L'IA entre via le backend et des ports applicatifs stables, pas par des appels modele directs depuis le frontend.
 - Toute capacite IA metier du present ou du futur proche doit rester evidence-first, structured-output et human-in-the-loop.
 - Aucune ecriture directe en base par l'IA n'est autorisee.
 - Le produit doit continuer a fonctionner si l'IA est indisponible.
-- Aucune spec livree jusqu'a `029` n'active de microservice IA obligatoire, de flux metier pilote par modele ou de generation IA runtime.
 - `029` livre des surfaces frontend de confiance E2E, pas une capacite IA : aucune IA runtime, aucune redaction IA d'annexe, aucune decision automatique et aucune action engageante sans revue humaine.
 - La minimal annex preview exposee par `029` reste un read-model deterministe prepare pour revue humaine ; elle n'est pas une annexe redigee ou approuvee par IA.
-- La premiere capacite IA credible reste le mapping assiste, gouverne et candidat futur dans la sequence V1, pas une implementation runtime active, une conversation generale ni une autonomie agentique.
-- Le repo porte deja les premiers artefacts vivants de gouvernance IA : schema contractuel, prompt guardrail, evals, retrieval policy et runbook d'incident.
+- La premiere capacite IA livree est le mapping assiste no-provider : elle n'active ni provider IA reel, ni modele reel, ni SDK, ni prompt runtime actif, ni cout provider, ni appel reseau IA.
+- `030d runtime` provider reel reste non livre, non approuve et bloque par CPO approval, CTO Gate, security/privacy review, IA governance review, provider-readiness record signe, dependency/security review signee, payload whitelist signee, runbook pret et golden set vert.
+- Le read-model public de mapping expose `accountLabel` depuis la ligne originale tenant-scoped ; la frontiere interne `ai::access` utilise `sanitizedAccountLabel` minimise et ne remplace pas le contrat public.
+- Le repo porte les artefacts vivants de gouvernance IA : schema contractuel, prompt guardrail, evals, retrieval policy, runbook d'incident, readiness policy, readiness record et dependency/security review.
 
 ## Ce qui est explicitement hors scope maintenant
 
@@ -32,6 +36,8 @@ Il ne remplace ni la vision IA, ni le playbook IA, ni les contrats et garde-fous
 - requirement GraphQL pour activer l'IA
 - service IA dedie obligatoire dans la V1 courante
 - redaction IA runtime d'une annexe
+- provider IA reel pour le mapping assiste tant que les gates `030d runtime` ne sont pas signes
+- modele reel, SDK provider, prompt runtime actif, cout provider ou appel reseau IA pour le mapping assiste courant
 - decision automatique ou approbation par IA d'un acte comptable, reglementaire ou financier
 
 ## Decisions non negociables du present
@@ -44,18 +50,26 @@ Il ne remplace ni la vision IA, ni le playbook IA, ni les contrats et garde-fous
 - Model pinning, prompt pinning, evals et logs obligatoires.
 - Feature flag et mode degrade obligatoires pour toute activation IA reelle.
 - Les donnees sensibles ne partent pas en clair vers des services IA externes.
+- Le mapping assiste `030` reste no-provider tant que `030d runtime` n'est pas approuve.
+- Le mapping manuel reste l'autorite metier durable.
 
 ## Artefacts vivants detailles du repo
 
 - `docs/adr/0003-ai-gateway-evidence-first.md`
 - `docs/product/v1-plan.md`
 - `contracts/ai/mapping-suggestion.schema.json`
+- `contracts/openapi/mapping-suggestions-api.yaml`
+- `contracts/db/mapping-suggestion-decision-v1.md`
 - `prompts/guardrails/system-fr.md`
 - `evals/mapping/README.md`
 - `knowledge/retrieval-policy.md`
 - `runbooks/ai-incident-response.md`
+- `policies/ai-provider-readiness.md`
+- `policies/ai-provider-readiness-record-030d1.md`
+- `policies/dependency-security-review-030d1.md`
 - `docs/ui/ui-foundations-v1.md`
 - `specs/done/029-pilot-closing-workflow-e2e-confidence-hardening-v1.md`
+- `specs/done/030-ia-mapping-assiste-suggestion-review-v1.md`
 - `docs/vision/ai-native.md`
 - `docs/playbooks/ai.md`
 

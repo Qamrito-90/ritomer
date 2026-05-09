@@ -57,13 +57,14 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `specs/done/027-annexe-minimale-v1.md`
 - `specs/done/028-docs-present-realignment-after-027-v1.md`
 - `specs/done/029-pilot-closing-workflow-e2e-confidence-hardening-v1.md`
+- `specs/done/030-ia-mapping-assiste-suggestion-review-v1.md`
 
 ### Active
-- `specs/active/030-ia-mapping-assiste-suggestion-review-v1.md` est la spec active et prochaine tranche V1 : mapping assiste evidence-first, human-in-the-loop et contract-first, sans capacite IA runtime livree par cette spec de creation.
-- Le futur runtime IA reste soumis a CTO Gate avant implementation ; aucune ecriture automatique, aucun provider IA, aucun modele, aucun microservice, aucun GraphQL, aucun RAG et aucun auto-apply ne sont actives par ce cadrage.
+- AUCUNE spec active apres la cloture documentaire `030z`.
+- `030d runtime` provider reel reste reporte : aucun provider IA reel, aucun modele reel, aucun SDK, aucun prompt runtime actif, aucun cout provider, aucun appel reseau IA, aucun microservice IA, aucun GraphQL, aucun RAG/vector store et aucun auto-apply ne sont actives.
 
 ### Decisions figees
-- Le flux V1 livre est maintenant `closing -> import -> mapping -> controls -> financial-summary -> financial-statements-structured -> workpapers -> document-storage-and-evidence-files -> exports-audit-ready -> minimal-annex`.
+- Le flux V1 livre est maintenant `closing -> import -> mapping manuel + mapping assiste no-provider -> controls -> financial-summary -> financial-statements-structured -> workpapers -> document-storage-and-evidence-files -> exports-audit-ready -> minimal-annex`.
 - Les endpoints canoniques restent sous `/api/closing-folders/...`.
 - `controls-v1`, `financial-summary-v1`, `financial-statements-structured-v1` et `minimal-annex-v1` sont des read-models derives, `GET only`, sans persistance de resultat.
 - `financial-summary-v1` reste une preview ultra-synthetique, non statutaire, non export final, non conforme a une presentation CO detaillee, et peut rester partielle tant que le closing n'est pas `PREVIEW_READY`.
@@ -88,7 +89,7 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `025-frontend-document-verification-decision-only-v1` ferme la decision reviewer document unitaire dans `WorkpapersPanel`, sur les documents current eligibles deja visibles, en ajoutant seulement `POST /documents/{documentId}/verification-decision`, avec refresh local strict de `GET /workpapers` apres succes payload valide, sans decision reviewer workpaper, sans nouveau backend ni contrat OpenAPI.
 - `evidence-review-and-verification-v1` ajoute `DOCUMENT.VERIFICATION_UPDATED` pour toute mutation reviewer reussie sur `document`, sans audit sur no-op, lecture, backfill ni creation automatique de la ligne initiale.
 - `document-storage-and-evidence-files-v1` persiste les metadata en PostgreSQL, stocke le binaire en object storage prive, et impose un download backend-only sans signed URL publique.
-- Le role de `document-storage-and-evidence-files-v1` dans la sequence V1 est de fermer le noyau evidence-first utile avant les couches d'export, d'annexe backend minimale et d'IA active future.
+- Le role de `document-storage-and-evidence-files-v1` dans la sequence V1 est de fermer le noyau evidence-first utile avant les couches d'export, d'annexe backend minimale et de mapping assiste no-provider.
 - `exports-audit-ready-v1` ajoute le module proprietaire `exports`, une persistance immutable `export_pack`, un `ZIP` strictement deterministe et un replay idempotent durable borne par `export_pack` seul en V1.
 - `exports-audit-ready-v1` assemble `controls`, `financial-summary`, `financial-statements-structured`, les current workpapers persistants et leurs documents visibles, sans exposition de `storage_object_key`, sans signed URL publique et sans audit sur les lectures.
 - `027-annexe-minimale-v1` livre `GET /api/closing-folders/{closingFolderId}/minimal-annex` comme read-model backend deterministe, tenant-scoped, non statutaire, non persiste, non exporte, sans PDF, sans IA et sans `audit_event` sur `GET`.
@@ -100,6 +101,16 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `029d` expose la decision reviewer workpaper humaine via les gates existants ; elle ne constitue pas une approbation statutaire.
 - `029` ne change pas la posture d'architecture : REST-first maintenu, aucun GraphQL, aucun backend nouveau a creer, aucune migration DB, aucun microservice IA et aucun contrat OpenAPI modifie par cette cloture.
 - `029` ne change pas la posture IA : AI-ready, pas AI-led ; aucune IA runtime, aucune redaction IA d'annexe et aucune decision automatique.
+- `030-ia-mapping-assiste-suggestion-review-v1` livre la premiere capacite de mapping assiste no-provider, evidence-first et human-in-the-loop : suggestions structurees, preuves visibles, decision humaine explicite et mapping manuel comme autorite metier.
+- `030a` a stabilise `contracts/ai/mapping-suggestion.schema.json` et `contracts/openapi/mapping-suggestions-api.yaml` avec les noms canoniques `accountCode`, `accountLabel`, `suggestedTargetCode` et les decisions `ACCEPT`, `CORRECT`, `REJECT`.
+- `030b` a livre le read-model backend `GET /api/closing-folders/{closingFolderId}/mappings/suggestions` avec adapter stub no-provider et feature flag.
+- `030c`, `030d0` et `030d1` ont livre golden set, policy, runbook, provider-readiness record et dependency/security review sans approbation provider.
+- `030d2` a durci la minimisation backend : la frontiere `ai::access` recoit un payload minimise avec `sanitizedAccountLabel` interne, tandis que le read-model public expose `accountLabel` depuis la ligne originale tenant-scoped.
+- `030e0` et `030e` ont livre l'experience frontend de revue humaine des suggestions, sans appel modele direct ni stockage navigateur de suggestion.
+- `030f` a livre `POST /api/closing-folders/{closingFolderId}/mappings/suggestions/{accountCode}/decision` avec `Idempotency-Key`, decisions unitaires et persistance tenant-scopee `mapping_suggestion_decision_request`.
+- `ACCEPT` et `CORRECT` passent par la logique metier de mapping manuel existante ; `REJECT` ne cree ni ne modifie aucun mapping manuel.
+- Le mapping manuel et le backend restent l'autorite metier. Aucune suggestion ne s'applique seule, aucune decision bulk n'est livree et `requiresHumanReview = true` reste obligatoire.
+- Aucune capacite provider IA reelle n'est activee par `030`. `030d runtime` reste bloque par CPO approval, CTO Gate, security/privacy review, IA governance review, provider-readiness record signe, dependency/security review signee, payload whitelist signee, runbook pret et golden set vert.
 - Les lectures sur `ARCHIVED` restent autorisees si le tenant et le RBAC sont valides.
 - Les lectures `GET` sur `controls`, `financial-summary`, `financial-statements-structured`, `workpapers` et `minimal-annex` n'ecrivent aucun `audit_event`.
 - Les tests PostgreSQL reels restent opt-in via `dbIntegrationTest`, sans Docker local requis.

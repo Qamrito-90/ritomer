@@ -18,8 +18,12 @@ Il ne remplace ni les ADRs, ni les specs, ni les contrats, ni les runbooks. Il f
 - `./gradlew test` reste le rail nominal sans PostgreSQL reel ; `dbIntegrationTest` reste opt-in avec configuration explicite.
 - Le multi-tenant est applique par `tenant_id` partout, avec scoping applicatif d'abord et RLS progressive ensuite.
 - L'audit est append-only sur les mutations metier significatives ; les lectures closes en `GET` sur les read-models actuels n'ecrivent pas d'audit.
-- Les capacites closes du present vont jusqu'a `029` : closing, import, mapping, controls, financial previews, workpapers, document storage, verification reviewer de la preuve, export pack audit-ready, read-model backend REST d'annexe minimale, puis surfaces frontend de confiance E2E pour dossier progress summary, audit-ready export pack UI, minimal annex preview UI et reviewer workpaper decision UI.
+- Les capacites closes du present vont jusqu'a `030` : closing, import, mapping manuel, mapping assiste no-provider, controls, financial previews, workpapers, document storage, verification reviewer de la preuve, export pack audit-ready, read-model backend REST d'annexe minimale, surfaces frontend de confiance E2E, puis suggestions de mapping avec revue humaine.
 - `029` est une vague frontend livree sur les contrats REST existants. Elle ne cree aucun backend nouveau, aucun endpoint nouveau, aucun GraphQL, aucun microservice IA, aucune table, aucune migration DB et aucune nouvelle persistance.
+- `030` livre une capacite REST-first de mapping assiste no-provider : read-model backend de suggestions, port `ai::access` minimise, adapter stub sans modele reel, contrat OpenAPI dedie, decision humaine idempotente et UI de revue humaine.
+- `030f` ajoute une persistance tenant-scopee dediee a l'idempotence des decisions humaines de suggestion via `mapping_suggestion_decision_request`; cette table ne donne aucune autorite metier a l'IA.
+- Aucun provider IA reel, modele reel, SDK, prompt runtime actif, cout provider ou appel reseau IA n'est actif dans le present.
+- `030d runtime` provider reel reste bloque par gates CPO/CTO/security/privacy/IA governance, readiness record signe, dependency review signee, payload whitelist signee et evals vertes.
 - `workpapers` reste le module proprietaire pour la justification, les documents et leur verification reviewer ; `011` et `012` n'introduisent pas de module transverse `documents`.
 - Le binaire documentaire est stocke en object storage prive ; le download V1 reste backend-only sans signed URL publique.
 - `exports` est maintenant un module proprietaire distinct qui persiste un `export_pack` immutable, assemble un `ZIP` synchrone et deterministe, et telecharge ce pack via le backend uniquement.
@@ -30,6 +34,7 @@ Il ne remplace ni les ADRs, ni les specs, ni les contrats, ni les runbooks. Il f
 - GraphQL actif dans le runtime courant
 - microservices introduits par confort theorique
 - service IA dedie obligatoire dans la V1 courante
+- provider IA runtime, modele reel, SDK provider, prompt runtime actif ou appel reseau IA pour le mapping assiste courant
 - Docker local obligatoire pour le developpement nominal
 - Testcontainers comme prerequis du flux par defaut
 - RLS generalisee sur toutes les tables tout de suite
@@ -75,6 +80,7 @@ Il ne remplace ni les ADRs, ni les specs, ni les contrats, ni les runbooks. Il f
 - `specs/done/027-annexe-minimale-v1.md`
 - `specs/done/028-docs-present-realignment-after-027-v1.md`
 - `specs/done/029-pilot-closing-workflow-e2e-confidence-hardening-v1.md`
+- `specs/done/030-ia-mapping-assiste-suggestion-review-v1.md`
 - `specs/done/008-financial-rubric-taxonomy-v2.md`
 - `specs/done/009-financial-statements-structured-v1.md`
 - `specs/done/010-workpapers-v1.md`
@@ -83,6 +89,7 @@ Il ne remplace ni les ADRs, ni les specs, ni les contrats, ni les runbooks. Il f
 - `specs/done/013-exports-audit-ready-v1.md`
 - `contracts/db/*`
 - `contracts/openapi/minimal-annex-api.yaml`
+- `contracts/openapi/mapping-suggestions-api.yaml`
 - `contracts/openapi/*`
 
 ## Regle de maintenance
@@ -101,7 +108,7 @@ Ne pas y recopier le detail des specs ni des ADRs.
 
 - `docs/reference-word/2.3-Architecture-Cadrage-V1.docx`
 
-Le Word `2.3` est un snapshot de cadrage. Il s'arrete avant les specs closes `006` a `013` et ne reflete plus la verite actuelle sur `controls`, `financial-summary`, `financial-statements-structured`, `workpapers`, `document-storage-and-evidence-files`, `evidence-review-and-verification`, `exports-audit-ready`, `minimal-annex` et les surfaces frontend E2E livrees par `029`.
+Le Word `2.3` est un snapshot de cadrage. Il s'arrete avant les specs closes `006` a `013` et ne reflete plus la verite actuelle sur `controls`, `financial-summary`, `financial-statements-structured`, `workpapers`, `document-storage-and-evidence-files`, `evidence-review-and-verification`, `exports-audit-ready`, `minimal-annex`, les surfaces frontend E2E livrees par `029` et le mapping assiste no-provider livre par `030`.
 
 ## Note de precedence
 
