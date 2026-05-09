@@ -137,6 +137,7 @@ Cette spec couvre le cadrage de :
 | `030d2` | BACKEND | Durcir la minimisation du payload entre `mapping.application` et `ai::access`, sans provider reel, modele, SDK, dependance, reseau, DB, migration, frontend ni changement de contrat public. |
 | `030d` | BACKEND + IA GOVERNANCE | Activer un provider modele reel seulement apres validation de `030d1` et gates, avec schema validation stricte et fallback. |
 | `030e0` | FRONTEND | Afficher en lecture seule les suggestions preparees pour revue humaine, sans mutation de suggestion ni preselection du mapping manuel. |
+| `030f` | BACKEND + DB/MIGRATION + CONTRACTS_API + FRONTEND_COMPAT_MINIMAL | Enregistrer une decision humaine durable et idempotente `ACCEPT`, `CORRECT` ou `REJECT` sur une suggestion courante, sans provider IA reel ni auto-apply. |
 | `030e` | FRONTEND | Afficher la suggestion et collecter accept/correct/reject seulement si le backend contractuel est pret. |
 
 `030d runtime` reste bloque tant que `030d1` n'est pas valide et signe, que `030d2` n'a pas prouve la minimisation backend et que les autres gates ne sont pas verts. `030d1` ne peut pas etre interprete comme une approbation provider : il prepare seulement les conditions de passage.
@@ -729,6 +730,23 @@ Le pack ne doit jamais inclure secret, token, cle, cookie, DSN, credential ou va
 - Le wording `AI mapping suggestion`, `Prepared for human review`, `Human review required`, `Read-only suggestion` et `Manual mapping remains the authority` est present.
 - Le mapping manuel reste l'autorite : aucune mutation de suggestion, aucun controle decisionnel, aucun autofill, aucune preselection et aucun stockage navigateur ne sont ajoutes.
 - Aucun backend, contrat OpenAPI, contrat IA, DB, migration, dependance, secret, commit, push ou PR n'est livre par `030e0`.
+
+### 030f - backend mapping suggestion human decision
+
+Objectif : permettre a un utilisateur autorise de prendre une decision humaine durable et idempotente sur une suggestion de mapping IA courante.
+
+Livrables attendus :
+
+- `POST /api/closing-folders/{closingFolderId}/mappings/suggestions/{accountCode}/decision` avec `Idempotency-Key` obligatoire ;
+- decisions unitaires `ACCEPT`, `CORRECT` et `REJECT`, sans bulk et sans auto-apply ;
+- `suggestionFingerprint` calcule cote backend apres safety filtering et expose sur le GET si necessaire au replay decisionnel ;
+- table dediee `mapping_suggestion_decision_request` tenant-scopee pour l'idempotence durable ;
+- hash de payload canonique stable, sans hash du JSON brut recu ;
+- recalcul backend de la suggestion courante avant toute mutation ;
+- `ACCEPT` et `CORRECT` via la logique metier de mapping manuel existante ;
+- `REJECT` sans creation ni modification de mapping manuel et sans `audit_event` obligatoire ;
+- conflits metier terminaux stockes en `CONFLICT_*` une fois la ligne d'idempotence reservee ;
+- aucun provider IA reel, modele, prompt runtime, SDK, nouvelle dependance, GraphQL, RAG/vector store, microservice, frontend decisionnel, bulk ou auto-apply.
 
 ## Acceptance 030d1 provider-readiness record and dependency review
 

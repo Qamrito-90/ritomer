@@ -19,6 +19,7 @@ import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
 import org.assertj.core.api.Assertions.assertThat
+import org.hamcrest.Matchers.matchesPattern
 import org.hamcrest.Matchers.nullValue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -59,6 +60,9 @@ class MappingSuggestionsApiTest {
   @Autowired
   private lateinit var manualMappingTestStore: ManualMappingTestStore
 
+  @Autowired
+  private lateinit var mappingSuggestionDecisionRequestTestStore: MappingSuggestionDecisionRequestTestStore
+
   @BeforeEach
   fun resetStores() {
     identityTestStore.reset()
@@ -66,6 +70,7 @@ class MappingSuggestionsApiTest {
     closingFolderTestStore.reset()
     balanceImportTestStore.reset()
     manualMappingTestStore.reset()
+    mappingSuggestionDecisionRequestTestStore.reset()
   }
 
   @Test
@@ -252,6 +257,7 @@ class MappingSuggestionsApiTest {
       jsonPath("$.suggestions[0].schemaVersion") { value("mapping-suggestion-v1") }
       jsonPath("$.suggestions[0].promptVersion") { value("not_applicable_for_stub") }
       jsonPath("$.suggestions[0].modelVersion") { value("not_applicable_for_stub") }
+      jsonPath("$.suggestions[0].suggestionFingerprint") { value(matchesPattern("^[0-9a-f]{64}$")) }
       jsonPath("$.errors.length()") { value(0) }
     }
 
@@ -261,20 +267,27 @@ class MappingSuggestionsApiTest {
   }
 
   @Test
-  fun `decision post is not implemented in 030b`() {
+  fun `decision post requires idempotency key`() {
     val tenantId = uuid("11111111-1111-1111-1111-111111111111")
     val closingFolder = seedClosingFolder(tenantId = tenantId)
     seedMembership("user-123", tenantId, TenantRole.ACCOUNTANT)
+    seedImportVersion(
+      tenantId,
+      closingFolder.id,
+      1,
+      listOf(BalanceImportLine(2, "1000", "Bank CHF", decimal("100.00"), decimal("0.00")))
+    )
 
     mockMvc.post("/api/closing-folders/${closingFolder.id}/mappings/suggestions/1000/decision") {
       header(ACTIVE_TENANT_HEADER, tenantId.toString())
       contentType = MediaType.APPLICATION_JSON
-      content = """{"decision":"REJECT","latestImportVersion":1}"""
+      content = """{"decision":"REJECT","latestImportVersion":1,"suggestionFingerprint":"${stubSuggestionFingerprint()}"}"""
       with(actorJwt("user-123"))
-    }.andExpect { status { isNotFound() } }
+    }.andExpect { status { isBadRequest() } }
 
     assertThat(auditTestStore.auditEvents()).isEmpty()
     assertThat(manualMappingTestStore.mappings(tenantId, closingFolder.id)).isEmpty()
+    assertThat(mappingSuggestionDecisionRequestTestStore.records()).isEmpty()
   }
 
   private fun seedMembership(
@@ -592,3 +605,37 @@ private fun actorJwt(
 private fun decimal(value: String) = java.math.BigDecimal(value)
 
 private fun uuid(value: String): UUID = UUID.fromString(value)
+
+private fun stubSuggestionFingerprint(
+  latestImportVersion: Int = 1,
+  accountCode: String = "1000",
+  suggestedTargetCode: String = "BS.ASSET.CASH_AND_EQUIVALENTS"
+): String =
+  ch.qamwaq.ritomer.mapping.application.MappingSuggestionFingerprints.calculate(
+    latestImportVersion = latestImportVersion,
+    taxonomyVersion = 2,
+    suggestion = ch.qamwaq.ritomer.mapping.application.MappingSuggestion(
+      accountCode = accountCode,
+      accountLabel = "not-used-by-fingerprint",
+      suggestedTargetCode = suggestedTargetCode,
+      confidence = 0.82,
+      riskLevel = ch.qamwaq.ritomer.mapping.application.MappingSuggestionRiskLevel.MEDIUM,
+      rationale = "not used by fingerprint",
+      evidence = listOf(
+        ch.qamwaq.ritomer.mapping.application.MappingSuggestionEvidence(
+          type = ch.qamwaq.ritomer.mapping.application.MappingSuggestionEvidenceType.ACCOUNT_LABEL,
+          ref = "balance_import_line:$accountCode",
+          snippet = "not used"
+        ),
+        ch.qamwaq.ritomer.mapping.application.MappingSuggestionEvidence(
+          type = ch.qamwaq.ritomer.mapping.application.MappingSuggestionEvidenceType.TARGET_TAXONOMY,
+          ref = "manual-mapping-targets-v2:$suggestedTargetCode",
+          snippet = "not used"
+        )
+      ),
+      requiresHumanReview = true,
+      schemaVersion = "mapping-suggestion-v1",
+      promptVersion = "not_applicable_for_stub",
+      modelVersion = "not_applicable_for_stub"
+    )
+  )

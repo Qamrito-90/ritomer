@@ -18,7 +18,11 @@ import ch.qamwaq.ritomer.imports.application.BalanceImportRepository
 import ch.qamwaq.ritomer.imports.domain.BalanceImport
 import ch.qamwaq.ritomer.imports.domain.BalanceImportLine
 import ch.qamwaq.ritomer.imports.domain.BalanceImportSnapshot
+import ch.qamwaq.ritomer.mapping.application.MappingSuggestionDecisionRequestRecord
+import ch.qamwaq.ritomer.mapping.application.MappingSuggestionDecisionRequestRepository
+import ch.qamwaq.ritomer.mapping.application.MappingSuggestionDecisionResultKind
 import ch.qamwaq.ritomer.mapping.application.ManualMappingRepository
+import ch.qamwaq.ritomer.mapping.application.NewMappingSuggestionDecisionRequest
 import ch.qamwaq.ritomer.mapping.domain.ManualMapping
 import ch.qamwaq.ritomer.shared.application.AuditTrail
 import ch.qamwaq.ritomer.shared.application.AppendAuditEventCommand
@@ -79,6 +83,16 @@ class IdentityTestConfiguration {
   @Bean
   fun manualMappingRepository(manualMappingTestStore: ManualMappingTestStore): ManualMappingRepository =
     InMemoryManualMappingRepository(manualMappingTestStore)
+
+  @Bean
+  fun mappingSuggestionDecisionRequestTestStore(): MappingSuggestionDecisionRequestTestStore =
+    MappingSuggestionDecisionRequestTestStore()
+
+  @Bean
+  fun mappingSuggestionDecisionRequestRepository(
+    mappingSuggestionDecisionRequestTestStore: MappingSuggestionDecisionRequestTestStore
+  ): MappingSuggestionDecisionRequestRepository =
+    InMemoryMappingSuggestionDecisionRequestRepository(mappingSuggestionDecisionRequestTestStore)
 
   @Bean
   fun workpaperTestStore(): WorkpaperTestStore = WorkpaperTestStore()
@@ -315,6 +329,87 @@ class ManualMappingTestStore {
     }
 }
 
+class MappingSuggestionDecisionRequestTestStore {
+  private val requestsById = linkedMapOf<UUID, MappingSuggestionDecisionRequestRecord>()
+
+  @Synchronized
+  fun reset() {
+    requestsById.clear()
+  }
+
+  @Synchronized
+  fun insertPendingIfAbsent(request: NewMappingSuggestionDecisionRequest): Boolean {
+    val duplicate = requestsById.values.any {
+      it.tenantId == request.tenantId &&
+        it.closingFolderId == request.closingFolderId &&
+        it.accountCode == request.accountCode &&
+        it.idempotencyKey == request.idempotencyKey
+    }
+    if (duplicate) {
+      return false
+    }
+
+    requestsById[request.id] = MappingSuggestionDecisionRequestRecord(
+      id = request.id,
+      tenantId = request.tenantId,
+      closingFolderId = request.closingFolderId,
+      accountCode = request.accountCode,
+      idempotencyKey = request.idempotencyKey,
+      canonicalPayloadHash = request.canonicalPayloadHash,
+      decision = request.decision,
+      latestImportVersion = request.latestImportVersion,
+      suggestionFingerprint = request.suggestionFingerprint,
+      targetCode = request.targetCode,
+      reviewComment = request.reviewComment,
+      actorUserId = request.actorUserId,
+      resultKind = request.resultKind,
+      appliedAccountCode = null,
+      appliedTargetCode = null,
+      createdAt = request.createdAt,
+      completedAt = null
+    )
+    return true
+  }
+
+  @Synchronized
+  fun findByIdempotencyKey(
+    tenantId: UUID,
+    closingFolderId: UUID,
+    accountCode: String,
+    idempotencyKey: String
+  ): MappingSuggestionDecisionRequestRecord? =
+    requestsById.values.firstOrNull {
+      it.tenantId == tenantId &&
+        it.closingFolderId == closingFolderId &&
+        it.accountCode == accountCode &&
+        it.idempotencyKey == idempotencyKey
+    }
+
+  @Synchronized
+  fun complete(
+    id: UUID,
+    tenantId: UUID,
+    resultKind: MappingSuggestionDecisionResultKind,
+    appliedAccountCode: String?,
+    appliedTargetCode: String?,
+    completedAt: java.time.OffsetDateTime
+  ): MappingSuggestionDecisionRequestRecord {
+    val existing = requestsById[id]?.takeIf { it.tenantId == tenantId }
+      ?: error("Unknown mapping suggestion decision request id: $id")
+    val completed = existing.copy(
+      resultKind = resultKind,
+      appliedAccountCode = appliedAccountCode,
+      appliedTargetCode = appliedTargetCode,
+      completedAt = completedAt
+    )
+    requestsById[id] = completed
+    return completed
+  }
+
+  @Synchronized
+  fun records(): List<MappingSuggestionDecisionRequestRecord> = requestsById.values.toList()
+}
+
 class WorkpaperTestStore {
   private val workpapersById = linkedMapOf<UUID, Workpaper>()
 
@@ -545,6 +640,43 @@ private class InMemoryManualMappingRepository(
   override fun delete(tenantId: UUID, mappingId: UUID) {
     manualMappingTestStore.delete(mappingId)
   }
+}
+
+private class InMemoryMappingSuggestionDecisionRequestRepository(
+  private val mappingSuggestionDecisionRequestTestStore: MappingSuggestionDecisionRequestTestStore
+) : MappingSuggestionDecisionRequestRepository {
+  override fun insertPendingIfAbsent(request: NewMappingSuggestionDecisionRequest): Boolean =
+    mappingSuggestionDecisionRequestTestStore.insertPendingIfAbsent(request)
+
+  override fun lockByIdempotencyKey(
+    tenantId: UUID,
+    closingFolderId: UUID,
+    accountCode: String,
+    idempotencyKey: String
+  ): MappingSuggestionDecisionRequestRecord? =
+    mappingSuggestionDecisionRequestTestStore.findByIdempotencyKey(
+      tenantId = tenantId,
+      closingFolderId = closingFolderId,
+      accountCode = accountCode,
+      idempotencyKey = idempotencyKey
+    )
+
+  override fun complete(
+    id: UUID,
+    tenantId: UUID,
+    resultKind: MappingSuggestionDecisionResultKind,
+    appliedAccountCode: String?,
+    appliedTargetCode: String?,
+    completedAt: java.time.OffsetDateTime
+  ): MappingSuggestionDecisionRequestRecord =
+    mappingSuggestionDecisionRequestTestStore.complete(
+      id = id,
+      tenantId = tenantId,
+      resultKind = resultKind,
+      appliedAccountCode = appliedAccountCode,
+      appliedTargetCode = appliedTargetCode,
+      completedAt = completedAt
+    )
 }
 
 private class InMemoryWorkpaperRepository(

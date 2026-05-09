@@ -46,7 +46,8 @@ data class MappingSuggestion(
   val requiresHumanReview: Boolean,
   val schemaVersion: String,
   val promptVersion: String,
-  val modelVersion: String
+  val modelVersion: String,
+  val suggestionFingerprint: String = ""
 )
 
 enum class MappingSuggestionRiskLevel {
@@ -186,6 +187,7 @@ class MappingSuggestionsService(
 
     val safeSuggestions = result.suggestions.mapNotNull {
       it.toSafeMappingSuggestion(eligibleLinesByCode, selectableTargetsByCode)
+        ?.withSuggestionFingerprint(latestImportVersion, taxonomyVersion)
     }
     val rejectedCount = result.suggestions.size - safeSuggestions.size
     if (result.suggestions.isNotEmpty() && safeSuggestions.isEmpty()) {
@@ -295,6 +297,18 @@ class MappingSuggestionsService(
       modelVersion = modelVersion
     )
   }
+
+  private fun MappingSuggestion.withSuggestionFingerprint(
+    latestImportVersion: Int,
+    taxonomyVersion: Int
+  ): MappingSuggestion =
+    copy(
+      suggestionFingerprint = MappingSuggestionFingerprints.calculate(
+        latestImportVersion = latestImportVersion,
+        taxonomyVersion = taxonomyVersion,
+        suggestion = this
+      )
+    )
 
   private fun String.containsForbiddenContent(): Boolean {
     val normalized = lowercase()

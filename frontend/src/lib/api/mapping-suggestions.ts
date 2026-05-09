@@ -29,7 +29,8 @@ const mappingSuggestionSchema = z
     requiresHumanReview: z.literal(true),
     schemaVersion: z.literal("mapping-suggestion-v1"),
     promptVersion: z.string().min(1).max(120),
-    modelVersion: z.string().min(1).max(120)
+    modelVersion: z.string().min(1).max(120),
+    suggestionFingerprint: z.string().regex(/^[0-9a-f]{64}$/)
   })
   .strict();
 

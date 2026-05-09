@@ -2,16 +2,24 @@ openapi: 3.1.1
 info:
   title: Mapping Suggestions API
   version: 0.1.0
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
   description: >
     Target REST contract for assisted manual mapping suggestions. This contract is added by 030a
     for schema and API hardening only; it does not mean that a backend runtime, AI provider,
     model call, frontend surface, DB migration or auto-apply capability is delivered.
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
+servers:
+  - url: /
+    description: Deployment-relative API server
 paths:
   /api/closing-folders/{closingFolderId}/mappings/suggestions:
     get:
       operationId: getMappingSuggestions
       summary: Return the target read-model for assisted manual mapping suggestions
+      security:
+        - bearerAuth: []
       description: >
         Future tenant-scoped read-model for assisted mapping suggestions on the latest balance
         import. Suggestions are evidence-first, schema-validated and always require human review.
@@ -58,6 +66,7 @@ paths:
                         schemaVersion: mapping-suggestion-v1
                         promptVersion: not_applicable_for_contract_only
                         modelVersion: not_applicable_for_contract_only
+                        suggestionFingerprint: "2f9679c9b7b9d6f0e1a3c4b5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f809"
                     errors: []
                 disabled:
                   value:
@@ -81,6 +90,8 @@ paths:
     post:
       operationId: recordMappingSuggestionDecision
       summary: Target contract for one human decision on one mapping suggestion
+      security:
+        - bearerAuth: []
       description: >
         Future target contract for a single human ACCEPT, CORRECT or REJECT decision. This endpoint
         is explicitly not a bulk endpoint and must never auto-apply suggestions. ACCEPT and CORRECT
@@ -155,7 +166,16 @@ paths:
           description: Closing folder absent or outside tenant
         "409":
           description: Suggestion absent, stale or changed; feature flag disabled; read-model not decisionable; missing or invalid evidence; closing folder archived; no balance import available; latestImportVersion mismatch; account absent from latest import; or Idempotency-Key reused with a different canonical payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MappingSuggestionDecisionResult"
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
     MappingSuggestionsReadModel:
       type: object
@@ -212,6 +232,7 @@ components:
         - schemaVersion
         - promptVersion
         - modelVersion
+        - suggestionFingerprint
       properties:
         accountCode:
           type: string
@@ -265,6 +286,13 @@ components:
           minLength: 1
           maxLength: 120
           description: Pinned model version, or a documented not_applicable value before runtime activation.
+        suggestionFingerprint:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
+          description: >
+            Backend-calculated SHA-256 fingerprint over the safety-filtered suggestion. It excludes
+            account labels, rationale, evidence snippets, tenant/client/actor identifiers, amounts,
+            prompts, model outputs and sensitive data.
     MappingSuggestionEvidence:
       type: object
       additionalProperties: false
@@ -316,7 +344,7 @@ components:
         Human confirmation of the current server suggestion. `targetCode` is valid only when it
         equals the current `suggestedTargetCode` for the same tenant, closingFolderId, accountCode
         and latestImportVersion.
-      required: [decision, latestImportVersion, targetCode]
+      required: [decision, latestImportVersion, suggestionFingerprint, targetCode]
       properties:
         decision:
           type: string
@@ -325,18 +353,25 @@ components:
           type: integer
           minimum: 1
           description: Must match the latest import version used by the current server suggestion.
+        suggestionFingerprint:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
+          description: Must match the current backend-calculated fingerprint for the safety-filtered suggestion.
         targetCode:
           type: string
           minLength: 1
           maxLength: 120
           description: Human-confirmed target code. It must equal the current server-side suggestedTargetCode.
+        reviewComment:
+          type: string
+          maxLength: 600
     MappingSuggestionCorrectRequest:
       type: object
       additionalProperties: false
       description: >
         Human correction of the current server suggestion. `targetCode` represents a selectable
         human-selected replacement target different from the current `suggestedTargetCode`.
-      required: [decision, latestImportVersion, targetCode]
+      required: [decision, latestImportVersion, suggestionFingerprint, targetCode]
       properties:
         decision:
           type: string
@@ -345,6 +380,10 @@ components:
           type: integer
           minimum: 1
           description: Must match the latest import version used by the current server suggestion.
+        suggestionFingerprint:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
+          description: Must match the current backend-calculated fingerprint for the safety-filtered suggestion.
         targetCode:
           type: string
           minLength: 1
@@ -357,7 +396,7 @@ components:
       type: object
       additionalProperties: false
       description: Human rejection of the current server suggestion. It never creates or updates a manual mapping.
-      required: [decision, latestImportVersion]
+      required: [decision, latestImportVersion, suggestionFingerprint]
       properties:
         decision:
           type: string
@@ -366,13 +405,20 @@ components:
           type: integer
           minimum: 1
           description: Must match the latest import version used by the current server suggestion.
+        suggestionFingerprint:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
+          description: Must match the current backend-calculated fingerprint for the safety-filtered suggestion.
+        targetCode:
+          type: "null"
+          description: Must be absent or null for REJECT.
         reviewComment:
           type: string
           maxLength: 600
     MappingSuggestionDecisionResult:
       type: object
       additionalProperties: false
-      required: [decision, accountCode, appliedMapping]
+      required: [decision, accountCode, resultKind, appliedMapping]
       properties:
         decision:
           type: string
@@ -381,6 +427,23 @@ components:
           type: string
           minLength: 1
           maxLength: 64
+        resultKind:
+          type: string
+          enum:
+            - MANUAL_MAPPING_CREATED
+            - MANUAL_MAPPING_UPDATED
+            - MANUAL_MAPPING_NOOP
+            - REJECT_RECORDED
+            - CONFLICT_ARCHIVED
+            - CONFLICT_NO_IMPORT
+            - CONFLICT_FLAG_OFF
+            - CONFLICT_NON_DECISIONABLE
+            - CONFLICT_SUGGESTION_ABSENT
+            - CONFLICT_FINGERPRINT_MISMATCH
+            - CONFLICT_STALE_IMPORT
+            - CONFLICT_ACCOUNT_ABSENT
+            - CONFLICT_TARGET_MISMATCH
+            - CONFLICT_TARGET_NOT_SELECTABLE
         appliedMapping:
           oneOf:
             - $ref: "#/components/schemas/AppliedManualMapping"
