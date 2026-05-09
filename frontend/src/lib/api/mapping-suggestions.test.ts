@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   loadMappingSuggestionsShellState,
+  recordMappingSuggestionDecision,
   type MappingSuggestionsReadModel
 } from "./mapping-suggestions";
 
@@ -241,5 +242,347 @@ describe("mapping suggestions api", () => {
         readModel: payload
       });
     }
+  });
+
+  describe("recordMappingSuggestionDecision", () => {
+    const IDEMPOTENCY_KEY = "decision-attempt-0001";
+    const SUCCESS_RESULT = {
+      decision: "ACCEPT",
+      accountCode: "1000",
+      resultKind: "MANUAL_MAPPING_CREATED",
+      appliedMapping: {
+        accountCode: "1000",
+        targetCode: "BS.ASSET.CASH_AND_EQUIVALENTS"
+      }
+    };
+
+    it("calls the exact decision endpoint with X-Tenant-Id, Accept and Idempotency-Key", async () => {
+      const fetcher = vi.fn().mockResolvedValue(jsonResponse(200, SUCCESS_RESULT));
+
+      await expect(
+        recordMappingSuggestionDecision(
+          CLOSING_FOLDER_ID,
+          "1000",
+          ACTIVE_TENANT,
+          IDEMPOTENCY_KEY,
+          {
+            decision: "ACCEPT",
+            latestImportVersion: 3,
+            suggestionFingerprint:
+              "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            targetCode: "BS.ASSET.CASH_AND_EQUIVALENTS"
+          },
+          fetcher
+        )
+      ).resolves.toEqual({
+        kind: "success",
+        result: SUCCESS_RESULT
+      });
+
+      expect(fetcher).toHaveBeenCalledTimes(1);
+      expect(fetcher.mock.calls[0]?.[0]).toBe(
+        `/api/closing-folders/${CLOSING_FOLDER_ID}/mappings/suggestions/1000/decision`
+      );
+
+      const init = fetcher.mock.calls[0]?.[1] as RequestInit;
+      const headers = init.headers as Record<string, string>;
+      expect(init.method).toBe("POST");
+      expect(headers.Accept).toBe("application/json");
+      expect(headers["Content-Type"]).toBe("application/json");
+      expect(headers["Idempotency-Key"]).toBe(IDEMPOTENCY_KEY);
+      expect(headers["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
+    });
+
+    it("encodes closingFolderId and accountCode in the decision endpoint", async () => {
+      const fetcher = vi.fn().mockResolvedValue(jsonResponse(400, {}));
+
+      await expect(
+        recordMappingSuggestionDecision(
+          "folder id/with spaces",
+          "1000/CHF",
+          ACTIVE_TENANT,
+          IDEMPOTENCY_KEY,
+          {
+            decision: "REJECT",
+            latestImportVersion: 3,
+            suggestionFingerprint:
+              "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+          },
+          fetcher
+        )
+      ).resolves.toEqual({ kind: "bad_request" });
+
+      expect(fetcher.mock.calls[0]?.[0]).toBe(
+        "/api/closing-folders/folder%20id%2Fwith%20spaces/mappings/suggestions/1000%2FCHF/decision"
+      );
+    });
+
+    it("sends the ACCEPT payload with latestImportVersion, suggestionFingerprint and targetCode", async () => {
+      const fetcher = vi.fn().mockResolvedValue(jsonResponse(200, SUCCESS_RESULT));
+
+      await recordMappingSuggestionDecision(
+        CLOSING_FOLDER_ID,
+        "1000",
+        ACTIVE_TENANT,
+        IDEMPOTENCY_KEY,
+        {
+          decision: "ACCEPT",
+          latestImportVersion: 3,
+          suggestionFingerprint:
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+          targetCode: "BS.ASSET.CASH_AND_EQUIVALENTS",
+          reviewComment: "  reviewed with evidence  "
+        },
+        fetcher
+      );
+
+      const init = fetcher.mock.calls[0]?.[1] as RequestInit;
+      expect(JSON.parse(String(init.body))).toEqual({
+        decision: "ACCEPT",
+        latestImportVersion: 3,
+        suggestionFingerprint:
+          "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        targetCode: "BS.ASSET.CASH_AND_EQUIVALENTS",
+        reviewComment: "reviewed with evidence"
+      });
+    });
+
+    it("sends the CORRECT payload with the human-selected targetCode", async () => {
+      const fetcher = vi.fn().mockResolvedValue(
+        jsonResponse(200, {
+          decision: "CORRECT",
+          accountCode: "1000",
+          resultKind: "MANUAL_MAPPING_UPDATED",
+          appliedMapping: {
+            accountCode: "1000",
+            targetCode: "BS.ASSET.TRADE_RECEIVABLES"
+          }
+        })
+      );
+
+      await recordMappingSuggestionDecision(
+        CLOSING_FOLDER_ID,
+        "1000",
+        ACTIVE_TENANT,
+        IDEMPOTENCY_KEY,
+        {
+          decision: "CORRECT",
+          latestImportVersion: 3,
+          suggestionFingerprint:
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+          targetCode: "BS.ASSET.TRADE_RECEIVABLES"
+        },
+        fetcher
+      );
+
+      const init = fetcher.mock.calls[0]?.[1] as RequestInit;
+      expect(JSON.parse(String(init.body))).toEqual({
+        decision: "CORRECT",
+        latestImportVersion: 3,
+        suggestionFingerprint:
+          "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        targetCode: "BS.ASSET.TRADE_RECEIVABLES"
+      });
+    });
+
+    it("sends the REJECT payload without targetCode", async () => {
+      const fetcher = vi.fn().mockResolvedValue(
+        jsonResponse(200, {
+          decision: "REJECT",
+          accountCode: "1000",
+          resultKind: "REJECT_RECORDED",
+          appliedMapping: null
+        })
+      );
+
+      await recordMappingSuggestionDecision(
+        CLOSING_FOLDER_ID,
+        "1000",
+        ACTIVE_TENANT,
+        IDEMPOTENCY_KEY,
+        {
+          decision: "REJECT",
+          latestImportVersion: 3,
+          suggestionFingerprint:
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+          reviewComment: "   "
+        },
+        fetcher
+      );
+
+      const init = fetcher.mock.calls[0]?.[1] as RequestInit;
+      expect(JSON.parse(String(init.body))).toEqual({
+        decision: "REJECT",
+        latestImportVersion: 3,
+        suggestionFingerprint:
+          "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      });
+      expect(String(init.body)).not.toContain("targetCode");
+    });
+
+    it("rejects overlong reviewComment before sending the request", async () => {
+      const fetcher = vi.fn();
+
+      await expect(
+        recordMappingSuggestionDecision(
+          CLOSING_FOLDER_ID,
+          "1000",
+          ACTIVE_TENANT,
+          IDEMPOTENCY_KEY,
+          {
+            decision: "REJECT",
+            latestImportVersion: 3,
+            suggestionFingerprint:
+              "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            reviewComment: "x".repeat(601)
+          },
+          fetcher
+        )
+      ).resolves.toEqual({ kind: "bad_request" });
+
+      expect(fetcher).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      { status: 400, expected: { kind: "bad_request" } },
+      { status: 401, expected: { kind: "auth_required" } },
+      { status: 403, expected: { kind: "forbidden" } },
+      { status: 404, expected: { kind: "not_found" } },
+      { status: 500, expected: { kind: "server_error" } },
+      { status: 418, expected: { kind: "unexpected" } }
+    ])("maps decision HTTP $status", async ({ status, expected }) => {
+      const fetcher = vi.fn().mockResolvedValue(jsonResponse(status, {}));
+
+      await expect(
+        recordMappingSuggestionDecision(
+          CLOSING_FOLDER_ID,
+          "1000",
+          ACTIVE_TENANT,
+          IDEMPOTENCY_KEY,
+          {
+            decision: "REJECT",
+            latestImportVersion: 3,
+            suggestionFingerprint:
+              "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+          },
+          fetcher
+        )
+      ).resolves.toEqual(expected);
+    });
+
+    it("maps 409 conflict and preserves a valid conflict payload", async () => {
+      const conflictResult = {
+        decision: "ACCEPT",
+        accountCode: "1000",
+        resultKind: "CONFLICT_FINGERPRINT_MISMATCH",
+        appliedMapping: null
+      };
+      const fetcher = vi.fn().mockResolvedValue(jsonResponse(409, conflictResult));
+
+      await expect(
+        recordMappingSuggestionDecision(
+          CLOSING_FOLDER_ID,
+          "1000",
+          ACTIVE_TENANT,
+          IDEMPOTENCY_KEY,
+          {
+            decision: "ACCEPT",
+            latestImportVersion: 3,
+            suggestionFingerprint:
+              "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            targetCode: "BS.ASSET.CASH_AND_EQUIVALENTS"
+          },
+          fetcher
+        )
+      ).resolves.toEqual({
+        kind: "conflict",
+        result: conflictResult
+      });
+    });
+
+    it("maps timeout and network failures for decisions", async () => {
+      const timeoutFetcher = vi.fn().mockRejectedValue(new Error("timeout"));
+      const networkFetcher = vi.fn().mockRejectedValue(new Error("network"));
+      const request = {
+        decision: "REJECT" as const,
+        latestImportVersion: 3,
+        suggestionFingerprint:
+          "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      };
+
+      await expect(
+        recordMappingSuggestionDecision(
+          CLOSING_FOLDER_ID,
+          "1000",
+          ACTIVE_TENANT,
+          IDEMPOTENCY_KEY,
+          request,
+          timeoutFetcher
+        )
+      ).resolves.toEqual({ kind: "timeout" });
+      await expect(
+        recordMappingSuggestionDecision(
+          CLOSING_FOLDER_ID,
+          "1000",
+          ACTIVE_TENANT,
+          IDEMPOTENCY_KEY,
+          request,
+          networkFetcher
+        )
+      ).resolves.toEqual({ kind: "network_error" });
+    });
+
+    it.each([
+      {
+        label: "unknown result field",
+        payload: () => ({
+          ...SUCCESS_RESULT,
+          unexpected: "value"
+        })
+      },
+      {
+        label: "account mismatch",
+        payload: () => ({
+          ...SUCCESS_RESULT,
+          accountCode: "2000"
+        })
+      },
+      {
+        label: "decision mismatch",
+        payload: () => ({
+          ...SUCCESS_RESULT,
+          decision: "REJECT"
+        })
+      },
+      {
+        label: "applied mapping account mismatch",
+        payload: () => ({
+          ...SUCCESS_RESULT,
+          appliedMapping: {
+            accountCode: "2000",
+            targetCode: "BS.ASSET.CASH_AND_EQUIVALENTS"
+          }
+        })
+      }
+    ])("returns invalid_payload for decision $label", async ({ payload }) => {
+      const fetcher = vi.fn().mockResolvedValue(jsonResponse(200, payload()));
+
+      await expect(
+        recordMappingSuggestionDecision(
+          CLOSING_FOLDER_ID,
+          "1000",
+          ACTIVE_TENANT,
+          IDEMPOTENCY_KEY,
+          {
+            decision: "ACCEPT",
+            latestImportVersion: 3,
+            suggestionFingerprint:
+              "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            targetCode: "BS.ASSET.CASH_AND_EQUIVALENTS"
+          },
+          fetcher
+        )
+      ).resolves.toEqual({ kind: "invalid_payload" });
+    });
   });
 });

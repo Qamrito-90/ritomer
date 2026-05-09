@@ -964,6 +964,18 @@ function ClosingFolderRoute() {
                 activeTenant={state.activeTenant}
                 closingFolderId={state.closingFolder.id}
                 key={`ai-mapping-suggestion-${state.activeTenant.tenantId}-${state.closingFolder.id}`}
+                selectableTargets={
+                  state.manualMappingState.kind === "ready"
+                    ? state.manualMappingState.projection.targets
+                    : []
+                }
+                onManualMappingMutationConfirmed={() =>
+                  refreshManualMappingAndControls(
+                    state.activeTenant,
+                    state.closingFolder,
+                    "put_success"
+                  )
+                }
               />
             </div>
           </section>
