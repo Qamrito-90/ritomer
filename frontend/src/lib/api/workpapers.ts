@@ -31,109 +31,216 @@ const uploadedDocumentMediaTypeSchema = z.enum(uploadedDocumentMediaTypes);
 const documentVerificationStatusSchema = z.enum(["UNVERIFIED", "VERIFIED", "REJECTED"]);
 const documentVerificationDecisionSchema = z.enum(["VERIFIED", "REJECTED"]);
 
-const summaryCountsSchema = z.object({
-  totalCurrentAnchors: z.number().int().nonnegative(),
-  withWorkpaperCount: z.number().int().nonnegative(),
-  readyForReviewCount: z.number().int().nonnegative(),
-  reviewedCount: z.number().int().nonnegative(),
-  staleCount: z.number().int().nonnegative(),
-  missingCount: z.number().int().nonnegative()
-});
+const uuidSchema = z.string().uuid();
+const isoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const isoDateTimeSchema = z
+  .string()
+  .min(1)
+  .refine((value) => !Number.isNaN(Date.parse(value)));
+const checksumSha256Schema = z.string().regex(/^[0-9a-f]{64}$/);
 
-const workpaperDocumentSchema = z.object({
+const forbiddenWorkpapersPayloadKeys = new Set([
+  ".env",
+  "credential",
+  "dsn",
+  "gcspath",
+  "gcs_path",
+  "objectkey",
+  "object_key",
+  "objectpath",
+  "object_path",
+  "privatepath",
+  "private_path",
+  "secret",
+  "signedurl",
+  "signed_url",
+  "sourcefingerprint",
+  "source_fingerprint",
+  "storagebackend",
+  "storage_backend",
+  "storageobjectkey",
+  "storage_object_key",
+  "storagepath",
+  "storage_path",
+  "token",
+  "x-amz-credential",
+  "x-amz-signature",
+  "x-goog-credential",
+  "x-goog-signature"
+]);
+
+const summaryCountsSchema = z
+  .object({
+    totalCurrentAnchors: z.number().int().nonnegative(),
+    withWorkpaperCount: z.number().int().nonnegative(),
+    readyForReviewCount: z.number().int().nonnegative(),
+    reviewedCount: z.number().int().nonnegative(),
+    staleCount: z.number().int().nonnegative(),
+    missingCount: z.number().int().nonnegative()
+  })
+  .strict();
+
+const workpaperBlockerSchema = z
+  .object({
+    code: z.string(),
+    message: z.string()
+  })
+  .strict();
+
+const workpaperNextActionSchema = z
+  .object({
+    code: z.string(),
+    path: z.string(),
+    actionable: z.boolean()
+  })
+  .strict();
+
+const documentSummaryMetadataSchema = {
   id: z.unknown().optional(),
   fileName: z.string(),
   mediaType: z.string(),
+  byteSize: z.number().int().positive().max(25 * 1024 * 1024).optional(),
+  checksumSha256: checksumSha256Schema.optional(),
   sourceLabel: z.string(),
+  documentDate: isoDateSchema.nullable().optional(),
+  createdAt: isoDateTimeSchema.optional(),
+  createdByUserId: uuidSchema.optional(),
   verificationStatus: documentVerificationStatusSchema,
-  reviewComment: z.string().nullable()
-});
+  reviewComment: z.string().nullable(),
+  reviewedAt: isoDateTimeSchema.nullable().optional(),
+  reviewedByUserId: uuidSchema.nullable().optional()
+};
 
-const documentVerificationSummarySchema = z.object({
-  documentsCount: z.number().int().nonnegative(),
-  unverifiedCount: z.number().int().nonnegative(),
-  verifiedCount: z.number().int().nonnegative(),
-  rejectedCount: z.number().int().nonnegative()
-});
+const workpaperDocumentSchema = z.object(documentSummaryMetadataSchema).strict();
 
-const workpaperEvidenceSchema = z.object({
-  position: z.number().int().positive(),
-  fileName: z.string(),
-  mediaType: z.string(),
-  documentDate: z.string().nullable(),
-  sourceLabel: z.string(),
-  verificationStatus: documentVerificationStatusSchema,
-  externalReference: z.string().nullable(),
-  checksumSha256: z.string().nullable()
-});
+const documentVerificationSummarySchema = z
+  .object({
+    documentsCount: z.number().int().nonnegative(),
+    unverifiedCount: z.number().int().nonnegative(),
+    verifiedCount: z.number().int().nonnegative(),
+    rejectedCount: z.number().int().nonnegative()
+  })
+  .strict();
 
-const workpaperDetailsSchema = z.object({
-  status: workpaperStatusSchema,
-  noteText: z.string(),
-  reviewComment: z.string().nullable().optional(),
-  evidences: z.array(workpaperEvidenceSchema)
-});
+const workpaperEvidenceSchema = z
+  .object({
+    id: uuidSchema.optional(),
+    position: z.number().int().positive(),
+    fileName: z.string(),
+    mediaType: z.string(),
+    documentDate: isoDateSchema.nullable(),
+    sourceLabel: z.string(),
+    verificationStatus: documentVerificationStatusSchema,
+    externalReference: z.string().nullable(),
+    checksumSha256: z.string().nullable()
+  })
+  .strict();
 
-const workpaperItemSchema = z.object({
-  anchorCode: z.string(),
-  anchorLabel: z.string(),
-  statementKind: z.enum(["BALANCE_SHEET", "INCOME_STATEMENT"]),
-  breakdownType: z.enum(["SECTION", "LEGACY_BUCKET_FALLBACK"]),
-  isCurrentStructure: z.boolean(),
-  workpaper: workpaperDetailsSchema.nullable(),
-  documents: z.array(workpaperDocumentSchema),
-  documentVerificationSummary: documentVerificationSummarySchema.nullable()
-});
-
-const closingWorkpapersSchema = z.object({
-  closingFolderId: z.string().uuid(),
-  closingFolderStatus: closingFolderStatusSchema,
-  readiness: workpaperReadinessSchema,
-  summaryCounts: summaryCountsSchema,
-  items: z.array(workpaperItemSchema),
-  staleWorkpapers: z.array(workpaperItemSchema)
-});
-
-const workpaperMutationSuccessSchema = z.object({
-  anchorCode: z.string(),
-  isCurrentStructure: z.boolean(),
-  workpaper: z.object({
-    status: makerWorkpaperStatusSchema,
+const workpaperDetailsSchema = z
+  .object({
+    id: uuidSchema.optional(),
+    status: workpaperStatusSchema,
     noteText: z.string(),
+    reviewComment: z.string().nullable().optional(),
+    basisImportVersion: z.number().int().positive().optional(),
+    basisTaxonomyVersion: z.number().int().positive().optional(),
+    createdAt: isoDateTimeSchema.optional(),
+    createdByUserId: uuidSchema.optional(),
+    updatedAt: isoDateTimeSchema.optional(),
+    updatedByUserId: uuidSchema.optional(),
+    reviewedAt: isoDateTimeSchema.nullable().optional(),
+    reviewedByUserId: uuidSchema.nullable().optional(),
     evidences: z.array(workpaperEvidenceSchema)
   })
-});
+  .strict();
 
-const documentUploadSuccessSchema = z.object({
-  id: z.string().uuid(),
-  fileName: z.string().min(1),
-  mediaType: uploadedDocumentMediaTypeSchema,
-  byteSize: z.number().int().positive().max(25 * 1024 * 1024),
-  checksumSha256: z.string().regex(/^[0-9a-f]{64}$/),
-  sourceLabel: z.string(),
-  documentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
-  createdAt: z.string().min(1),
-  createdByUserId: z.string().uuid(),
-  verificationStatus: z.literal("UNVERIFIED"),
-  reviewComment: z.null(),
-  reviewedAt: z.null(),
-  reviewedByUserId: z.null()
-});
-
-const documentVerificationDecisionSuccessSchema = z.object({
-  id: z.string().uuid(),
-  verificationStatus: documentVerificationDecisionSchema,
-  reviewComment: z.string().nullable()
-});
-
-const workpaperReviewDecisionSuccessSchema = z.object({
-  anchorCode: z.string(),
-  isCurrentStructure: z.boolean(),
-  workpaper: z.object({
-    status: workpaperStatusSchema,
-    reviewComment: z.string().nullable()
+const workpaperItemSchema = z
+  .object({
+    anchorCode: z.string(),
+    anchorLabel: z.string(),
+    summaryBucketCode: z.string().optional(),
+    statementKind: z.enum(["BALANCE_SHEET", "INCOME_STATEMENT"]),
+    breakdownType: z.enum(["SECTION", "LEGACY_BUCKET_FALLBACK"]),
+    isCurrentStructure: z.boolean(),
+    workpaper: workpaperDetailsSchema.nullable(),
+    documents: z.array(workpaperDocumentSchema),
+    documentVerificationSummary: documentVerificationSummarySchema.nullable()
   })
-});
+  .strict();
+
+const closingWorkpapersSchema = z
+  .object({
+    closingFolderId: uuidSchema,
+    closingFolderStatus: closingFolderStatusSchema,
+    readiness: workpaperReadinessSchema,
+    latestImportVersion: z.number().int().positive().nullable().optional(),
+    blockers: z.array(workpaperBlockerSchema).optional(),
+    nextAction: workpaperNextActionSchema.nullable().optional(),
+    summaryCounts: summaryCountsSchema,
+    items: z.array(workpaperItemSchema),
+    staleWorkpapers: z.array(workpaperItemSchema)
+  })
+  .strict();
+
+const workpaperMutationSuccessSchema = z
+  .object({
+    anchorCode: z.string(),
+    anchorLabel: z.string().optional(),
+    summaryBucketCode: z.string().optional(),
+    statementKind: z.enum(["BALANCE_SHEET", "INCOME_STATEMENT"]).optional(),
+    breakdownType: z.enum(["SECTION", "LEGACY_BUCKET_FALLBACK"]).optional(),
+    isCurrentStructure: z.boolean(),
+    workpaper: workpaperDetailsSchema.extend({
+      status: makerWorkpaperStatusSchema
+    }),
+    documents: z.array(workpaperDocumentSchema).optional(),
+    documentVerificationSummary: documentVerificationSummarySchema.nullable().optional()
+  })
+  .strict();
+
+const documentUploadSuccessSchema = z
+  .object({
+    id: uuidSchema,
+    fileName: z.string().min(1),
+    mediaType: uploadedDocumentMediaTypeSchema,
+    byteSize: z.number().int().positive().max(25 * 1024 * 1024),
+    checksumSha256: checksumSha256Schema,
+    sourceLabel: z.string(),
+    documentDate: isoDateSchema.nullable(),
+    createdAt: isoDateTimeSchema,
+    createdByUserId: uuidSchema,
+    verificationStatus: z.literal("UNVERIFIED"),
+    reviewComment: z.null(),
+    reviewedAt: z.null(),
+    reviewedByUserId: z.null()
+  })
+  .strict();
+
+const documentVerificationDecisionSuccessSchema = z
+  .object({
+    ...documentSummaryMetadataSchema,
+    id: uuidSchema,
+    mediaType: uploadedDocumentMediaTypeSchema.optional(),
+    verificationStatus: documentVerificationDecisionSchema
+  })
+  .strict();
+
+const workpaperReviewDecisionSuccessSchema = z
+  .object({
+    anchorCode: z.string(),
+    anchorLabel: z.string().optional(),
+    summaryBucketCode: z.string().optional(),
+    statementKind: z.enum(["BALANCE_SHEET", "INCOME_STATEMENT"]).optional(),
+    breakdownType: z.enum(["SECTION", "LEGACY_BUCKET_FALLBACK"]).optional(),
+    isCurrentStructure: z.boolean(),
+    workpaper: workpaperDetailsSchema.extend({
+      status: workpaperStatusSchema,
+      reviewComment: z.string().nullable()
+    }),
+    documents: z.array(workpaperDocumentSchema).optional(),
+    documentVerificationSummary: documentVerificationSummarySchema.nullable().optional()
+  })
+  .strict();
 
 export const DOCUMENT_UPLOAD_ALLOWED_MEDIA_TYPES = uploadedDocumentMediaTypes;
 export const DOCUMENT_UPLOAD_MAX_BYTES = 25 * 1024 * 1024;
@@ -327,7 +434,7 @@ export async function loadWorkpapersShellState(
 
     const payload = await readJsonBody(response);
 
-    if (payload === undefined) {
+    if (payload === undefined || containsForbiddenWorkpapersPayloadLeak(payload)) {
       return { kind: "invalid_payload" };
     }
 
@@ -377,7 +484,7 @@ export async function upsertWorkpaper(
     if (response.status === 200 || response.status === 201) {
       const payload = await readJsonBody(response);
 
-      if (payload === undefined) {
+      if (payload === undefined || containsForbiddenWorkpapersPayloadLeak(payload)) {
         return { kind: "invalid_payload" };
       }
 
@@ -456,7 +563,7 @@ export async function uploadWorkpaperDocument(
     if (response.status === 201) {
       const payload = await readJsonBody(response);
 
-      if (payload === undefined) {
+      if (payload === undefined || containsForbiddenWorkpapersPayloadLeak(payload)) {
         return { kind: "invalid_payload" };
       }
 
@@ -609,7 +716,7 @@ export async function reviewDocumentVerificationDecision(
     if (response.status === 200) {
       const payload = await readJsonBody(response);
 
-      if (payload === undefined) {
+      if (payload === undefined || containsForbiddenWorkpapersPayloadLeak(payload)) {
         return { kind: "invalid_payload" };
       }
 
@@ -698,7 +805,7 @@ export async function reviewWorkpaperDecision(
     if (response.status === 200) {
       const payload = await readJsonBody(response);
 
-      if (payload === undefined) {
+      if (payload === undefined || containsForbiddenWorkpapersPayloadLeak(payload)) {
         return { kind: "invalid_payload" };
       }
 
@@ -932,6 +1039,45 @@ function isDocumentVerificationSummaryCoherent(
     summary.unverifiedCount === unverifiedCount &&
     summary.verifiedCount === verifiedCount &&
     summary.rejectedCount === rejectedCount
+  );
+}
+
+function containsForbiddenWorkpapersPayloadLeak(value: unknown): boolean {
+  if (typeof value === "string") {
+    return isLikelyPrivateWorkpapersReference(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.some((item) => containsForbiddenWorkpapersPayloadLeak(item));
+  }
+
+  if (value !== null && typeof value === "object") {
+    return Object.entries(value).some(([key, nestedValue]) => {
+      if (isForbiddenWorkpapersPayloadKey(key)) {
+        return true;
+      }
+
+      return containsForbiddenWorkpapersPayloadLeak(nestedValue);
+    });
+  }
+
+  return false;
+}
+
+function isForbiddenWorkpapersPayloadKey(key: string) {
+  return forbiddenWorkpapersPayloadKeys.has(key.trim().toLowerCase());
+}
+
+function isLikelyPrivateWorkpapersReference(value: string) {
+  const lower = value.trim().toLowerCase();
+
+  return (
+    lower.includes("gs://") ||
+    lower.includes("s3://") ||
+    lower.includes("storage.googleapis.com") ||
+    lower.includes("x-goog-signature") ||
+    lower.includes(".env") ||
+    /(^|[^a-z0-9])(secret|token|credential|dsn)([^a-z0-9]|$)/i.test(value)
   );
 }
 
