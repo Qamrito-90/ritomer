@@ -41,6 +41,9 @@ const VALID_WORKPAPERS: ClosingWorkpapersReadModel = {
   closingFolderId: CLOSING_FOLDER.id,
   closingFolderStatus: "DRAFT",
   readiness: "READY",
+  latestImportVersion: 2,
+  blockers: [],
+  nextAction: null,
   summaryCounts: {
     totalCurrentAnchors: 2,
     withWorkpaperCount: 1,
@@ -140,6 +143,14 @@ function jsonResponse(status: number, payload: unknown) {
 
 function cloneValue<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+async function expectInvalidWorkpapersPayload(payload: unknown) {
+  const fetcher = vi.fn().mockResolvedValue(jsonResponse(200, payload));
+
+  await expect(
+    loadWorkpapersShellState(CLOSING_FOLDER.id, CLOSING_FOLDER, ACTIVE_TENANT, fetcher)
+  ).resolves.toEqual({ kind: "invalid_payload" });
 }
 
 function createUploadFile(
@@ -244,16 +255,21 @@ function createWorkpaperReviewDecisionSuccessPayload({
 }
 
 describe("workpapers api", () => {
-  it("loads the exact /workpapers path with X-Tenant-Id, returns ready, and ignores malformed non-consumed fields", async () => {
+  it("loads the exact /workpapers path with X-Tenant-Id and accepts the current legitimate payload", async () => {
     const fetcher = vi.fn().mockResolvedValue(
       jsonResponse(200, {
         ...VALID_WORKPAPERS,
         nextAction: {
-          code: 42,
-          path: { unexpected: true },
-          actionable: "nope"
+          code: "OPEN_CONTROLS",
+          path: "/api/closing-folders/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/controls",
+          actionable: false
         },
-        blockers: "ignored"
+        blockers: [
+          {
+            code: "CONTROLS_BLOCKED",
+            message: "Controls are not READY."
+          }
+        ]
       })
     );
 
@@ -558,6 +574,52 @@ describe("workpapers api", () => {
     ).resolves.toEqual({ kind: "invalid_payload" });
   });
 
+  it("returns invalid_payload on unknown fields inside sensitive workpaper objects", async () => {
+    const payload = cloneValue(VALID_WORKPAPERS);
+    (payload.items[0].documents[0] as Record<string, unknown>).unexpectedStorageMetadata =
+      "not part of the document read-model";
+
+    await expectInvalidWorkpapersPayload(payload);
+  });
+
+  it.each(["storageObjectKey", "storage_object_key"])(
+    "returns invalid_payload on GET /workpapers payload containing %s",
+    async (key) => {
+      const payload = cloneValue(VALID_WORKPAPERS) as Record<string, unknown>;
+      payload[key] = "private/object.pdf";
+
+      await expectInvalidWorkpapersPayload(payload);
+    }
+  );
+
+  it.each(["signedUrl", "signed_url"])(
+    "returns invalid_payload on GET /workpapers payload containing nested %s",
+    async (key) => {
+      const payload = cloneValue(VALID_WORKPAPERS);
+      (payload.items[0].documents[0] as Record<string, unknown>)[key] =
+        "https://storage.googleapis.com/private/object.pdf";
+
+      await expectInvalidWorkpapersPayload(payload);
+    }
+  );
+
+  it.each([
+    "gs://bucket/private-object.pdf",
+    "s3://bucket/private-object.pdf",
+    "https://storage.googleapis.com/bucket/private-object.pdf",
+    "https://storage.googleapis.com/bucket/private-object.pdf?X-Goog-Signature=test",
+    "contains secret marker",
+    "contains token marker",
+    "contains credential marker",
+    "contains DSN marker",
+    "contains .env marker"
+  ])("returns invalid_payload on GET /workpapers nested private value %s", async (value) => {
+    const payload = cloneValue(VALID_WORKPAPERS);
+    payload.items[0].documents[0].sourceLabel = value;
+
+    await expectInvalidWorkpapersPayload(payload);
+  });
+
   it("calls the exact PUT path with the exact headers and body and never sends evidences.id", async () => {
     const request = {
       anchorCode: "BS.ASSET.CURRENT_SECTION",
@@ -584,7 +646,7 @@ describe("workpapers api", () => {
           status: request.status,
           noteText: request.noteText,
           evidences: request.evidences,
-          id: "ignored-by-frontend"
+          id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
         }
       })
     );
@@ -1175,6 +1237,32 @@ describe("workpapers api", () => {
     ).resolves.toEqual({ kind: "invalid_payload" });
   });
 
+  it.each(["signedUrl", "signed_url", "storageObjectKey", "storage_object_key"])(
+    "returns invalid_payload when POST /verification-decision success contains %s",
+    async (key) => {
+      const documentId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1";
+      const payload = createDocumentVerificationSuccessPayload({
+        documentId,
+        decision: "VERIFIED",
+        reviewComment: null
+      }) as Record<string, unknown>;
+      payload[key] = "https://storage.googleapis.com/private/document.pdf";
+      const fetcher = vi.fn().mockResolvedValue(jsonResponse(200, payload));
+
+      await expect(
+        reviewDocumentVerificationDecision(
+          CLOSING_FOLDER.id,
+          ACTIVE_TENANT,
+          {
+            documentId,
+            decision: "VERIFIED"
+          },
+          fetcher
+        )
+      ).resolves.toEqual({ kind: "invalid_payload" });
+    }
+  );
+
   it("calls the exact POST /workpapers/{anchorCode}/review-decision path with the REVIEWED body and JSON headers", async () => {
     const request = {
       anchorCode: "BS.ASSET/CURRENT SECTION",
@@ -1524,4 +1612,24 @@ describe("workpapers api", () => {
       uploadWorkpaperDocument(CLOSING_FOLDER.id, ACTIVE_TENANT, request, fetcher)
     ).resolves.toEqual({ kind: "invalid_payload" });
   });
+
+  it.each(["objectKey", "object_path", "privatePath", "signedUrl", "storageObjectKey"])(
+    "returns invalid_payload when POST /documents success contains %s",
+    async (key) => {
+      const request = {
+        anchorCode: "BS.ASSET.CURRENT_SECTION",
+        file: createUploadFile(),
+        sourceLabel: "ERP",
+        documentDate: "2026-02-15"
+      };
+      const payload = createDocumentUploadSuccessPayload(request, {
+        [key]: "gs://private-bucket/document.pdf"
+      });
+      const fetcher = vi.fn().mockResolvedValue(jsonResponse(201, payload));
+
+      await expect(
+        uploadWorkpaperDocument(CLOSING_FOLDER.id, ACTIVE_TENANT, request, fetcher)
+      ).resolves.toEqual({ kind: "invalid_payload" });
+    }
+  );
 });
