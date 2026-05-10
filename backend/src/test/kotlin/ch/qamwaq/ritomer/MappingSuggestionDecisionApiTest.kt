@@ -152,6 +152,7 @@ class MappingSuggestionDecisionApiTest {
     postDecision(closingFolder.id, rejectPayload(), "reviewer-key")
       .andExpect { status { isForbidden() } }
 
+    assertThat(auditTestStore.auditEvents()).isEmpty()
     assertThat(decisionRequestTestStore.records()).isEmpty()
   }
 
@@ -294,6 +295,36 @@ class MappingSuggestionDecisionApiTest {
     assertThat(manualMappingTestStore.mappings(TENANT_ID, closingFolder.id)).isEmpty()
     assertThat(auditTestStore.auditEvents()).isEmpty()
     assertThat(decisionRequestTestStore.records().single().reviewComment).isEqualTo("Human rejection kept")
+  }
+
+  @Test
+  fun `reject decision same key and same canonical payload replays without mapping audit or duplicate request`() {
+    val closingFolder = seedReadyFolder()
+    val payload = rejectPayload()
+
+    postDecision(closingFolder.id, payload, "reject-replay")
+      .andExpect {
+        status { isOk() }
+        jsonPath("$.decision") { value("REJECT") }
+        jsonPath("$.accountCode") { value("1000") }
+        jsonPath("$.resultKind") { value("REJECT_RECORDED") }
+        jsonPath("$.appliedMapping") { value(nullValue()) }
+      }
+
+    postDecision(closingFolder.id, payload, "reject-replay")
+      .andExpect {
+        status { isOk() }
+        jsonPath("$.decision") { value("REJECT") }
+        jsonPath("$.accountCode") { value("1000") }
+        jsonPath("$.resultKind") { value("REJECT_RECORDED") }
+        jsonPath("$.appliedMapping") { value(nullValue()) }
+      }
+
+    assertThat(auditTestStore.auditEvents()).isEmpty()
+    assertThat(manualMappingTestStore.mappings(TENANT_ID, closingFolder.id)).isEmpty()
+    assertThat(decisionRequestTestStore.records()).hasSize(1)
+    assertThat(decisionRequestTestStore.records().single().resultKind)
+      .isEqualTo(MappingSuggestionDecisionResultKind.REJECT_RECORDED)
   }
 
   @Test

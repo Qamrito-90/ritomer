@@ -8,13 +8,16 @@ import ch.qamwaq.ritomer.ManualMappingTestStore
 import ch.qamwaq.ritomer.BalanceImportTestStore
 import ch.qamwaq.ritomer.WorkpaperTestStore
 import ch.qamwaq.ritomer.DocumentTestStore
+import ch.qamwaq.ritomer.ExportPackTestStore
 import ch.qamwaq.ritomer.closing.application.ClosingFolderRepository
 import ch.qamwaq.ritomer.closing.domain.ClosingFolder
 import ch.qamwaq.ritomer.closing.domain.ClosingFolderStatus
+import ch.qamwaq.ritomer.exports.application.EXPORT_PACK_CREATED_ACTION
 import ch.qamwaq.ritomer.imports.application.BalanceImportRepository
 import ch.qamwaq.ritomer.imports.domain.BalanceImport
 import ch.qamwaq.ritomer.imports.domain.BalanceImportLine
 import ch.qamwaq.ritomer.identity.access.TenantAccessContext
+import ch.qamwaq.ritomer.identity.domain.TenantRole
 import ch.qamwaq.ritomer.mapping.application.ManualMappingRepository
 import ch.qamwaq.ritomer.mapping.domain.ManualMapping
 import ch.qamwaq.ritomer.workpapers.application.DocumentService
@@ -39,6 +42,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Import
+import org.springframework.http.HttpHeaders
 import org.springframework.mock.web.MockMultipartFile
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt
 import org.springframework.test.context.ActiveProfiles
@@ -76,6 +80,9 @@ class ExportPacksApiTest {
   private lateinit var documentTestStore: DocumentTestStore
 
   @Autowired
+  private lateinit var exportPackTestStore: ExportPackTestStore
+
+  @Autowired
   private lateinit var closingFolderRepository: ClosingFolderRepository
 
   @Autowired
@@ -91,6 +98,7 @@ class ExportPacksApiTest {
   private lateinit var documentService: DocumentService
 
   private val tenantId = UUID.fromString("11111111-1111-1111-1111-111111111111")
+  private val tenantBetaId = UUID.fromString("22222222-2222-2222-2222-222222222222")
   private val userId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
   private val closingFolderId = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
   private val workpaperId = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc")
@@ -104,6 +112,7 @@ class ExportPacksApiTest {
     manualMappingTestStore.reset()
     workpaperTestStore.reset()
     documentTestStore.reset()
+    exportPackTestStore.reset()
     deleteDirectoryIfExists(Path.of("build", "test-documents"))
   }
 
@@ -133,6 +142,7 @@ class ExportPacksApiTest {
     }.andExpect {
       status { isForbidden() }
     }
+    assertThat(auditTestStore.auditEvents().none { it.command.action == EXPORT_PACK_CREATED_ACTION }).isTrue()
 
     val created = mockMvc.post("/api/closing-folders/$closingFolderId/export-packs") {
       header("X-Tenant-Id", tenantId.toString())
@@ -159,6 +169,87 @@ class ExportPacksApiTest {
         header("X-Tenant-Id", tenantId.toString())
         with(actorJwt(subject))
       }.andExpect { status { isOk() } }
+    }
+  }
+
+  @Test
+  fun `cross tenant export endpoints return 404 stay silent and do not expose business or storage payloads`() {
+    seedReadyClosing()
+    identityTestStore.seedActiveMembership("export-user", tenantBetaId, "tenant-beta", "Tenant Beta", TenantRole.ACCOUNTANT)
+    val createdNode = createExportPack("cross-tenant-source")
+    val exportPackId = createdNode.get("exportPackId").asText()
+    val checksum = createdNode.get("checksumSha256").asText()
+    val auditBefore = auditTestStore.auditEvents().size
+    val exportCreatedBefore = auditTestStore.auditEvents().count { it.command.action == EXPORT_PACK_CREATED_ACTION }
+
+    val createResult = mockMvc.post("/api/closing-folders/$closingFolderId/export-packs") {
+      header("X-Tenant-Id", tenantBetaId.toString())
+      header("Idempotency-Key", "cross-tenant-create")
+      with(actorJwt("export-user"))
+    }.andExpect {
+      status { isNotFound() }
+    }.andReturn()
+
+    assertNoStorageLeak(createResult.response.contentAsString)
+    assertThat(createResult.response.contentAsString).doesNotContain("fileName", "checksumSha256", "byteSize")
+
+    val listResult = mockMvc.get("/api/closing-folders/$closingFolderId/export-packs") {
+      header("X-Tenant-Id", tenantBetaId.toString())
+      with(actorJwt("export-user"))
+    }.andExpect {
+      status { isNotFound() }
+    }.andReturn()
+
+    assertNoStorageLeak(listResult.response.contentAsString)
+    assertThat(listResult.response.contentAsString).doesNotContain("items", exportPackId, checksum)
+
+    val detailResult = mockMvc.get("/api/closing-folders/$closingFolderId/export-packs/$exportPackId") {
+      header("X-Tenant-Id", tenantBetaId.toString())
+      with(actorJwt("export-user"))
+    }.andExpect {
+      status { isNotFound() }
+    }.andReturn()
+
+    assertNoStorageLeak(detailResult.response.contentAsString)
+    assertThat(detailResult.response.contentAsString).doesNotContain(exportPackId, checksum)
+
+    val contentResult = mockMvc.get("/api/closing-folders/$closingFolderId/export-packs/$exportPackId/content") {
+      header("X-Tenant-Id", tenantBetaId.toString())
+      with(actorJwt("export-user"))
+    }.andExpect {
+      status { isNotFound() }
+    }.andReturn()
+
+    assertNoStorageHeaders(contentResult.response)
+    assertNoStorageLeak(contentResult.response.contentAsString)
+    assertThat(contentResult.response.contentType).isNotEqualTo("application/zip")
+    assertThat(contentResult.response.contentAsString).doesNotContain(exportPackId, checksum)
+    assertThat(auditTestStore.auditEvents()).hasSize(auditBefore)
+    assertThat(auditTestStore.auditEvents().count { it.command.action == EXPORT_PACK_CREATED_ACTION })
+      .isEqualTo(exportCreatedBefore)
+  }
+
+  @Test
+  fun `forbidden export creation stays silent and creates no pack`() {
+    seedReadyClosing()
+    val auditBefore = auditTestStore.auditEvents().size
+
+    mockMvc.post("/api/closing-folders/$closingFolderId/export-packs") {
+      header("X-Tenant-Id", tenantId.toString())
+      header("Idempotency-Key", "forbidden-create")
+      with(actorJwt("reviewer-user"))
+    }.andExpect {
+      status { isForbidden() }
+    }
+
+    assertThat(auditTestStore.auditEvents()).hasSize(auditBefore)
+    assertThat(auditTestStore.auditEvents().none { it.command.action == EXPORT_PACK_CREATED_ACTION }).isTrue()
+    mockMvc.get("/api/closing-folders/$closingFolderId/export-packs") {
+      header("X-Tenant-Id", tenantId.toString())
+      with(actorJwt("reviewer-user"))
+    }.andExpect {
+      status { isOk() }
+      jsonPath("$.items.length()") { value(0) }
     }
   }
 
@@ -211,10 +302,43 @@ class ExportPacksApiTest {
       header { string("Content-Disposition", org.hamcrest.Matchers.containsString("attachment")) }
     }.andReturn()
 
+    assertThat(content.response.contentType).isEqualTo("application/zip")
+    assertNoStorageHeaders(content.response)
     assertThat(auditTestStore.auditEvents()).hasSize(auditBefore + 1)
     val zipEntries = unzip(content.response.contentAsByteArray)
     assertThat(zipEntries.keys).contains("manifest.json")
-    assertThat(String(zipEntries.getValue("manifest.json"))).doesNotContain("storage_object_key")
+    assertNoStorageLeak(String(zipEntries.getValue("manifest.json")))
+  }
+
+  @Test
+  fun `create list and detail export payloads do not expose storage internals`() {
+    seedReadyClosing()
+
+    val created = mockMvc.post("/api/closing-folders/$closingFolderId/export-packs") {
+      header("X-Tenant-Id", tenantId.toString())
+      header("Idempotency-Key", "payload-no-leak")
+      with(actorJwt("export-user"))
+    }.andExpect {
+      status { isCreated() }
+    }.andReturn()
+
+    val exportPackId = objectMapper.readTree(created.response.contentAsString).get("exportPackId").asText()
+    val listed = mockMvc.get("/api/closing-folders/$closingFolderId/export-packs") {
+      header("X-Tenant-Id", tenantId.toString())
+      with(actorJwt("reviewer-user"))
+    }.andExpect {
+      status { isOk() }
+    }.andReturn()
+    val detailed = mockMvc.get("/api/closing-folders/$closingFolderId/export-packs/$exportPackId") {
+      header("X-Tenant-Id", tenantId.toString())
+      with(actorJwt("reviewer-user"))
+    }.andExpect {
+      status { isOk() }
+    }.andReturn()
+
+    listOf(created, listed, detailed).forEach { result ->
+      assertNoStorageLeak(result.response.contentAsString)
+    }
   }
 
   @Test
@@ -413,6 +537,18 @@ class ExportPacksApiTest {
       effectiveRoles = setOf("ACCOUNTANT")
     )
 
+  private fun createExportPack(idempotencyKey: String): com.fasterxml.jackson.databind.JsonNode {
+    val created = mockMvc.post("/api/closing-folders/$closingFolderId/export-packs") {
+      header("X-Tenant-Id", tenantId.toString())
+      header("Idempotency-Key", idempotencyKey)
+      with(actorJwt("export-user"))
+    }.andExpect {
+      status { isCreated() }
+    }.andReturn()
+
+    return objectMapper.readTree(created.response.contentAsString)
+  }
+
   private fun unzip(bytes: ByteArray): Map<String, ByteArray> {
     val entries = linkedMapOf<String, ByteArray>()
     ZipInputStream(bytes.inputStream(), Charsets.UTF_8).use { zip ->
@@ -431,6 +567,32 @@ class ExportPacksApiTest {
   companion object {
     private val objectMapper = com.fasterxml.jackson.databind.ObjectMapper()
   }
+}
+
+private val EXPORT_SENSITIVE_STORAGE_TOKENS = arrayOf(
+  "storage_object_key",
+  "storageObjectKey",
+  "objectKey",
+  "object_path",
+  "privatePath",
+  "signedUrl",
+  "signed_url",
+  "gs://",
+  "s3://",
+  "storage.googleapis.com",
+  "X-Goog-Signature"
+)
+
+private fun assertNoStorageLeak(payload: String) {
+  assertThat(payload).doesNotContain(*EXPORT_SENSITIVE_STORAGE_TOKENS)
+}
+
+private fun assertNoStorageHeaders(response: org.springframework.mock.web.MockHttpServletResponse) {
+  assertThat(response.getHeader(HttpHeaders.LOCATION)).isNull()
+  val renderedHeaders = response.headerNames
+    .flatMap { headerName -> response.getHeaders(headerName).map { "$headerName: $it" } }
+    .joinToString("\n")
+  assertNoStorageLeak(renderedHeaders)
 }
 
 private fun deleteDirectoryIfExists(path: Path) {

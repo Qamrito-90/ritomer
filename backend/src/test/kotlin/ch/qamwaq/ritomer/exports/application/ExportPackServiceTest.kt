@@ -103,7 +103,7 @@ class ExportPackServiceTest {
       "read-models/workpapers-current.json"
     )
     val manifestJson = String(archiveEntries.getValue("manifest.json"))
-    assertThat(manifestJson).doesNotContain("storage_object_key")
+    assertNoStorageLeak(manifestJson)
     assertThat(manifestJson).contains("report_Q4_.pdf")
     assertThat(manifestJson).contains("\"verificationStatus\":\"VERIFIED\"")
     assertThat(String(archiveEntries.getValue("documents/$workpaperId/${documentId}-report_Q4_.pdf"))).isEqualTo("support-bytes")
@@ -663,4 +663,22 @@ class ExportPackServiceTest {
         .digest(bytes)
         .joinToString("") { "%02x".format(it) }
   }
+}
+
+private val SENSITIVE_STORAGE_TOKENS = arrayOf(
+  "storage_object_key",
+  "storageObjectKey",
+  "objectKey",
+  "object_path",
+  "privatePath",
+  "signedUrl",
+  "signed_url",
+  "gs://",
+  "s3://",
+  "storage.googleapis.com",
+  "X-Goog-Signature"
+)
+
+private fun assertNoStorageLeak(payload: String) {
+  assertThat(payload).doesNotContain(*SENSITIVE_STORAGE_TOKENS)
 }
