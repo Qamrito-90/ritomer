@@ -153,6 +153,62 @@ class WorkpapersApiTest {
   }
 
   @Test
+  fun `workpaper endpoints cross tenant return 404 stay silent and expose no workpaper payload`() {
+    val tenantId = uuid("11111111-1111-1111-1111-111111111111")
+    val otherTenantId = uuid("22222222-2222-2222-2222-222222222222")
+    val closingFolder = seedClosingFolder(tenantId)
+    seedMembership("dual-user", tenantId, TenantRole.MANAGER)
+    seedMembership("dual-user", otherTenantId, TenantRole.MANAGER)
+    seedPreviewReadyStructure(tenantId, closingFolder.id)
+    val persistedWorkpaper = workpaper(
+      tenantId = tenantId,
+      closingFolderId = closingFolder.id,
+      anchorCode = "BS.ASSET.CURRENT_SECTION",
+      anchorLabel = "Current assets",
+      status = WorkpaperStatus.READY_FOR_REVIEW
+    )
+    workpaperTestStore.save(persistedWorkpaper)
+    val auditBefore = auditTestStore.auditEvents().size
+
+    val getResult = mockMvc.get("/api/closing-folders/${closingFolder.id}/workpapers") {
+      header(ACTIVE_TENANT_HEADER, otherTenantId.toString())
+      with(actorJwt("dual-user"))
+    }.andExpect {
+      status { isNotFound() }
+    }.andReturn()
+
+    assertNoWorkpaperBusinessPayload(getResult.response.contentAsString, persistedWorkpaper.id)
+
+    val upsertResult = mockMvc.put("/api/closing-folders/${closingFolder.id}/workpapers/BS.ASSET.CURRENT_SECTION") {
+      header(ACTIVE_TENANT_HEADER, otherTenantId.toString())
+      contentType = MediaType.APPLICATION_JSON
+      content = """{"noteText":"Cross tenant note","status":"DRAFT","evidences":[]}"""
+      with(actorJwt("dual-user"))
+    }.andExpect {
+      status { isNotFound() }
+    }.andReturn()
+
+    assertNoWorkpaperBusinessPayload(upsertResult.response.contentAsString, persistedWorkpaper.id)
+
+    val reviewResult = mockMvc.post("/api/closing-folders/${closingFolder.id}/workpapers/BS.ASSET.CURRENT_SECTION/review-decision") {
+      header(ACTIVE_TENANT_HEADER, otherTenantId.toString())
+      contentType = MediaType.APPLICATION_JSON
+      content = """{"decision":"REVIEWED"}"""
+      with(actorJwt("dual-user"))
+    }.andExpect {
+      status { isNotFound() }
+    }.andReturn()
+
+    assertNoWorkpaperBusinessPayload(reviewResult.response.contentAsString, persistedWorkpaper.id)
+    assertThat(auditTestStore.auditEvents()).hasSize(auditBefore)
+    assertThat(auditTestStore.auditEvents().none { it.command.action == WORKPAPER_CREATED_ACTION }).isTrue()
+    assertThat(auditTestStore.auditEvents().none { it.command.action == WORKPAPER_UPDATED_ACTION }).isTrue()
+    assertThat(auditTestStore.auditEvents().none { it.command.action == WORKPAPER_REVIEW_STATUS_CHANGED_ACTION }).isTrue()
+    assertThat(workpaperTestStore.workpapers(otherTenantId, closingFolder.id)).isEmpty()
+    assertThat(workpaperTestStore.findById(persistedWorkpaper.id)?.status).isEqualTo(WorkpaperStatus.READY_FOR_REVIEW)
+  }
+
+  @Test
   fun `get returns current anchors even without persisted workpaper`() {
     val tenantId = uuid("11111111-1111-1111-1111-111111111111")
     val closingFolder = seedClosingFolder(tenantId)
@@ -436,6 +492,9 @@ class WorkpapersApiTest {
       content = """{"decision":"REVIEWED"}"""
       with(actorJwt("accountant"))
     }.andExpect { status { isForbidden() } }
+    assertThat(auditTestStore.auditEvents()).isEmpty()
+    assertThat(workpaperTestStore.findByAnchorCode(tenantId, closingFolder.id, "BS.ASSET.CURRENT_SECTION")?.status)
+      .isEqualTo(WorkpaperStatus.READY_FOR_REVIEW)
 
     mockMvc.post("/api/closing-folders/${closingFolder.id}/workpapers/BS.ASSET.CURRENT_SECTION/review-decision") {
       header(ACTIVE_TENANT_HEADER, tenantId.toString())
@@ -807,4 +866,15 @@ private fun actorJwt(
 ) = jwt().jwt { token ->
   token.subject(subject)
   extraClaims.forEach { (claimName, value) -> token.claim(claimName, value) }
+}
+
+private fun assertNoWorkpaperBusinessPayload(payload: String, workpaperId: UUID) {
+  assertThat(payload).doesNotContain(
+    "items",
+    "staleWorkpapers",
+    workpaperId.toString(),
+    "Justification",
+    "summaryCounts",
+    "documentVerificationSummary"
+  )
 }

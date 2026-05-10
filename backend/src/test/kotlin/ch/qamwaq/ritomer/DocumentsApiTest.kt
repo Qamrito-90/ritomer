@@ -34,6 +34,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Import
+import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.mock.web.MockMultipartFile
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt
@@ -182,6 +183,7 @@ class DocumentsApiTest {
       header { string("Content-Type", "application/pdf") }
     }.andReturn()
 
+    assertNoDocumentStorageHeaders(currentContent.response)
     assertThat(String(currentContent.response.contentAsByteArray, StandardCharsets.UTF_8)).isEqualTo("hello-pdf")
     assertThat(auditTestStore.auditEvents()).hasSize(1)
 
@@ -214,6 +216,106 @@ class DocumentsApiTest {
 
     assertThat(String(staleContent.response.contentAsByteArray, StandardCharsets.UTF_8)).isEqualTo("hello-pdf")
     assertThat(auditTestStore.auditEvents()).hasSize(1)
+  }
+
+  @Test
+  fun `document endpoints cross tenant return 404 stay silent and do not expose business or storage payloads`() {
+    val tenantId = uuid("11111111-1111-1111-1111-111111111111")
+    val otherTenantId = uuid("22222222-2222-2222-2222-222222222222")
+    val closingFolder = seedClosingFolder(tenantId)
+    seedMembership("dual-user", tenantId, TenantRole.MANAGER)
+    seedMembership("dual-user", otherTenantId, TenantRole.MANAGER)
+    seedPreviewReadyStructure(tenantId, closingFolder.id)
+    val persistedWorkpaper = workpaper(
+      tenantId = tenantId,
+      closingFolderId = closingFolder.id,
+      anchorCode = "BS.ASSET.CURRENT_SECTION",
+      anchorLabel = "Current assets",
+      status = WorkpaperStatus.READY_FOR_REVIEW
+    )
+    workpaperTestStore.save(persistedWorkpaper)
+    val document = storedDocument(tenantId, persistedWorkpaper.id, "tenant-a-support.pdf", "tenant-a-binary")
+    documentTestStore.save(document)
+    val auditBefore = auditTestStore.auditEvents().size
+    val documentCountBefore = documentTestStore.all().size
+
+    val listResult = mockMvc.get("/api/closing-folders/${closingFolder.id}/workpapers/BS.ASSET.CURRENT_SECTION/documents") {
+      header(ACTIVE_TENANT_HEADER, otherTenantId.toString())
+      with(actorJwt("dual-user"))
+    }.andExpect {
+      status { isNotFound() }
+    }.andReturn()
+
+    assertNoDocumentStorageLeak(listResult.response.contentAsString)
+    assertThat(listResult.response.contentAsString)
+      .doesNotContain("documents", document.id.toString(), document.fileName, document.checksumSha256)
+
+    val contentResult = mockMvc.get("/api/closing-folders/${closingFolder.id}/documents/${document.id}/content") {
+      header(ACTIVE_TENANT_HEADER, otherTenantId.toString())
+      with(actorJwt("dual-user"))
+    }.andExpect {
+      status { isNotFound() }
+    }.andReturn()
+
+    assertNoDocumentStorageHeaders(contentResult.response)
+    assertNoDocumentStorageLeak(contentResult.response.contentAsString)
+    assertThat(contentResult.response.contentAsString).doesNotContain("tenant-a-binary", document.id.toString(), document.fileName)
+
+    val verificationResult = mockMvc.post("/api/closing-folders/${closingFolder.id}/documents/${document.id}/verification-decision") {
+      header(ACTIVE_TENANT_HEADER, otherTenantId.toString())
+      contentType = MediaType.APPLICATION_JSON
+      content = """{"decision":"VERIFIED"}"""
+      with(actorJwt("dual-user"))
+    }.andExpect {
+      status { isNotFound() }
+    }.andReturn()
+
+    assertNoDocumentStorageLeak(verificationResult.response.contentAsString)
+    assertThat(verificationResult.response.contentAsString).doesNotContain(document.id.toString(), document.fileName)
+
+    val uploadResult = mockMvc.perform(
+      multipart("/api/closing-folders/${closingFolder.id}/workpapers/BS.ASSET.CURRENT_SECTION/documents")
+        .file(pdfFile("cross-tenant.pdf", "cross-tenant-upload"))
+        .param("sourceLabel", "ERP")
+        .header(ACTIVE_TENANT_HEADER, otherTenantId.toString())
+        .with(actorJwt("dual-user"))
+    ).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isNotFound)
+      .andReturn()
+
+    assertNoDocumentStorageLeak(uploadResult.response.contentAsString)
+    assertThat(uploadResult.response.contentAsString).doesNotContain("cross-tenant.pdf", "cross-tenant-upload")
+    assertThat(documentTestStore.all()).hasSize(documentCountBefore)
+    assertThat(auditTestStore.auditEvents()).hasSize(auditBefore)
+    assertThat(auditTestStore.auditEvents().none { it.command.action == DOCUMENT_CREATED_ACTION }).isTrue()
+    assertThat(auditTestStore.auditEvents().none { it.command.action == DOCUMENT_VERIFICATION_UPDATED_ACTION }).isTrue()
+  }
+
+  @Test
+  fun `forbidden document upload stays silent and does not create a document`() {
+    val tenantId = uuid("11111111-1111-1111-1111-111111111111")
+    val closingFolder = seedClosingFolder(tenantId)
+    seedMembership("reviewer", tenantId, TenantRole.REVIEWER)
+    seedPreviewReadyStructure(tenantId, closingFolder.id)
+    workpaperTestStore.save(
+      workpaper(
+        tenantId = tenantId,
+        closingFolderId = closingFolder.id,
+        anchorCode = "BS.ASSET.CURRENT_SECTION",
+        anchorLabel = "Current assets",
+        status = WorkpaperStatus.DRAFT
+      )
+    )
+
+    mockMvc.perform(
+      multipart("/api/closing-folders/${closingFolder.id}/workpapers/BS.ASSET.CURRENT_SECTION/documents")
+        .file(pdfFile("support.pdf", "forbidden"))
+        .param("sourceLabel", "ERP")
+        .header(ACTIVE_TENANT_HEADER, tenantId.toString())
+        .with(actorJwt("reviewer"))
+    ).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isForbidden)
+
+    assertThat(documentTestStore.all()).isEmpty()
+    assertThat(auditTestStore.auditEvents()).isEmpty()
   }
 
   @Test
@@ -719,6 +821,32 @@ class DocumentsApiTest {
 
 private fun actorJwt(subject: String) = jwt().jwt { token ->
   token.subject(subject)
+}
+
+private val DOCUMENT_SENSITIVE_STORAGE_TOKENS = arrayOf(
+  "storage_object_key",
+  "storageObjectKey",
+  "objectKey",
+  "object_path",
+  "privatePath",
+  "signedUrl",
+  "signed_url",
+  "gs://",
+  "s3://",
+  "storage.googleapis.com",
+  "X-Goog-Signature"
+)
+
+private fun assertNoDocumentStorageLeak(payload: String) {
+  assertThat(payload).doesNotContain(*DOCUMENT_SENSITIVE_STORAGE_TOKENS)
+}
+
+private fun assertNoDocumentStorageHeaders(response: org.springframework.mock.web.MockHttpServletResponse) {
+  assertThat(response.getHeader(HttpHeaders.LOCATION)).isNull()
+  val renderedHeaders = response.headerNames
+    .flatMap { headerName -> response.getHeaders(headerName).map { "$headerName: $it" } }
+    .joinToString("\n")
+  assertNoDocumentStorageLeak(renderedHeaders)
 }
 
 private fun deleteDirectoryIfExists(path: Path) {
