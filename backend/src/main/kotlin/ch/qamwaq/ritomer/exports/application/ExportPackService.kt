@@ -139,11 +139,10 @@ class ExportPackService(
       }
     } catch (exception: RuntimeException) {
       logger.error(
-        "Export pack storage write failed: tenantId={}, closingFolderId={}, exportPackId={}, reason={}",
-        access.tenantId,
+        "export_pack.storage_write_failed: entityType=export_pack, closingFolderId={}, exportPackId={}, status=failed, exceptionClass={}, errorCode=export_pack_storage_write_failed",
         closingFolderId,
         exportPackId,
-        exception.message
+        exception.javaClass.simpleName
       )
       throw ExportPackStorageException("Export pack archive could not be stored.", exception)
     }
@@ -485,12 +484,10 @@ class ExportPackService(
       exportPackStorage.deleteIfExists(exportPack.storageObjectKey)
     } catch (compensationException: RuntimeException) {
       logger.error(
-        "Export pack compensation failed: tenantId={}, closingFolderId={}, exportPackId={}, storageObjectKey={}, reason={}",
-        exportPack.tenantId,
+        "export_pack.storage_cleanup_failed: entityType=export_pack, closingFolderId={}, exportPackId={}, status=failed, exceptionClass={}, errorCode=export_pack_storage_cleanup_failed",
         exportPack.closingFolderId,
         exportPack.id,
-        exportPack.storageObjectKey,
-        compensationException.message
+        compensationException.javaClass.simpleName
       )
     }
   }
