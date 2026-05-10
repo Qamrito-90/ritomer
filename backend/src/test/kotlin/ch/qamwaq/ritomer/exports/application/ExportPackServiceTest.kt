@@ -1,5 +1,8 @@
 package ch.qamwaq.ritomer.exports.application
 
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import ch.qamwaq.ritomer.closing.access.ClosingFolderAccess
 import ch.qamwaq.ritomer.closing.access.ClosingFolderAccessStatus
 import ch.qamwaq.ritomer.closing.access.ClosingFolderAccessView
@@ -55,6 +58,7 @@ import java.util.zip.ZipInputStream
 import kotlin.test.assertFailsWith
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
+import org.slf4j.LoggerFactory
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.TransactionDefinition
 import org.springframework.transaction.TransactionStatus
@@ -150,9 +154,16 @@ class ExportPackServiceTest {
       storage = storage
     )
 
-    assertFailsWith<ExportPackStorageException> {
-      service.createExportPack(makerAccess(), closingFolderId, "retry-after-failure")
+    val logEvents = captureExportPackServiceLogEvents {
+      assertFailsWith<ExportPackStorageException> {
+        service.createExportPack(makerAccess(), closingFolderId, "retry-after-failure")
+      }
     }
+    val attemptedObjectKey = storage.attemptedStoreKeys.single()
+    val renderedLogs = logEvents.rendered()
+    assertThat(renderedLogs).contains("export_pack.storage_write_failed")
+    assertThat(renderedLogs).doesNotContain(attemptedObjectKey)
+    assertThat(renderedLogs).doesNotContain("storageObjectKey", "storage_object_key", "gs://", "X-Goog-Signature")
     assertThat(exportPackRepository.exportPacks()).isEmpty()
 
     storage.failOnStore.set(false)
@@ -204,6 +215,29 @@ class ExportPackServiceTest {
 
     assertThat(storage.deletedKeys).hasSize(1)
     assertThat(exportPackRepository.exportPacks()).isEmpty()
+  }
+
+  @Test
+  fun `failed export pack compensation keeps cleanup attempt and does not log storage object key`() {
+    val exportPackRepository = FakeExportPackRepository(failOnCreate = true)
+    val storage = RecordingExportPackStorage(failOnDelete = true)
+    val service = service(
+      exportPackRepository = exportPackRepository,
+      storage = storage
+    )
+
+    val logEvents = captureExportPackServiceLogEvents {
+      assertFailsWith<IllegalStateException> {
+        service.createExportPack(makerAccess(), closingFolderId, "db-failure-cleanup-log")
+      }
+    }
+
+    val deletedObjectKey = storage.deletedKeys.single()
+    val renderedLogs = logEvents.rendered()
+    assertThat(exportPackRepository.exportPacks()).isEmpty()
+    assertThat(renderedLogs).contains("export_pack.storage_cleanup_failed")
+    assertThat(renderedLogs).doesNotContain(deletedObjectKey)
+    assertThat(renderedLogs).doesNotContain("storageObjectKey", "storage_object_key", "gs://", "X-Goog-Signature")
   }
 
   @Test
@@ -376,6 +410,28 @@ class ExportPackServiceTest {
     return entries
   }
 
+  private fun captureExportPackServiceLogEvents(action: () -> Unit): List<ILoggingEvent> {
+    val logger = LoggerFactory.getLogger(ExportPackService::class.java) as Logger
+    val appender = ListAppender<ILoggingEvent>().apply { start() }
+    logger.addAppender(appender)
+    return try {
+      action()
+      appender.list.toList()
+    } finally {
+      logger.detachAppender(appender)
+      appender.stop()
+    }
+  }
+
+  private fun List<ILoggingEvent>.rendered(): String =
+    joinToString("\n") { event ->
+      listOfNotNull(
+        event.message,
+        event.formattedMessage,
+        event.argumentArray?.joinToString(" ")
+      ).joinToString("\n")
+    }
+
   private inner class MutableClosingFolderAccess(
     var status: ClosingFolderAccessStatus = ClosingFolderAccessStatus.DRAFT
   ) : ClosingFolderAccess {
@@ -535,10 +591,12 @@ class ExportPackServiceTest {
 
   private class RecordingExportPackStorage(
     failOnStore: Boolean = false,
-    private val delayStoreMillis: Long = 0
+    private val delayStoreMillis: Long = 0,
+    private val failOnDelete: Boolean = false
   ) : ExportPackStorage {
     val failOnStore = AtomicBoolean(failOnStore)
     val storedBytes = linkedMapOf<String, ByteArray>()
+    val attemptedStoreKeys = mutableListOf<String>()
     val deletedKeys = mutableListOf<String>()
     var storeCount: Int = 0
       private set
@@ -546,8 +604,9 @@ class ExportPackServiceTest {
     override fun storageBackendCode(): String = "LOCAL_FS"
 
     override fun store(command: StoreExportPackCommand): StoredExportPackObject {
+      attemptedStoreKeys += command.objectKey
       if (failOnStore.get()) {
-        throw IllegalStateException("intentional storage failure")
+        throw IllegalStateException("intentional storage failure at gs://ritomer-test/${command.objectKey}?X-Goog-Signature=test")
       }
       if (delayStoreMillis > 0) {
         Thread.sleep(delayStoreMillis)
@@ -572,6 +631,9 @@ class ExportPackServiceTest {
     override fun deleteIfExists(objectKey: String) {
       synchronized(this) {
         deletedKeys += objectKey
+        if (failOnDelete) {
+          throw IllegalStateException("intentional storage cleanup failure at gs://ritomer-test/$objectKey?X-Goog-Signature=test")
+        }
         storedBytes.remove(objectKey)
       }
     }

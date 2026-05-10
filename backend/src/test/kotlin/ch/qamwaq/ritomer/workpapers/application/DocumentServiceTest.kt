@@ -1,5 +1,8 @@
 package ch.qamwaq.ritomer.workpapers.application
 
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import ch.qamwaq.ritomer.closing.access.ClosingFolderAccessStatus
 import ch.qamwaq.ritomer.controls.access.ClosingControlsSnapshot
 import ch.qamwaq.ritomer.controls.access.ControlsAccess
@@ -30,6 +33,7 @@ import java.util.UUID
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
+import org.slf4j.LoggerFactory
 import org.springframework.mock.web.MockMultipartFile
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.TransactionDefinition
@@ -247,6 +251,66 @@ class DocumentServiceTest {
 
     assertThat(binaryObjectStore.deletedObjectKeys).hasSize(1)
     assertThat(documentRepository.createdDocuments()).isEmpty()
+  }
+
+  @Test
+  fun `failed storage write log does not expose storage object key or raw provider message`() {
+    val workpaper = persistedWorkpaper()
+    val binaryObjectStore = RecordingBinaryObjectStore(failOnStore = true)
+    val service = service(
+      workpaperRepository = DocumentServiceFakeWorkpaperRepository(listOf(workpaper)),
+      repository = DocumentServiceFakeDocumentRepository(),
+      binaryObjectStore = binaryObjectStore
+    )
+
+    val logEvents = captureDocumentServiceLogEvents {
+      assertThatThrownBy {
+        service.uploadDocument(
+          makerAccess(),
+          closingFolderId,
+          workpaper.anchorCode,
+          MockMultipartFile("file", "support.pdf", "application/pdf", "x".toByteArray()),
+          UploadDocumentCommand(sourceLabel = "ERP", documentDate = null)
+        )
+      }.isInstanceOf(DocumentStorageException::class.java)
+    }
+
+    val attemptedObjectKey = binaryObjectStore.attemptedStoreObjectKeys.single()
+    val renderedLogs = logEvents.rendered()
+    assertThat(renderedLogs).contains("document.storage_write_failed")
+    assertThat(renderedLogs).doesNotContain(attemptedObjectKey)
+    assertThat(renderedLogs).doesNotContain("storageObjectKey", "storage_object_key", "gs://", "X-Goog-Signature")
+  }
+
+  @Test
+  fun `failed upload compensation keeps cleanup attempt and does not log storage object key`() {
+    val workpaper = persistedWorkpaper()
+    val binaryObjectStore = RecordingBinaryObjectStore(failOnDelete = true)
+    val documentRepository = DocumentServiceFakeDocumentRepository(failOnCreate = true)
+    val service = service(
+      workpaperRepository = DocumentServiceFakeWorkpaperRepository(listOf(workpaper)),
+      repository = documentRepository,
+      binaryObjectStore = binaryObjectStore
+    )
+
+    val logEvents = captureDocumentServiceLogEvents {
+      assertThatThrownBy {
+        service.uploadDocument(
+          makerAccess(),
+          closingFolderId,
+          workpaper.anchorCode,
+          MockMultipartFile("file", "support.pdf", "application/pdf", "x".toByteArray()),
+          UploadDocumentCommand(sourceLabel = "ERP", documentDate = null)
+        )
+      }.isInstanceOf(IllegalStateException::class.java)
+    }
+
+    val deletedObjectKey = binaryObjectStore.deletedObjectKeys.single()
+    val renderedLogs = logEvents.rendered()
+    assertThat(documentRepository.createdDocuments()).isEmpty()
+    assertThat(renderedLogs).contains("document.storage_cleanup_failed")
+    assertThat(renderedLogs).doesNotContain(deletedObjectKey)
+    assertThat(renderedLogs).doesNotContain("storageObjectKey", "storage_object_key", "gs://", "X-Goog-Signature")
   }
 
   @Test
@@ -522,6 +586,28 @@ class DocumentServiceTest {
     java.security.MessageDigest.getInstance("SHA-256")
       .digest(bytes)
       .joinToString("") { "%02x".format(it) }
+
+  private fun captureDocumentServiceLogEvents(action: () -> Unit): List<ILoggingEvent> {
+    val logger = LoggerFactory.getLogger(DocumentService::class.java) as Logger
+    val appender = ListAppender<ILoggingEvent>().apply { start() }
+    logger.addAppender(appender)
+    return try {
+      action()
+      appender.list.toList()
+    } finally {
+      logger.detachAppender(appender)
+      appender.stop()
+    }
+  }
+
+  private fun List<ILoggingEvent>.rendered(): String =
+    joinToString("\n") { event ->
+      listOfNotNull(
+        event.message,
+        event.formattedMessage,
+        event.argumentArray?.joinToString(" ")
+      ).joinToString("\n")
+    }
 }
 
 private class DocumentServiceFakeWorkpaperRepository(
@@ -586,16 +672,19 @@ private class DocumentServiceFakeDocumentRepository(
 }
 
 private class RecordingBinaryObjectStore(
-  private val failOnStore: Boolean = false
+  private val failOnStore: Boolean = false,
+  private val failOnDelete: Boolean = false
 ) : BinaryObjectStore {
   val storedObjects = linkedMapOf<String, ByteArray>()
+  val attemptedStoreObjectKeys = mutableListOf<String>()
   val deletedObjectKeys = mutableListOf<String>()
 
   override fun storageBackend(): DocumentStorageBackend = DocumentStorageBackend.LOCAL_FS
 
   override fun store(command: StoreBinaryObjectCommand): StoredBinaryObject {
+    attemptedStoreObjectKeys += command.objectKey
     if (failOnStore) {
-      throw IllegalStateException("intentional storage failure")
+      throw IllegalStateException("intentional storage failure at gs://ritomer-test/${command.objectKey}?X-Goog-Signature=test")
     }
 
     val bytes = command.inputStream.use(InputStream::readAllBytes)
@@ -616,6 +705,9 @@ private class RecordingBinaryObjectStore(
 
   override fun deleteIfExists(objectKey: String) {
     deletedObjectKeys.add(objectKey)
+    if (failOnDelete) {
+      throw IllegalStateException("intentional storage cleanup failure at gs://ritomer-test/$objectKey?X-Goog-Signature=test")
+    }
     storedObjects.remove(objectKey)
   }
 }

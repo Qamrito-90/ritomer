@@ -147,24 +147,10 @@ class DocumentService(
         )
       }
     } catch (exception: IOException) {
-      logger.error(
-        "Document upload storage write failed: tenantId={}, closingFolderId={}, anchorCode={}, documentId={}, reason={}",
-        access.tenantId,
-        closingFolderId,
-        normalizedAnchorCode,
-        documentId,
-        exception.message
-      )
+      logStorageWriteFailed(closingFolderId, documentId, exception)
       throw DocumentStorageException("Document binary could not be stored.", exception)
     } catch (exception: RuntimeException) {
-      logger.error(
-        "Document upload storage write failed: tenantId={}, closingFolderId={}, anchorCode={}, documentId={}, reason={}",
-        access.tenantId,
-        closingFolderId,
-        normalizedAnchorCode,
-        documentId,
-        exception.message
-      )
+      logStorageWriteFailed(closingFolderId, documentId, exception)
       throw DocumentStorageException("Document binary could not be stored.", exception)
     }
 
@@ -182,7 +168,7 @@ class DocumentService(
         )
       } ?: error("Document upload transaction returned null.")
     } catch (exception: RuntimeException) {
-      compensateStorageFailure(access, closingFolderId, normalizedAnchorCode, documentId, storedObject.storageObjectKey)
+      compensateStorageFailure(closingFolderId, documentId, storedObject.storageObjectKey)
       throw exception
     }
   }
@@ -375,24 +361,24 @@ class DocumentService(
     )
   }
 
-  private fun compensateStorageFailure(
-    access: TenantAccessContext,
-    closingFolderId: UUID,
-    anchorCode: String,
-    documentId: UUID,
-    storageObjectKey: String
-  ) {
+  private fun logStorageWriteFailed(closingFolderId: UUID, documentId: UUID, exception: Throwable) {
+    logger.error(
+      "document.storage_write_failed: entityType=document, closingFolderId={}, documentId={}, status=failed, exceptionClass={}, errorCode=document_storage_write_failed",
+      closingFolderId,
+      documentId,
+      exception.javaClass.simpleName
+    )
+  }
+
+  private fun compensateStorageFailure(closingFolderId: UUID, documentId: UUID, storageObjectKey: String) {
     try {
       binaryObjectStore.deleteIfExists(storageObjectKey)
     } catch (compensationException: RuntimeException) {
       logger.error(
-        "Document upload compensation failed: tenantId={}, closingFolderId={}, anchorCode={}, documentId={}, storageObjectKey={}, reason={}",
-        access.tenantId,
+        "document.storage_cleanup_failed: entityType=document, closingFolderId={}, documentId={}, status=failed, exceptionClass={}, errorCode=document_storage_cleanup_failed",
         closingFolderId,
-        anchorCode,
         documentId,
-        storageObjectKey,
-        compensationException.message
+        compensationException.javaClass.simpleName
       )
     }
   }
