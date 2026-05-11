@@ -52,6 +52,7 @@ const ENTRYPOINT_OTHER_TENANT_FOLDER = {
 
 const READY_CONTROLS = {
   closingFolderId: CLOSING_FOLDER.id,
+  closingFolderStatus: "DRAFT",
   readiness: "READY",
   latestImportPresent: true,
   latestImportVersion: 3,
@@ -64,11 +65,13 @@ const READY_CONTROLS = {
     {
       code: "LATEST_VALID_BALANCE_IMPORT_PRESENT",
       status: "PASS",
+      severity: "BLOCKER",
       message: "Latest valid balance import version 3 is available."
     },
     {
       code: "MANUAL_MAPPING_COMPLETE_ON_LATEST_IMPORT",
       status: "PASS",
+      severity: "BLOCKER",
       message: "Manual mapping is complete on the latest import."
     }
   ],
@@ -78,6 +81,7 @@ const READY_CONTROLS = {
 
 const BLOCKED_CONTROLS = {
   closingFolderId: CLOSING_FOLDER.id,
+  closingFolderStatus: "DRAFT",
   readiness: "BLOCKED",
   latestImportPresent: true,
   latestImportVersion: 2,
@@ -90,11 +94,13 @@ const BLOCKED_CONTROLS = {
     {
       code: "LATEST_VALID_BALANCE_IMPORT_PRESENT",
       status: "PASS",
+      severity: "BLOCKER",
       message: "Latest valid balance import version 2 is available."
     },
     {
       code: "MANUAL_MAPPING_COMPLETE_ON_LATEST_IMPORT",
       status: "FAIL",
+      severity: "BLOCKER",
       message: "2 account(s) remain unmapped on the latest import."
     }
   ],
