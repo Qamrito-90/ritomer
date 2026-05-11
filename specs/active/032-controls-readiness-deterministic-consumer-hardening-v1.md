@@ -50,7 +50,9 @@ Cette spec n'introduit pas une nouvelle UI metier et n'active aucune capacite IA
 - `frontend/src/lib/api/controls.ts`
 - `frontend/src/lib/api/controls.test.ts`
 - `frontend/src/app/router.test.tsx` uniquement si un ajustement de test existant est necessaire a cause du consumer controls.
+- `frontend/src/app/router.workpapers.test.tsx` uniquement pour stabiliser le test UI timing-sensitive et realigner sa fixture `/controls` hors contrat.
 - `frontend/src/app/router.import-balance.test.tsx` et `frontend/src/app/router.manual-mapping.test.tsx` uniquement pour realigner les fixtures `/controls` hors contrat.
+- `frontend/src/app/dossier-progress-summary.test.tsx` uniquement pour realigner les fixtures `/controls` hors contrat.
 
 ## In scope
 
@@ -99,11 +101,13 @@ Cette spec n'introduit pas une nouvelle UI metier et n'active aucune capacite IA
 
 - Tests unitaires `frontend/src/lib/api/controls.test.ts`.
 - Gates frontend :
+  - `pnpm build`
   - `pnpm test:ci`
   - `pnpm lint`
 
 ## Gates
 
+- `pnpm build`
 - `pnpm test:ci`
 - `pnpm lint`
 
