@@ -21,6 +21,7 @@ const CLOSING_FOLDER = {
 
 const READY_CONTROLS = {
   closingFolderId: CLOSING_FOLDER.id,
+  closingFolderStatus: "DRAFT",
   readiness: "READY",
   latestImportPresent: true,
   latestImportVersion: 2,
@@ -33,11 +34,13 @@ const READY_CONTROLS = {
     {
       code: "LATEST_VALID_BALANCE_IMPORT_PRESENT",
       status: "PASS",
+      severity: "BLOCKER",
       message: "Latest valid balance import version 2 is available."
     },
     {
       code: "MANUAL_MAPPING_COMPLETE_ON_LATEST_IMPORT",
       status: "PASS",
+      severity: "BLOCKER",
       message: "Manual mapping is complete on the latest import."
     }
   ],
@@ -245,20 +248,18 @@ function renderClosingRoute() {
   return render(<RouterProvider router={router} />);
 }
 
-function waitForNominalShell() {
-  return Promise.all([
-    screen.findByText("Dossier courant"),
-    screen.findByText("Progression dossier"),
-    screen.findByText("Import balance"),
-    screen.findByText("Mapping manuel"),
-    screen.findByText("Financial summary"),
-    screen.findByText("Financial statements structured"),
-    screen.findByText("Workpapers"),
-    screen.findByText("AI mapping suggestion"),
-    screen.findByText("Audit-ready export pack"),
-    screen.findByText("No audit-ready pack generated yet."),
-    screen.findByText("Minimal annex preview")
-  ]);
+async function waitForNominalShell() {
+  await screen.findByText("Dossier courant");
+  await screen.findByText("Progression dossier");
+  await screen.findByText("Import balance");
+  await screen.findByText("Mapping manuel");
+  await screen.findByText("Financial summary");
+  await screen.findByText("Financial statements structured");
+  await screen.findByText("Workpapers");
+  await screen.findByText("AI mapping suggestion");
+  await screen.findByText("Audit-ready export pack");
+  await screen.findByText("No audit-ready pack generated yet.");
+  await screen.findByText("Minimal annex preview");
 }
 
 function getRequestPaths(fetchMock: ReturnType<typeof vi.fn>) {

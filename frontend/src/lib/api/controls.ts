@@ -3,15 +3,42 @@ import type { ClosingFolderSummary } from "./closing-folders";
 import { requestJson, type Fetcher } from "./http";
 import type { ActiveTenant } from "./me";
 
+const forbiddenControlsPayloadKeys = new Set([
+  "access_token",
+  "accesstoken",
+  "client_secret",
+  "clientsecret",
+  "credential",
+  "credentials",
+  "private_path",
+  "privatepath",
+  "provider_response",
+  "providerresponse",
+  "raw_provider_message",
+  "rawprovidermessage",
+  "refresh_token",
+  "refreshtoken",
+  "secret",
+  "signed_url",
+  "signedurl",
+  "storage_object_key",
+  "storage_path",
+  "storageobjectkey",
+  "storagepath",
+  "token"
+]);
+
 const controlStatusSchema = z.enum(["PASS", "FAIL", "NOT_APPLICABLE"]);
 
 const controlResultSchema = z.object({
   status: controlStatusSchema,
+  severity: z.literal("BLOCKER"),
   message: z.string().min(1)
 });
 
 const controlsResponseSchema = z.object({
   closingFolderId: z.string().uuid(),
+  closingFolderStatus: z.enum(["DRAFT", "ARCHIVED"]),
   readiness: z.enum(["READY", "BLOCKED"]),
   latestImportPresent: z.boolean(),
   latestImportVersion: z.number().int().positive().nullable(),
@@ -99,16 +126,16 @@ export async function loadControlsShellState(
       return { kind: "unexpected" };
     }
 
-    const payload = await response.json();
-    const parsed = controlsResponseSchema.safeParse(payload);
+    const payload = await readJsonBody(response);
+    const controls = parseControlsPayload(payload, closingFolderId, closingFolder);
 
-    if (!parsed.success || !isControlsPayloadCoherent(parsed.data, closingFolderId, closingFolder)) {
+    if (controls === null) {
       return { kind: "invalid_payload" };
     }
 
     return {
       kind: "ready",
-      controls: parsed.data
+      controls
     };
   } catch (error) {
     if (error instanceof Error && error.message === "timeout") {
@@ -119,6 +146,24 @@ export async function loadControlsShellState(
   }
 }
 
+function parseControlsPayload(
+  payload: unknown,
+  closingFolderId: string,
+  closingFolder: ClosingFolderSummary
+) {
+  if (payload === undefined || containsForbiddenControlsPayloadLeak(payload)) {
+    return null;
+  }
+
+  const parsed = controlsResponseSchema.safeParse(payload);
+
+  if (!parsed.success || !isControlsPayloadCoherent(parsed.data, closingFolderId, closingFolder)) {
+    return null;
+  }
+
+  return parsed.data;
+}
+
 function isControlsPayloadCoherent(
   controls: ClosingControlsSummary,
   closingFolderId: string,
@@ -127,6 +172,20 @@ function isControlsPayloadCoherent(
   if (
     controls.closingFolderId !== closingFolderId ||
     controls.closingFolderId !== closingFolder.id
+  ) {
+    return false;
+  }
+
+  if (
+    (controls.latestImportPresent && controls.latestImportVersion === null) ||
+    (!controls.latestImportPresent && controls.latestImportVersion !== null)
+  ) {
+    return false;
+  }
+
+  if (
+    controls.nextAction !== null &&
+    controls.nextAction.path !== expectedNextActionPath(controls.nextAction.code, controls.closingFolderId)
   ) {
     return false;
   }
@@ -143,7 +202,42 @@ function isControlsPayloadCoherent(
     );
   }
 
-  return !(
-    controls.controls[0].status === "PASS" && controls.controls[1].status === "PASS"
-  );
+  return controls.controls.some((control) => control.status === "FAIL");
+}
+
+function expectedNextActionPath(
+  code: NonNullable<ClosingControlsSummary["nextAction"]>["code"],
+  closingFolderId: string
+) {
+  if (code === "IMPORT_BALANCE") {
+    return `/api/closing-folders/${closingFolderId}/imports/balance`;
+  }
+
+  return `/api/closing-folders/${closingFolderId}/mappings/manual`;
+}
+
+function containsForbiddenControlsPayloadLeak(value: unknown): boolean {
+  if (Array.isArray(value)) {
+    return value.some((item) => containsForbiddenControlsPayloadLeak(item));
+  }
+
+  if (value !== null && typeof value === "object") {
+    return Object.entries(value).some(([key, nestedValue]) => {
+      if (forbiddenControlsPayloadKeys.has(key.toLowerCase())) {
+        return true;
+      }
+
+      return containsForbiddenControlsPayloadLeak(nestedValue);
+    });
+  }
+
+  return false;
+}
+
+async function readJsonBody(response: Response) {
+  try {
+    return await response.json();
+  } catch {
+    return undefined;
+  }
 }

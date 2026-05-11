@@ -16,6 +16,7 @@ const READY_CONTROLS: ControlsShellState = {
   kind: "ready",
   controls: {
     closingFolderId: CLOSING_FOLDER_ID,
+    closingFolderStatus: "DRAFT",
     readiness: "READY",
     latestImportPresent: true,
     latestImportVersion: 3,
@@ -28,11 +29,13 @@ const READY_CONTROLS: ControlsShellState = {
       {
         code: "LATEST_VALID_BALANCE_IMPORT_PRESENT",
         status: "PASS",
+        severity: "BLOCKER",
         message: "Latest valid balance import version 3 is available."
       },
       {
         code: "MANUAL_MAPPING_COMPLETE_ON_LATEST_IMPORT",
         status: "PASS",
+        severity: "BLOCKER",
         message: "Manual mapping is complete on the latest import."
       }
     ],
@@ -45,6 +48,7 @@ const BLOCKED_CONTROLS: ControlsShellState = {
   kind: "ready",
   controls: {
     closingFolderId: CLOSING_FOLDER_ID,
+    closingFolderStatus: "DRAFT",
     readiness: "BLOCKED",
     latestImportPresent: false,
     latestImportVersion: null,
@@ -57,11 +61,13 @@ const BLOCKED_CONTROLS: ControlsShellState = {
       {
         code: "LATEST_VALID_BALANCE_IMPORT_PRESENT",
         status: "FAIL",
+        severity: "BLOCKER",
         message: "No valid balance import is available."
       },
       {
         code: "MANUAL_MAPPING_COMPLETE_ON_LATEST_IMPORT",
         status: "NOT_APPLICABLE",
+        severity: "BLOCKER",
         message: "Manual mapping completeness is not applicable until import."
       }
     ],

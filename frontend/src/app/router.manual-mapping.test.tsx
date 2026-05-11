@@ -27,6 +27,7 @@ const ARCHIVED_CLOSING_FOLDER = {
 
 const INITIAL_CONTROLS = {
   closingFolderId: CLOSING_FOLDER.id,
+  closingFolderStatus: "DRAFT",
   readiness: "BLOCKED",
   latestImportPresent: true,
   latestImportVersion: 2,
@@ -39,11 +40,13 @@ const INITIAL_CONTROLS = {
     {
       code: "LATEST_VALID_BALANCE_IMPORT_PRESENT",
       status: "PASS",
+      severity: "BLOCKER",
       message: "Latest valid balance import version 2 is available."
     },
     {
       code: "MANUAL_MAPPING_COMPLETE_ON_LATEST_IMPORT",
       status: "FAIL",
+      severity: "BLOCKER",
       message: "1 account(s) remain unmapped on the latest import."
     }
   ],
@@ -64,6 +67,7 @@ const INITIAL_CONTROLS = {
 
 const REFRESHED_CONTROLS = {
   closingFolderId: CLOSING_FOLDER.id,
+  closingFolderStatus: "DRAFT",
   readiness: "READY",
   latestImportPresent: true,
   latestImportVersion: 2,
@@ -76,11 +80,13 @@ const REFRESHED_CONTROLS = {
     {
       code: "LATEST_VALID_BALANCE_IMPORT_PRESENT",
       status: "PASS",
+      severity: "BLOCKER",
       message: "Latest valid balance import version 2 is available."
     },
     {
       code: "MANUAL_MAPPING_COMPLETE_ON_LATEST_IMPORT",
       status: "PASS",
+      severity: "BLOCKER",
       message: "Manual mapping is complete on the latest import."
     }
   ],
