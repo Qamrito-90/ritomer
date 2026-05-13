@@ -2,7 +2,7 @@
 
 ## Status
 
-Active.
+Done.
 
 ## Surface
 
@@ -14,9 +14,9 @@ B.
 
 ## Role de cette spec
 
-Creer le cadrage actif de `033` pour corriger la coherence frontend post-action du parcours pilote coeur sur `/closing-folders/:closingFolderId`.
+Cloturer la coherence frontend post-action du parcours pilote coeur sur `/closing-folders/:closingFolderId` : import, mapping manuel et decisions de suggestions no-provider rafraichissent les read-models coeur attendus via `GET` REST existants, avec warnings de refresh partiel.
 
-Cette spec est uniquement une spec active. Elle n'autorise aucune implementation runtime a ce stade.
+Cette spec est livree et fermee apres merge de l'implementation frontend PR #47. Elle n'introduit aucun backend, DB, OpenAPI, IA runtime, GraphQL, RAG, refresh export/minimal-annex, mutation workpaper/document ou nouvelle promesse CO/statutory.
 
 ## Sources de verite relues
 
@@ -90,7 +90,7 @@ Apres un `POST /api/closing-folders/{closingFolderId}/imports/balance` reussi :
 - les suggestions IA no-provider sont rafraichies uniquement comme read-model existant via `GET /api/closing-folders/{closingFolderId}/mappings/suggestions` ;
 - si un refresh aval echoue, le succes import reste acquis et une ligne de warning explicite indique la surface non rafraichie.
 
-Warnings attendus, libelles exacts a stabiliser pendant l'implementation :
+Warnings livres :
 
 - `rafraichissement dossier impossible`
 - `rafraichissement controls impossible`
@@ -114,7 +114,7 @@ Apres un `PUT /api/closing-folders/{closingFolderId}/mappings/manual` ou un `DEL
 - les suggestions no-provider sont rafraichies via `GET /api/closing-folders/{closingFolderId}/mappings/suggestions` pour eviter une suggestion obsolete sur un compte deja mappe ;
 - si un refresh aval echoue, le succes mapping reste acquis et une ligne de warning explicite indique la surface non rafraichie.
 
-Warnings attendus, libelles exacts a stabiliser pendant l'implementation :
+Warnings livres :
 
 - `rafraichissement mapping impossible`
 - `rafraichissement controls impossible`
@@ -188,16 +188,13 @@ Les chargements initiaux existants de ces surfaces ne sont pas redefinis par cet
 - Ajout de provider, modele, SDK, cout provider ou appel reseau IA.
 - Auto-apply, bulk decision ou decision IA autonome.
 
-## Fichiers probablement concernes pour l'implementation future
+## Fichiers runtime concernes par l'implementation livree
 
 - `frontend/src/app/router.tsx`
 - `frontend/src/app/ai-mapping-suggestions-panel.tsx`
 - `frontend/src/app/router.import-balance.test.tsx`
 - `frontend/src/app/router.manual-mapping.test.tsx`
-- eventuellement `frontend/src/app/ai-mapping-suggestions-panel.test.tsx`
-- eventuellement `frontend/src/app/dossier-progress-summary.test.tsx`
-
-Cette liste ne donne pas autorisation d'implementation dans cette mission de creation de spec.
+- `frontend/src/app/ai-mapping-suggestions-panel.test.tsx`
 
 ## Criteres d'acceptation verifiables
 
@@ -235,7 +232,7 @@ Cette liste ne donne pas autorisation d'implementation dans cette mission de cre
   - pas mutation document ;
   - pas endpoint hors scope.
 
-## Gates obligatoires pour l'implementation future
+## Gates de validation de l'implementation
 
 - `pnpm build`
 - `pnpm test:ci`
@@ -246,7 +243,7 @@ Cette liste ne donne pas autorisation d'implementation dans cette mission de cre
 
 - Contrats : AUCUN.
 - Runbooks : AUCUN.
-- `docs/product/v1-plan.md` : AUCUN maintenant, mise a jour seulement a la cloture si `033` est livree.
+- `docs/product/v1-plan.md` : deja aligne ; `033` est listee en done et aucune spec active n'est ouverte.
 - `docs/present/*` : AUCUN sauf changement durable prouve apres livraison.
 - `docs/ui/ui-foundations-v1.md` : AUCUN sauf changement durable de verite UI.
 
@@ -256,11 +253,11 @@ Cette liste ne donne pas autorisation d'implementation dans cette mission de cre
 - CO Review : non requise.
 - Expert Review Board : non requis a ce stade.
 
-## Fresh Evidence Pack attendu apres creation de spec
+## Fresh Evidence Pack attendu pour la fermeture
 
 - Resume.
-- Fichier cree.
-- Diff complet de la spec.
+- Fichier modifie.
+- Diff documentaire precis de fermeture.
 - Commandes executees.
 - `git status --short --branch --untracked-files=all`.
 - `git diff --name-status`.
@@ -272,6 +269,6 @@ Cette liste ne donne pas autorisation d'implementation dans cette mission de cre
 
 ## Revue humaine recommandee
 
-Non requise a ce stade pour backend, DB, migration, authentification, autorisation, separation tenant, audit, donnees sensibles, suppression de donnees, regle metier critique, dependance, architecture, production ou irreversibilite metier, car cette mission cree uniquement une spec active frontend.
+Non requise a ce stade pour backend, DB, migration, authentification, autorisation, separation tenant, audit, donnees sensibles, suppression de donnees, regle metier critique, dependance, architecture, production ou irreversibilite metier, car cette fermeture documentaire ne modifie aucun runtime.
 
-Revue frontend normale recommandee lors de l'implementation future, car le changement touchera l'orchestration visible du parcours pilote coeur.
+Revue frontend normale recommandee pendant la PR d'implementation. Fermeture documentaire sans revue technique specialisee.
