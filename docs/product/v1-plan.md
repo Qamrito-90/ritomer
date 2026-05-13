@@ -59,9 +59,10 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `specs/done/029-pilot-closing-workflow-e2e-confidence-hardening-v1.md`
 - `specs/done/030-ia-mapping-assiste-suggestion-review-v1.md`
 - `specs/done/032-controls-readiness-deterministic-consumer-hardening-v1.md`
+- `specs/done/033-pilot-core-flow-ui-refresh-consistency-v1.md`
 
 ### Active
-- Spec active actuelle : `specs/active/033-pilot-core-flow-ui-refresh-consistency-v1.md`.
+- AUCUNE spec active.
 - `030d runtime` provider reel reste reporte : aucun provider IA reel, aucun modele reel, aucun SDK, aucun prompt runtime actif, aucun cout provider, aucun appel reseau IA, aucun microservice IA, aucun GraphQL, aucun RAG/vector store et aucun auto-apply ne sont actives.
 
 ### Decisions figees
@@ -113,6 +114,7 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - Le mapping manuel et le backend restent l'autorite metier. Aucune suggestion ne s'applique seule, aucune decision bulk n'est livree et `requiresHumanReview = true` reste obligatoire.
 - Aucune capacite provider IA reelle n'est activee par `030`. `030d runtime` reste bloque par CPO approval, CTO Gate, security/privacy review, IA governance review, provider-readiness record signe, dependency/security review signee, payload whitelist signee, runbook pret et golden set vert.
 - `032-controls-readiness-deterministic-consumer-hardening-v1` ferme le hardening frontend du consumer existant `GET /api/closing-folders/{closingFolderId}/controls` : validation fail-closed des payloads `/controls` incoherents, invalides ou contenant des cles sensibles connues, tests unitaires dedies du consumer et realignement des fixtures/tests frontend associes, sans nouvel endpoint, sans nouvelle UI metier visible, sans backend, sans contrat OpenAPI et sans activation IA.
+- `033-pilot-core-flow-ui-refresh-consistency-v1` ferme la coherence frontend post-action du parcours pilote coeur : import, mapping manuel et decisions de suggestions no-provider rafraichissent les read-models coeur attendus via `GET` REST existants, avec warnings de refresh partiel, sans backend, DB, OpenAPI, IA runtime, GraphQL, RAG, refresh export/minimal-annex, mutation workpaper/document ou nouvelle promesse CO/statutory.
 - Les lectures sur `ARCHIVED` restent autorisees si le tenant et le RBAC sont valides.
 - Les lectures `GET` sur `controls`, `financial-summary`, `financial-statements-structured`, `workpapers` et `minimal-annex` n'ecrivent aucun `audit_event`.
 - Les tests PostgreSQL reels restent opt-in via `dbIntegrationTest`, sans Docker local requis.
