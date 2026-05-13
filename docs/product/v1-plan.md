@@ -61,7 +61,7 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `specs/done/032-controls-readiness-deterministic-consumer-hardening-v1.md`
 
 ### Active
-- AUCUNE spec active apres la cloture documentaire `032`.
+- Spec active actuelle : `specs/active/033-pilot-core-flow-ui-refresh-consistency-v1.md`.
 - `030d runtime` provider reel reste reporte : aucun provider IA reel, aucun modele reel, aucun SDK, aucun prompt runtime actif, aucun cout provider, aucun appel reseau IA, aucun microservice IA, aucun GraphQL, aucun RAG/vector store et aucun auto-apply ne sont actives.
 
 ### Decisions figees
