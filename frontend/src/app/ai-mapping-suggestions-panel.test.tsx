@@ -351,6 +351,73 @@ describe("AiMappingSuggestionsPanel", () => {
     );
   });
 
+  it("keeps the previous suggestions visible and warns when the post-decision suggestions refresh fails", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    const user = userEvent.setup();
+    stubRandomUUID("reject-refresh-failure-key-1");
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, READY_MAPPING_SUGGESTIONS))
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          decision: "REJECT",
+          accountCode: "1000",
+          resultKind: "REJECT_RECORDED",
+          appliedMapping: null
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse(500, {}));
+
+    renderPanel();
+    await screen.findByLabelText("AI mapping suggestion 1000");
+
+    await user.click(getRejectButton());
+
+    expect(await screen.findByText(/Human decision recorded: REJECT/)).toBeInTheDocument();
+    expect(screen.getByText("rafraichissement suggestions impossible")).toBeInTheDocument();
+    expect(screen.getByLabelText("AI mapping suggestion 1000")).toBeInTheDocument();
+  });
+
+  it("runs the manual mapping refresh callback only when the decision result applied mapping", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    const user = userEvent.setup();
+    const onManualMappingMutationConfirmed = vi.fn();
+    stubRandomUUID("noop-key-1", "created-key-1");
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, READY_MAPPING_SUGGESTIONS))
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          decision: "ACCEPT",
+          accountCode: "1000",
+          resultKind: "MANUAL_MAPPING_NOOP",
+          appliedMapping: null
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse(200, READY_MAPPING_SUGGESTIONS))
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          decision: "ACCEPT",
+          accountCode: "1000",
+          resultKind: "MANUAL_MAPPING_CREATED",
+          appliedMapping: {
+            accountCode: "1000",
+            targetCode: "BS.ASSET.CASH_AND_EQUIVALENTS"
+          }
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_MAPPING_SUGGESTIONS));
+
+    renderPanel({ onManualMappingMutationConfirmed });
+    await screen.findByLabelText("AI mapping suggestion 1000");
+
+    await user.click(getAcceptButton());
+    expect(await screen.findByText(/resultKind: MANUAL_MAPPING_NOOP/)).toBeInTheDocument();
+    expect(onManualMappingMutationConfirmed).not.toHaveBeenCalled();
+
+    await user.click(getAcceptButton());
+    expect(await screen.findByText(/resultKind: MANUAL_MAPPING_CREATED/)).toBeInTheDocument();
+    expect(onManualMappingMutationConfirmed).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps CORRECT accessible, blocks the suggested target, and sends another selectable target", async () => {
     const fetchMock = vi.mocked(global.fetch);
     const user = userEvent.setup();

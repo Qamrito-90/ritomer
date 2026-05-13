@@ -28,7 +28,21 @@ type AiMappingSuggestionsPanelProps = {
   activeTenant: ActiveTenant;
   closingFolderId: string;
   selectableTargets?: AiMappingSuggestionReviewTarget[];
-  onManualMappingMutationConfirmed?: () => Promise<void> | void;
+  suggestionsRefreshRequestId?: number;
+  onManualMappingMutationConfirmed?: () =>
+    | Promise<ManualMappingRefreshWarnings | void>
+    | ManualMappingRefreshWarnings
+    | void;
+  onSuggestionsRefreshSettled?: (requestId: number, succeeded: boolean) => void;
+};
+
+export type ManualMappingRefreshWarnings = {
+  mappingFailed?: boolean;
+  controlsFailed?: boolean;
+  financialSummaryFailed?: boolean;
+  financialStatementsFailed?: boolean;
+  workpapersFailed?: boolean;
+  suggestionsFailed?: boolean;
 };
 
 const stateLabels: Record<MappingSuggestionsState, string> = {
@@ -50,7 +64,7 @@ type DecisionReviewState =
       kind: "success";
       result: MappingSuggestionDecisionResult;
       refreshSuggestionsFailed: boolean;
-      refreshManualMappingFailed: boolean;
+      manualMappingRefreshWarnings: ManualMappingRefreshWarnings;
     }
   | (Exclude<MappingSuggestionDecisionState, { kind: "success" }> & {
       decision: MappingSuggestionDecision;
@@ -65,7 +79,9 @@ export function AiMappingSuggestionsPanel({
   activeTenant,
   closingFolderId,
   selectableTargets = [],
-  onManualMappingMutationConfirmed
+  suggestionsRefreshRequestId = 0,
+  onManualMappingMutationConfirmed,
+  onSuggestionsRefreshSettled
 }: AiMappingSuggestionsPanelProps) {
   const [state, setState] = useState<MappingSuggestionsShellState>({ kind: "loading" });
   const [correctTargetByAccount, setCorrectTargetByAccount] = useState<Record<string, string>>({});
@@ -75,17 +91,32 @@ export function AiMappingSuggestionsPanel({
   >({});
   const decisionAttemptByAccountRef = useRef<Record<string, DecisionAttempt | undefined>>({});
   const inFlightAccountsRef = useRef<Set<string>>(new Set());
+  const hasLoadedSuggestionsRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadSuggestions() {
-      setState({ kind: "loading" });
+      const isInitialLoad = !hasLoadedSuggestionsRef.current;
+
+      if (isInitialLoad) {
+        setState({ kind: "loading" });
+      }
 
       const nextState = await loadMappingSuggestionsShellState(closingFolderId, activeTenant);
 
-      if (!cancelled) {
+      if (cancelled) {
+        return;
+      }
+
+      if (isInitialLoad || nextState.kind === "ready") {
         setState(nextState);
+      }
+
+      hasLoadedSuggestionsRef.current = true;
+
+      if (!isInitialLoad && suggestionsRefreshRequestId > 0) {
+        onSuggestionsRefreshSettled?.(suggestionsRefreshRequestId, nextState.kind === "ready");
       }
     }
 
@@ -94,13 +125,12 @@ export function AiMappingSuggestionsPanel({
     return () => {
       cancelled = true;
     };
-  }, [activeTenant, closingFolderId]);
+  }, [activeTenant, closingFolderId, onSuggestionsRefreshSettled, suggestionsRefreshRequestId]);
 
   async function refreshSuggestionsAfterDecision() {
     const nextState = await loadMappingSuggestionsShellState(closingFolderId, activeTenant);
 
     if (nextState.kind !== "ready") {
-      setState(nextState);
       return false;
     }
 
@@ -195,13 +225,13 @@ export function AiMappingSuggestionsPanel({
     if (result.kind === "success") {
       delete decisionAttemptByAccountRef.current[suggestion.accountCode];
       const refreshSuggestionsSucceeded = await refreshSuggestionsAfterDecision();
-      let refreshManualMappingFailed = false;
+      let manualMappingRefreshWarnings: ManualMappingRefreshWarnings = {};
 
       if (isManualMappingMutationResult(result.result)) {
         try {
-          await onManualMappingMutationConfirmed?.();
+          manualMappingRefreshWarnings = (await onManualMappingMutationConfirmed?.()) ?? {};
         } catch {
-          refreshManualMappingFailed = true;
+          manualMappingRefreshWarnings = { mappingFailed: true };
         }
       }
 
@@ -211,7 +241,7 @@ export function AiMappingSuggestionsPanel({
           kind: "success",
           result: result.result,
           refreshSuggestionsFailed: !refreshSuggestionsSucceeded,
-          refreshManualMappingFailed
+          manualMappingRefreshWarnings
         }
       }));
       return;
@@ -638,9 +668,21 @@ function DecisionStatus({ state }: { state: DecisionReviewState }) {
           Human decision recorded: {state.result.decision}. resultKind:{" "}
           {state.result.resultKind}.
         </p>
-        {state.refreshSuggestionsFailed ? <p>AI mapping suggestion refresh failed.</p> : null}
-        {state.refreshManualMappingFailed ? (
-          <p>Manual mapping remains the authority. Refresh failed.</p>
+        {state.refreshSuggestionsFailed ? <p>rafraichissement suggestions impossible</p> : null}
+        {state.manualMappingRefreshWarnings.mappingFailed ? (
+          <p>rafraichissement mapping impossible</p>
+        ) : null}
+        {state.manualMappingRefreshWarnings.controlsFailed ? (
+          <p>rafraichissement controls impossible</p>
+        ) : null}
+        {state.manualMappingRefreshWarnings.financialSummaryFailed ? (
+          <p>rafraichissement financial summary impossible</p>
+        ) : null}
+        {state.manualMappingRefreshWarnings.financialStatementsFailed ? (
+          <p>rafraichissement financial statements impossible</p>
+        ) : null}
+        {state.manualMappingRefreshWarnings.workpapersFailed ? (
+          <p>rafraichissement workpapers impossible</p>
         ) : null}
       </div>
     );
