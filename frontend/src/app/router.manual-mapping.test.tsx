@@ -184,6 +184,27 @@ const INITIAL_FINANCIAL_SUMMARY = {
   }
 };
 
+const REFRESHED_FINANCIAL_SUMMARY = {
+  ...INITIAL_FINANCIAL_SUMMARY,
+  statementState: "PREVIEW_READY",
+  coverage: {
+    totalLines: 2,
+    mappedLines: 2,
+    unmappedLines: 0,
+    mappedShare: "1"
+  },
+  unmappedBalanceImpact: {
+    debitTotal: "0",
+    creditTotal: "0",
+    netDebitMinusCredit: "0"
+  },
+  incomeStatementSummary: {
+    revenue: "100",
+    expenses: "0",
+    netResult: "100"
+  }
+};
+
 const INITIAL_FINANCIAL_STATEMENTS_STRUCTURED = {
   closingFolderId: CLOSING_FOLDER.id,
   statementState: "BLOCKED",
@@ -200,6 +221,67 @@ const INITIAL_FINANCIAL_STATEMENTS_STRUCTURED = {
   incomeStatement: null
 };
 
+const REFRESHED_FINANCIAL_STATEMENTS_STRUCTURED = {
+  ...INITIAL_FINANCIAL_STATEMENTS_STRUCTURED,
+  statementState: "PREVIEW_READY",
+  coverage: {
+    totalLines: 2,
+    mappedLines: 2,
+    unmappedLines: 0,
+    mappedShare: "1"
+  },
+  balanceSheet: {
+    groups: [
+      {
+        code: "BS.ASSET",
+        label: "Actifs",
+        total: "100",
+        breakdowns: []
+      },
+      {
+        code: "BS.LIABILITY",
+        label: "Passifs",
+        total: "0",
+        breakdowns: []
+      },
+      {
+        code: "BS.EQUITY",
+        label: "Capitaux propres",
+        total: "100",
+        breakdowns: []
+      }
+    ],
+    totals: {
+      totalAssets: "100",
+      totalLiabilities: "0",
+      totalEquity: "0",
+      currentPeriodResult: "100",
+      totalLiabilitiesAndEquity: "100"
+    }
+  },
+  incomeStatement: {
+    groups: [
+      {
+        code: "PL.REVENUE",
+        label: "Produits",
+        total: "100",
+        breakdowns: []
+      },
+      {
+        code: "PL.EXPENSE",
+        label: "Charges",
+        total: "0",
+        breakdowns: []
+      }
+    ],
+    totals: {
+      totalRevenue: "100",
+      totalExpenses: "0",
+      netResult: "100"
+    }
+  }
+};
+
 const INITIAL_WORKPAPERS = {
   closingFolderId: CLOSING_FOLDER.id,
   summaryCounts: {
@@ -211,6 +293,36 @@ const INITIAL_WORKPAPERS = {
     missingCount: 0
   },
   items: [],
+  staleWorkpapers: []
+};
+
+const REFRESHED_WORKPAPERS = {
+  closingFolderId: CLOSING_FOLDER.id,
+  closingFolderStatus: "DRAFT",
+  readiness: "READY",
+  latestImportVersion: 2,
+  blockers: [],
+  nextAction: null,
+  summaryCounts: {
+    totalCurrentAnchors: 1,
+    withWorkpaperCount: 0,
+    readyForReviewCount: 0,
+    reviewedCount: 0,
+    staleCount: 0,
+    missingCount: 1
+  },
+  items: [
+    {
+      anchorCode: "PL.REVENUE",
+      anchorLabel: "Produits",
+      statementKind: "INCOME_STATEMENT",
+      breakdownType: "SECTION",
+      isCurrentStructure: true,
+      workpaper: null,
+      documents: [],
+      documentVerificationSummary: null
+    }
+  ],
   staleWorkpapers: []
 };
 
@@ -246,6 +358,28 @@ const REFRESHED_MANUAL_MAPPING_AFTER_DELETE = {
   },
   lines: INITIAL_MANUAL_MAPPING.lines,
   mappings: [],
+  targets: INITIAL_MANUAL_MAPPING.targets
+};
+
+const REFRESHED_MANUAL_MAPPING_AFTER_CORRECT = {
+  closingFolderId: CLOSING_FOLDER.id,
+  latestImportVersion: 2,
+  summary: {
+    total: 2,
+    mapped: 2,
+    unmapped: 0
+  },
+  lines: INITIAL_MANUAL_MAPPING.lines,
+  mappings: [
+    {
+      accountCode: "1000",
+      targetCode: "BS.ASSET"
+    },
+    {
+      accountCode: "2000",
+      targetCode: "BS.ASSET"
+    }
+  ],
   targets: INITIAL_MANUAL_MAPPING.targets
 };
 
@@ -487,7 +621,8 @@ function expectNoOutOfScopePaths(
   paths: string[],
   expectedFinancialSummaryCalls = 1,
   expectedFinancialStatementsStructuredCalls = 1,
-  expectedWorkpapersCalls = 1
+  expectedWorkpapersCalls = 1,
+  expectedMappingSuggestionsCalls = 1
 ) {
   expect(paths.some((path) => path.includes("/imports/balance"))).toBe(false);
   expect(paths.some((path) => path.includes("/imports/balance/versions"))).toBe(false);
@@ -502,10 +637,16 @@ function expectNoOutOfScopePaths(
   expect(paths.filter((path) => path.includes("/workpapers"))).toHaveLength(
     expectedWorkpapersCalls
   );
+  expect(paths.filter((path) => path.endsWith("/mappings/suggestions"))).toHaveLength(
+    expectedMappingSuggestionsCalls
+  );
+  expect(paths.filter((path) => path.endsWith("/export-packs"))).toHaveLength(1);
+  expect(paths.filter((path) => path.endsWith("/minimal-annex"))).toHaveLength(1);
   expect(paths.some((path) => /\/workpapers\/[^/]+/.test(path))).toBe(false);
   expect(paths.some((path) => path.includes("/documents"))).toBe(false);
   expect(paths.some((path) => /\/export-packs\/[^/]+\/content$/.test(path))).toBe(false);
   expect(paths.some((path) => path.includes("/ai"))).toBe(false);
+  expect(paths.some((path) => path.includes("/graphql"))).toBe(false);
 }
 
 describe("router manual mapping", () => {
@@ -732,7 +873,7 @@ describe("router manual mapping", () => {
     expectNoOutOfScopePaths(getRequestPaths(fetchMock));
   });
 
-  it("does not POST a suggestion decision before click, then refreshes suggestions, mapping and controls after ACCEPT mutation", async () => {
+  it("does not POST a suggestion decision before click, then refreshes suggestions plus core mapping surfaces after ACCEPT creates a manual mapping", async () => {
     const fetchMock = vi.mocked(global.fetch);
     const user = userEvent.setup();
     stubRandomUUID("route-accept-key-1");
@@ -751,7 +892,10 @@ describe("router manual mapping", () => {
           }),
         () => jsonResponse(200, REFRESHED_EMPTY_MAPPING_SUGGESTIONS),
         () => jsonResponse(200, REFRESHED_MANUAL_MAPPING_AFTER_PUT),
-        () => jsonResponse(200, REFRESHED_CONTROLS)
+        () => jsonResponse(200, REFRESHED_CONTROLS),
+        () => jsonResponse(200, REFRESHED_FINANCIAL_SUMMARY),
+        () => jsonResponse(200, REFRESHED_FINANCIAL_STATEMENTS_STRUCTURED),
+        () => jsonResponse(200, REFRESHED_WORKPAPERS)
       ]
     });
 
@@ -787,7 +931,10 @@ describe("router manual mapping", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions/2000/decision`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/manual`,
-      `/api/closing-folders/${CLOSING_FOLDER.id}/controls`
+      `/api/closing-folders/${CLOSING_FOLDER.id}/controls`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/financial-summary`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`
     ]);
 
     const postInit = fetchMock.mock.calls[10]?.[1] as RequestInit;
@@ -809,6 +956,80 @@ describe("router manual mapping", () => {
       await within(getLineDetailCard("2000", "Mapping courant")).findByText("Produit (PL.REVENUE)")
     ).toBeInTheDocument();
     expect(await screen.findByText("Manual mapping is complete on the latest import.")).toBeInTheDocument();
+    expect(await screen.findByText("etat preview : preview prete")).toBeInTheDocument();
+    expect(await screen.findByText("anchors courants total : 1")).toBeInTheDocument();
+    expectNoOutOfScopePaths(getRequestPaths(fetchMock), 2, 2, 2, 2);
+  });
+
+  it("refreshes suggestions plus core mapping surfaces after CORRECT updates a manual mapping", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    const user = userEvent.setup();
+    stubRandomUUID("route-correct-key-1");
+    primeNominalRoute(fetchMock, {
+      mappingSuggestions: () => jsonResponse(200, READY_MAPPING_SUGGESTIONS),
+      extras: [
+        () =>
+          jsonResponse(200, {
+            decision: "CORRECT",
+            accountCode: "2000",
+            resultKind: "MANUAL_MAPPING_UPDATED",
+            appliedMapping: {
+              accountCode: "2000",
+              targetCode: "BS.ASSET"
+            }
+          }),
+        () => jsonResponse(200, REFRESHED_EMPTY_MAPPING_SUGGESTIONS),
+        () => jsonResponse(200, REFRESHED_MANUAL_MAPPING_AFTER_CORRECT),
+        () => jsonResponse(200, REFRESHED_CONTROLS),
+        () => jsonResponse(200, REFRESHED_FINANCIAL_SUMMARY),
+        () => jsonResponse(200, REFRESHED_FINANCIAL_STATEMENTS_STRUCTURED),
+        () => jsonResponse(200, REFRESHED_WORKPAPERS)
+      ]
+    });
+
+    renderClosingRoute();
+    await waitForNominalShell();
+    await screen.findByLabelText("AI mapping suggestion 2000");
+
+    await user.selectOptions(
+      screen.getByLabelText("Correct with another target"),
+      "BS.ASSET"
+    );
+    await user.click(screen.getByRole("button", { name: "Correct with another target" }));
+
+    expect(await screen.findByText(/Human decision recorded: CORRECT/)).toBeInTheDocument();
+    expect(getRequestPaths(fetchMock)).toEqual([
+      "/api/me",
+      `/api/closing-folders/${CLOSING_FOLDER.id}`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/controls`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/manual`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/financial-summary`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/minimal-annex`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions/2000/decision`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/manual`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/controls`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/financial-summary`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`
+    ]);
+    expect(JSON.parse(String((fetchMock.mock.calls[10]?.[1] as RequestInit).body))).toEqual({
+      decision: "CORRECT",
+      latestImportVersion: 2,
+      suggestionFingerprint:
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      targetCode: "BS.ASSET"
+    });
+    expect(
+      await within(getLineDetailCard("2000", "Mapping courant")).findByText("Actif (BS.ASSET)")
+    ).toBeInTheDocument();
+    expect(await screen.findByText("etat preview : preview prete")).toBeInTheDocument();
+    expect(await screen.findByText("anchors courants total : 1")).toBeInTheDocument();
+    expectNoOutOfScopePaths(getRequestPaths(fetchMock), 2, 2, 2, 2);
   });
 
   it("refreshes suggestions only after REJECT and never refreshes manual mapping or controls", async () => {
@@ -858,6 +1079,10 @@ describe("router manual mapping", () => {
     });
     expect(getRequestPaths(fetchMock).filter((path) => path.endsWith("/mappings/manual"))).toHaveLength(1);
     expect(getRequestPaths(fetchMock).filter((path) => path.endsWith("/controls"))).toHaveLength(1);
+    expect(getRequestPaths(fetchMock).filter((path) => path.endsWith("/financial-summary"))).toHaveLength(1);
+    expect(getRequestPaths(fetchMock).filter((path) => path.endsWith("/financial-statements/structured"))).toHaveLength(1);
+    expect(getRequestPaths(fetchMock).filter((path) => path.endsWith("/workpapers"))).toHaveLength(1);
+    expectNoOutOfScopePaths(getRequestPaths(fetchMock), 1, 1, 1, 2);
   });
 
   it("does not prefill the manual mapping select while an ACCEPT decision is pending", async () => {
@@ -900,7 +1125,11 @@ describe("router manual mapping", () => {
             targetCode: "PL.REVENUE"
           }),
         () => mappingRefresh,
-        () => controlsRefresh
+        () => controlsRefresh,
+        () => jsonResponse(200, REFRESHED_FINANCIAL_SUMMARY),
+        () => jsonResponse(200, REFRESHED_FINANCIAL_STATEMENTS_STRUCTURED),
+        () => jsonResponse(200, REFRESHED_WORKPAPERS),
+        () => jsonResponse(200, REFRESHED_EMPTY_MAPPING_SUGGESTIONS)
       ]
     });
 
@@ -924,7 +1153,10 @@ describe("router manual mapping", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/minimal-annex`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/manual`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/manual`,
-      `/api/closing-folders/${CLOSING_FOLDER.id}/controls`
+      `/api/closing-folders/${CLOSING_FOLDER.id}/controls`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/financial-summary`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`
     ]);
 
     const putInit = fetchMock.mock.calls[10]?.[1] as RequestInit;
@@ -942,8 +1174,9 @@ describe("router manual mapping", () => {
       await within(getLineDetailCard("2000", "Mapping courant")).findByText("Produit (PL.REVENUE)")
     ).toBeInTheDocument();
     expect(await screen.findByText("Manual mapping is complete on the latest import.")).toBeInTheDocument();
-    expect(screen.getByText("etat preview : preview partielle")).toBeInTheDocument();
-    expectNoOutOfScopePaths(getRequestPaths(fetchMock), 1);
+    expect(await screen.findByText("etat preview : preview prete")).toBeInTheDocument();
+    expect(await screen.findByText("AI mapping suggestion ready.")).toBeInTheDocument();
+    expectNoOutOfScopePaths(getRequestPaths(fetchMock), 2, 2, 2, 2);
   });
 
   it("renders payload mapping invalide and skips refresh when the PUT success payload is incoherent", async () => {
@@ -1052,7 +1285,11 @@ describe("router manual mapping", () => {
       extras: [
         () => new Response(null, { status: 204 }),
         () => jsonResponse(200, REFRESHED_MANUAL_MAPPING_AFTER_DELETE),
-        () => jsonResponse(200, INITIAL_CONTROLS)
+        () => jsonResponse(200, INITIAL_CONTROLS),
+        () => jsonResponse(200, REFRESHED_FINANCIAL_SUMMARY),
+        () => jsonResponse(200, REFRESHED_FINANCIAL_STATEMENTS_STRUCTURED),
+        () => jsonResponse(200, REFRESHED_WORKPAPERS),
+        () => jsonResponse(200, REFRESHED_EMPTY_MAPPING_SUGGESTIONS)
       ]
     });
 
@@ -1075,7 +1312,11 @@ describe("router manual mapping", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/minimal-annex`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/manual?accountCode=1000`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/manual`,
-      `/api/closing-folders/${CLOSING_FOLDER.id}/controls`
+      `/api/closing-folders/${CLOSING_FOLDER.id}/controls`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/financial-summary`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`
     ]);
 
     const deleteInit = fetchMock.mock.calls[10]?.[1] as RequestInit;
@@ -1085,8 +1326,9 @@ describe("router manual mapping", () => {
     expect(deleteHeaders["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
     expect(deleteInit.body).toBeUndefined();
     expect(await within(getLineDetailCard("1000", "Mapping courant")).findByText("aucun")).toBeInTheDocument();
-    expect(screen.getByText("etat preview : preview partielle")).toBeInTheDocument();
-    expectNoOutOfScopePaths(getRequestPaths(fetchMock), 1);
+    expect(await screen.findByText("etat preview : preview prete")).toBeInTheDocument();
+    expect(await screen.findByText("AI mapping suggestion ready.")).toBeInTheDocument();
+    expectNoOutOfScopePaths(getRequestPaths(fetchMock), 2, 2, 2, 2);
   });
 
   it("keeps the last valid mapping block and warns when the mapping refresh fails after a PUT success", async () => {
@@ -1100,7 +1342,11 @@ describe("router manual mapping", () => {
             targetCode: "PL.REVENUE"
           }),
         () => jsonResponse(500, {}),
-        () => jsonResponse(200, REFRESHED_CONTROLS)
+        () => jsonResponse(200, REFRESHED_CONTROLS),
+        () => jsonResponse(200, REFRESHED_FINANCIAL_SUMMARY),
+        () => jsonResponse(200, REFRESHED_FINANCIAL_STATEMENTS_STRUCTURED),
+        () => jsonResponse(200, REFRESHED_WORKPAPERS),
+        () => jsonResponse(200, REFRESHED_EMPTY_MAPPING_SUGGESTIONS)
       ]
     });
 
@@ -1124,7 +1370,11 @@ describe("router manual mapping", () => {
       extras: [
         () => new Response(null, { status: 204 }),
         () => jsonResponse(200, REFRESHED_MANUAL_MAPPING_AFTER_DELETE),
-        () => jsonResponse(500, {})
+        () => jsonResponse(500, {}),
+        () => jsonResponse(200, REFRESHED_FINANCIAL_SUMMARY),
+        () => jsonResponse(200, REFRESHED_FINANCIAL_STATEMENTS_STRUCTURED),
+        () => jsonResponse(200, REFRESHED_WORKPAPERS),
+        () => jsonResponse(200, REFRESHED_EMPTY_MAPPING_SUGGESTIONS)
       ]
     });
 

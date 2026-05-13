@@ -148,6 +148,31 @@ const INITIAL_MANUAL_MAPPING = {
   ]
 };
 
+const REFRESHED_MANUAL_MAPPING = {
+  closingFolderId: CLOSING_FOLDER.id,
+  latestImportVersion: 4,
+  summary: {
+    total: 1,
+    mapped: 1,
+    unmapped: 0
+  },
+  lines: [
+    {
+      accountCode: "3000",
+      accountLabel: "Sales refreshed",
+      debit: "0",
+      credit: "300"
+    }
+  ],
+  mappings: [
+    {
+      accountCode: "3000",
+      targetCode: "PL.REVENUE"
+    }
+  ],
+  targets: INITIAL_MANUAL_MAPPING.targets
+};
+
 const INITIAL_FINANCIAL_SUMMARY = {
   closingFolderId: CLOSING_FOLDER.id,
   statementState: "PREVIEW_PARTIAL",
@@ -178,6 +203,28 @@ const INITIAL_FINANCIAL_SUMMARY = {
   }
 };
 
+const REFRESHED_FINANCIAL_SUMMARY = {
+  ...INITIAL_FINANCIAL_SUMMARY,
+  statementState: "PREVIEW_READY",
+  latestImportVersion: 4,
+  coverage: {
+    totalLines: 1,
+    mappedLines: 1,
+    unmappedLines: 0,
+    mappedShare: "1"
+  },
+  unmappedBalanceImpact: {
+    debitTotal: "0",
+    creditTotal: "0",
+    netDebitMinusCredit: "0"
+  },
+  incomeStatementSummary: {
+    revenue: "300",
+    expenses: "0",
+    netResult: "300"
+  }
+};
+
 const INITIAL_FINANCIAL_STATEMENTS_STRUCTURED = {
   closingFolderId: CLOSING_FOLDER.id,
   statementState: "BLOCKED",
@@ -194,6 +241,68 @@ const INITIAL_FINANCIAL_STATEMENTS_STRUCTURED = {
   incomeStatement: null
 };
 
+const REFRESHED_FINANCIAL_STATEMENTS_STRUCTURED = {
+  ...INITIAL_FINANCIAL_STATEMENTS_STRUCTURED,
+  statementState: "PREVIEW_READY",
+  latestImportVersion: 4,
+  coverage: {
+    totalLines: 1,
+    mappedLines: 1,
+    unmappedLines: 0,
+    mappedShare: "1"
+  },
+  balanceSheet: {
+    groups: [
+      {
+        code: "BS.ASSET",
+        label: "Actifs",
+        total: "0",
+        breakdowns: []
+      },
+      {
+        code: "BS.LIABILITY",
+        label: "Passifs",
+        total: "0",
+        breakdowns: []
+      },
+      {
+        code: "BS.EQUITY",
+        label: "Capitaux propres",
+        total: "300",
+        breakdowns: []
+      }
+    ],
+    totals: {
+      totalAssets: "0",
+      totalLiabilities: "0",
+      totalEquity: "0",
+      currentPeriodResult: "300",
+      totalLiabilitiesAndEquity: "300"
+    }
+  },
+  incomeStatement: {
+    groups: [
+      {
+        code: "PL.REVENUE",
+        label: "Produits",
+        total: "300",
+        breakdowns: []
+      },
+      {
+        code: "PL.EXPENSE",
+        label: "Charges",
+        total: "0",
+        breakdowns: []
+      }
+    ],
+    totals: {
+      totalRevenue: "300",
+      totalExpenses: "0",
+      netResult: "300"
+    }
+  }
+};
+
 const INITIAL_WORKPAPERS = {
   closingFolderId: CLOSING_FOLDER.id,
   summaryCounts: {
@@ -205,6 +314,36 @@ const INITIAL_WORKPAPERS = {
     missingCount: 0
   },
   items: [],
+  staleWorkpapers: []
+};
+
+const REFRESHED_WORKPAPERS = {
+  closingFolderId: CLOSING_FOLDER.id,
+  closingFolderStatus: "DRAFT",
+  readiness: "READY",
+  latestImportVersion: 4,
+  blockers: [],
+  nextAction: null,
+  summaryCounts: {
+    totalCurrentAnchors: 1,
+    withWorkpaperCount: 0,
+    readyForReviewCount: 0,
+    reviewedCount: 0,
+    staleCount: 0,
+    missingCount: 1
+  },
+  items: [
+    {
+      anchorCode: "PL.REVENUE",
+      anchorLabel: "Produits",
+      statementKind: "INCOME_STATEMENT",
+      breakdownType: "SECTION",
+      isCurrentStructure: true,
+      workpaper: null,
+      documents: [],
+      documentVerificationSummary: null
+    }
+  ],
   staleWorkpapers: []
 };
 
@@ -251,6 +390,15 @@ const EMPTY_MAPPING_SUGGESTIONS = {
       message: "Mapping suggestions are disabled."
     }
   ]
+};
+
+const REFRESHED_MAPPING_SUGGESTIONS = {
+  state: "READY",
+  closingFolderId: CLOSING_FOLDER.id,
+  latestImportVersion: 4,
+  taxonomyVersion: 2,
+  suggestions: [],
+  errors: []
 };
 
 const CLOSING_ROUTE = `/closing-folders/${CLOSING_FOLDER.id}`;
@@ -317,7 +465,8 @@ function expectNoForbiddenImportCalls(
   paths: string[],
   expectedFinancialSummaryCalls = 1,
   expectedFinancialStatementsStructuredCalls = 1,
-  expectedWorkpapersCalls = 1
+  expectedWorkpapersCalls = 1,
+  expectedMappingSuggestionsCalls = 1
 ) {
   expect(paths.filter((path) => path.includes("/financial-summary"))).toHaveLength(
     expectedFinancialSummaryCalls
@@ -328,6 +477,11 @@ function expectNoForbiddenImportCalls(
   expect(paths.filter((path) => path.includes("/workpapers"))).toHaveLength(
     expectedWorkpapersCalls
   );
+  expect(paths.filter((path) => path.endsWith("/mappings/suggestions"))).toHaveLength(
+    expectedMappingSuggestionsCalls
+  );
+  expect(paths.filter((path) => path.endsWith("/export-packs"))).toHaveLength(1);
+  expect(paths.filter((path) => path.endsWith("/minimal-annex"))).toHaveLength(1);
   expect(paths.some((path) => path.includes("/imports/balance/versions"))).toBe(false);
   expect(paths.some((path) => path.includes("/diff-previous"))).toBe(false);
   expect(paths.some((path) => path.includes("/financial-statements-structured"))).toBe(false);
@@ -335,6 +489,7 @@ function expectNoForbiddenImportCalls(
   expect(paths.some((path) => path.includes("/documents"))).toBe(false);
   expect(paths.some((path) => /\/export-packs\/[^/]+\/content$/.test(path))).toBe(false);
   expect(paths.some((path) => path.includes("/ai"))).toBe(false);
+  expect(paths.some((path) => path.includes("/graphql"))).toBe(false);
 }
 
 function expectDefinitionValue(container: HTMLElement, label: string, value: string) {
@@ -483,7 +638,7 @@ describe("router import balance", () => {
     expect(fetchMock).toHaveBeenCalledTimes(11);
   });
 
-  it("keeps the success visible and refreshes dossier then controls after a valid 201", async () => {
+  it("keeps the success visible and refreshes dossier plus core downstream surfaces after a valid 201", async () => {
     const fetchMock = vi.mocked(global.fetch);
     const user = userEvent.setup();
     primeReadyClosingRoute(fetchMock);
@@ -496,7 +651,12 @@ describe("router import balance", () => {
         })
       )
       .mockResolvedValueOnce(jsonResponse(200, REFRESHED_CLOSING_FOLDER))
-      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_CONTROLS));
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_CONTROLS))
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_MANUAL_MAPPING))
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_FINANCIAL_SUMMARY))
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_FINANCIAL_STATEMENTS_STRUCTURED))
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_WORKPAPERS))
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_MAPPING_SUGGESTIONS));
 
     renderClosingRoute();
     await waitForClosingRouteReady();
@@ -515,7 +675,14 @@ describe("router import balance", () => {
     expectDefinitionValue(readinessBlock as HTMLElement, "version d import", "4");
     expect(screen.getByText("Latest valid balance import version 4 is available.")).toBeInTheDocument();
     expect(screen.queryByText("Latest valid balance import version 2 is available.")).not.toBeInTheDocument();
-    expect(screen.getByText("etat preview : preview partielle")).toBeInTheDocument();
+    expect(await screen.findByLabelText("ligne mapping 3000")).toBeInTheDocument();
+    expect(screen.getByText("Sales refreshed")).toBeInTheDocument();
+    expect(screen.getByText("etat preview : preview prete")).toBeInTheDocument();
+    expect(screen.getAllByText("resultat net : 300").length).toBeGreaterThan(0);
+    expect(screen.getByText("etat structured preview : preview prete")).toBeInTheDocument();
+    expect(screen.getByText("total produits : 300")).toBeInTheDocument();
+    expect(screen.getByText("anchors courants total : 1")).toBeInTheDocument();
+    expect(screen.getByText("AI mapping suggestion ready.")).toBeInTheDocument();
 
     const paths = getRequestPaths(fetchMock);
     expect(paths).toEqual([
@@ -531,9 +698,14 @@ describe("router import balance", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/minimal-annex`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/imports/balance`,
       `/api/closing-folders/${CLOSING_FOLDER.id}`,
-      `/api/closing-folders/${CLOSING_FOLDER.id}/controls`
+      `/api/closing-folders/${CLOSING_FOLDER.id}/controls`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/manual`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/financial-summary`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`
     ]);
-    expectNoForbiddenImportCalls(paths, 1);
+    expectNoForbiddenImportCalls(paths, 2, 2, 2, 2);
   });
 
   it("keeps the import success visible and preserves the last dossier and controls render when the dossier refresh fails", async () => {
@@ -548,7 +720,13 @@ describe("router import balance", () => {
           rowCount: 12
         })
       )
-      .mockResolvedValueOnce(jsonResponse(500, {}));
+      .mockResolvedValueOnce(jsonResponse(500, {}))
+      .mockResolvedValueOnce(jsonResponse(200, INITIAL_CONTROLS))
+      .mockResolvedValueOnce(jsonResponse(200, INITIAL_MANUAL_MAPPING))
+      .mockResolvedValueOnce(jsonResponse(200, INITIAL_FINANCIAL_SUMMARY))
+      .mockResolvedValueOnce(jsonResponse(200, INITIAL_FINANCIAL_STATEMENTS_STRUCTURED))
+      .mockResolvedValueOnce(jsonResponse(200, INITIAL_WORKPAPERS))
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_MAPPING_SUGGESTIONS));
 
     renderClosingRoute();
     await waitForClosingRouteReady();
@@ -562,8 +740,9 @@ describe("router import balance", () => {
     expect(screen.queryByText("Closing FY26 refreshed")).not.toBeInTheDocument();
     expect(screen.getByText("Latest valid balance import version 2 is available.")).toBeInTheDocument();
     expect(screen.getByText("etat preview : preview partielle")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(12);
-    expectNoForbiddenImportCalls(getRequestPaths(fetchMock), 1);
+    expect(await screen.findByText("AI mapping suggestion ready.")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(18);
+    expectNoForbiddenImportCalls(getRequestPaths(fetchMock), 2, 2, 2, 2);
   });
 
   it("keeps the import success visible, refreshes the dossier, and preserves the last controls render when the controls refresh fails", async () => {
@@ -579,7 +758,12 @@ describe("router import balance", () => {
         })
       )
       .mockResolvedValueOnce(jsonResponse(200, REFRESHED_CLOSING_FOLDER))
-      .mockResolvedValueOnce(jsonResponse(500, {}));
+      .mockResolvedValueOnce(jsonResponse(500, {}))
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_MANUAL_MAPPING))
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_FINANCIAL_SUMMARY))
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_FINANCIAL_STATEMENTS_STRUCTURED))
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_WORKPAPERS))
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_MAPPING_SUGGESTIONS));
 
     renderClosingRoute();
     await waitForClosingRouteReady();
@@ -593,9 +777,10 @@ describe("router import balance", () => {
     expect(screen.getByText("EXT-26-R")).toBeInTheDocument();
     expect(screen.getByText("Latest valid balance import version 2 is available.")).toBeInTheDocument();
     expect(screen.queryByText("Latest valid balance import version 4 is available.")).not.toBeInTheDocument();
-    expect(screen.getByText("etat preview : preview partielle")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(13);
-    expectNoForbiddenImportCalls(getRequestPaths(fetchMock), 1);
+    expect(await screen.findByText("etat preview : preview prete")).toBeInTheDocument();
+    expect(await screen.findByText("AI mapping suggestion ready.")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(18);
+    expectNoForbiddenImportCalls(getRequestPaths(fetchMock), 2, 2, 2, 2);
   });
 
   it("renders payload import invalide on an invalid 201 payload, keeps the selected file, and skips refreshs", async () => {

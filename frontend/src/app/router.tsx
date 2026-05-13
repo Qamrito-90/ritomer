@@ -1,11 +1,14 @@
 import type { ChangeEvent, ReactNode } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, createBrowserRouter, createMemoryRouter, useParams } from "react-router-dom";
 import { AppShell } from "../components/workbench/app-shell";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { WorkflowBadge } from "../components/ui/workflow-badge";
-import { AiMappingSuggestionsPanel } from "./ai-mapping-suggestions-panel";
+import {
+  AiMappingSuggestionsPanel,
+  type ManualMappingRefreshWarnings
+} from "./ai-mapping-suggestions-panel";
 import { DossierProgressSummary } from "./dossier-progress-summary";
 import { ExportAuditPackPanel } from "./export-audit-pack-panel";
 import { MinimalAnnexPanel } from "./minimal-annex-panel";
@@ -82,7 +85,7 @@ type ImportBalanceState =
       requestId: number;
       version: number;
       rowCount: number;
-      refreshStatus: "complete" | "closing_failed" | "controls_failed";
+      refreshWarnings: ImportRefreshWarnings;
     }
   | { kind: "bad_request"; message: string; errors: BalanceImportValidationError[] }
   | { kind: "auth_required" }
@@ -101,13 +104,11 @@ type ManualMappingMutationState =
   | { kind: "delete_submitting" }
   | {
       kind: "put_success";
-      refreshMappingFailed: boolean;
-      refreshControlsFailed: boolean;
+      refreshWarnings: ManualMappingRefreshWarnings;
     }
   | {
       kind: "delete_success";
-      refreshMappingFailed: boolean;
-      refreshControlsFailed: boolean;
+      refreshWarnings: ManualMappingRefreshWarnings;
     }
   | { kind: "bad_request_account_absent" }
   | { kind: "bad_request_target_invalid" }
@@ -147,9 +148,17 @@ type ClosingRouteState =
       manualMappingSelectedTargets: Record<string, string | undefined>;
       manualMappingMutationState: ManualMappingMutationState;
       manualMappingRefreshPending: boolean;
+      workpapersPanelRefreshKey: number;
+      mappingSuggestionsRefreshRequestId: number;
+      mappingSuggestionsRefreshOwner: "import" | "manual_mapping" | null;
       importState: ImportBalanceState;
       selectedImportFile: File | null;
     };
+
+type ImportRefreshWarnings = ManualMappingRefreshWarnings & {
+  closingFailed?: boolean;
+  suggestionsFailed?: boolean;
+};
 
 const localDateTimeFormatter = new Intl.DateTimeFormat("fr-CH", {
   day: "2-digit",
@@ -375,6 +384,9 @@ function ClosingFolderRoute() {
             manualMappingSelectedTargets: {},
             manualMappingMutationState: { kind: "idle" },
             manualMappingRefreshPending: false,
+            workpapersPanelRefreshKey: 0,
+            mappingSuggestionsRefreshRequestId: 0,
+            mappingSuggestionsRefreshOwner: null,
             importState: { kind: "idle" },
             selectedImportFile: null
           });
@@ -500,7 +512,7 @@ function ClosingFolderRoute() {
         requestId,
         version: importState.balanceImport.version,
         rowCount: importState.balanceImport.rowCount,
-        refreshStatus: "complete" as const
+        refreshWarnings: {}
       };
 
       if (fileInputRef.current !== null) {
@@ -519,76 +531,7 @@ function ClosingFolderRoute() {
         };
       });
 
-      const refreshedClosingFolderState = await loadClosingFolderShellState(closingFolderId, activeTenant);
-
-      if (refreshedClosingFolderState.kind !== "ready") {
-        setState((currentState) => {
-          if (currentState.kind !== "closing_ready") {
-            return currentState;
-          }
-
-          return {
-            ...currentState,
-            importState: updateImportSuccessRefreshStatus(
-              currentState.importState,
-              requestId,
-              "closing_failed"
-            )
-          };
-        });
-        return;
-      }
-
-      setState((currentState) => {
-        if (currentState.kind !== "closing_ready") {
-          return currentState;
-        }
-
-        return {
-          ...currentState,
-          closingFolder: refreshedClosingFolderState.closingFolder
-        };
-      });
-
-      const refreshedControlsState = await loadControlsShellState(
-        closingFolderId,
-        refreshedClosingFolderState.closingFolder,
-        activeTenant
-      );
-
-      if (refreshedControlsState.kind !== "ready") {
-        setState((currentState) => {
-          if (currentState.kind !== "closing_ready") {
-            return currentState;
-          }
-
-          return {
-            ...currentState,
-            importState: updateImportSuccessRefreshStatus(
-              currentState.importState,
-              requestId,
-              "controls_failed"
-            )
-          };
-        });
-        return;
-      }
-
-      setState((currentState) => {
-        if (currentState.kind !== "closing_ready") {
-          return currentState;
-        }
-
-        return {
-          ...currentState,
-          controlsState: refreshedControlsState,
-          importState: updateImportSuccessRefreshStatus(
-            currentState.importState,
-            requestId,
-            "complete"
-          )
-        };
-      });
+      await refreshAfterImportSuccess(activeTenant, closingFolder, requestId);
       return;
     }
 
@@ -706,13 +649,17 @@ function ClosingFolderRoute() {
           ...currentState,
           manualMappingMutationState: {
             kind: "put_success",
-            refreshMappingFailed: false,
-            refreshControlsFailed: false
+            refreshWarnings: {}
           }
         };
       });
 
-      await refreshManualMappingAndControls(state.activeTenant, state.closingFolder, "put_success");
+      await refreshManualMappingCoreSurfaces(
+        state.activeTenant,
+        state.closingFolder,
+        "put_success",
+        { refreshSuggestions: true }
+      );
       return;
     }
 
@@ -765,16 +712,16 @@ function ClosingFolderRoute() {
           ...currentState,
           manualMappingMutationState: {
             kind: "delete_success",
-            refreshMappingFailed: false,
-            refreshControlsFailed: false
+            refreshWarnings: {}
           }
         };
       });
 
-      await refreshManualMappingAndControls(
+      await refreshManualMappingCoreSurfaces(
         state.activeTenant,
         state.closingFolder,
-        "delete_success"
+        "delete_success",
+        { refreshSuggestions: true }
       );
       return;
     }
@@ -792,15 +739,122 @@ function ClosingFolderRoute() {
     });
   }
 
-  async function refreshManualMappingAndControls(
+  async function refreshAfterImportSuccess(
     activeTenant: ActiveTenant,
     closingFolder: ClosingFolderSummary,
-    successKind: Extract<ManualMappingMutationState, { kind: "put_success" | "delete_success" }>["kind"]
+    requestId: number
   ) {
-    const [refreshedManualMappingState, refreshedControlsState] = await Promise.all([
-      loadManualMappingShellState(closingFolderId, closingFolder, activeTenant),
-      loadControlsShellState(closingFolderId, closingFolder, activeTenant)
+    const refreshedClosingFolderState = await loadClosingFolderShellState(closingFolderId, activeTenant);
+    const nextClosingFolder =
+      refreshedClosingFolderState.kind === "ready"
+        ? refreshedClosingFolderState.closingFolder
+        : closingFolder;
+
+    const [
+      refreshedControlsState,
+      refreshedManualMappingState,
+      refreshedFinancialSummaryState,
+      refreshedFinancialStatementsStructuredState,
+      refreshedWorkpapersState
+    ] = await Promise.all([
+      loadControlsShellState(closingFolderId, nextClosingFolder, activeTenant),
+      loadManualMappingShellState(closingFolderId, nextClosingFolder, activeTenant),
+      loadFinancialSummaryShellState(closingFolderId, nextClosingFolder, activeTenant),
+      loadFinancialStatementsStructuredShellState(closingFolderId, nextClosingFolder, activeTenant),
+      loadWorkpapersShellState(closingFolderId, nextClosingFolder, activeTenant)
     ]);
+
+    const refreshWarnings: ImportRefreshWarnings = {
+      closingFailed: refreshedClosingFolderState.kind !== "ready",
+      controlsFailed: refreshedControlsState.kind !== "ready",
+      mappingFailed: refreshedManualMappingState.kind !== "ready",
+      financialSummaryFailed: refreshedFinancialSummaryState.kind !== "ready",
+      financialStatementsFailed: refreshedFinancialStatementsStructuredState.kind !== "ready",
+      workpapersFailed: refreshedWorkpapersState.kind !== "ready"
+    };
+
+    setState((currentState) => {
+      if (currentState.kind !== "closing_ready" || currentState.importState.kind !== "success") {
+        return currentState;
+      }
+
+      const nextImportState = updateImportSuccessRefreshWarnings(
+        currentState.importState,
+        requestId,
+        refreshWarnings
+      );
+
+      if (nextImportState === currentState.importState) {
+        return currentState;
+      }
+
+      return {
+        ...currentState,
+        closingFolder:
+          refreshedClosingFolderState.kind === "ready"
+            ? refreshedClosingFolderState.closingFolder
+            : currentState.closingFolder,
+        controlsState:
+          refreshedControlsState.kind === "ready"
+            ? refreshedControlsState
+            : currentState.controlsState,
+        financialSummaryState:
+          refreshedFinancialSummaryState.kind === "ready"
+            ? refreshedFinancialSummaryState
+            : currentState.financialSummaryState,
+        financialStatementsStructuredState:
+          refreshedFinancialStatementsStructuredState.kind === "ready"
+            ? refreshedFinancialStatementsStructuredState
+            : currentState.financialStatementsStructuredState,
+        workpapersState:
+          refreshedWorkpapersState.kind === "ready"
+            ? refreshedWorkpapersState
+            : currentState.workpapersState,
+        manualMappingState:
+          refreshedManualMappingState.kind === "ready"
+            ? refreshedManualMappingState
+            : currentState.manualMappingState,
+        manualMappingSelectedTargets:
+          refreshedManualMappingState.kind === "ready"
+            ? createManualMappingSelectedTargets(refreshedManualMappingState.projection)
+            : currentState.manualMappingSelectedTargets,
+        importState: nextImportState,
+        workpapersPanelRefreshKey:
+          refreshedWorkpapersState.kind === "ready"
+            ? currentState.workpapersPanelRefreshKey + 1
+            : currentState.workpapersPanelRefreshKey,
+        mappingSuggestionsRefreshRequestId: currentState.mappingSuggestionsRefreshRequestId + 1,
+        mappingSuggestionsRefreshOwner: "import"
+      };
+    });
+  }
+
+  async function refreshManualMappingCoreSurfaces(
+    activeTenant: ActiveTenant,
+    closingFolder: ClosingFolderSummary,
+    successKind: Extract<ManualMappingMutationState, { kind: "put_success" | "delete_success" }>["kind"],
+    options: { refreshSuggestions: boolean }
+  ): Promise<ManualMappingRefreshWarnings> {
+    const [
+      refreshedManualMappingState,
+      refreshedControlsState,
+      refreshedFinancialSummaryState,
+      refreshedFinancialStatementsStructuredState,
+      refreshedWorkpapersState
+    ] = await Promise.all([
+      loadManualMappingShellState(closingFolderId, closingFolder, activeTenant),
+      loadControlsShellState(closingFolderId, closingFolder, activeTenant),
+      loadFinancialSummaryShellState(closingFolderId, closingFolder, activeTenant),
+      loadFinancialStatementsStructuredShellState(closingFolderId, closingFolder, activeTenant),
+      loadWorkpapersShellState(closingFolderId, closingFolder, activeTenant)
+    ]);
+    const refreshWarnings: ManualMappingRefreshWarnings = {
+      mappingFailed: refreshedManualMappingState.kind !== "ready",
+      controlsFailed: refreshedControlsState.kind !== "ready",
+      financialSummaryFailed: refreshedFinancialSummaryState.kind !== "ready",
+      financialStatementsFailed: refreshedFinancialStatementsStructuredState.kind !== "ready",
+      workpapersFailed: refreshedWorkpapersState.kind !== "ready"
+    };
 
     setState((currentState) => {
       if (currentState.kind !== "closing_ready") {
@@ -813,6 +867,18 @@ function ClosingFolderRoute() {
           refreshedControlsState.kind === "ready"
             ? refreshedControlsState
             : currentState.controlsState,
+        financialSummaryState:
+          refreshedFinancialSummaryState.kind === "ready"
+            ? refreshedFinancialSummaryState
+            : currentState.financialSummaryState,
+        financialStatementsStructuredState:
+          refreshedFinancialStatementsStructuredState.kind === "ready"
+            ? refreshedFinancialStatementsStructuredState
+            : currentState.financialStatementsStructuredState,
+        workpapersState:
+          refreshedWorkpapersState.kind === "ready"
+            ? refreshedWorkpapersState
+            : currentState.workpapersState,
         manualMappingState:
           refreshedManualMappingState.kind === "ready"
             ? refreshedManualMappingState
@@ -823,13 +889,77 @@ function ClosingFolderRoute() {
             : currentState.manualMappingSelectedTargets,
         manualMappingMutationState: {
           kind: successKind,
-          refreshMappingFailed: refreshedManualMappingState.kind !== "ready",
-          refreshControlsFailed: refreshedControlsState.kind !== "ready"
+          refreshWarnings
         },
-        manualMappingRefreshPending: false
+        manualMappingRefreshPending: false,
+        workpapersPanelRefreshKey:
+          refreshedWorkpapersState.kind === "ready"
+            ? currentState.workpapersPanelRefreshKey + 1
+            : currentState.workpapersPanelRefreshKey,
+        mappingSuggestionsRefreshRequestId: options.refreshSuggestions
+          ? currentState.mappingSuggestionsRefreshRequestId + 1
+          : currentState.mappingSuggestionsRefreshRequestId,
+        mappingSuggestionsRefreshOwner: options.refreshSuggestions
+          ? "manual_mapping"
+          : currentState.mappingSuggestionsRefreshOwner
       };
     });
+
+    return refreshWarnings;
   }
+
+  const handleMappingSuggestionsRefreshSettled = useCallback(
+    (requestId: number, succeeded: boolean) => {
+      if (succeeded) {
+        return;
+      }
+
+      setState((currentState) => {
+        if (
+          currentState.kind !== "closing_ready" ||
+          currentState.mappingSuggestionsRefreshRequestId !== requestId
+        ) {
+          return currentState;
+        }
+
+        if (
+          currentState.mappingSuggestionsRefreshOwner === "import" &&
+          currentState.importState.kind === "success"
+        ) {
+          return {
+            ...currentState,
+            importState: {
+              ...currentState.importState,
+              refreshWarnings: {
+                ...currentState.importState.refreshWarnings,
+                suggestionsFailed: true
+              }
+            }
+          };
+        }
+
+        if (
+          currentState.mappingSuggestionsRefreshOwner === "manual_mapping" &&
+          (currentState.manualMappingMutationState.kind === "put_success" ||
+            currentState.manualMappingMutationState.kind === "delete_success")
+        ) {
+          return {
+            ...currentState,
+            manualMappingMutationState: {
+              ...currentState.manualMappingMutationState,
+              refreshWarnings: {
+                ...currentState.manualMappingMutationState.refreshWarnings,
+                suggestionsFailed: true
+              }
+            }
+          };
+        }
+
+        return currentState;
+      });
+    },
+    []
+  );
 
   const tenant =
     "activeTenant" in state
@@ -970,12 +1100,15 @@ function ClosingFolderRoute() {
                     : []
                 }
                 onManualMappingMutationConfirmed={() =>
-                  refreshManualMappingAndControls(
+                  refreshManualMappingCoreSurfaces(
                     state.activeTenant,
                     state.closingFolder,
-                    "put_success"
+                    "put_success",
+                    { refreshSuggestions: false }
                   )
                 }
+                onSuggestionsRefreshSettled={handleMappingSuggestionsRefreshSettled}
+                suggestionsRefreshRequestId={state.mappingSuggestionsRefreshRequestId}
               />
             </div>
           </section>
@@ -1018,7 +1151,7 @@ function ClosingFolderRoute() {
             closingFolderId={state.closingFolder.id}
             effectiveRoles={state.effectiveRoles}
             initialState={state.workpapersState}
-            key={`${state.activeTenant.tenantId}-${state.closingFolder.id}`}
+            key={`${state.activeTenant.tenantId}-${state.closingFolder.id}-${state.workpapersPanelRefreshKey}`}
           />
 
           <ExportAuditPackPanel
@@ -1284,11 +1417,30 @@ function ImportBalanceStatus({
         <p className="text-lg font-semibold text-foreground">balance importee avec succes</p>
         <p className="text-sm font-medium text-foreground">version import : {importState.version}</p>
         <p className="text-sm font-medium text-foreground">lignes importees : {importState.rowCount}</p>
-        {importState.refreshStatus === "closing_failed" ? (
+        {importState.refreshWarnings.closingFailed ? (
           <p className="text-sm font-medium text-foreground">rafraichissement dossier impossible</p>
         ) : null}
-        {importState.refreshStatus === "controls_failed" ? (
+        {importState.refreshWarnings.controlsFailed ? (
           <p className="text-sm font-medium text-foreground">rafraichissement controls impossible</p>
+        ) : null}
+        {importState.refreshWarnings.mappingFailed ? (
+          <p className="text-sm font-medium text-foreground">rafraichissement mapping impossible</p>
+        ) : null}
+        {importState.refreshWarnings.financialSummaryFailed ? (
+          <p className="text-sm font-medium text-foreground">
+            rafraichissement financial summary impossible
+          </p>
+        ) : null}
+        {importState.refreshWarnings.financialStatementsFailed ? (
+          <p className="text-sm font-medium text-foreground">
+            rafraichissement financial statements impossible
+          </p>
+        ) : null}
+        {importState.refreshWarnings.workpapersFailed ? (
+          <p className="text-sm font-medium text-foreground">rafraichissement workpapers impossible</p>
+        ) : null}
+        {importState.refreshWarnings.suggestionsFailed ? (
+          <p className="text-sm font-medium text-foreground">rafraichissement suggestions impossible</p>
         ) : null}
       </div>
     );
@@ -1566,11 +1718,27 @@ function ManualMappingMutationStatus({ state }: { state: ManualMappingMutationSt
             ? "mapping enregistre avec succes"
             : "mapping supprime avec succes"}
         </p>
-        {state.refreshMappingFailed ? (
+        {state.refreshWarnings.mappingFailed ? (
           <p className="text-sm font-medium text-foreground">rafraichissement mapping impossible</p>
         ) : null}
-        {state.refreshControlsFailed ? (
+        {state.refreshWarnings.controlsFailed ? (
           <p className="text-sm font-medium text-foreground">rafraichissement controls impossible</p>
+        ) : null}
+        {state.refreshWarnings.financialSummaryFailed ? (
+          <p className="text-sm font-medium text-foreground">
+            rafraichissement financial summary impossible
+          </p>
+        ) : null}
+        {state.refreshWarnings.financialStatementsFailed ? (
+          <p className="text-sm font-medium text-foreground">
+            rafraichissement financial statements impossible
+          </p>
+        ) : null}
+        {state.refreshWarnings.workpapersFailed ? (
+          <p className="text-sm font-medium text-foreground">rafraichissement workpapers impossible</p>
+        ) : null}
+        {state.refreshWarnings.suggestionsFailed ? (
+          <p className="text-sm font-medium text-foreground">rafraichissement suggestions impossible</p>
         ) : null}
       </div>
     );
@@ -2228,10 +2396,10 @@ function formatManualMappingMutationState(
   return "mapping indisponible";
 }
 
-function updateImportSuccessRefreshStatus(
+function updateImportSuccessRefreshWarnings(
   importState: ImportBalanceState,
   requestId: number,
-  refreshStatus: Extract<ImportBalanceState, { kind: "success" }>["refreshStatus"]
+  refreshWarnings: ImportRefreshWarnings
 ) {
   if (importState.kind !== "success" || importState.requestId !== requestId) {
     return importState;
@@ -2239,7 +2407,10 @@ function updateImportSuccessRefreshStatus(
 
   return {
     ...importState,
-    refreshStatus
+    refreshWarnings: {
+      ...importState.refreshWarnings,
+      ...refreshWarnings
+    }
   };
 }
 
