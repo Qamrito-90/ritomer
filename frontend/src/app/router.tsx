@@ -159,6 +159,7 @@ type ClosingRouteState =
       workpapersPanelRefreshKey: number;
       mappingSuggestionsRefreshRequestId: number;
       mappingSuggestionsRefreshOwner: "import" | "manual_mapping" | null;
+      minimalAnnexRefreshRequestId: number;
       importState: ImportBalanceState;
       balanceImportHistoryState: BalanceImportHistoryPanelState;
       selectedImportFile: File | null;
@@ -398,6 +399,7 @@ function ClosingFolderRoute() {
             workpapersPanelRefreshKey: 0,
             mappingSuggestionsRefreshRequestId: 0,
             mappingSuggestionsRefreshOwner: null,
+            minimalAnnexRefreshRequestId: 0,
             importState: { kind: "idle" },
             balanceImportHistoryState: { kind: "loading" },
             selectedImportFile: null
@@ -987,6 +989,19 @@ function ClosingFolderRoute() {
     []
   );
 
+  const handleExportPackCreateSucceeded = useCallback(() => {
+    setState((currentState) => {
+      if (currentState.kind !== "closing_ready") {
+        return currentState;
+      }
+
+      return {
+        ...currentState,
+        minimalAnnexRefreshRequestId: currentState.minimalAnnexRefreshRequestId + 1
+      };
+    });
+  }, []);
+
   const tenant =
     "activeTenant" in state
       ? {
@@ -1185,12 +1200,14 @@ function ClosingFolderRoute() {
             activeTenant={state.activeTenant}
             closingFolderId={state.closingFolder.id}
             key={`exports-${state.activeTenant.tenantId}-${state.closingFolder.id}`}
+            onExportPackCreateSucceeded={handleExportPackCreateSucceeded}
           />
 
           <MinimalAnnexPanel
             activeTenant={state.activeTenant}
             closingFolderId={state.closingFolder.id}
             key={`minimal-annex-${state.activeTenant.tenantId}-${state.closingFolder.id}`}
+            postExportPackRefreshRequestId={state.minimalAnnexRefreshRequestId}
           />
         </div>
       ) : (

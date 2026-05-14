@@ -16,6 +16,7 @@ import {
 type ExportAuditPackPanelProps = {
   activeTenant: ActiveTenant;
   closingFolderId: string;
+  onExportPackCreateSucceeded?: () => void;
 };
 
 type CreateUiState =
@@ -40,7 +41,8 @@ const localDateTimeFormatter = new Intl.DateTimeFormat("fr-CH", {
 
 export function ExportAuditPackPanel({
   activeTenant,
-  closingFolderId
+  closingFolderId,
+  onExportPackCreateSucceeded
 }: ExportAuditPackPanelProps) {
   const [listState, setListState] = useState<ExportPackListState>({ kind: "loading" });
   const [createState, setCreateState] = useState<CreateUiState>({ kind: "idle" });
@@ -98,6 +100,7 @@ export function ExportAuditPackPanel({
     if (result.kind === "success") {
       createAttemptKeyRef.current = null;
       await refreshExportPacksAfterCreate(result.replayed);
+      onExportPackCreateSucceeded?.();
       return;
     }
 
