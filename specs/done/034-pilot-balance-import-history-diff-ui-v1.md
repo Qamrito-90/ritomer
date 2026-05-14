@@ -2,7 +2,9 @@
 
 ## Status
 
-Active.
+Done.
+
+Livree et fermee apres merge PR #49.
 
 ## Surface
 
@@ -10,13 +12,13 @@ FRONTEND_SPEC.
 
 ## Risk
 
-B pour la future implementation frontend.
+B pour la livraison frontend read-only avec GET REST existants ; fermeture documentaire docs-only, sans runtime.
 
 ## Role de cette spec
 
-Cadrer la prochaine implementation frontend read-only de l'historique des imports balance et du diff N/N-1 sur `/closing-folders/:closingFolderId`, en reutilisant uniquement les endpoints REST existants du module import balance.
+Cloturer la capacite livree `034` : exposition frontend read-only de l'historique des imports balance et du diff N/N-1 sur `/closing-folders/:closingFolderId`, en reutilisant uniquement les endpoints REST existants du module import balance.
 
-Cette spec transforme la recommandation produit post-`033` en handoff actif exploitable. Elle ne code rien par elle-meme et n'ouvre aucun backend, DB, contrat, runbook, GraphQL, IA runtime, rollback, suppression ou comparaison libre multi-versions.
+La livraison `034`, fermee apres merge PR #49, ajoute la validation fail-closed des payloads consommes, les etats UI historiques/diff et le refresh post-import non bloquant, sans ouvrir de backend, DB, contrat, runbook, GraphQL, IA runtime, rollback, suppression ou comparaison libre multi-versions.
 
 ## Sources de verite relues
 
@@ -32,7 +34,7 @@ Cette spec transforme la recommandation produit post-`033` en handoff actif expl
 - `docs/adr/0005-front-ui-stack-and-design-system.md`
 - `docs/adr/0006-postgresql-cloud-sql-no-docker-v1.md`
 - `docs/product/v1-plan.md`
-- `specs/active/034-pilot-balance-import-history-diff-ui-v1.md` absent avant creation
+- `specs/active/034-pilot-balance-import-history-diff-ui-v1.md` absent a la fermeture done
 - `specs/done/003-import-balance-v1.md`
 - `specs/done/016-frontend-import-balance-v1.md`
 - `specs/done/033-pilot-core-flow-ui-refresh-consistency-v1.md`
@@ -54,18 +56,18 @@ Runbooks impactes : AUCUN.
 
 Le backend import balance expose deja l'historique des versions et le diff avec la version precedente. Les specs frontend precedentes ont volontairement exclu ces lectures pour garder les tranches initiales bornees.
 
-Apres `033`, le parcours pilote coeur rafraichit les read-models aval apres import, mapping manuel et decisions de suggestions no-provider. Il manque encore un feedback compact permettant a l'utilisateur de comprendre rapidement :
+Apres `033`, le parcours pilote coeur rafraichissait les read-models aval apres import, mapping manuel et decisions de suggestions no-provider. `034` a ferme le feedback compact permettant a l'utilisateur de comprendre rapidement :
 
 - quelle version d'import balance est courante ;
 - quand les imports precedents ont eu lieu ;
 - combien de lignes ont ete ajoutees, retirees ou modifiees entre la version courante et la precedente ;
 - si l'historique ou le diff n'a pas pu etre charge, sans remettre en cause un import qui vient de reussir.
 
-Le probleme n'est pas un manque de backend ou de contrat. C'est une capacite frontend read-only a brancher sur des `GET` REST existants.
+Le probleme n'etait pas un manque de backend ou de contrat. La capacite livree branche une surface frontend read-only sur des `GET` REST existants.
 
-## Comportement attendu
+## Comportement livre
 
-### Endpoints autorises
+### Endpoints consommes
 
 `034` consomme uniquement ces nouveaux `GET` existants pour l'historique imports :
 
@@ -78,15 +80,15 @@ Ces appels utilisent le meme `X-Tenant-Id` que les autres lectures de `/closing-
 
 ### Surface UI
 
-Ajouter un panneau compact read-only pres du bloc `Import balance` sur `/closing-folders/:closingFolderId`.
+`034` ajoute un panneau compact read-only pres du bloc `Import balance` sur `/closing-folders/:closingFolderId`.
 
-Placement attendu :
+Placement livre :
 
 - dans la zone de contexte de l'import balance ;
 - visible sur la route detail dossier quand le dossier est dans l'etat nominal de chargement deja borne par les specs frontend existantes ;
 - assez compact pour ne pas repousser les surfaces coeur `Mapping manuel`, `Controls`, `Financial summary`, `Financial statements structured` et `Workpapers` hors du parcours naturel.
 
-Contenu attendu :
+Contenu livre :
 
 - etat courant de l'historique import balance ;
 - derniere version connue ;
@@ -125,7 +127,7 @@ Apres un `POST /api/closing-folders/{closingFolderId}/imports/balance` reussi se
 - si le refresh diff echoue, le succes import reste visible et acquis ;
 - chaque echec de refresh historique/diff produit une ligne de warning explicite, visible et testable, bornee au dernier succes import concerne.
 
-Warnings post-import attendus :
+Warnings post-import livres :
 
 - `rafraichissement historique imports impossible`
 - `rafraichissement diff import impossible`
@@ -134,7 +136,7 @@ Ces warnings ne remplacent pas les warnings `033` existants et ne doivent pas tr
 
 ### Etats UI obligatoires
 
-Le panneau doit rendre des etats stables et testables :
+Le panneau rend des etats stables et testables :
 
 - `loading` : chargement historique ou diff en cours ;
 - `empty` : aucune version d'import balance historisee ;
@@ -143,7 +145,7 @@ Le panneau doit rendre des etats stables et testables :
 - `invalid payload` : payload versions ou diff inexploitable ;
 - `no previous version` : premiere version valide sans version precedente a comparer.
 
-Textes minimum attendus :
+Textes minimum livres :
 
 - `chargement historique imports`
 - `aucun import balance historise`
@@ -155,7 +157,7 @@ Textes minimum attendus :
 
 ### Validation payload frontend
 
-Le frontend doit valider strictement le sous-ensemble qu'il consomme.
+Le frontend valide strictement le sous-ensemble qu'il consomme.
 
 Pour `versions`, le sous-ensemble minimal exploitable est :
 
@@ -198,17 +200,15 @@ Tout payload incomplet, incoherent ou non borne tombe dans un etat `invalid payl
 
 ## Scope strict
 
-- Spec frontend read-only future sur `/closing-folders/:closingFolderId`.
+- Capacite frontend read-only livree sur `/closing-folders/:closingFolderId`.
 - Panneau compact pres d'`Import balance`.
 - Consommation des deux `GET` import balance versions/diff existants.
 - Etats loading, empty, error, invalid payload et no previous version.
 - Refresh versions/diff apres import reussi, sans annuler le succes import si refresh partiel.
-- Tests frontend cibles lors de l'implementation.
+- Tests frontend de validation livres.
 
 ## Hors-scope strict
 
-- Code runtime dans cette mission de cadrage.
-- Frontend modifie dans cette mission de cadrage.
 - Backend.
 - DB.
 - Migration.
@@ -232,13 +232,14 @@ Tout payload incomplet, incoherent ou non borne tombe dans un etat `invalid payl
 - Wording CO/statutory/final interdit.
 - Secret ou fichier `.env`.
 
-## Fichiers probablement concernes par la future implementation
+## Fichiers frontend principaux livres par la livraison 034
 
 - `frontend/src/lib/api/import-balance.ts`
+- `frontend/src/lib/api/import-balance.test.ts`
+- `frontend/src/app/balance-import-history-panel.tsx`
+- `frontend/src/app/balance-import-history-panel.test.tsx`
 - `frontend/src/app/router.tsx`
 - `frontend/src/app/router.import-balance.test.tsx`
-- `frontend/src/app/balance-import-history-panel.tsx` si extraction utile
-- `frontend/src/app/balance-import-history-panel.test.tsx` si extraction utile
 
 ## Criteres d'acceptation verifiables
 
@@ -264,7 +265,7 @@ Tout payload incomplet, incoherent ou non borne tombe dans un etat `invalid payl
 - Aucune mutation workpaper, document ou mapping n'est ajoutee par `034`.
 - Aucun wording `CO-ready`, `statutory-ready`, `PDF final` ou `annexe legale finale` n'est introduit.
 
-## Tests cibles attendus pour la future implementation
+## Tests de validation livres
 
 - Test route initiale : `versions` charge et panneau loading puis ready.
 - Test route initiale : liste vide affiche l'etat empty et ne charge pas `diff-previous`.
@@ -287,7 +288,7 @@ Tout payload incomplet, incoherent ou non borne tombe dans un etat `invalid payl
   - pas mutation document ;
   - pas endpoint hors scope.
 
-## Gates de validation de la future implementation
+## Gates de validation de la livraison 034
 
 - `pnpm build`
 - `pnpm test:ci`
@@ -298,7 +299,7 @@ Tout payload incomplet, incoherent ou non borne tombe dans un etat `invalid payl
 
 - Contrats : AUCUN.
 - Runbooks : AUCUN.
-- `docs/product/v1-plan.md` : doit pointer vers `034` tant que cette spec est active.
+- `docs/product/v1-plan.md` : pointe vers `034` en done et conserve `AUCUNE spec active`.
 - `docs/present/*` : AUCUN sauf changement durable prouve apres livraison.
 - `docs/ui/ui-foundations-v1.md` : AUCUN sauf changement durable de verite UI.
 
@@ -308,7 +309,7 @@ Tout payload incomplet, incoherent ou non borne tombe dans un etat `invalid payl
 - CO Review : non requise.
 - Expert Review Board : non requis a ce stade.
 
-## Fresh Evidence Pack attendu pour la future implementation
+## Fresh Evidence Pack de fermeture 034
 
 - Resume.
 - Fichiers modifies.
@@ -318,13 +319,13 @@ Tout payload incomplet, incoherent ou non borne tombe dans un etat `invalid payl
 - `git diff --name-status`.
 - `git diff --stat`.
 - `git diff --check`.
-- Resultats `pnpm build`, `pnpm test:ci` et `pnpm lint`.
+- Resultats des gates frontend executees pour la livraison 034.
 - Tests ajoutes ou modifies.
 - Tests non executes avec justification.
 - Confirmation qu'aucun backend, DB, migration, OpenAPI, contrat, runbook, GraphQL, IA runtime, secret, git add, commit, push ou PR n'a ete touche.
 
 ## Revue humaine recommandee
 
-Revue frontend normale recommandee pendant la future PR d'implementation.
+Revue frontend normale applicable a la livraison PR #49.
 
-Revue specialisee non requise pour backend, DB, migration, authentification, autorisation, separation tenant, audit, donnees sensibles, suppression de donnees, regle metier critique, dependance, architecture, production ou irreversibilite metier si le scope frontend read-only est strictement respecte.
+Revue specialisee non requise pour backend, DB, migration, authentification, autorisation, separation tenant, audit, donnees sensibles, suppression de donnees, regle metier critique, dependance, architecture, production ou irreversibilite metier : la livraison `034` reste frontend read-only.
