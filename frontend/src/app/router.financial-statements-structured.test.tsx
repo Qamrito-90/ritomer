@@ -309,6 +309,33 @@ const EMPTY_MAPPING_SUGGESTIONS = {
   ]
 };
 
+const DEFAULT_IMPORT_VERSIONS = [
+  {
+    closingFolderId: CLOSING_FOLDER.id,
+    version: 2,
+    importedAt: "2026-05-13T09:00:00Z",
+    rowCount: 2,
+    totalDebit: "100",
+    totalCredit: "100"
+  },
+  {
+    closingFolderId: CLOSING_FOLDER.id,
+    version: 1,
+    importedAt: "2026-05-12T09:00:00Z",
+    rowCount: 1,
+    totalDebit: "50",
+    totalCredit: "50"
+  }
+];
+
+const DEFAULT_IMPORT_DIFF = {
+  version: 2,
+  previousVersion: 1,
+  added: [],
+  removed: [],
+  changed: []
+};
+
 const CLOSING_ROUTE = `/closing-folders/${CLOSING_FOLDER.id}`;
 
 type ResponseFactory = () => Response | Promise<Response>;
@@ -360,6 +387,8 @@ function primeNominalRoute(
     .mockImplementationOnce(() => Promise.resolve(financialSummary()))
     .mockImplementationOnce(() => Promise.resolve(financialStatementsStructured()))
     .mockImplementationOnce(() => Promise.resolve(workpapers()))
+    .mockResolvedValueOnce(jsonResponse(200, DEFAULT_IMPORT_VERSIONS))
+    .mockResolvedValueOnce(jsonResponse(200, DEFAULT_IMPORT_DIFF))
     .mockResolvedValueOnce(jsonResponse(200, EMPTY_MAPPING_SUGGESTIONS))
     .mockResolvedValueOnce(jsonResponse(200, EMPTY_EXPORT_PACKS))
     .mockResolvedValueOnce(jsonResponse(200, BLOCKED_MINIMAL_ANNEX));
@@ -385,8 +414,8 @@ function getRequestPaths(fetchMock: ReturnType<typeof vi.fn>) {
 
 function expectNoForbiddenPaths(paths: string[]) {
   expect(paths.filter((path) => path.includes("/financial-statements/structured"))).toHaveLength(1);
-  expect(paths.some((path) => path.includes("/imports/balance/versions"))).toBe(false);
-  expect(paths.some((path) => path.includes("/diff-previous"))).toBe(false);
+  expect(paths.filter((path) => path.includes("/imports/balance/versions"))).toHaveLength(2);
+  expect(paths.filter((path) => path.includes("/diff-previous"))).toHaveLength(1);
   expect(paths.some((path) => path.includes("/financial-statements-structured"))).toBe(false);
   expect(paths.filter((path) => path.includes("/workpapers"))).toHaveLength(1);
   expect(paths.some((path) => /\/workpapers\/[^/]+/.test(path))).toBe(false);
@@ -450,6 +479,8 @@ describe("router financial statements structured", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-summary`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/imports/balance/versions`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/imports/balance/versions/2/diff-previous`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/minimal-annex`
@@ -473,7 +504,7 @@ describe("router financial statements structured", () => {
         "Preview structuree non statutaire. Not a final CO deliverable. Do not use as statutory filing."
       )
     ).not.toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(10);
+    expect(fetchMock).toHaveBeenCalledTimes(12);
   });
 
   it.each([

@@ -9,6 +9,10 @@ import {
   AiMappingSuggestionsPanel,
   type ManualMappingRefreshWarnings
 } from "./ai-mapping-suggestions-panel";
+import {
+  BalanceImportHistoryPanel,
+  type BalanceImportHistoryPanelState
+} from "./balance-import-history-panel";
 import { DossierProgressSummary } from "./dossier-progress-summary";
 import { ExportAuditPackPanel } from "./export-audit-pack-panel";
 import { MinimalAnnexPanel } from "./minimal-annex-panel";
@@ -40,7 +44,11 @@ import {
   type WorkpapersShellState
 } from "../lib/api/workpapers";
 import {
+  loadBalanceImportDiffPreviousShellState,
+  loadBalanceImportVersionsShellState,
   uploadBalanceImport,
+  type BalanceImportDiffState,
+  type BalanceImportVersionSummary,
   type BalanceImportValidationError
 } from "../lib/api/import-balance";
 import {
@@ -152,11 +160,14 @@ type ClosingRouteState =
       mappingSuggestionsRefreshRequestId: number;
       mappingSuggestionsRefreshOwner: "import" | "manual_mapping" | null;
       importState: ImportBalanceState;
+      balanceImportHistoryState: BalanceImportHistoryPanelState;
       selectedImportFile: File | null;
     };
 
 type ImportRefreshWarnings = ManualMappingRefreshWarnings & {
   closingFailed?: boolean;
+  importDiffFailed?: boolean;
+  importHistoryFailed?: boolean;
   suggestionsFailed?: boolean;
 };
 
@@ -388,6 +399,7 @@ function ClosingFolderRoute() {
             mappingSuggestionsRefreshRequestId: 0,
             mappingSuggestionsRefreshOwner: null,
             importState: { kind: "idle" },
+            balanceImportHistoryState: { kind: "loading" },
             selectedImportFile: null
           });
 
@@ -396,7 +408,8 @@ function ClosingFolderRoute() {
             manualMappingState,
             financialSummaryState,
             financialStatementsStructuredState,
-            workpapersState
+            workpapersState,
+            balanceImportHistoryState
           ] = await Promise.all([
             loadControlsShellState(
               closingFolderId,
@@ -422,7 +435,8 @@ function ClosingFolderRoute() {
               closingFolderId,
               closingFolderState.closingFolder,
               meState.activeTenant
-            )
+            ),
+            loadInitialBalanceImportHistoryState(closingFolderId, meState.activeTenant)
           ]);
 
           if (cancelled) {
@@ -440,6 +454,7 @@ function ClosingFolderRoute() {
               financialSummaryState,
               financialStatementsStructuredState,
               workpapersState,
+              balanceImportHistoryState,
               manualMappingState,
               manualMappingSelectedTargets:
                 manualMappingState.kind === "ready"
@@ -531,7 +546,12 @@ function ClosingFolderRoute() {
         };
       });
 
-      await refreshAfterImportSuccess(activeTenant, closingFolder, requestId);
+      await refreshAfterImportSuccess(
+        activeTenant,
+        closingFolder,
+        requestId,
+        importState.balanceImport.version
+      );
       return;
     }
 
@@ -742,7 +762,8 @@ function ClosingFolderRoute() {
   async function refreshAfterImportSuccess(
     activeTenant: ActiveTenant,
     closingFolder: ClosingFolderSummary,
-    requestId: number
+    requestId: number,
+    importedVersion: number
   ) {
     const refreshedClosingFolderState = await loadClosingFolderShellState(closingFolderId, activeTenant);
     const nextClosingFolder =
@@ -755,13 +776,15 @@ function ClosingFolderRoute() {
       refreshedManualMappingState,
       refreshedFinancialSummaryState,
       refreshedFinancialStatementsStructuredState,
-      refreshedWorkpapersState
+      refreshedWorkpapersState,
+      refreshedBalanceImportHistoryResult
     ] = await Promise.all([
       loadControlsShellState(closingFolderId, nextClosingFolder, activeTenant),
       loadManualMappingShellState(closingFolderId, nextClosingFolder, activeTenant),
       loadFinancialSummaryShellState(closingFolderId, nextClosingFolder, activeTenant),
       loadFinancialStatementsStructuredShellState(closingFolderId, nextClosingFolder, activeTenant),
-      loadWorkpapersShellState(closingFolderId, nextClosingFolder, activeTenant)
+      loadWorkpapersShellState(closingFolderId, nextClosingFolder, activeTenant),
+      refreshBalanceImportHistoryAfterImport(closingFolderId, activeTenant, importedVersion)
     ]);
 
     const refreshWarnings: ImportRefreshWarnings = {
@@ -770,7 +793,9 @@ function ClosingFolderRoute() {
       mappingFailed: refreshedManualMappingState.kind !== "ready",
       financialSummaryFailed: refreshedFinancialSummaryState.kind !== "ready",
       financialStatementsFailed: refreshedFinancialStatementsStructuredState.kind !== "ready",
-      workpapersFailed: refreshedWorkpapersState.kind !== "ready"
+      workpapersFailed: refreshedWorkpapersState.kind !== "ready",
+      importHistoryFailed: !refreshedBalanceImportHistoryResult.versionsSucceeded,
+      importDiffFailed: !refreshedBalanceImportHistoryResult.diffSucceeded
     };
 
     setState((currentState) => {
@@ -810,6 +835,7 @@ function ClosingFolderRoute() {
           refreshedWorkpapersState.kind === "ready"
             ? refreshedWorkpapersState
             : currentState.workpapersState,
+        balanceImportHistoryState: refreshedBalanceImportHistoryResult.state,
         manualMappingState:
           refreshedManualMappingState.kind === "ready"
             ? refreshedManualMappingState
@@ -986,7 +1012,7 @@ function ClosingFolderRoute() {
         { label: "Dossiers de closing", href: "/" },
         { label: "Dossier" }
       ]}
-      description="Shell produit borne a GET /api/me, GET /api/closing-folders/{id}, GET /api/closing-folders/{closingFolderId}/controls, GET /api/closing-folders/{closingFolderId}/mappings/manual, GET /api/closing-folders/{closingFolderId}/financial-summary, GET /api/closing-folders/{closingFolderId}/financial-statements/structured, GET /api/closing-folders/{closingFolderId}/workpapers, PUT /api/closing-folders/{closingFolderId}/workpapers/{anchorCode}, POST /api/closing-folders/{closingFolderId}/workpapers/{anchorCode}/documents, GET /api/closing-folders/{closingFolderId}/documents/{documentId}/content, GET/POST /api/closing-folders/{closingFolderId}/export-packs, GET /api/closing-folders/{closingFolderId}/export-packs/{exportPackId}/content, GET /api/closing-folders/{closingFolderId}/minimal-annex puis POST /api/closing-folders/{closingFolderId}/imports/balance."
+      description="Shell produit borne a GET /api/me, GET /api/closing-folders/{id}, GET /api/closing-folders/{closingFolderId}/controls, GET /api/closing-folders/{closingFolderId}/mappings/manual, GET /api/closing-folders/{closingFolderId}/financial-summary, GET /api/closing-folders/{closingFolderId}/financial-statements/structured, GET /api/closing-folders/{closingFolderId}/workpapers, GET /api/closing-folders/{closingFolderId}/imports/balance/versions, GET /api/closing-folders/{closingFolderId}/imports/balance/versions/{version}/diff-previous, PUT /api/closing-folders/{closingFolderId}/workpapers/{anchorCode}, POST /api/closing-folders/{closingFolderId}/workpapers/{anchorCode}/documents, GET /api/closing-folders/{closingFolderId}/documents/{documentId}/content, GET/POST /api/closing-folders/{closingFolderId}/export-packs, GET /api/closing-folders/{closingFolderId}/export-packs/{exportPackId}/content, GET /api/closing-folders/{closingFolderId}/minimal-annex puis POST /api/closing-folders/{closingFolderId}/imports/balance."
       eyebrow="Route shell produit"
       sidebarItems={[
         { href: "/", label: "Dossiers" },
@@ -1069,6 +1095,7 @@ function ClosingFolderRoute() {
                   importState={state.importState}
                   selectedImportFile={state.selectedImportFile}
                 />
+                <BalanceImportHistoryPanel state={state.balanceImportHistoryState} />
               </div>
             </div>
           </section>
@@ -1438,6 +1465,16 @@ function ImportBalanceStatus({
         ) : null}
         {importState.refreshWarnings.workpapersFailed ? (
           <p className="text-sm font-medium text-foreground">rafraichissement workpapers impossible</p>
+        ) : null}
+        {importState.refreshWarnings.importHistoryFailed ? (
+          <p className="text-sm font-medium text-foreground">
+            rafraichissement historique imports impossible
+          </p>
+        ) : null}
+        {importState.refreshWarnings.importDiffFailed ? (
+          <p className="text-sm font-medium text-foreground">
+            rafraichissement diff import impossible
+          </p>
         ) : null}
         {importState.refreshWarnings.suggestionsFailed ? (
           <p className="text-sm font-medium text-foreground">rafraichissement suggestions impossible</p>
@@ -2394,6 +2431,104 @@ function formatManualMappingMutationState(
   }
 
   return "mapping indisponible";
+}
+
+async function loadInitialBalanceImportHistoryState(
+  closingFolderId: string,
+  activeTenant: ActiveTenant
+): Promise<BalanceImportHistoryPanelState> {
+  const versionsState = await loadBalanceImportVersionsShellState(closingFolderId, activeTenant);
+
+  if (versionsState.kind === "invalid_payload") {
+    return { kind: "history_invalid_payload" };
+  }
+
+  if (versionsState.kind !== "ready") {
+    return { kind: "history_error" };
+  }
+
+  if (versionsState.versions.length === 0) {
+    return { kind: "empty" };
+  }
+
+  const currentVersion = versionsState.versions[0]?.version;
+
+  if (currentVersion === undefined) {
+    return { kind: "history_invalid_payload" };
+  }
+
+  const diffState = await loadBalanceImportDiffPreviousShellState(
+    closingFolderId,
+    currentVersion,
+    activeTenant
+  );
+
+  return combineBalanceImportHistoryState(versionsState.versions, currentVersion, diffState);
+}
+
+async function refreshBalanceImportHistoryAfterImport(
+  closingFolderId: string,
+  activeTenant: ActiveTenant,
+  importedVersion: number
+): Promise<{
+  state: BalanceImportHistoryPanelState;
+  versionsSucceeded: boolean;
+  diffSucceeded: boolean;
+}> {
+  const [versionsState, diffState] = await Promise.all([
+    loadBalanceImportVersionsShellState(closingFolderId, activeTenant),
+    loadBalanceImportDiffPreviousShellState(closingFolderId, importedVersion, activeTenant)
+  ]);
+
+  if (versionsState.kind === "invalid_payload") {
+    return {
+      state: { kind: "history_invalid_payload" },
+      versionsSucceeded: false,
+      diffSucceeded: diffState.kind === "ready"
+    };
+  }
+
+  if (versionsState.kind !== "ready") {
+    return {
+      state: { kind: "history_error" },
+      versionsSucceeded: false,
+      diffSucceeded: diffState.kind === "ready"
+    };
+  }
+
+  return {
+    state: combineBalanceImportHistoryState(versionsState.versions, importedVersion, diffState),
+    versionsSucceeded: true,
+    diffSucceeded: diffState.kind === "ready"
+  };
+}
+
+function combineBalanceImportHistoryState(
+  versions: BalanceImportVersionSummary[],
+  requestedVersion: number,
+  diffState: BalanceImportDiffState
+): BalanceImportHistoryPanelState {
+  if (diffState.kind === "invalid_payload") {
+    return {
+      kind: "diff_invalid_payload",
+      versions,
+      requestedVersion
+    };
+  }
+
+  if (diffState.kind !== "ready") {
+    return {
+      kind: "diff_error",
+      versions,
+      requestedVersion
+    };
+  }
+
+  return {
+    kind: "ready",
+    versions,
+    diff: diffState.diff
+  };
 }
 
 function updateImportSuccessRefreshWarnings(
