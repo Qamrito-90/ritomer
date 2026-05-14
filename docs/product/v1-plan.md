@@ -63,7 +63,7 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `specs/done/034-pilot-balance-import-history-diff-ui-v1.md`
 
 ### Active
-AUCUNE spec active.
+- `specs/active/035-pilot-export-pack-minimal-annex-refresh-ui-v1.md`
 
 - `030d runtime` provider reel reste reporte : aucun provider IA reel, aucun modele reel, aucun SDK, aucun prompt runtime actif, aucun cout provider, aucun appel reseau IA, aucun microservice IA, aucun GraphQL, aucun RAG/vector store et aucun auto-apply ne sont actives.
 
