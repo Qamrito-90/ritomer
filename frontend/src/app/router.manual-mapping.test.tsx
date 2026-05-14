@@ -468,6 +468,33 @@ const REFRESHED_EMPTY_MAPPING_SUGGESTIONS = {
   suggestions: []
 };
 
+const DEFAULT_IMPORT_VERSIONS = [
+  {
+    closingFolderId: CLOSING_FOLDER.id,
+    version: 2,
+    importedAt: "2026-05-13T09:00:00Z",
+    rowCount: 2,
+    totalDebit: "100",
+    totalCredit: "100"
+  },
+  {
+    closingFolderId: CLOSING_FOLDER.id,
+    version: 1,
+    importedAt: "2026-05-12T09:00:00Z",
+    rowCount: 1,
+    totalDebit: "50",
+    totalCredit: "50"
+  }
+];
+
+const DEFAULT_IMPORT_DIFF = {
+  version: 2,
+  previousVersion: 1,
+  added: [],
+  removed: [],
+  changed: []
+};
+
 const CLOSING_ROUTE = `/closing-folders/${CLOSING_FOLDER.id}`;
 
 type ResponseFactory = () => Response | Promise<Response>;
@@ -517,20 +544,59 @@ function primeNominalRoute(
     extras?: ResponseFactory[];
   } = {}
 ) {
-  fetchMock
-    .mockResolvedValueOnce(jsonResponse(200, me))
-    .mockResolvedValueOnce(jsonResponse(200, closingFolder))
-    .mockImplementationOnce(() => Promise.resolve(controls()))
-    .mockImplementationOnce(() => Promise.resolve(manualMapping()))
-    .mockImplementationOnce(() => Promise.resolve(financialSummary()))
-    .mockImplementationOnce(() => Promise.resolve(financialStatementsStructured()))
-    .mockImplementationOnce(() => Promise.resolve(workpapers()))
-    .mockImplementationOnce(() => Promise.resolve(mappingSuggestions()))
-    .mockResolvedValueOnce(jsonResponse(200, EMPTY_EXPORT_PACKS))
-    .mockResolvedValueOnce(jsonResponse(200, BLOCKED_MINIMAL_ANNEX));
+  const extraQueue = [...extras];
+  const initialGetCounts = new Map<string, number>();
+  const initialGetHandlers = new Map<string, ResponseFactory>([
+    ["/api/me", () => jsonResponse(200, me)],
+    [`/api/closing-folders/${CLOSING_FOLDER.id}`, () => jsonResponse(200, closingFolder)],
+    [`/api/closing-folders/${CLOSING_FOLDER.id}/controls`, controls],
+    [`/api/closing-folders/${CLOSING_FOLDER.id}/mappings/manual`, manualMapping],
+    [`/api/closing-folders/${CLOSING_FOLDER.id}/financial-summary`, financialSummary],
+    [
+      `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
+      financialStatementsStructured
+    ],
+    [`/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`, workpapers],
+    [
+      `/api/closing-folders/${CLOSING_FOLDER.id}/imports/balance/versions`,
+      () => jsonResponse(200, DEFAULT_IMPORT_VERSIONS)
+    ],
+    [
+      `/api/closing-folders/${CLOSING_FOLDER.id}/imports/balance/versions/2/diff-previous`,
+      () => jsonResponse(200, DEFAULT_IMPORT_DIFF)
+    ],
+    [`/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`, mappingSuggestions],
+    [`/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`, () => jsonResponse(200, EMPTY_EXPORT_PACKS)],
+    [
+      `/api/closing-folders/${CLOSING_FOLDER.id}/minimal-annex`,
+      () => jsonResponse(200, BLOCKED_MINIMAL_ANNEX)
+    ]
+  ]);
 
-  extras.forEach((response) => {
-    fetchMock.mockImplementationOnce(() => Promise.resolve(response()));
+  fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+    const path = String(input);
+    const method = init?.method ?? "GET";
+
+    if (method === "GET") {
+      const handler = initialGetHandlers.get(path);
+
+      if (handler !== undefined) {
+        const previousCalls = initialGetCounts.get(path) ?? 0;
+        initialGetCounts.set(path, previousCalls + 1);
+
+        if (previousCalls === 0) {
+          return Promise.resolve(handler());
+        }
+      }
+    }
+
+    const nextResponse = extraQueue.shift();
+
+    if (nextResponse === undefined) {
+      return Promise.resolve(jsonResponse(500, {}));
+    }
+
+    return Promise.resolve(nextResponse());
   });
 }
 
@@ -624,9 +690,9 @@ function expectNoOutOfScopePaths(
   expectedWorkpapersCalls = 1,
   expectedMappingSuggestionsCalls = 1
 ) {
-  expect(paths.some((path) => path.includes("/imports/balance"))).toBe(false);
-  expect(paths.some((path) => path.includes("/imports/balance/versions"))).toBe(false);
-  expect(paths.some((path) => path.includes("/diff-previous"))).toBe(false);
+  expect(paths.some((path) => path.endsWith("/imports/balance"))).toBe(false);
+  expect(paths.filter((path) => path.endsWith("/imports/balance/versions"))).toHaveLength(1);
+  expect(paths.filter((path) => path.includes("/diff-previous"))).toHaveLength(1);
   expect(paths.filter((path) => path.includes("/financial-summary"))).toHaveLength(
     expectedFinancialSummaryCalls
   );
@@ -680,6 +746,8 @@ describe("router manual mapping", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-summary`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/imports/balance/versions`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/imports/balance/versions/2/diff-previous`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/minimal-annex`
@@ -693,6 +761,8 @@ describe("router manual mapping", () => {
     expect(getRequestHeaders(fetchMock, 6)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
     expect(getRequestHeaders(fetchMock, 7)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
     expect(getRequestHeaders(fetchMock, 8)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
+    expect(getRequestHeaders(fetchMock, 9)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
+    expect(getRequestHeaders(fetchMock, 10)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
     expectNoOutOfScopePaths(getRequestPaths(fetchMock));
   });
 
@@ -855,13 +925,13 @@ describe("router manual mapping", () => {
 
     await user.selectOptions(getLineTargetSelect("2000"), "PL.REVENUE");
 
-    expect(fetchMock).toHaveBeenCalledTimes(10);
+    expect(fetchMock).toHaveBeenCalledTimes(12);
     expect(getLineSaveButton("2000")).toBeEnabled();
 
     await user.click(getLineSaveButton("2000"));
 
     expect(await screen.findByText("enregistrement mapping en cours")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(11);
+    expect(fetchMock).toHaveBeenCalledTimes(13);
     expect(getLineTargetSelect("1000")).toBeDisabled();
     expect(getLineTargetSelect("2000")).toBeDisabled();
     expect(getLineSaveButton("1000")).toBeDisabled();
@@ -869,7 +939,7 @@ describe("router manual mapping", () => {
     expect(getLineDeleteButton("1000")).toBeDisabled();
 
     await user.click(getLineDeleteButton("1000"));
-    expect(fetchMock).toHaveBeenCalledTimes(11);
+    expect(fetchMock).toHaveBeenCalledTimes(13);
     expectNoOutOfScopePaths(getRequestPaths(fetchMock));
   });
 
@@ -903,7 +973,7 @@ describe("router manual mapping", () => {
     await waitForNominalShell();
     await screen.findByLabelText("AI mapping suggestion 2000");
 
-    expect(fetchMock).toHaveBeenCalledTimes(10);
+    expect(fetchMock).toHaveBeenCalledTimes(12);
     expect(getRequestPaths(fetchMock)).not.toContain(
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions/2000/decision`
     );
@@ -925,9 +995,11 @@ describe("router manual mapping", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-summary`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/imports/balance/versions`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/minimal-annex`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/imports/balance/versions/2/diff-previous`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions/2000/decision`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/manual`,
@@ -937,7 +1009,7 @@ describe("router manual mapping", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`
     ]);
 
-    const postInit = fetchMock.mock.calls[10]?.[1] as RequestInit;
+    const postInit = fetchMock.mock.calls[12]?.[1] as RequestInit;
     const postHeaders = postInit.headers as Record<string, string>;
     expect(postInit.method).toBe("POST");
     expect(postHeaders.Accept).toBe("application/json");
@@ -1006,9 +1078,11 @@ describe("router manual mapping", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-summary`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/imports/balance/versions`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/minimal-annex`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/imports/balance/versions/2/diff-previous`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions/2000/decision`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/manual`,
@@ -1017,7 +1091,7 @@ describe("router manual mapping", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`
     ]);
-    expect(JSON.parse(String((fetchMock.mock.calls[10]?.[1] as RequestInit).body))).toEqual({
+    expect(JSON.parse(String((fetchMock.mock.calls[12]?.[1] as RequestInit).body))).toEqual({
       decision: "CORRECT",
       latestImportVersion: 2,
       suggestionFingerprint:
@@ -1065,13 +1139,15 @@ describe("router manual mapping", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-summary`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/imports/balance/versions`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/minimal-annex`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/imports/balance/versions/2/diff-previous`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions/2000/decision`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`
     ]);
-    expect(JSON.parse(String((fetchMock.mock.calls[10]?.[1] as RequestInit).body))).toEqual({
+    expect(JSON.parse(String((fetchMock.mock.calls[12]?.[1] as RequestInit).body))).toEqual({
       decision: "REJECT",
       latestImportVersion: 2,
       suggestionFingerprint:
@@ -1102,7 +1178,7 @@ describe("router manual mapping", () => {
 
     expect(await screen.findByText("Human decision in progress: ACCEPT.")).toBeInTheDocument();
     expect(getLineTargetSelect("2000")).toHaveValue("");
-    expect(fetchMock).toHaveBeenCalledTimes(11);
+    expect(fetchMock).toHaveBeenCalledTimes(13);
   });
 
   it("sends the exact PUT payload on explicit save, shows success before refresh, and refreshes mapping plus controls", async () => {
@@ -1148,9 +1224,11 @@ describe("router manual mapping", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-summary`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/imports/balance/versions`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/minimal-annex`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/imports/balance/versions/2/diff-previous`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/manual`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/manual`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/controls`,
@@ -1159,7 +1237,7 @@ describe("router manual mapping", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`
     ]);
 
-    const putInit = fetchMock.mock.calls[10]?.[1] as RequestInit;
+    const putInit = fetchMock.mock.calls[12]?.[1] as RequestInit;
     const putHeaders = putInit.headers as Record<string, string>;
     expect(putInit.method).toBe("PUT");
     expect(putHeaders.Accept).toBe("application/json");
@@ -1193,7 +1271,7 @@ describe("router manual mapping", () => {
     await user.click(getLineSaveButton("2000"));
 
     expect(await screen.findByText("payload mapping invalide")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(11);
+    expect(fetchMock).toHaveBeenCalledTimes(13);
   });
 
   it.each([
@@ -1275,7 +1353,7 @@ describe("router manual mapping", () => {
     await user.click(getLineSaveButton("2000"));
 
     expect(await screen.findByText(text)).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(11);
+    expect(fetchMock).toHaveBeenCalledTimes(13);
   });
 
   it("sends the exact DELETE query param, keeps no body, and refreshes mapping plus controls after success", async () => {
@@ -1307,9 +1385,11 @@ describe("router manual mapping", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-summary`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/imports/balance/versions`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/minimal-annex`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/imports/balance/versions/2/diff-previous`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/manual?accountCode=1000`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/manual`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/controls`,
@@ -1319,7 +1399,7 @@ describe("router manual mapping", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`
     ]);
 
-    const deleteInit = fetchMock.mock.calls[10]?.[1] as RequestInit;
+    const deleteInit = fetchMock.mock.calls[12]?.[1] as RequestInit;
     const deleteHeaders = deleteInit.headers as Record<string, string>;
     expect(deleteInit.method).toBe("DELETE");
     expect(deleteHeaders.Accept).toBe("application/json");

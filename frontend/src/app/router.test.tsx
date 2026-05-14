@@ -272,6 +272,53 @@ const EMPTY_MAPPING_SUGGESTIONS = {
   ]
 };
 
+const DEFAULT_IMPORT_VERSIONS = [
+  {
+    closingFolderId: CLOSING_FOLDER.id,
+    version: 2,
+    importedAt: "2026-05-13T09:00:00Z",
+    rowCount: 2,
+    totalDebit: "100",
+    totalCredit: "100"
+  },
+  {
+    closingFolderId: CLOSING_FOLDER.id,
+    version: 1,
+    importedAt: "2026-05-12T09:00:00Z",
+    rowCount: 1,
+    totalDebit: "50",
+    totalCredit: "50"
+  }
+];
+
+const READY_IMPORT_VERSIONS = [
+  {
+    closingFolderId: CLOSING_FOLDER.id,
+    version: 3,
+    importedAt: "2026-05-14T09:00:00Z",
+    rowCount: 3,
+    totalDebit: "150",
+    totalCredit: "150"
+  },
+  ...DEFAULT_IMPORT_VERSIONS
+];
+
+const DEFAULT_IMPORT_DIFF = {
+  version: 2,
+  previousVersion: 1,
+  added: [],
+  removed: [],
+  changed: []
+};
+
+const READY_IMPORT_DIFF = {
+  version: 3,
+  previousVersion: 2,
+  added: [],
+  removed: [],
+  changed: []
+};
+
 const CLOSING_ROUTE = `/closing-folders/${CLOSING_FOLDER.id}`;
 
 function jsonResponse(status: number, payload: unknown) {
@@ -331,9 +378,11 @@ function primeClosingRoute(
     .mockImplementationOnce(() => financialSummaryResponse)
     .mockImplementationOnce(() => financialStatementsStructuredResponse)
     .mockImplementationOnce(() => workpapersResponse)
+    .mockResolvedValueOnce(jsonResponse(200, DEFAULT_IMPORT_VERSIONS))
     .mockResolvedValueOnce(jsonResponse(200, EMPTY_MAPPING_SUGGESTIONS))
     .mockResolvedValueOnce(jsonResponse(200, EMPTY_EXPORT_PACKS))
-    .mockResolvedValueOnce(jsonResponse(200, BLOCKED_MINIMAL_ANNEX));
+    .mockResolvedValueOnce(jsonResponse(200, BLOCKED_MINIMAL_ANNEX))
+    .mockResolvedValueOnce(jsonResponse(200, DEFAULT_IMPORT_DIFF));
 }
 
 function expectNoControlsNominalBlocks() {
@@ -542,9 +591,11 @@ describe("router", () => {
         .mockResolvedValueOnce(jsonResponse(200, DEFAULT_FINANCIAL_SUMMARY))
         .mockResolvedValueOnce(jsonResponse(200, DEFAULT_FINANCIAL_STATEMENTS_STRUCTURED))
         .mockResolvedValueOnce(jsonResponse(200, DEFAULT_WORKPAPERS))
+        .mockResolvedValueOnce(jsonResponse(200, READY_IMPORT_VERSIONS))
         .mockResolvedValueOnce(jsonResponse(200, EMPTY_MAPPING_SUGGESTIONS))
         .mockResolvedValueOnce(jsonResponse(200, EMPTY_EXPORT_PACKS))
-        .mockResolvedValueOnce(jsonResponse(200, BLOCKED_MINIMAL_ANNEX));
+        .mockResolvedValueOnce(jsonResponse(200, BLOCKED_MINIMAL_ANNEX))
+        .mockResolvedValueOnce(jsonResponse(200, READY_IMPORT_DIFF));
 
       renderRoute("/");
 
@@ -564,7 +615,7 @@ describe("router", () => {
       expect(await screen.findByText("No audit-ready pack generated yet.")).toBeInTheDocument();
       expect(await screen.findByText("Minimal annex preview")).toBeInTheDocument();
       expect(await screen.findByLabelText("tenant actif")).toHaveTextContent("Tenant Alpha");
-      expect(fetchMock).toHaveBeenCalledTimes(12);
+      expect(fetchMock).toHaveBeenCalledTimes(14);
       expect(fetchMock.mock.calls[2]?.[0]).toBe("/api/me");
       expect(fetchMock.mock.calls[3]?.[0]).toBe(`/api/closing-folders/${CLOSING_FOLDER.id}`);
       expect(fetchMock.mock.calls[4]?.[0]).toBe(
@@ -583,13 +634,19 @@ describe("router", () => {
         `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`
       );
       expect(fetchMock.mock.calls[9]?.[0]).toBe(
-        `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`
+        `/api/closing-folders/${CLOSING_FOLDER.id}/imports/balance/versions`
       );
       expect(fetchMock.mock.calls[10]?.[0]).toBe(
-        `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`
+        `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`
       );
       expect(fetchMock.mock.calls[11]?.[0]).toBe(
+        `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`
+      );
+      expect(fetchMock.mock.calls[12]?.[0]).toBe(
         `/api/closing-folders/${CLOSING_FOLDER.id}/minimal-annex`
+      );
+      expect(fetchMock.mock.calls[13]?.[0]).toBe(
+        `/api/closing-folders/${CLOSING_FOLDER.id}/imports/balance/versions/3/diff-previous`
       );
     });
   });
@@ -797,7 +854,7 @@ describe("router", () => {
       expect(screen.getByText("Dossier courant")).toBeInTheDocument();
       expect(await expectVisibleText("chargement controls")).toBeInTheDocument();
       expect(await screen.findByText("No audit-ready pack generated yet.")).toBeInTheDocument();
-      expect(fetchMock).toHaveBeenCalledTimes(10);
+      expect(fetchMock).toHaveBeenCalledTimes(12);
       expectNoControlsNominalBlocks();
     });
 
@@ -814,7 +871,7 @@ describe("router", () => {
       renderRoute(CLOSING_ROUTE);
 
       await expectControlsState(text);
-      expect(fetchMock).toHaveBeenCalledTimes(10);
+      expect(fetchMock).toHaveBeenCalledTimes(12);
     });
 
     it("renders erreur reseau controls on a controls network failure", async () => {
@@ -827,13 +884,16 @@ describe("router", () => {
         .mockResolvedValueOnce(jsonResponse(200, DEFAULT_FINANCIAL_SUMMARY))
         .mockResolvedValueOnce(jsonResponse(200, DEFAULT_FINANCIAL_STATEMENTS_STRUCTURED))
         .mockResolvedValueOnce(jsonResponse(200, DEFAULT_WORKPAPERS))
+        .mockResolvedValueOnce(jsonResponse(200, DEFAULT_IMPORT_VERSIONS))
         .mockResolvedValueOnce(jsonResponse(200, EMPTY_MAPPING_SUGGESTIONS))
-        .mockResolvedValueOnce(jsonResponse(200, EMPTY_EXPORT_PACKS));
+        .mockResolvedValueOnce(jsonResponse(200, EMPTY_EXPORT_PACKS))
+        .mockResolvedValueOnce(jsonResponse(200, BLOCKED_MINIMAL_ANNEX))
+        .mockResolvedValueOnce(jsonResponse(200, DEFAULT_IMPORT_DIFF));
 
       renderRoute(CLOSING_ROUTE);
 
       await expectControlsState("erreur reseau controls");
-      expect(fetchMock).toHaveBeenCalledTimes(10);
+      expect(fetchMock).toHaveBeenCalledTimes(12);
     });
 
     it("renders timeout controls on a controls timeout failure", async () => {
@@ -846,13 +906,16 @@ describe("router", () => {
         .mockResolvedValueOnce(jsonResponse(200, DEFAULT_FINANCIAL_SUMMARY))
         .mockResolvedValueOnce(jsonResponse(200, DEFAULT_FINANCIAL_STATEMENTS_STRUCTURED))
         .mockResolvedValueOnce(jsonResponse(200, DEFAULT_WORKPAPERS))
+        .mockResolvedValueOnce(jsonResponse(200, DEFAULT_IMPORT_VERSIONS))
         .mockResolvedValueOnce(jsonResponse(200, EMPTY_MAPPING_SUGGESTIONS))
-        .mockResolvedValueOnce(jsonResponse(200, EMPTY_EXPORT_PACKS));
+        .mockResolvedValueOnce(jsonResponse(200, EMPTY_EXPORT_PACKS))
+        .mockResolvedValueOnce(jsonResponse(200, BLOCKED_MINIMAL_ANNEX))
+        .mockResolvedValueOnce(jsonResponse(200, DEFAULT_IMPORT_DIFF));
 
       renderRoute(CLOSING_ROUTE);
 
       await expectControlsState("timeout controls");
-      expect(fetchMock).toHaveBeenCalledTimes(10);
+      expect(fetchMock).toHaveBeenCalledTimes(12);
     });
 
     it("renders payload controls invalide when the controls payload is incomplete", async () => {
@@ -870,7 +933,7 @@ describe("router", () => {
       renderRoute(CLOSING_ROUTE);
 
       await expectControlsState("payload controls invalide");
-      expect(fetchMock).toHaveBeenCalledTimes(10);
+      expect(fetchMock).toHaveBeenCalledTimes(12);
     });
 
     it("renders the exact READY controls blocks in order and stays accessible", async () => {
@@ -928,7 +991,7 @@ describe("router", () => {
       expect(screen.queryByText(ACTIVE_TENANT.tenantId)).not.toBeInTheDocument();
       expect(screen.queryByText(CLOSING_FOLDER.id)).not.toBeInTheDocument();
       expect(await screen.findByText("No audit-ready pack generated yet.")).toBeInTheDocument();
-      expect(fetchMock).toHaveBeenCalledTimes(10);
+      expect(fetchMock).toHaveBeenCalledTimes(12);
 
       expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/me");
       expect(fetchMock.mock.calls[1]?.[0]).toBe(`/api/closing-folders/${CLOSING_FOLDER.id}`);
@@ -948,14 +1011,20 @@ describe("router", () => {
         `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`
       );
       expect(fetchMock.mock.calls[7]?.[0]).toBe(
-        `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`
+        `/api/closing-folders/${CLOSING_FOLDER.id}/imports/balance/versions`
       );
       expect((fetchMock.mock.calls[7]?.[1] as RequestInit | undefined)?.method).toBe("GET");
       expect(fetchMock.mock.calls[8]?.[0]).toBe(
-        `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`
+        `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`
       );
       expect(fetchMock.mock.calls[9]?.[0]).toBe(
+        `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`
+      );
+      expect(fetchMock.mock.calls[10]?.[0]).toBe(
         `/api/closing-folders/${CLOSING_FOLDER.id}/minimal-annex`
+      );
+      expect(fetchMock.mock.calls[11]?.[0]).toBe(
+        `/api/closing-folders/${CLOSING_FOLDER.id}/imports/balance/versions/2/diff-previous`
       );
       expect(getRequestHeaders(fetchMock, 0)["X-Tenant-Id"]).toBeUndefined();
       expect(getRequestHeaders(fetchMock, 1)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
@@ -966,6 +1035,8 @@ describe("router", () => {
       expect(getRequestHeaders(fetchMock, 6)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
       expect(getRequestHeaders(fetchMock, 7)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
       expect(getRequestHeaders(fetchMock, 7).Accept).toBe("application/json");
+      expect(getRequestHeaders(fetchMock, 8)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
+      expect(getRequestHeaders(fetchMock, 9)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
       expect((await axe(container)).violations).toEqual([]);
     });
 
@@ -1034,7 +1105,7 @@ describe("router", () => {
       expect(rows[1]).toHaveTextContent("Revenue");
       expect(rows[2]).toHaveTextContent("0500");
       expect(rows[2]).toHaveTextContent("Receivable");
-      expect(fetchMock).toHaveBeenCalledTimes(10);
+      expect(fetchMock).toHaveBeenCalledTimes(12);
     });
   });
 });

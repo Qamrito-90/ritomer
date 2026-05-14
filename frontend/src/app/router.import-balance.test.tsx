@@ -378,6 +378,83 @@ const BLOCKED_MINIMAL_ANNEX = {
   annex: null
 };
 
+const INITIAL_IMPORT_VERSIONS = [
+  {
+    closingFolderId: CLOSING_FOLDER.id,
+    version: 2,
+    importedAt: "2026-05-13T09:00:00Z",
+    rowCount: 3,
+    totalDebit: "200",
+    totalCredit: "200"
+  },
+  {
+    closingFolderId: CLOSING_FOLDER.id,
+    version: 1,
+    importedAt: "2026-05-12T09:00:00Z",
+    rowCount: 2,
+    totalDebit: "100",
+    totalCredit: "100"
+  }
+];
+
+const INITIAL_IMPORT_DIFF = {
+  version: 2,
+  previousVersion: 1,
+  added: [
+    {
+      accountCode: "9000",
+      accountLabel: "Revenue",
+      debit: "0",
+      credit: "100"
+    }
+  ],
+  removed: [],
+  changed: [
+    {
+      accountCode: "0500",
+      before: {
+        accountCode: "0500",
+        accountLabel: "Receivable",
+        debit: "50",
+        credit: "0"
+      },
+      after: {
+        accountCode: "0500",
+        accountLabel: "Receivable",
+        debit: "100",
+        credit: "0"
+      }
+    }
+  ]
+};
+
+const REFRESHED_IMPORT_VERSIONS = [
+  {
+    closingFolderId: CLOSING_FOLDER.id,
+    version: 4,
+    importedAt: "2026-05-14T10:30:00Z",
+    rowCount: 12,
+    totalDebit: "300",
+    totalCredit: "300"
+  },
+  ...INITIAL_IMPORT_VERSIONS
+];
+
+const REFRESHED_IMPORT_DIFF = {
+  version: 4,
+  previousVersion: 2,
+  added: [
+    {
+      accountCode: "3000",
+      accountLabel: "Sales refreshed",
+      debit: "0",
+      credit: "300"
+    }
+  ],
+  removed: [],
+  changed: []
+};
+
 const EMPTY_MAPPING_SUGGESTIONS = {
   state: "DISABLED",
   closingFolderId: CLOSING_FOLDER.id,
@@ -420,7 +497,11 @@ function renderClosingRoute() {
 function primeReadyClosingRoute(
   fetchMock: ReturnType<typeof vi.fn>,
   closingFolder = CLOSING_FOLDER,
-  controls = INITIAL_CONTROLS
+  controls = INITIAL_CONTROLS,
+  historyResponses: { versions: Response; diff?: Response } = {
+    versions: jsonResponse(200, INITIAL_IMPORT_VERSIONS),
+    diff: jsonResponse(200, INITIAL_IMPORT_DIFF)
+  }
 ) {
   fetchMock
     .mockResolvedValueOnce(jsonResponse(200, { activeTenant: ACTIVE_TENANT }))
@@ -430,6 +511,13 @@ function primeReadyClosingRoute(
     .mockResolvedValueOnce(jsonResponse(200, INITIAL_FINANCIAL_SUMMARY))
     .mockResolvedValueOnce(jsonResponse(200, INITIAL_FINANCIAL_STATEMENTS_STRUCTURED))
     .mockResolvedValueOnce(jsonResponse(200, INITIAL_WORKPAPERS))
+    .mockResolvedValueOnce(historyResponses.versions);
+
+  if (historyResponses.diff !== undefined) {
+    fetchMock.mockResolvedValueOnce(historyResponses.diff);
+  }
+
+  fetchMock
     .mockResolvedValueOnce(jsonResponse(200, EMPTY_MAPPING_SUGGESTIONS))
     .mockResolvedValueOnce(jsonResponse(200, EMPTY_EXPORT_PACKS))
     .mockResolvedValueOnce(jsonResponse(200, BLOCKED_MINIMAL_ANNEX));
@@ -445,7 +533,6 @@ async function waitForClosingRouteReady() {
   expect(await screen.findByText("Workpapers")).toBeInTheDocument();
   expect(await screen.findByText("AI mapping suggestion")).toBeInTheDocument();
   expect(await screen.findByText("Audit-ready export pack")).toBeInTheDocument();
-  expect(await screen.findByText("No audit-ready pack generated yet.")).toBeInTheDocument();
   expect(await screen.findByText("Minimal annex preview")).toBeInTheDocument();
 }
 
@@ -466,7 +553,9 @@ function expectNoForbiddenImportCalls(
   expectedFinancialSummaryCalls = 1,
   expectedFinancialStatementsStructuredCalls = 1,
   expectedWorkpapersCalls = 1,
-  expectedMappingSuggestionsCalls = 1
+  expectedMappingSuggestionsCalls = 1,
+  expectedImportVersionsCalls = expectedFinancialSummaryCalls,
+  expectedImportDiffCalls = expectedFinancialSummaryCalls
 ) {
   expect(paths.filter((path) => path.includes("/financial-summary"))).toHaveLength(
     expectedFinancialSummaryCalls
@@ -480,10 +569,14 @@ function expectNoForbiddenImportCalls(
   expect(paths.filter((path) => path.endsWith("/mappings/suggestions"))).toHaveLength(
     expectedMappingSuggestionsCalls
   );
+  expect(paths.filter((path) => path.endsWith("/imports/balance/versions"))).toHaveLength(
+    expectedImportVersionsCalls
+  );
+  expect(paths.filter((path) => path.includes("/diff-previous"))).toHaveLength(
+    expectedImportDiffCalls
+  );
   expect(paths.filter((path) => path.endsWith("/export-packs"))).toHaveLength(1);
   expect(paths.filter((path) => path.endsWith("/minimal-annex"))).toHaveLength(1);
-  expect(paths.some((path) => path.includes("/imports/balance/versions"))).toBe(false);
-  expect(paths.some((path) => path.includes("/diff-previous"))).toBe(false);
   expect(paths.some((path) => path.includes("/financial-statements-structured"))).toBe(false);
   expect(paths.some((path) => /\/workpapers\/[^/]+/.test(path))).toBe(false);
   expect(paths.some((path) => path.includes("/documents"))).toBe(false);
@@ -519,7 +612,134 @@ describe("router import balance", () => {
 
     expect(await screen.findByText("aucun fichier selectionne")).toBeInTheDocument();
     expect(getImportButton()).toBeDisabled();
-    expect(fetchMock).toHaveBeenCalledTimes(10);
+    expect(fetchMock).toHaveBeenCalledTimes(12);
+    expectNoForbiddenImportCalls(getRequestPaths(fetchMock));
+  });
+
+  it("loads import versions then current diff on the initial route and renders the history panel ready state", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    primeReadyClosingRoute(fetchMock);
+
+    renderClosingRoute();
+    await waitForClosingRouteReady();
+
+    expect(await screen.findByText("Diff N/N-1")).toBeInTheDocument();
+    expect(screen.getByText("v2")).toBeInTheDocument();
+    expect(screen.getByText("v1")).toBeInTheDocument();
+    expect(screen.getByText("added")).toBeInTheDocument();
+    expect(screen.getByText("removed")).toBeInTheDocument();
+    expect(screen.getByText("changed")).toBeInTheDocument();
+    expect(screen.getAllByText("Receivable").length).toBeGreaterThan(0);
+
+    const paths = getRequestPaths(fetchMock);
+    expect(paths.filter((path) => path.endsWith("/imports/balance/versions"))).toHaveLength(1);
+    expect(paths.filter((path) => path.endsWith("/versions/2/diff-previous"))).toHaveLength(1);
+    expectNoForbiddenImportCalls(paths);
+  });
+
+  it("renders empty history and does not call diff-previous when versions returns an empty list", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    primeReadyClosingRoute(fetchMock, CLOSING_FOLDER, INITIAL_CONTROLS, {
+      versions: jsonResponse(200, [])
+    });
+
+    renderClosingRoute();
+    await waitForClosingRouteReady();
+
+    expect(await screen.findByText("aucun import balance historise")).toBeInTheDocument();
+    const paths = getRequestPaths(fetchMock);
+    expect(paths.some((path) => path.includes("/diff-previous"))).toBe(false);
+    expectNoForbiddenImportCalls(paths, 1, 1, 1, 1, 1, 0);
+  });
+
+  it("renders history error when versions cannot be loaded", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    primeReadyClosingRoute(fetchMock, CLOSING_FOLDER, INITIAL_CONTROLS, {
+      versions: jsonResponse(500, {})
+    });
+
+    renderClosingRoute();
+    await waitForClosingRouteReady();
+
+    expect(await screen.findByText("historique import indisponible")).toBeInTheDocument();
+    const paths = getRequestPaths(fetchMock);
+    expect(paths.some((path) => path.includes("/diff-previous"))).toBe(false);
+    expectNoForbiddenImportCalls(paths, 1, 1, 1, 1, 1, 0);
+  });
+
+  it("renders invalid history payload when versions is unusable", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    primeReadyClosingRoute(fetchMock, CLOSING_FOLDER, INITIAL_CONTROLS, {
+      versions: jsonResponse(200, [
+        {
+          closingFolderId: CLOSING_FOLDER.id,
+          version: 2,
+          rowCount: 3,
+          totalDebit: "200",
+          totalCredit: "200"
+        }
+      ])
+    });
+
+    renderClosingRoute();
+    await waitForClosingRouteReady();
+
+    expect(await screen.findByText("payload historique import invalide")).toBeInTheDocument();
+    const paths = getRequestPaths(fetchMock);
+    expect(paths.some((path) => path.includes("/diff-previous"))).toBe(false);
+    expectNoForbiddenImportCalls(paths, 1, 1, 1, 1, 1, 0);
+  });
+
+  it("renders no previous version when diff returns previousVersion null", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    primeReadyClosingRoute(fetchMock, CLOSING_FOLDER, INITIAL_CONTROLS, {
+      versions: jsonResponse(200, [{ ...INITIAL_IMPORT_VERSIONS[1], version: 1 }]),
+      diff: jsonResponse(200, {
+        version: 1,
+        previousVersion: null,
+        added: [],
+        removed: [],
+        changed: []
+      })
+    });
+
+    renderClosingRoute();
+    await waitForClosingRouteReady();
+
+    expect(await screen.findByText("aucune version precedente a comparer")).toBeInTheDocument();
+    expectNoForbiddenImportCalls(getRequestPaths(fetchMock));
+  });
+
+  it("renders diff error when diff-previous cannot be loaded", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    primeReadyClosingRoute(fetchMock, CLOSING_FOLDER, INITIAL_CONTROLS, {
+      versions: jsonResponse(200, INITIAL_IMPORT_VERSIONS),
+      diff: jsonResponse(500, {})
+    });
+
+    renderClosingRoute();
+    await waitForClosingRouteReady();
+
+    expect(await screen.findByText("diff import indisponible")).toBeInTheDocument();
+    expectNoForbiddenImportCalls(getRequestPaths(fetchMock));
+  });
+
+  it("renders invalid diff payload when diff-previous is unusable", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    primeReadyClosingRoute(fetchMock, CLOSING_FOLDER, INITIAL_CONTROLS, {
+      versions: jsonResponse(200, INITIAL_IMPORT_VERSIONS),
+      diff: jsonResponse(200, {
+        version: 2,
+        added: [],
+        removed: [],
+        changed: []
+      })
+    });
+
+    renderClosingRoute();
+    await waitForClosingRouteReady();
+
+    expect(await screen.findByText("payload diff import invalide")).toBeInTheDocument();
     expectNoForbiddenImportCalls(getRequestPaths(fetchMock));
   });
 
@@ -535,7 +755,7 @@ describe("router import balance", () => {
 
     expect(await screen.findByText("fichier pret : balance.csv")).toBeInTheDocument();
     expect(getImportButton()).toBeEnabled();
-    expect(fetchMock).toHaveBeenCalledTimes(10);
+    expect(fetchMock).toHaveBeenCalledTimes(12);
   });
 
   it("accepts a .CSV file locally", async () => {
@@ -550,7 +770,7 @@ describe("router import balance", () => {
 
     expect(await screen.findByText("fichier pret : balance.CSV")).toBeInTheDocument();
     expect(getImportButton()).toBeEnabled();
-    expect(fetchMock).toHaveBeenCalledTimes(10);
+    expect(fetchMock).toHaveBeenCalledTimes(12);
   });
 
   it("rejects a non-CSV file locally and never posts", async () => {
@@ -568,7 +788,7 @@ describe("router import balance", () => {
 
     expect(await screen.findByText("fichier CSV requis")).toBeInTheDocument();
     expect(getImportButton()).toBeDisabled();
-    expect(fetchMock).toHaveBeenCalledTimes(10);
+    expect(fetchMock).toHaveBeenCalledTimes(12);
   });
 
   it("does not perform any local MIME validation for a *.csv file", async () => {
@@ -587,8 +807,8 @@ describe("router import balance", () => {
     await user.click(getImportButton());
 
     expect(await screen.findByText("authentification requise")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(11);
-    expect(fetchMock.mock.calls[10]?.[0]).toBe(
+    expect(fetchMock).toHaveBeenCalledTimes(13);
+    expect(fetchMock.mock.calls[12]?.[0]).toBe(
       `/api/closing-folders/${CLOSING_FOLDER.id}/imports/balance`
     );
   });
@@ -603,7 +823,7 @@ describe("router import balance", () => {
     expect(await screen.findByText("dossier archive, import impossible")).toBeInTheDocument();
     expect(getImportInput()).toBeDisabled();
     expect(getImportButton()).toBeDisabled();
-    expect(fetchMock).toHaveBeenCalledTimes(10);
+    expect(fetchMock).toHaveBeenCalledTimes(12);
   });
 
   it("shows import balance en cours while the POST is pending", async () => {
@@ -619,7 +839,7 @@ describe("router import balance", () => {
     await user.click(getImportButton());
 
     expect(screen.getByText("import balance en cours")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(11);
+    expect(fetchMock).toHaveBeenCalledTimes(13);
   });
 
   it("renders timeout import on a timeout failure", async () => {
@@ -635,7 +855,7 @@ describe("router import balance", () => {
     await user.click(getImportButton());
 
     expect(await screen.findByText("timeout import")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(11);
+    expect(fetchMock).toHaveBeenCalledTimes(13);
   });
 
   it("keeps the success visible and refreshes dossier plus core downstream surfaces after a valid 201", async () => {
@@ -656,6 +876,8 @@ describe("router import balance", () => {
       .mockResolvedValueOnce(jsonResponse(200, REFRESHED_FINANCIAL_SUMMARY))
       .mockResolvedValueOnce(jsonResponse(200, REFRESHED_FINANCIAL_STATEMENTS_STRUCTURED))
       .mockResolvedValueOnce(jsonResponse(200, REFRESHED_WORKPAPERS))
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_IMPORT_VERSIONS))
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_IMPORT_DIFF))
       .mockResolvedValueOnce(jsonResponse(200, REFRESHED_MAPPING_SUGGESTIONS));
 
     renderClosingRoute();
@@ -676,7 +898,7 @@ describe("router import balance", () => {
     expect(screen.getByText("Latest valid balance import version 4 is available.")).toBeInTheDocument();
     expect(screen.queryByText("Latest valid balance import version 2 is available.")).not.toBeInTheDocument();
     expect(await screen.findByLabelText("ligne mapping 3000")).toBeInTheDocument();
-    expect(screen.getByText("Sales refreshed")).toBeInTheDocument();
+    expect(screen.getAllByText("Sales refreshed").length).toBeGreaterThan(0);
     expect(screen.getByText("etat preview : preview prete")).toBeInTheDocument();
     expect(screen.getAllByText("resultat net : 300").length).toBeGreaterThan(0);
     expect(screen.getByText("etat structured preview : preview prete")).toBeInTheDocument();
@@ -693,9 +915,11 @@ describe("router import balance", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-summary`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/imports/balance/versions`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/minimal-annex`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/imports/balance/versions/2/diff-previous`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/imports/balance`,
       `/api/closing-folders/${CLOSING_FOLDER.id}`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/controls`,
@@ -703,9 +927,11 @@ describe("router import balance", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-summary`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/imports/balance/versions`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/imports/balance/versions/4/diff-previous`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`
     ]);
-    expectNoForbiddenImportCalls(paths, 2, 2, 2, 2);
+    expectNoForbiddenImportCalls(paths, 2, 2, 2, 2, 2, 2);
   });
 
   it("keeps the import success visible and preserves the last dossier and controls render when the dossier refresh fails", async () => {
@@ -726,6 +952,8 @@ describe("router import balance", () => {
       .mockResolvedValueOnce(jsonResponse(200, INITIAL_FINANCIAL_SUMMARY))
       .mockResolvedValueOnce(jsonResponse(200, INITIAL_FINANCIAL_STATEMENTS_STRUCTURED))
       .mockResolvedValueOnce(jsonResponse(200, INITIAL_WORKPAPERS))
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_IMPORT_VERSIONS))
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_IMPORT_DIFF))
       .mockResolvedValueOnce(jsonResponse(200, REFRESHED_MAPPING_SUGGESTIONS));
 
     renderClosingRoute();
@@ -741,7 +969,7 @@ describe("router import balance", () => {
     expect(screen.getByText("Latest valid balance import version 2 is available.")).toBeInTheDocument();
     expect(screen.getByText("etat preview : preview partielle")).toBeInTheDocument();
     expect(await screen.findByText("AI mapping suggestion ready.")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(18);
+    expect(fetchMock).toHaveBeenCalledTimes(22);
     expectNoForbiddenImportCalls(getRequestPaths(fetchMock), 2, 2, 2, 2);
   });
 
@@ -763,6 +991,8 @@ describe("router import balance", () => {
       .mockResolvedValueOnce(jsonResponse(200, REFRESHED_FINANCIAL_SUMMARY))
       .mockResolvedValueOnce(jsonResponse(200, REFRESHED_FINANCIAL_STATEMENTS_STRUCTURED))
       .mockResolvedValueOnce(jsonResponse(200, REFRESHED_WORKPAPERS))
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_IMPORT_VERSIONS))
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_IMPORT_DIFF))
       .mockResolvedValueOnce(jsonResponse(200, REFRESHED_MAPPING_SUGGESTIONS));
 
     renderClosingRoute();
@@ -779,8 +1009,78 @@ describe("router import balance", () => {
     expect(screen.queryByText("Latest valid balance import version 4 is available.")).not.toBeInTheDocument();
     expect(await screen.findByText("etat preview : preview prete")).toBeInTheDocument();
     expect(await screen.findByText("AI mapping suggestion ready.")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(18);
+    expect(fetchMock).toHaveBeenCalledTimes(22);
     expectNoForbiddenImportCalls(getRequestPaths(fetchMock), 2, 2, 2, 2);
+  });
+
+  it("keeps the import success visible and warns when the history refresh fails after import", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    const user = userEvent.setup();
+    primeReadyClosingRoute(fetchMock);
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse(201, {
+          closingFolderId: CLOSING_FOLDER.id,
+          version: 4,
+          rowCount: 12
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_CLOSING_FOLDER))
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_CONTROLS))
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_MANUAL_MAPPING))
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_FINANCIAL_SUMMARY))
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_FINANCIAL_STATEMENTS_STRUCTURED))
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_WORKPAPERS))
+      .mockResolvedValueOnce(jsonResponse(500, {}))
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_IMPORT_DIFF))
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_MAPPING_SUGGESTIONS));
+
+    renderClosingRoute();
+    await waitForClosingRouteReady();
+
+    await user.upload(getImportInput(), new File(["csv"], "balance.csv"));
+    await user.click(getImportButton());
+
+    expect(await screen.findByText("balance importee avec succes")).toBeInTheDocument();
+    expect(screen.getByText("rafraichissement historique imports impossible")).toBeInTheDocument();
+    expect(screen.queryByText("rafraichissement diff import impossible")).not.toBeInTheDocument();
+    expect(await screen.findByText("historique import indisponible")).toBeInTheDocument();
+    expectNoForbiddenImportCalls(getRequestPaths(fetchMock), 2, 2, 2, 2, 2, 2);
+  });
+
+  it("keeps the import success visible and warns when the diff refresh fails after import", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    const user = userEvent.setup();
+    primeReadyClosingRoute(fetchMock);
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse(201, {
+          closingFolderId: CLOSING_FOLDER.id,
+          version: 4,
+          rowCount: 12
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_CLOSING_FOLDER))
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_CONTROLS))
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_MANUAL_MAPPING))
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_FINANCIAL_SUMMARY))
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_FINANCIAL_STATEMENTS_STRUCTURED))
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_WORKPAPERS))
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_IMPORT_VERSIONS))
+      .mockResolvedValueOnce(jsonResponse(500, {}))
+      .mockResolvedValueOnce(jsonResponse(200, REFRESHED_MAPPING_SUGGESTIONS));
+
+    renderClosingRoute();
+    await waitForClosingRouteReady();
+
+    await user.upload(getImportInput(), new File(["csv"], "balance.csv"));
+    await user.click(getImportButton());
+
+    expect(await screen.findByText("balance importee avec succes")).toBeInTheDocument();
+    expect(screen.queryByText("rafraichissement historique imports impossible")).not.toBeInTheDocument();
+    expect(screen.getByText("rafraichissement diff import impossible")).toBeInTheDocument();
+    expect(await screen.findByText("diff import indisponible")).toBeInTheDocument();
+    expectNoForbiddenImportCalls(getRequestPaths(fetchMock), 2, 2, 2, 2, 2, 2);
   });
 
   it("renders payload import invalide on an invalid 201 payload, keeps the selected file, and skips refreshs", async () => {
@@ -805,7 +1105,7 @@ describe("router import balance", () => {
     expect(await screen.findByText("payload import invalide")).toBeInTheDocument();
     expect(getImportInput().files?.[0]?.name).toBe("balance.csv");
     expect(getImportButton()).toBeEnabled();
-    expect(fetchMock).toHaveBeenCalledTimes(11);
+    expect(fetchMock).toHaveBeenCalledTimes(13);
   });
 
   it("renders import invalide, the backend message, and ordered 400 errors on a structured bad request", async () => {
@@ -858,7 +1158,7 @@ describe("router import balance", () => {
       "accountLabel : label missing",
       "totals mismatch"
     ]);
-    expect(fetchMock).toHaveBeenCalledTimes(11);
+    expect(fetchMock).toHaveBeenCalledTimes(13);
   });
 
   it("renders import indisponible on an unusable 400 payload", async () => {
@@ -878,7 +1178,7 @@ describe("router import balance", () => {
     await user.click(getImportButton());
 
     expect(await screen.findByText("import indisponible")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(11);
+    expect(fetchMock).toHaveBeenCalledTimes(13);
   });
 
   it.each([
@@ -901,6 +1201,6 @@ describe("router import balance", () => {
     await user.click(getImportButton());
 
     expect(await screen.findByText(text)).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(11);
+    expect(fetchMock).toHaveBeenCalledTimes(13);
   });
 });

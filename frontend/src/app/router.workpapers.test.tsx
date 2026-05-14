@@ -227,6 +227,33 @@ const EMPTY_MAPPING_SUGGESTIONS = {
   ]
 };
 
+const DEFAULT_IMPORT_VERSIONS = [
+  {
+    closingFolderId: CLOSING_FOLDER.id,
+    version: 2,
+    importedAt: "2026-05-13T09:00:00Z",
+    rowCount: 2,
+    totalDebit: "100",
+    totalCredit: "100"
+  },
+  {
+    closingFolderId: CLOSING_FOLDER.id,
+    version: 1,
+    importedAt: "2026-05-12T09:00:00Z",
+    rowCount: 1,
+    totalDebit: "50",
+    totalCredit: "50"
+  }
+];
+
+const DEFAULT_IMPORT_DIFF = {
+  version: 2,
+  previousVersion: 1,
+  added: [],
+  removed: [],
+  changed: []
+};
+
 const ACCOUNTANT_ME = {
   activeTenant: ACTIVE_TENANT,
   effectiveRoles: ["ACCOUNTANT"]
@@ -288,6 +315,8 @@ function primeNominalRoute(fetchMock: ReturnType<typeof vi.fn>) {
       Promise.resolve(jsonResponse(200, READY_FINANCIAL_STATEMENTS_STRUCTURED))
     )
     .mockImplementationOnce(() => Promise.resolve(jsonResponse(200, READY_WORKPAPERS)))
+    .mockImplementationOnce(() => Promise.resolve(jsonResponse(200, DEFAULT_IMPORT_VERSIONS)))
+    .mockImplementationOnce(() => Promise.resolve(jsonResponse(200, DEFAULT_IMPORT_DIFF)))
     .mockImplementationOnce(() => Promise.resolve(jsonResponse(200, EMPTY_MAPPING_SUGGESTIONS)))
     .mockImplementationOnce(() => Promise.resolve(jsonResponse(200, EMPTY_EXPORT_PACKS)))
     .mockImplementationOnce(() => Promise.resolve(jsonResponse(200, BLOCKED_MINIMAL_ANNEX)));
@@ -330,6 +359,8 @@ describe("router workpapers smoke", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-summary`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/imports/balance/versions`,
+      `/api/closing-folders/${CLOSING_FOLDER.id}/imports/balance/versions/2/diff-previous`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/minimal-annex`
@@ -385,11 +416,9 @@ describe("router workpapers smoke", () => {
       getRequestPaths(fetchMock).some((path) => path.includes("/minimal-annex/content"))
     ).toBe(false);
     expect(
-      getRequestPaths(fetchMock).some((path) => path.includes("/imports/balance/versions"))
-    ).toBe(false);
-    expect(getRequestPaths(fetchMock).some((path) => path.includes("/diff-previous"))).toBe(
-      false
-    );
+      getRequestPaths(fetchMock).filter((path) => path.includes("/imports/balance/versions"))
+    ).toHaveLength(2);
+    expect(getRequestPaths(fetchMock).filter((path) => path.includes("/diff-previous"))).toHaveLength(1);
     expect(getRequestPaths(fetchMock).some((path) => path.includes("/ai"))).toBe(false);
   });
 });
