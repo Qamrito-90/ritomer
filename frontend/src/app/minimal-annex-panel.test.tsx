@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MinimalAnnexPanel } from "./minimal-annex-panel";
 import type { MinimalAnnexReadModel } from "../lib/api/minimal-annex";
@@ -169,9 +169,23 @@ function blockedMinimalAnnex(): MinimalAnnexReadModel {
   };
 }
 
-function renderPanel() {
+function renderPanel(postExportPackRefreshRequestId = 0) {
   return render(
-    <MinimalAnnexPanel activeTenant={ACTIVE_TENANT} closingFolderId={CLOSING_FOLDER_ID} />
+    <MinimalAnnexPanel
+      activeTenant={ACTIVE_TENANT}
+      closingFolderId={CLOSING_FOLDER_ID}
+      postExportPackRefreshRequestId={postExportPackRefreshRequestId}
+    />
+  );
+}
+
+function renderPanelElement(postExportPackRefreshRequestId = 0) {
+  return (
+    <MinimalAnnexPanel
+      activeTenant={ACTIVE_TENANT}
+      closingFolderId={CLOSING_FOLDER_ID}
+      postExportPackRefreshRequestId={postExportPackRefreshRequestId}
+    />
   );
 }
 
@@ -238,6 +252,91 @@ describe("MinimalAnnexPanel", () => {
     expect(container).not.toHaveTextContent("support.pdf");
     expect(container).not.toHaveTextContent("abcdef0123456789");
     expect(container).not.toHaveTextContent("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee");
+  });
+
+  it("refreshes after export pack creation and replaces the preview with an exploitable BLOCKED payload", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, READY_MINIMAL_ANNEX))
+      .mockResolvedValueOnce(jsonResponse(200, blockedMinimalAnnex()));
+
+    const { rerender } = renderPanel();
+
+    expect(await screen.findAllByText("READY")).toHaveLength(2);
+
+    rerender(renderPanelElement(1));
+
+    expect(await screen.findAllByText("BLOCKED")).toHaveLength(2);
+    expect(screen.getByText("export pack basis : absent")).toBeInTheDocument();
+    expect(
+      screen.queryByText("rafraichissement minimal annex impossible")
+    ).not.toBeInTheDocument();
+  });
+
+  it.each([
+    {
+      label: "HTTP error",
+      nextResponse: () => Promise.resolve(jsonResponse(500, {}))
+    },
+    {
+      label: "timeout",
+      nextResponse: () => Promise.reject(new Error("timeout"))
+    },
+    {
+      label: "network error",
+      nextResponse: () => Promise.reject(new TypeError("network unavailable"))
+    },
+    {
+      label: "invalid payload",
+      nextResponse: () => Promise.resolve(jsonResponse(200, { ...READY_MINIMAL_ANNEX, annex: null }))
+    }
+  ])(
+    "keeps the previous preview and shows the exact post-action warning on $label",
+    async ({ nextResponse }) => {
+      const fetchMock = vi.mocked(global.fetch);
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse(200, READY_MINIMAL_ANNEX))
+        .mockImplementationOnce(nextResponse);
+
+      const { rerender } = renderPanel();
+
+      expect(await screen.findAllByText("READY")).toHaveLength(2);
+      expect(screen.getByText("export pack basis : present")).toBeInTheDocument();
+
+      rerender(renderPanelElement(1));
+
+      expect(
+        await screen.findByText("rafraichissement minimal annex impossible")
+      ).toBeInTheDocument();
+      expect(screen.getAllByText("READY")).toHaveLength(2);
+      expect(screen.getByText("export pack basis : present")).toBeInTheDocument();
+    }
+  );
+
+  it("removes the post-action warning after a later successful refresh", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, READY_MINIMAL_ANNEX))
+      .mockResolvedValueOnce(jsonResponse(500, {}))
+      .mockResolvedValueOnce(jsonResponse(200, blockedMinimalAnnex()));
+
+    const { rerender } = renderPanel();
+
+    expect(await screen.findAllByText("READY")).toHaveLength(2);
+
+    rerender(renderPanelElement(1));
+    expect(
+      await screen.findByText("rafraichissement minimal annex impossible")
+    ).toBeInTheDocument();
+
+    rerender(renderPanelElement(2));
+
+    expect(await screen.findAllByText("BLOCKED")).toHaveLength(2);
+    await waitFor(() => {
+      expect(
+        screen.queryByText("rafraichissement minimal annex impossible")
+      ).not.toBeInTheDocument();
+    });
   });
 
   it("does not expose forbidden wording, mutations, export, download, content, storage, or browser storage", async () => {

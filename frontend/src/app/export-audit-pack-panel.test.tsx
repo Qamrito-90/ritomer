@@ -1,8 +1,11 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ExportAuditPackPanel } from "./export-audit-pack-panel";
+import { MinimalAnnexPanel } from "./minimal-annex-panel";
 import type { ExportPack } from "../lib/api/exports";
+import type { MinimalAnnexReadModel } from "../lib/api/minimal-annex";
 
 const ACTIVE_TENANT = {
   tenantId: "11111111-1111-1111-1111-111111111111",
@@ -24,6 +27,61 @@ const VALID_EXPORT_PACK: ExportPack = {
   basisTaxonomyVersion: 1,
   createdAt: "2026-02-01T10:00:00Z",
   createdByUserId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+};
+
+const BLOCKED_MINIMAL_ANNEX_WITHOUT_EXPORT: MinimalAnnexReadModel = {
+  closingFolderId: CLOSING_FOLDER_ID,
+  closingFolderStatus: "DRAFT",
+  readiness: "BLOCKED",
+  annexState: "BLOCKED",
+  presentationType: "MINIMAL_OPERATIONAL_ANNEX",
+  isStatutory: false,
+  requiresHumanReview: true,
+  legalNotice: {
+    title: "Annexe minimale operationnelle, non statutaire.",
+    notOfficialCoAnnex: "Not a final CO deliverable.",
+    noAutomaticValidation: "Aucune decision comptable automatique n'est effectuee.",
+    humanReviewRequired: "Revue humaine requise avant tout usage engageant."
+  },
+  basis: {
+    controlsReadiness: "BLOCKED",
+    latestImportVersion: null,
+    taxonomyVersion: 2,
+    structuredStatementState: "NO_DATA",
+    structuredPresentationType: "STRUCTURED_PREVIEW",
+    exportPack: null
+  },
+  blockers: [
+    {
+      code: "EXPORT_PACK_MISSING",
+      message: "No audit-ready export pack exists for this closing folder.",
+      source: "EXPORT_PACK",
+      target: null
+    }
+  ],
+  warnings: [],
+  annex: null
+};
+
+const BLOCKED_MINIMAL_ANNEX_WITH_EXPORT: MinimalAnnexReadModel = {
+  ...BLOCKED_MINIMAL_ANNEX_WITHOUT_EXPORT,
+  basis: {
+    ...BLOCKED_MINIMAL_ANNEX_WITHOUT_EXPORT.basis,
+    exportPack: {
+      exportPackId: EXPORT_PACK_ID,
+      createdAt: VALID_EXPORT_PACK.createdAt,
+      basisImportVersion: VALID_EXPORT_PACK.basisImportVersion,
+      basisTaxonomyVersion: VALID_EXPORT_PACK.basisTaxonomyVersion
+    }
+  },
+  blockers: [
+    {
+      code: "CLOSING_NOT_READY",
+      message: "Closing controls are not ready.",
+      source: "CONTROLS",
+      target: null
+    }
+  ]
 };
 
 function jsonResponse(status: number, payload: unknown) {
@@ -60,6 +118,31 @@ function renderPanel() {
   );
 }
 
+function ExportAndMinimalAnnexHarness() {
+  const [minimalAnnexRefreshRequestId, setMinimalAnnexRefreshRequestId] = useState(0);
+
+  return (
+    <>
+      <ExportAuditPackPanel
+        activeTenant={ACTIVE_TENANT}
+        closingFolderId={CLOSING_FOLDER_ID}
+        onExportPackCreateSucceeded={() => {
+          setMinimalAnnexRefreshRequestId((currentRequestId) => currentRequestId + 1);
+        }}
+      />
+      <MinimalAnnexPanel
+        activeTenant={ACTIVE_TENANT}
+        closingFolderId={CLOSING_FOLDER_ID}
+        postExportPackRefreshRequestId={minimalAnnexRefreshRequestId}
+      />
+    </>
+  );
+}
+
+function renderExportAndMinimalAnnexHarness() {
+  return render(<ExportAndMinimalAnnexHarness />);
+}
+
 function getRequestPaths(fetchMock: ReturnType<typeof vi.fn>) {
   return fetchMock.mock.calls.map((call) => String(call[0]));
 }
@@ -75,6 +158,13 @@ function getDownloadContentCalls(fetchMock: ReturnType<typeof vi.fn>) {
   return fetchMock.mock.calls.filter((call) => {
     const [path, init] = call as [string, RequestInit];
     return path.endsWith(`/export-packs/${EXPORT_PACK_ID}/content`) && init.method === "GET";
+  });
+}
+
+function getMinimalAnnexCalls(fetchMock: ReturnType<typeof vi.fn>) {
+  return fetchMock.mock.calls.filter((call) => {
+    const [path, init] = call as [string, RequestInit];
+    return path.endsWith("/minimal-annex") && init.method === "GET";
   });
 }
 
@@ -152,6 +242,72 @@ describe("ExportAuditPackPanel", () => {
     expect(await screen.findByText("audit-ready-pack.zip")).toBeInTheDocument();
     expect(getPostExportPackCalls(fetchMock)).toHaveLength(1);
   });
+
+  it.each([
+    { status: 201, label: "created" },
+    { status: 200, label: "replay" }
+  ])(
+    "refreshes the minimal annex preview after export pack $label success",
+    async ({ status }) => {
+      const user = userEvent.setup();
+      const fetchMock = vi.mocked(global.fetch);
+      let exportPackListCalls = 0;
+      let minimalAnnexCalls = 0;
+
+      fetchMock.mockImplementation((input, init) => {
+        const path = String(input);
+        const method = init?.method;
+
+        if (path.endsWith("/minimal-annex") && method === "GET") {
+          minimalAnnexCalls += 1;
+          return Promise.resolve(
+            jsonResponse(
+              200,
+              minimalAnnexCalls === 1
+                ? BLOCKED_MINIMAL_ANNEX_WITHOUT_EXPORT
+                : BLOCKED_MINIMAL_ANNEX_WITH_EXPORT
+            )
+          );
+        }
+
+        if (path.endsWith("/export-packs") && method === "GET") {
+          exportPackListCalls += 1;
+          return Promise.resolve(
+            jsonResponse(200, {
+              items: exportPackListCalls === 1 ? [] : [VALID_EXPORT_PACK]
+            })
+          );
+        }
+
+        if (path.endsWith("/export-packs") && method === "POST") {
+          return Promise.resolve(jsonResponse(status, VALID_EXPORT_PACK));
+        }
+
+        return Promise.resolve(jsonResponse(404, {}));
+      });
+
+      renderExportAndMinimalAnnexHarness();
+
+      expect(await screen.findByText("No audit-ready pack generated yet.")).toBeInTheDocument();
+      expect(await screen.findByText("export pack basis : absent")).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "Generate audit-ready pack" }));
+
+      expect(await screen.findByText("audit-ready-pack.zip")).toBeInTheDocument();
+      expect(await screen.findByText("export pack basis : present")).toBeInTheDocument();
+      expect(getMinimalAnnexCalls(fetchMock)).toHaveLength(2);
+      expect(
+        screen.queryByText("rafraichissement minimal annex impossible")
+      ).not.toBeInTheDocument();
+
+      const requestPaths = getRequestPaths(fetchMock);
+      expect(requestPaths.some((path) => path.includes("/ai"))).toBe(false);
+      expect(requestPaths.some((path) => path.includes("/graphql"))).toBe(false);
+      expect(requestPaths.some((path) => path.includes("/workpapers"))).toBe(false);
+      expect(requestPaths.some((path) => path.includes("/documents"))).toBe(false);
+      expect(requestPaths.some((path) => path.endsWith("/content"))).toBe(false);
+    }
+  );
 
   it.each([
     { status: 409, label: "409 generic" },
@@ -244,6 +400,73 @@ describe("ExportAuditPackPanel", () => {
     await user.click(screen.getByRole("button", { name: "Download ZIP" }));
 
     expect(await screen.findByText("Export pack download unavailable.")).toBeInTheDocument();
+  });
+
+  it("does not refresh minimal annex or show its warning after ZIP download", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.mocked(global.fetch);
+    const createObjectUrl = vi.fn<(blob: Blob) => string>(() => "blob:ritomer-export");
+    const revokeObjectUrl = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    const originalCreateObjectUrl = URL.createObjectURL;
+    const originalRevokeObjectUrl = URL.revokeObjectURL;
+
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: createObjectUrl
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: revokeObjectUrl
+    });
+
+    fetchMock.mockImplementation((input, init) => {
+      const path = String(input);
+      const method = init?.method;
+
+      if (path.endsWith("/minimal-annex") && method === "GET") {
+        return Promise.resolve(jsonResponse(200, BLOCKED_MINIMAL_ANNEX_WITH_EXPORT));
+      }
+
+      if (path.endsWith("/export-packs") && method === "GET") {
+        return Promise.resolve(jsonResponse(200, { items: [VALID_EXPORT_PACK] }));
+      }
+
+      if (path.endsWith(`/export-packs/${EXPORT_PACK_ID}/content`) && method === "GET") {
+        return Promise.resolve(zipResponse());
+      }
+
+      return Promise.resolve(jsonResponse(404, {}));
+    });
+
+    try {
+      renderExportAndMinimalAnnexHarness();
+
+      await screen.findByText("audit-ready-pack.zip");
+      await screen.findByText("export pack basis : present");
+
+      expect(getMinimalAnnexCalls(fetchMock)).toHaveLength(1);
+
+      await user.click(screen.getByRole("button", { name: "Download ZIP" }));
+
+      expect(await screen.findByText("Download ZIP started.")).toBeInTheDocument();
+      expect(click).toHaveBeenCalledTimes(1);
+      expect(revokeObjectUrl).toHaveBeenCalledWith("blob:ritomer-export");
+      expect(getDownloadContentCalls(fetchMock)).toHaveLength(1);
+      expect(getMinimalAnnexCalls(fetchMock)).toHaveLength(1);
+      expect(
+        screen.queryByText("rafraichissement minimal annex impossible")
+      ).not.toBeInTheDocument();
+    } finally {
+      Object.defineProperty(URL, "createObjectURL", {
+        configurable: true,
+        value: originalCreateObjectUrl
+      });
+      Object.defineProperty(URL, "revokeObjectURL", {
+        configurable: true,
+        value: originalRevokeObjectUrl
+      });
+    }
   });
 
   it("prevents double-submit during create and keeps the Idempotency-Key out of the DOM", async () => {

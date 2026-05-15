@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   loadMinimalAnnexShellState,
   type MinimalAnnexBasis,
@@ -12,6 +12,7 @@ import type { ActiveTenant } from "../lib/api/me";
 type MinimalAnnexPanelProps = {
   activeTenant: ActiveTenant;
   closingFolderId: string;
+  postExportPackRefreshRequestId?: number;
 };
 
 const localDateTimeFormatter = new Intl.DateTimeFormat("fr-CH", {
@@ -43,19 +44,26 @@ const forbiddenUiFragments = [
 
 export function MinimalAnnexPanel({
   activeTenant,
-  closingFolderId
+  closingFolderId,
+  postExportPackRefreshRequestId = 0
 }: MinimalAnnexPanelProps) {
   const [state, setState] = useState<MinimalAnnexShellState>({ kind: "loading" });
+  const [postExportPackRefreshFailed, setPostExportPackRefreshFailed] = useState(false);
+  const loadGenerationRef = useRef(0);
+  const handledPostExportPackRefreshRequestIdRef = useRef(postExportPackRefreshRequestId);
 
   useEffect(() => {
     let cancelled = false;
+    const loadGeneration = loadGenerationRef.current + 1;
+    loadGenerationRef.current = loadGeneration;
 
     async function loadMinimalAnnex() {
       setState({ kind: "loading" });
+      setPostExportPackRefreshFailed(false);
 
       const nextState = await loadMinimalAnnexShellState(closingFolderId, activeTenant);
 
-      if (!cancelled) {
+      if (!cancelled && loadGeneration === loadGenerationRef.current) {
         setState(nextState);
       }
     }
@@ -66,6 +74,49 @@ export function MinimalAnnexPanel({
       cancelled = true;
     };
   }, [activeTenant, closingFolderId]);
+
+  useEffect(() => {
+    if (
+      postExportPackRefreshRequestId === handledPostExportPackRefreshRequestIdRef.current
+    ) {
+      return;
+    }
+
+    handledPostExportPackRefreshRequestIdRef.current = postExportPackRefreshRequestId;
+
+    if (postExportPackRefreshRequestId <= 0) {
+      setPostExportPackRefreshFailed(false);
+      return;
+    }
+
+    let cancelled = false;
+    const loadGeneration = loadGenerationRef.current + 1;
+    loadGenerationRef.current = loadGeneration;
+
+    async function refreshMinimalAnnexAfterExportPackCreate() {
+      setPostExportPackRefreshFailed(false);
+
+      const nextState = await loadMinimalAnnexShellState(closingFolderId, activeTenant);
+
+      if (cancelled || loadGeneration !== loadGenerationRef.current) {
+        return;
+      }
+
+      if (nextState.kind === "ready") {
+        setState(nextState);
+        setPostExportPackRefreshFailed(false);
+        return;
+      }
+
+      setPostExportPackRefreshFailed(true);
+    }
+
+    void refreshMinimalAnnexAfterExportPackCreate();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTenant, closingFolderId, postExportPackRefreshRequestId]);
 
   return (
     <section className="panel p-6" aria-labelledby="minimal-annex-preview-title">
@@ -83,6 +134,15 @@ export function MinimalAnnexPanel({
             Not a final CO deliverable. Do not use as statutory filing.
           </p>
         </div>
+
+        {postExportPackRefreshFailed ? (
+          <p
+            aria-live="polite"
+            className="rounded-lg border bg-background/80 p-4 text-sm font-medium text-foreground"
+          >
+            rafraichissement minimal annex impossible
+          </p>
+        ) : null}
 
         <MinimalAnnexStateSlot state={state} />
       </div>
