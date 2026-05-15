@@ -19,6 +19,10 @@ java {
   }
 }
 
+springBoot {
+  mainClass.set("ch.qamwaq.ritomer.RitomerBackendApplicationKt")
+}
+
 repositories {
   mavenCentral()
 }
