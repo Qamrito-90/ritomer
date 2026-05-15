@@ -2,7 +2,7 @@
 
 ## Status
 
-Active.
+Done.
 
 ## Surface
 
@@ -12,13 +12,13 @@ FRONTEND_SPEC.
 
 B.
 
-Risque standard pour une future orchestration frontend post-action bornee, sans backend, DB, contrat, runbook, IA runtime, GraphQL ni mutation metier additionnelle.
+Risque standard pour une orchestration frontend post-action bornee, sans backend, DB, contrat, runbook, IA runtime, GraphQL ni mutation metier additionnelle.
 
 ## Role de cette spec
 
-Cadrer une future implementation frontend minimale sur `/closing-folders/:closingFolderId` pour rafraichir la `Minimal annex preview` apres creation reussie d'un `Audit-ready export pack`.
+Cadrer l'implementation frontend minimale livree sur `/closing-folders/:closingFolderId` pour rafraichir la `Minimal annex preview` apres creation reussie d'un `Audit-ready export pack`.
 
-Cette spec ne code pas le runtime. Elle ouvre uniquement le cadrage actif de la prochaine mission frontend recommandee apres le succes de creation audit-ready export pack.
+Cette spec a ete fermee documentairement apres validation post-merge de PR #52. La fermeture documentaire ne code aucun runtime.
 
 ## Sources de verite relues
 
@@ -119,7 +119,7 @@ Apres `GET /api/closing-folders/{closingFolderId}/export-packs/{exportPackId}/co
 
 Le download ZIP reste une lecture backend-only et ne modifie pas la base de preparation de l'annexe.
 
-## Scope strict de la future implementation
+## Scope strict de l'implementation livree
 
 - Orchestration frontend post-action apres creation export pack uniquement.
 - Refresh de la minimal annex preview via `GET /api/closing-folders/{closingFolderId}/minimal-annex`.
@@ -160,14 +160,14 @@ Le download ZIP reste une lecture backend-only et ne modifie pas la base de prep
 
 ## Non-derive produit et wording
 
-La future implementation doit conserver les garde-fous UI existants :
+L'implementation livree doit conserver les garde-fous UI existants :
 
 - `Audit-ready export pack` designe un pack de handoff et de revue, pas un livrable CO final.
 - `Minimal annex preview` designe une preview read-only, non statutaire et preparee pour revue humaine.
 - `Prepared for human review` et `Human review required` restent visibles sur la surface minimal annex.
 - `Not a final CO deliverable` et `Do not use as statutory filing` restent disponibles quand l'ambiguite de finalisation peut exister.
 
-Termes interdits dans la future implementation :
+Termes interdits dans l'implementation livree :
 
 - `CO-ready`
 - `statutory-ready`
@@ -182,7 +182,7 @@ Termes interdits dans la future implementation :
 - `certified`
 - `signature` quand le terme implique une finalisation officielle
 
-## Endpoints autorises dans la future implementation
+## Endpoints autorises dans l'implementation livree
 
 Endpoint de mutation existant declencheur :
 
@@ -199,7 +199,7 @@ Endpoint de lecture existant explicitement sans refresh minimal annex :
 
 Aucun autre endpoint ne doit etre ajoute pour cette spec.
 
-## Fichiers probablement concernes par la future implementation
+## Fichiers probablement concernes par l'implementation livree
 
 - `frontend/src/app/router.tsx`
 - `frontend/src/app/export-audit-pack-panel.tsx`
@@ -208,9 +208,9 @@ Aucun autre endpoint ne doit etre ajoute pour cette spec.
 - eventuellement `frontend/src/app/minimal-annex-panel.test.tsx`
 - eventuellement un test route cible si l'orchestration est portee par la route
 
-Cette liste n'autorise pas de changement runtime dans la mission courante `DOCS_ONLY`.
+Cette liste ne reouvre aucun changement runtime dans la presente mission de fermeture `DOCS_ONLY`.
 
-## Tests attendus pour la future implementation
+## Tests attendus pour l'implementation livree
 
 - Creation export pack succes `201` + refresh minimal annex via `GET /api/closing-folders/{closingFolderId}/minimal-annex`.
 - Creation export pack replay `200` + refresh minimal annex via `GET /api/closing-folders/{closingFolderId}/minimal-annex`.
@@ -225,7 +225,7 @@ Cette liste n'autorise pas de changement runtime dans la mission courante `DOCS_
 - Wording de revue humaine requis conserve.
 - Aucun secret, token, credential ou valeur `.env` expose.
 
-## Gates de validation de la future implementation
+## Gates de validation de l'implementation livree
 
 - `pnpm test:ci`
 - `pnpm lint`
@@ -234,46 +234,48 @@ Cette liste n'autorise pas de changement runtime dans la mission courante `DOCS_
 
 ## Checks de cette mission DOCS_ONLY
 
-Checks attendus pour la creation de spec et l'alignement du plan :
+Checks attendus pour la fermeture documentaire et l'alignement du plan :
 
 - `git status --short --branch --untracked-files=all`
 - `git diff --name-status`
 - `git diff --stat`
 - `git diff --check`
-- `git diff -- docs/product/v1-plan.md`
-- `git diff --no-index -- /dev/null specs/active/035-pilot-export-pack-minimal-annex-refresh-ui-v1.md`
-- `git diff --no-index --check -- /dev/null specs/active/035-pilot-export-pack-minimal-annex-refresh-ui-v1.md`
-- `git diff --no-index --stat -- /dev/null specs/active/035-pilot-export-pack-minimal-annex-refresh-ui-v1.md`
-- `git diff --no-index --name-status -- /dev/null specs/active/035-pilot-export-pack-minimal-annex-refresh-ui-v1.md`
+- `Test-Path specs/active/035-pilot-export-pack-minimal-annex-refresh-ui-v1.md`
+- `Test-Path specs/done/035-pilot-export-pack-minimal-annex-refresh-ui-v1.md`
+- `Select-String` sur la spec done pour verifier `Done.`
+- `Select-String` sur `docs/product/v1-plan.md` pour verifier 035 en done
+- `Select-String` sur `docs/product/v1-plan.md` pour verifier `AUCUNE spec active.`
+- `Select-String` sur `docs/product/v1-plan.md` pour verifier le rappel `030d runtime`
 
 Aucun test runtime frontend, backend ou DB ne doit etre lance pour cette mission documentaire.
 
 ## Impact docs, contrats et runbooks
 
-- `docs/product/v1-plan.md` doit pointer vers cette spec dans la section `Active`.
-- `docs/product/v1-plan.md` ne doit pas ajouter `035` dans `Livre`.
+- `docs/product/v1-plan.md` doit pointer vers cette spec dans la section `Livre`.
+- `docs/product/v1-plan.md` doit remplacer la section `Active` par `AUCUNE spec active.`
 - Le rappel `030d runtime` provider reel reporte doit rester intact.
-- `docs/present/*` : AUCUN changement attendu tant que la future implementation n'est pas livree.
+- `docs/present/*` : AUCUN changement attendu par cette fermeture documentaire.
 - `docs/ui/ui-foundations-v1.md` : AUCUN changement attendu, le wording durable existe deja.
 - Contrats : AUCUN.
 - Runbooks : AUCUN.
 
-## Criteres d'acceptation de cette mission de cadrage
+## Criteres d'acceptation de cette mission de fermeture
 
-- `specs/active/035-pilot-export-pack-minimal-annex-refresh-ui-v1.md` existe.
-- La spec est `Active`.
+- `specs/active/035-pilot-export-pack-minimal-annex-refresh-ui-v1.md` est absent.
+- `specs/done/035-pilot-export-pack-minimal-annex-refresh-ui-v1.md` existe.
+- La spec est `Done`.
 - La surface est `FRONTEND_SPEC`.
 - Le risque est `B`.
 - La spec cadre le refresh minimal annex apres succes `POST /api/closing-folders/{closingFolderId}/export-packs`.
 - La spec stabilise le warning `rafraichissement minimal annex impossible`.
 - La spec interdit le refresh minimal annex apres download ZIP.
 - La spec interdit backend, DB, OpenAPI, contrats, runbooks, IA runtime, GraphQL, mutation workpaper/document, secrets et refactor large.
-- `docs/product/v1-plan.md` pointe vers cette spec en active.
-- `035` n'est pas ajoutee en done.
-- Aucun runtime n'est modifie par cette mission.
+- `docs/product/v1-plan.md` pointe vers cette spec en done.
+- `docs/product/v1-plan.md` indique `AUCUNE spec active.`
+- Aucun runtime n'est modifie par cette mission de fermeture.
 
 ## Revue humaine recommandee
 
-Revue frontend normale recommandee pendant la future PR d'implementation.
+Revue documentaire normale recommandee pour verifier le classement done et l'alignement du plan V1.
 
 Revue specialisee non requise pour cette mission `DOCS_ONLY`, car elle ne modifie ni migration DB, ni authentification, ni autorisation, ni separation tenant, ni audit, ni donnees sensibles, ni suppression, ni regle metier critique executable, ni dependance, ni architecture, ni production, ni action irreversible.
