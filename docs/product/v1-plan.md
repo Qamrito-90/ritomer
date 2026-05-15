@@ -61,10 +61,12 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `specs/done/032-controls-readiness-deterministic-consumer-hardening-v1.md`
 - `specs/done/033-pilot-core-flow-ui-refresh-consistency-v1.md`
 - `specs/done/034-pilot-balance-import-history-diff-ui-v1.md`
+- `specs/done/035-pilot-export-pack-minimal-annex-refresh-ui-v1.md`
 
 ### Active
-- `specs/active/035-pilot-export-pack-minimal-annex-refresh-ui-v1.md`
+AUCUNE spec active.
 
+### Rappels
 - `030d runtime` provider reel reste reporte : aucun provider IA reel, aucun modele reel, aucun SDK, aucun prompt runtime actif, aucun cout provider, aucun appel reseau IA, aucun microservice IA, aucun GraphQL, aucun RAG/vector store et aucun auto-apply ne sont actives.
 
 ### Decisions figees
@@ -118,6 +120,7 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `032-controls-readiness-deterministic-consumer-hardening-v1` ferme le hardening frontend du consumer existant `GET /api/closing-folders/{closingFolderId}/controls` : validation fail-closed des payloads `/controls` incoherents, invalides ou contenant des cles sensibles connues, tests unitaires dedies du consumer et realignement des fixtures/tests frontend associes, sans nouvel endpoint, sans nouvelle UI metier visible, sans backend, sans contrat OpenAPI et sans activation IA.
 - `033-pilot-core-flow-ui-refresh-consistency-v1` ferme la coherence frontend post-action du parcours pilote coeur : import, mapping manuel et decisions de suggestions no-provider rafraichissent les read-models coeur attendus via `GET` REST existants, avec warnings de refresh partiel, sans backend, DB, OpenAPI, IA runtime, GraphQL, RAG, refresh export/minimal-annex, mutation workpaper/document ou nouvelle promesse CO/statutory.
 - `034-pilot-balance-import-history-diff-ui-v1` ferme l'exposition frontend read-only de l'historique des imports balance et du diff N/N-1 via les `GET` REST existants, avec validation fail-closed, etats UI et refresh post-import non bloquant, sans backend, DB, OpenAPI, IA runtime, GraphQL, mutation, refresh export/minimal-annex ni promesse CO/statutory.
+- `035-pilot-export-pack-minimal-annex-refresh-ui-v1` ferme le refresh frontend non bloquant de `Minimal annex preview` apres creation reussie d'un `Audit-ready export pack`, sans backend, DB, contrat/OpenAPI, IA runtime, GraphQL, mutation workpaper/document ni promesse CO/statutory.
 - Les lectures sur `ARCHIVED` restent autorisees si le tenant et le RBAC sont valides.
 - Les lectures `GET` sur `controls`, `financial-summary`, `financial-statements-structured`, `workpapers` et `minimal-annex` n'ecrivent aucun `audit_event`.
 - Les tests PostgreSQL reels restent opt-in via `dbIntegrationTest`, sans Docker local requis.
