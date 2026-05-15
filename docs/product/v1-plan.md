@@ -64,10 +64,11 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `specs/done/035-pilot-export-pack-minimal-annex-refresh-ui-v1.md`
 
 ### Active
-AUCUNE spec active.
+- `specs/active/036-local-integrated-demo-real-backend-seed-v1.md`
 
 ### Rappels
 - `030d runtime` provider reel reste reporte : aucun provider IA reel, aucun modele reel, aucun SDK, aucun prompt runtime actif, aucun cout provider, aucun appel reseau IA, aucun microservice IA, aucun GraphQL, aucun RAG/vector store et aucun auto-apply ne sont actives.
+- `036-local-integrated-demo-real-backend-seed-v1` est active en implementation progressive : seul 036a est autorise et livre une commande backend de seed demo dev-only, default off, fail-fast hors `local`/`test`/`dbtest`, sans secret commite, sans donnees client reelles, sans bypass auth, sans IA runtime, sans GraphQL et sans Docker impose. JWT local et proxy/frontend restent hors scope 036a.
 
 ### Decisions figees
 - Le flux V1 livre est maintenant `closing -> import -> mapping manuel + mapping assiste no-provider -> controls -> financial-summary -> financial-statements-structured -> workpapers -> document-storage-and-evidence-files -> exports-audit-ready -> minimal-annex`.
@@ -121,6 +122,7 @@ AUCUNE spec active.
 - `033-pilot-core-flow-ui-refresh-consistency-v1` ferme la coherence frontend post-action du parcours pilote coeur : import, mapping manuel et decisions de suggestions no-provider rafraichissent les read-models coeur attendus via `GET` REST existants, avec warnings de refresh partiel, sans backend, DB, OpenAPI, IA runtime, GraphQL, RAG, refresh export/minimal-annex, mutation workpaper/document ou nouvelle promesse CO/statutory.
 - `034-pilot-balance-import-history-diff-ui-v1` ferme l'exposition frontend read-only de l'historique des imports balance et du diff N/N-1 via les `GET` REST existants, avec validation fail-closed, etats UI et refresh post-import non bloquant, sans backend, DB, OpenAPI, IA runtime, GraphQL, mutation, refresh export/minimal-annex ni promesse CO/statutory.
 - `035-pilot-export-pack-minimal-annex-refresh-ui-v1` ferme le refresh frontend non bloquant de `Minimal annex preview` apres creation reussie d'un `Audit-ready export pack`, sans backend, DB, contrat/OpenAPI, IA runtime, GraphQL, mutation workpaper/document ni promesse CO/statutory.
+- `036-local-integrated-demo-real-backend-seed-v1` cadre une demo locale integree avec backend reel, PostgreSQL reel, auth JWT reelle future, tenant et membership reels, et donnees demo synthetiques persistees. 036a livre uniquement la commande backend de seed PostgreSQL demo, sans frontend, sans JWT command, sans endpoint HTTP, sans OpenAPI et sans migration DB.
 - Les lectures sur `ARCHIVED` restent autorisees si le tenant et le RBAC sont valides.
 - Les lectures `GET` sur `controls`, `financial-summary`, `financial-statements-structured`, `workpapers` et `minimal-annex` n'ecrivent aucun `audit_event`.
 - Les tests PostgreSQL reels restent opt-in via `dbIntegrationTest`, sans Docker local requis.
