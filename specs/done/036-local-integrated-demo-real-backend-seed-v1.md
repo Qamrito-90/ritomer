@@ -2,39 +2,39 @@
 
 ## Status
 
-Active.
+Done.
 
-Implementation blocked by CTO Gate, sauf sous-livrables 036a, 036b et 036c explicitement autorises apres validation CPO/CTO.
+Cloturee apres merge de 036a, 036b et 036c.
+
+036 ne porte plus de sous-livrable actif et n'ouvre pas de prochaine spec.
 
 ## Surface
 
-Future implementation: FULLSTACK_SPEC / DB_SPEC / FRONTEND_SPEC.
+Spec cloturee : DOCS_GIT.
 
-Sous-livrable 036a implemente : BACKEND / DB optional test.
+Sous-livrable 036a livre : BACKEND / DB optional test.
 
-Sous-livrable 036b implemente : BACKEND_TEST / DB_INTEGRATION / AUTH/JWT / TENANT_MEMBERSHIP.
+036a a livre une commande backend dev-only de seed demo PostgreSQL local, default off, fail-fast hors `local` / `test` / `dbtest`, sans secret commite, sans donnees client reelles, sans bypass auth, sans endpoint HTTP, sans OpenAPI, sans migration DB, sans GraphQL et sans IA runtime.
 
-Sous-livrable 036c implemente : FRONTEND_SPEC / DOCS_GIT.
+Sous-livrable 036b livre : BACKEND_TEST / DB_INTEGRATION / AUTH/JWT / TENANT_MEMBERSHIP.
 
-Initial spec creation mission: DOCS_ONLY.
+036b a livre un smoke backend `dbIntegrationTest` prouvant que le seed 036a, PostgreSQL reel et la vraie validation JWT permettent a `GET /api/me` de resoudre `activeTenant` depuis la base avec un vrai Bearer JWT, et de rejeter un mauvais tenant via les controles existants.
 
-Current 036a mission: BACKEND implementation only.
+Sous-livrable 036c livre : FRONTEND_SPEC / DOCS_GIT.
 
-036a livre uniquement une commande backend dev-only de seed demo synthetique, sans frontend, sans JWT local, sans proxy Vite, sans endpoint HTTP, sans OpenAPI et sans migration DB.
+036c a livre un proxy Vite dev-only `/api` vers backend local, avec injection bearer optionnelle strictement cote serveur Vite et shell local, sans token navigateur, sans variable `VITE_*`, sans stockage navigateur, sans backend runtime durable, sans endpoint HTTP nouveau, sans OpenAPI et sans migration DB.
 
-Current 036b mission: smoke backend/auth/dbIntegrationTest only.
+Closure mission: DOCS_ONLY.
 
-036b livre uniquement un test `dbIntegrationTest` backend prouvant que le seed 036a, PostgreSQL reel et la vraie validation JWT permettent a `GET /api/me` de resoudre `activeTenant` depuis la base, sans frontend, sans JWT command, sans proxy Vite, sans endpoint HTTP, sans OpenAPI et sans migration DB.
+Contrats impactes par cette cloture documentaire : AUCUN.
 
-Current 036c mission: local Vite dev-proxy frontend/backend smoke only.
-
-036c livre uniquement un proxy Vite dev-only `/api` vers un backend local, avec injection optionnelle server-side du header `Authorization: Bearer <jwt>` depuis l'environnement shell local Node/Vite, sans token cote navigateur, sans variable `VITE_*`, sans stockage navigateur, sans backend runtime, sans endpoint HTTP nouveau, sans OpenAPI et sans migration DB.
+Runbooks impactes par cette cloture documentaire : AUCUN.
 
 ## Risk
 
 C.
 
-The remaining future implementation touches broader local demo execution and durable auth documentation. The 036a mission implements only the backend PostgreSQL demo seed command. The 036b mission implements only a narrow backend DB integration smoke around real JWT validation, `/api/me`, tenant membership and bad-tenant rejection through an existing endpoint. The 036c mission implements only a local dev-server proxy smoke for frontend-to-backend calls, with optional bearer injection held in the shell environment and never in browser code.
+La cloture documentaire ne modifie aucun runtime. Les surfaces livrees par 036a, 036b et 036c restent bornees au seed demo PostgreSQL local dev-only, au smoke auth/backend `dbIntegrationTest` et au proxy Vite dev-only avec bearer conserve cote serveur Vite.
 
 ## Role de cette spec
 
@@ -42,7 +42,9 @@ Cadrer une demo locale integree realiste de Ritomer avec backend reel, PostgreSQ
 
 Le but produit est de permettre de visualiser et tester le produit localement sans mock frontend principal, avec les vrais endpoints REST, les vraies validations backend, la vraie base PostgreSQL et un dataset demo persistant.
 
-Le cadrage initial ne creait aucun seed, ne modifiait aucun runtime, ne modifiait aucun contrat et ne definissait aucune valeur de configuration sensible. Depuis la decision CPO/CTO, 036a et 036b sont autorises en implementation backend bornee. 036c est autorise comme implementation frontend/doc bornee au proxy Vite local dev-only et a sa documentation, sans backend runtime.
+Le cadrage initial ne creait aucun seed, ne modifiait aucun runtime, ne modifiait aucun contrat et ne definissait aucune valeur de configuration sensible. Apres decisions CPO/CTO, 036a et 036b ont ete livres en implementation backend bornee. 036c a ete livre comme implementation frontend/doc bornee au proxy Vite local dev-only et a sa documentation, sans backend runtime durable.
+
+La cloture 036 ne livre aucun endpoint de mint token, aucune commande JWT locale, aucun backend runtime durable supplementaire, aucun contrat OpenAPI, aucune migration DB, aucune IA runtime et aucun GraphQL.
 
 ## Sous-livrable 036a - backend demo seed command dev-only
 
@@ -61,7 +63,7 @@ Le seed 036a :
 - ne se lance pas au demarrage normal du backend ;
 - cree ou realigne de maniere idempotente un tenant demo actif, un app_user demo actif, une membership active, un closing_folder demo non archive, un balance_import version 1, des lignes de balance synthetiques equilibrees et des manual_mapping coherents avec la taxonomie active ;
 - reste tenant-scope et prouve le non-acces mauvais tenant au niveau repository dans les tests DB optionnels ;
-- n'ajoute aucun endpoint HTTP, bypass Spring Security, JWT command, frontend, proxy Vite, OpenAPI, migration DB, GraphQL ou IA runtime.
+- n'ajoute aucun endpoint HTTP, bypass Spring Security, commande JWT, frontend, proxy Vite, OpenAPI, migration DB, GraphQL ou IA runtime.
 
 Les suites `test` couvrent les garde-fous d'activation et l'absence de surface HTTP/auth sensible. La suite `dbIntegrationTest` couvre la preuve PostgreSQL reelle et l'idempotence quand une configuration PostgreSQL explicite est disponible.
 
@@ -122,7 +124,7 @@ Le smoke 036c :
 - `docs/adr/0005-front-ui-stack-and-design-system.md`
 - `docs/adr/0006-postgresql-cloud-sql-no-docker-v1.md`
 - `docs/product/v1-plan.md`
-- `specs/active/036-local-integrated-demo-real-backend-seed-v1.md` absent avant creation
+- `specs/done/036-local-integrated-demo-real-backend-seed-v1.md`
 - `specs/done/004-frontend-foundation-design-system.md`
 - `specs/done/015-frontend-closing-folders-entrypoint-v1.md`
 - `specs/done/035-pilot-export-pack-minimal-annex-refresh-ui-v1.md`
@@ -233,11 +235,11 @@ Les donnees suivantes ne doivent etre seedees que si le repo permet une creation
 - export pack : autorise uniquement si genere par le service existant et stocke comme pack reel backend-only ;
 - minimal annex : read-model uniquement, sans persistance fake.
 
-Si ces conditions ne sont pas remplies, la future implementation doit limiter le seed au noyau obligatoire et documenter les surfaces non seedables comme non applicables dans le smoke local.
+Si ces conditions ne sont pas remplies, l'implementation 036 doit limiter le seed au noyau obligatoire et documenter les surfaces non seedables comme non applicables dans le smoke local.
 
 ## Garde-fous anti-prod
 
-La future implementation doit respecter tous les garde-fous suivants :
+L'implementation 036 doit respecter tous les garde-fous suivants :
 
 - activation explicitement limitee a `local` ou `test` ;
 - default off ;
@@ -264,7 +266,7 @@ La future implementation doit respecter tous les garde-fous suivants :
 
 La demo doit utiliser la vraie chaine d'auth JWT du backend.
 
-La future implementation doit documenter comment obtenir un JWT local signe sans commiter de secret, de token ou de valeur sensible. Le JWT local doit porter un sujet compatible avec l'utilisateur demo seed ou avec le mecanisme de synchronisation utilisateur existant.
+L'implementation 036 doit documenter comment obtenir un JWT local signe sans commiter de secret, de token ou de valeur sensible. Le JWT local doit porter un sujet compatible avec l'utilisateur demo seed ou avec le mecanisme de synchronisation utilisateur existant.
 
 Pour 036c, le bearer local n'est pas une auth frontend durable. Il reste dans l'environnement shell qui lance Vite, sous `RITOMER_LOCAL_DEMO_BEARER_TOKEN`, et n'est jamais expose via `VITE_*`, `import.meta.env`, bundle frontend, navigateur, `localStorage`, `sessionStorage`, `.env` commite ou logs. Le proxy Vite refuse l'injection si la target n'est pas locale.
 
@@ -297,7 +299,7 @@ Le runbook futur devra decrire un flux sans valeur sensible commitee :
 
 Le flux ne doit pas imposer Docker, Docker Compose ou Testcontainers.
 
-## Fichiers probablement concernes par la future implementation
+## Fichiers cibles du cadrage initial
 
 - configuration backend locale hors 036c ;
 - code backend de seed dev-only hors 036c ;
@@ -311,13 +313,13 @@ Cette liste ne cree aucune autorisation de backend runtime dans la mission 036c.
 
 ## Contrats et API
 
-La future implementation ne doit pas modifier le contrat OpenAPI pour livrer cette demo.
+L'implementation 036 ne doit pas modifier le contrat OpenAPI pour livrer cette demo.
 
 Elle doit utiliser les endpoints REST existants. Toute nouvelle surface publique exigerait une nouvelle spec ou un amendement explicite, et n'est pas autorisee par 036.
 
-Les contrats DB ne doivent etre modifies que si la future implementation prouve un besoin durable de schema. Un seed dev-only doit prioritairement s'appuyer sur le schema existant et les couches metier existantes.
+Les contrats DB ne doivent etre modifies que si l'implementation 036 prouve un besoin durable de schema. Un seed dev-only doit prioritairement s'appuyer sur le schema existant et les couches metier existantes.
 
-## Checks attendus pour la future implementation
+## Checks attendus pour les implementations 036a, 036b et 036c
 
 Checks automatises attendus selon surface touchee :
 
@@ -379,10 +381,11 @@ Les tests 036c doivent couvrir :
 
 ## Gates
 
-- CTO Gate obligatoire avant toute implementation restante hors 036a, 036b et 036c.
-- CO Review non requise sauf ajout futur de wording CO/statutory nouveau.
-- Expert Board non requis a ce stade.
-- Security/privacy review recommandee avant implementation effective restante, car la future surface touche auth locale, tenant membership, donnees demo persistantes et garde-fous anti-prod.
+- Les gates applicables aux sous-livrables 036a, 036b et 036c sont traites dans les livrables merges.
+- Aucun gate restant n'est ouvert par cette cloture documentaire.
+- Toute capacite future non couverte par 036a, 036b ou 036c exigerait une nouvelle spec explicite et ses gates propres.
+- CO Review non requise pour cette cloture documentaire.
+- Expert Board non requis pour cette cloture documentaire.
 
 ## Hors-scope strict de 036
 
@@ -402,7 +405,7 @@ Les tests 036c doivent couvrir :
 - Bypasser auth, tenant, membership, audit ou validations metier.
 - Creer un livrable CO, statutory, officiel, certifie ou pret au depot.
 
-## Criteres d'acceptation de la future implementation
+## Criteres d'acceptation de 036
 
 - Le mode demo local est desactive par defaut.
 - Le mode demo local fail-fast hors `local` ou `test`.
@@ -423,10 +426,10 @@ Les tests 036c doivent couvrir :
 
 ## Revue humaine recommandee
 
-Revue CTO obligatoire avant toute implementation restante hors 036a, 036b et 036c.
+Revue humaine non obligatoire pour cette cloture DOCS_ONLY.
 
-Revue humaine specialisee recommandee lors de l'implementation future restante car le changement touchera probablement authentification locale, autorisation, separation tenant, audit, donnees sensibles potentielles, configuration locale et comportement DB seed.
+Revue humaine recommandee seulement si le reviewer veut revalider les preuves historiques des sous-livrables merges 036a, 036b ou 036c, car ces livrables touchaient authentification locale, separation tenant, configuration locale et comportement DB seed.
 
-CO Review non requise a ce stade documentaire, sauf si une implementation future introduit un wording CO/statutory nouveau.
+CO Review non requise pour cette cloture documentaire.
 
-Expert Board non requis a ce stade.
+Expert Board non requis pour cette cloture documentaire.
