@@ -4,7 +4,7 @@
 
 Active.
 
-Implementation blocked by CTO Gate, sauf sous-livrables 036a et 036b explicitement autorises apres validation CPO/CTO.
+Implementation blocked by CTO Gate, sauf sous-livrables 036a, 036b et 036c explicitement autorises apres validation CPO/CTO.
 
 ## Surface
 
@@ -13,6 +13,8 @@ Future implementation: FULLSTACK_SPEC / DB_SPEC / FRONTEND_SPEC.
 Sous-livrable 036a implemente : BACKEND / DB optional test.
 
 Sous-livrable 036b implemente : BACKEND_TEST / DB_INTEGRATION / AUTH/JWT / TENANT_MEMBERSHIP.
+
+Sous-livrable 036c implemente : FRONTEND_SPEC / DOCS_GIT.
 
 Initial spec creation mission: DOCS_ONLY.
 
@@ -24,11 +26,15 @@ Current 036b mission: smoke backend/auth/dbIntegrationTest only.
 
 036b livre uniquement un test `dbIntegrationTest` backend prouvant que le seed 036a, PostgreSQL reel et la vraie validation JWT permettent a `GET /api/me` de resoudre `activeTenant` depuis la base, sans frontend, sans JWT command, sans proxy Vite, sans endpoint HTTP, sans OpenAPI et sans migration DB.
 
+Current 036c mission: local Vite dev-proxy frontend/backend smoke only.
+
+036c livre uniquement un proxy Vite dev-only `/api` vers un backend local, avec injection optionnelle server-side du header `Authorization: Bearer <jwt>` depuis l'environnement shell local Node/Vite, sans token cote navigateur, sans variable `VITE_*`, sans stockage navigateur, sans backend runtime, sans endpoint HTTP nouveau, sans OpenAPI et sans migration DB.
+
 ## Risk
 
 C.
 
-The remaining future implementation touches local authentication documentation, frontend/backend local wiring and broader local demo execution. The 036a mission implements only the backend PostgreSQL demo seed command. The 036b mission implements only a narrow backend DB integration smoke around real JWT validation, `/api/me`, tenant membership and bad-tenant rejection through an existing endpoint.
+The remaining future implementation touches broader local demo execution and durable auth documentation. The 036a mission implements only the backend PostgreSQL demo seed command. The 036b mission implements only a narrow backend DB integration smoke around real JWT validation, `/api/me`, tenant membership and bad-tenant rejection through an existing endpoint. The 036c mission implements only a local dev-server proxy smoke for frontend-to-backend calls, with optional bearer injection held in the shell environment and never in browser code.
 
 ## Role de cette spec
 
@@ -36,7 +42,7 @@ Cadrer une demo locale integree realiste de Ritomer avec backend reel, PostgreSQ
 
 Le but produit est de permettre de visualiser et tester le produit localement sans mock frontend principal, avec les vrais endpoints REST, les vraies validations backend, la vraie base PostgreSQL et un dataset demo persistant.
 
-Le cadrage initial ne creait aucun seed, ne modifiait aucun runtime, ne modifiait aucun contrat et ne definissait aucune valeur de configuration sensible. Depuis la decision CPO/CTO, 036a et 036b sont autorises en implementation backend bornee.
+Le cadrage initial ne creait aucun seed, ne modifiait aucun runtime, ne modifiait aucun contrat et ne definissait aucune valeur de configuration sensible. Depuis la decision CPO/CTO, 036a et 036b sont autorises en implementation backend bornee. 036c est autorise comme implementation frontend/doc bornee au proxy Vite local dev-only et a sa documentation, sans backend runtime.
 
 ## Sous-livrable 036a - backend demo seed command dev-only
 
@@ -80,6 +86,27 @@ Le smoke 036b :
 - n'injecte aucune authentication mockee ;
 - ne court-circuite pas `BearerTokenAuthenticationFilter` ;
 - n'ajoute aucun endpoint HTTP de mint token, bypass Spring Security, header utilisateur arbitraire, frontend, proxy Vite, OpenAPI, migration DB, GraphQL ou IA runtime.
+
+## Sous-livrable 036c - local Vite dev-proxy frontend/backend smoke
+
+036c est autorise et borne a la configuration frontend Vite dev-only et a sa documentation.
+
+Le smoke 036c :
+
+- ajoute un proxy Vite `/api` present uniquement en dev server `serve` ;
+- cible par defaut le backend local `http://localhost:8080` ;
+- permet de configurer la target backend via une variable shell non sensible `RITOMER_LOCAL_DEMO_BACKEND_TARGET` ;
+- active l'injection bearer seulement si `RITOMER_LOCAL_DEMO_PROXY_AUTH_ENABLED=true` est defini dans le shell local ;
+- lit le bearer seulement cote Node/Vite via `RITOMER_LOCAL_DEMO_BEARER_TOKEN`, jamais via `VITE_*`, jamais via `import.meta.env`, jamais depuis le navigateur ;
+- injecte `Authorization: Bearer <jwt>` uniquement vers les targets locales `localhost` ou `127.0.0.1` ;
+- fail-fast si l'auth proxy locale est activee sans token shell ;
+- fail-fast si l'auth proxy locale est activee vers une target non locale ;
+- n'injecte jamais `Authorization` vers une target non locale ;
+- garde le build production sans proxy, sans token et sans comportement demo ;
+- ne logge ni le token, ni les headers complets ;
+- ne modifie aucun backend runtime, aucune chaine Spring Security, aucun endpoint, aucun contrat OpenAPI, aucune migration DB et aucune auth frontend durable.
+
+036c ne fait pas du navigateur le porteur durable du bearer : le navigateur appelle `/api`, et le serveur de developpement Vite peut ajouter le header seulement cote serveur local pendant la demo.
 
 ## Sources de verite relues
 
@@ -160,14 +187,15 @@ Le parcours cible doit prouver :
 2. Le backend est lance en profil local.
 3. Le seed demo dev-only est active explicitement.
 4. Le seed cree ou met a jour de maniere idempotente un dataset demo synthetique tenant-scope.
-5. Un JWT local signe est obtenu de maniere documentee, sans valeur commitee et sans endpoint public de contournement.
-6. Le frontend est lance avec un proxy local `/api/*` vers le backend.
-7. Le navigateur appelle `GET /api/me` avec le JWT local.
-8. Le backend resout l'utilisateur demo et son membership actif.
-9. Le frontend recoit un `activeTenant` exploitable.
-10. Le frontend appelle les endpoints dossier avec le `X-Tenant-Id` du tenant actif.
-11. Le dossier seed est visible avec des donnees reelles servies par le backend.
-12. Une tentative avec un mauvais tenant est rejetee et ne retourne aucune donnee metier d'un autre tenant.
+5. Un JWT local signe est obtenu de maniere documentee, sans valeur commitee, sans fichier `.env` lu ou modifie et sans endpoint public de contournement.
+6. Le frontend est lance avec un proxy Vite local `/api/*` vers le backend.
+7. Si l'auth proxy demo est activee, le token reste dans l'environnement shell du serveur Vite et le navigateur appelle seulement `GET /api/me` via `/api`.
+8. Le proxy Vite injecte le bearer server-side uniquement vers `localhost` ou `127.0.0.1`.
+9. Le backend resout l'utilisateur demo et son membership actif.
+10. Le frontend recoit un `activeTenant` exploitable.
+11. Le frontend appelle les endpoints dossier avec le `X-Tenant-Id` du tenant actif.
+12. Le dossier seed est visible avec des donnees reelles servies par le backend.
+13. Une tentative avec un mauvais tenant est rejetee et ne retourne aucune donnee metier d'un autre tenant.
 
 ### Regles de preuve
 
@@ -238,6 +266,8 @@ La demo doit utiliser la vraie chaine d'auth JWT du backend.
 
 La future implementation doit documenter comment obtenir un JWT local signe sans commiter de secret, de token ou de valeur sensible. Le JWT local doit porter un sujet compatible avec l'utilisateur demo seed ou avec le mecanisme de synchronisation utilisateur existant.
 
+Pour 036c, le bearer local n'est pas une auth frontend durable. Il reste dans l'environnement shell qui lance Vite, sous `RITOMER_LOCAL_DEMO_BEARER_TOKEN`, et n'est jamais expose via `VITE_*`, `import.meta.env`, bundle frontend, navigateur, `localStorage`, `sessionStorage`, `.env` commite ou logs. Le proxy Vite refuse l'injection si la target n'est pas locale.
+
 Interdits :
 
 - desactiver Spring Security ;
@@ -245,6 +275,8 @@ Interdits :
 - forcer `activeTenant` cote frontend ;
 - injecter un utilisateur mock dans le frontend principal ;
 - commiter un token, une cle ou une valeur de signature ;
+- lire ou modifier un fichier `.env` pour le bearer 036c ;
+- exposer le bearer au bundle, au navigateur, au stockage navigateur ou aux logs ;
 - ajouter un endpoint public de generation de token.
 
 ## Flux local attendu
@@ -255,25 +287,27 @@ Le runbook futur devra decrire un flux sans valeur sensible commitee :
 2. Fournir localement la configuration necessaire au backend.
 3. Lancer le backend en profil local.
 4. Activer explicitement le seed demo dev-only.
-5. Generer ou obtenir un JWT local signe selon la procedure documentee.
-6. Lancer le frontend.
+5. Generer ou obtenir un JWT local signe selon la procedure documentee, sans le commiter ni le stocker dans le repo.
+6. Lancer le frontend avec le proxy Vite `/api` et, si necessaire pour la demo, `RITOMER_LOCAL_DEMO_PROXY_AUTH_ENABLED=true` plus `RITOMER_LOCAL_DEMO_BEARER_TOKEN` dans le shell local.
 7. Ouvrir `/` puis le dossier demo visible.
 8. Verifier que le frontend charge `GET /api/me` puis les endpoints dossier via backend reel.
-9. Verifier visuellement les donnees demo persistantes.
-10. Verifier qu'un mauvais tenant est rejete.
+9. Verifier que le bearer n'apparait ni dans le bundle, ni dans le navigateur, ni dans les logs.
+10. Verifier visuellement les donnees demo persistantes.
+11. Verifier qu'un mauvais tenant est rejete.
 
 Le flux ne doit pas imposer Docker, Docker Compose ou Testcontainers.
 
 ## Fichiers probablement concernes par la future implementation
 
-- configuration backend locale ;
-- code backend de seed dev-only ;
-- tests backend du seed, de l'auth locale et du rejet mauvais tenant ;
+- configuration backend locale hors 036c ;
+- code backend de seed dev-only hors 036c ;
+- tests backend du seed, de l'auth locale et du rejet mauvais tenant hors 036c ;
 - `frontend/vite.config.ts` pour le proxy local si necessaire ;
+- test frontend de config/proxy ;
 - `runbooks/local-dev.md` ;
 - eventuellement `README.md`.
 
-Cette liste ne cree aucune autorisation de modification runtime dans la presente mission `DOCS_ONLY`.
+Cette liste ne cree aucune autorisation de backend runtime dans la mission 036c.
 
 ## Contrats et API
 
@@ -308,7 +342,7 @@ Smoke manuel documente attendu :
 - aucun appel IA runtime n'est declenche
 - aucun mock frontend ne sert le parcours principal
 
-## Checks de cette mission DOCS_ONLY
+## Checks historiques de la mission DOCS_ONLY
 
 Checks attendus pour cette creation documentaire :
 
@@ -320,25 +354,49 @@ Checks attendus pour cette creation documentaire :
 
 Aucun test runtime backend, frontend ou DB ne doit etre lance pour cette mission documentaire.
 
+## Checks de la mission 036c
+
+Checks attendus pour le proxy Vite local :
+
+- `pnpm test:ci`
+- `pnpm lint`
+- `pnpm build`
+- `git diff --check`
+- `git status --short --branch --untracked-files=all`
+
+Les tests 036c doivent couvrir :
+
+- proxy `/api` present en dev ;
+- target par defaut locale ;
+- header `Authorization` absent si auth demo desactivee ;
+- header `Authorization` ajoute uniquement si auth demo activee, token shell present et target locale ;
+- refus de l'auth demo si target non locale ;
+- absence de variable token dans le code client ;
+- absence de `import.meta.env` lie au token ;
+- absence de variable `VITE_*` pour le token ;
+- absence de `localStorage` ou `sessionStorage` pour le token ;
+- absence de log token ou headers complets.
+
 ## Gates
 
-- CTO Gate obligatoire avant toute implementation restante hors 036a et 036b.
+- CTO Gate obligatoire avant toute implementation restante hors 036a, 036b et 036c.
 - CO Review non requise sauf ajout futur de wording CO/statutory nouveau.
 - Expert Board non requis a ce stade.
 - Security/privacy review recommandee avant implementation effective restante, car la future surface touche auth locale, tenant membership, donnees demo persistantes et garde-fous anti-prod.
 
 ## Hors-scope strict de 036
 
-- Coder les sous-livrables hors 036a ou 036b dans cette mission.
+- Coder les sous-livrables hors 036a, 036b ou 036c dans cette mission.
 - Modifier backend runtime dans cette mission.
-- Modifier frontend runtime dans cette mission.
+- Introduire une auth frontend durable dans cette mission.
 - Modifier contrat OpenAPI dans cette mission.
 - Modifier DB ou migrations dans cette mission.
 - Activer IA.
 - Ajouter GraphQL.
 - Imposer Docker.
-- Creer ou lire un fichier secret.
+- Creer, lire ou modifier un fichier secret ou `.env`.
 - Commiter un token ou une valeur sensible.
+- Utiliser une variable `VITE_*`, `import.meta.env`, le bundle frontend ou le stockage navigateur pour porter le bearer demo.
 - Utiliser des donnees client reelles.
 - Faire d'un mock frontend la solution principale.
 - Bypasser auth, tenant, membership, audit ou validations metier.
@@ -353,6 +411,7 @@ Aucun test runtime backend, frontend ou DB ne doit etre lance pour cette mission
 - Le backend reel sert `GET /api/me`.
 - Le frontend principal consomme le backend reel via proxy local explicite ou origine equivalente documentee.
 - Le JWT local utilise la vraie chaine d'auth du backend.
+- Pour 036c, le bearer demo reste seulement dans l'environnement shell Node/Vite et l'injection proxy est refusee hors target locale.
 - L'utilisateur demo dispose d'une membership active tenant-scopee.
 - Le dossier demo est visible via les vrais endpoints REST.
 - Les donnees balance et mapping visibles viennent de PostgreSQL.
@@ -364,7 +423,7 @@ Aucun test runtime backend, frontend ou DB ne doit etre lance pour cette mission
 
 ## Revue humaine recommandee
 
-Revue CTO obligatoire avant toute implementation restante hors 036a et 036b.
+Revue CTO obligatoire avant toute implementation restante hors 036a, 036b et 036c.
 
 Revue humaine specialisee recommandee lors de l'implementation future restante car le changement touchera probablement authentification locale, autorisation, separation tenant, audit, donnees sensibles potentielles, configuration locale et comportement DB seed.
 
