@@ -14,6 +14,50 @@ Depuis la racine du repo :
 - `cd backend && ./gradlew test`
 - `cd backend && ./gradlew dbIntegrationTest`
 - `cd backend && ./gradlew build`
+- `cd backend && ./gradlew demoSeedLocal -PritomerDemoSeedEnabled=true`
+
+## Seed demo local 036a
+
+Le seed demo 036a est backend-only, synthetique, tenant-scope, idempotent et desactive par defaut.
+
+Garde-fous :
+
+- execution via task Gradle dediee uniquement ;
+- aucun seed automatique au demarrage normal du backend ;
+- activation explicite obligatoire avec `-PritomerDemoSeedEnabled=true` ;
+- profil local par defaut, avec override test PostgreSQL possible via `-PritomerDemoSeedProfile=dbtest` ;
+- fail-fast hors profils `local`, `test` ou `dbtest` ;
+- fail-fast si des marqueurs Cloud Run ou production-like sont presents dans l'environnement d'execution ;
+- datasource cible bornee a une URL PostgreSQL locale explicite (`localhost`, `127.0.0.1` ou `[::1]`) ;
+- refus des URLs datasource distantes, Cloud SQL directes, prod-like ou non verifiables ;
+- aucun endpoint HTTP de seed ;
+- aucun JWT local, proxy Vite, frontend, OpenAPI, migration DB, GraphQL ou IA runtime.
+
+PowerShell :
+
+```powershell
+Push-Location backend
+try {
+  $env:SPRING_DATASOURCE_URL='jdbc:postgresql://localhost:5432/ritomer'
+  .\gradlew.bat demoSeedLocal -PritomerDemoSeedEnabled=true
+} finally {
+  Pop-Location
+}
+```
+
+La commande exige qu'une datasource PostgreSQL locale explicite soit visible par le guard avant le chargement du contexte Spring, via `spring.datasource.url`, `SPRING_DATASOURCE_URL` ou `RITOMER_DB_TEST_JDBC_URL`. Elle ne deduit jamais `localhost` du seul profil `local`, ne definit aucune valeur sensible et ne doit pas etre utilisee pour stocker des donnees client reelles.
+
+Pour `dbtest`, la datasource doit aussi rester locale. Une execution via `cloud-sql-proxy` liee a `127.0.0.1` est acceptee par la garde ; une URL Cloud SQL directe ou distante est refusee.
+
+```powershell
+Push-Location backend
+try {
+  $env:RITOMER_DB_TEST_JDBC_URL='jdbc:postgresql://127.0.0.1:5432/ritomer'
+  .\gradlew.bat demoSeedLocal -PritomerDemoSeedEnabled=true -PritomerDemoSeedProfile=dbtest
+} finally {
+  Pop-Location
+}
+```
 
 PowerShell pour un démarrage local complet :
 

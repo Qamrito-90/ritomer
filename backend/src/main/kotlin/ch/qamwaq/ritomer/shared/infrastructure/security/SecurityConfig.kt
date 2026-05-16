@@ -3,6 +3,7 @@ package ch.qamwaq.ritomer.shared.infrastructure.security
 import java.nio.charset.StandardCharsets
 import javax.crypto.spec.SecretKeySpec
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpMethod
@@ -23,6 +24,7 @@ class SecurityConfig(
   private val hmacSecret: String
 ) {
   @Bean
+  @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
   fun securityFilterChain(
     http: HttpSecurity,
     jwtAuthenticationConverter: JwtAuthenticationConverter,

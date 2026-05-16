@@ -19,6 +19,10 @@ java {
   }
 }
 
+springBoot {
+  mainClass.set("ch.qamwaq.ritomer.RitomerBackendApplicationKt")
+}
+
 repositories {
   mavenCentral()
 }
@@ -101,5 +105,20 @@ tasks.register<Test>("dbIntegrationTest") {
     }
 
     enabled && urlConfigured && usernameConfigured
+  }
+}
+
+tasks.register<JavaExec>("demoSeedLocal") {
+  description = "Runs the explicit local/test-only synthetic demo seed against a configured PostgreSQL database."
+  group = "application"
+  classpath = mainSourceSet.runtimeClasspath
+  mainClass.set("ch.qamwaq.ritomer.devtools.DemoSeedLocalCommandKt")
+
+  val demoSeedProfile = providers.gradleProperty("ritomerDemoSeedProfile").orElse("local")
+  args("--spring.profiles.active=${demoSeedProfile.get()}")
+
+  val demoSeedEnabled = providers.gradleProperty("ritomerDemoSeedEnabled")
+  if (demoSeedEnabled.isPresent) {
+    args("--ritomer.demo.seed.enabled=${demoSeedEnabled.get()}")
   }
 }
