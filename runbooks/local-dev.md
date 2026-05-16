@@ -70,6 +70,66 @@ $env:SPRING_DATASOURCE_PASSWORD='ritomer'
 .\gradlew.bat bootRun --args="--spring.profiles.active=local"
 ```
 
+## Proxy frontend demo local 036c
+
+Le proxy frontend 036c est Vite dev-only. Il route `/api/*` vers le backend reel local et peut injecter un bearer uniquement cote serveur de developpement Vite.
+
+Garde-fous :
+
+- target par defaut : `http://localhost:8080` ;
+- target configurable par `RITOMER_LOCAL_DEMO_BACKEND_TARGET`, variable shell non sensible ;
+- injection bearer desactivee par defaut ;
+- activation explicite par `RITOMER_LOCAL_DEMO_PROXY_AUTH_ENABLED=true` ;
+- bearer lu uniquement par Node/Vite depuis `RITOMER_LOCAL_DEMO_BEARER_TOKEN` ;
+- aucune variable `VITE_*` pour le bearer ;
+- aucune lecture `import.meta.env` cote client pour le bearer ;
+- aucun bearer dans le bundle, le navigateur, `localStorage`, `sessionStorage`, un fichier `.env`, le repo ou les logs ;
+- injection autorisee uniquement vers `localhost` ou `127.0.0.1` ;
+- fail-fast si l'auth proxy est activee sans bearer shell ;
+- fail-fast si l'auth proxy est activee vers une target non locale ;
+- aucun backend runtime, endpoint, OpenAPI, migration DB, GraphQL, IA runtime ou mock frontend ajoute.
+
+PowerShell pour lancer le frontend sans injection bearer, utile pour verifier que `GET /api/me` retourne `401` :
+
+```powershell
+Push-Location frontend
+try {
+  $env:RITOMER_LOCAL_DEMO_BACKEND_TARGET='http://localhost:8080'
+  Remove-Item Env:RITOMER_LOCAL_DEMO_PROXY_AUTH_ENABLED -ErrorAction SilentlyContinue
+  Remove-Item Env:RITOMER_LOCAL_DEMO_BEARER_TOKEN -ErrorAction SilentlyContinue
+  pnpm dev
+} finally {
+  Pop-Location
+}
+```
+
+PowerShell pour une demo locale integree avec bearer shell. Remplacer le placeholder par un JWT local signe obtenu hors repo ; ne pas le committer, ne pas le placer dans `.env`, ne pas le coller dans le navigateur :
+
+```powershell
+Push-Location frontend
+try {
+  $env:RITOMER_LOCAL_DEMO_BACKEND_TARGET='http://localhost:8080'
+  $env:RITOMER_LOCAL_DEMO_PROXY_AUTH_ENABLED='true'
+  $env:RITOMER_LOCAL_DEMO_BEARER_TOKEN='<JWT_LOCAL_SIGNE_NON_COMMITTE>'
+  pnpm dev
+} finally {
+  Remove-Item Env:RITOMER_LOCAL_DEMO_BEARER_TOKEN -ErrorAction SilentlyContinue
+  Pop-Location
+}
+```
+
+Smoke manuel attendu :
+
+- backend local lance en profil `local` ;
+- dataset demo 036a seede en PostgreSQL local ;
+- JWT local signe compatible avec l'utilisateur demo 036a ;
+- navigateur ouvert sur le serveur Vite ;
+- `GET /api/me` passe par `/api` et retourne `200` avec `activeTenant` quand l'auth proxy est activee ;
+- `GET /api/me` retourne `401` quand l'auth proxy n'est pas activee ;
+- la liste des dossiers et le dossier demo viennent des endpoints backend reels ;
+- aucun token n'est visible dans le bundle, le navigateur, le stockage navigateur ou les logs ;
+- une tentative avec un mauvais tenant est rejetee sans fuite de donnees.
+
 ## Tests
 
 - `./gradlew test` exécute les tests unitaires, smoke et structure sans Docker et sans base PostgreSQL.
