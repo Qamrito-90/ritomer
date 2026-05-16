@@ -4,7 +4,7 @@
 
 Active.
 
-Implementation blocked by CTO Gate, sauf sous-livrable 036a explicitement autorise apres validation CPO/CTO.
+Implementation blocked by CTO Gate, sauf sous-livrables 036a et 036b explicitement autorises apres validation CPO/CTO.
 
 ## Surface
 
@@ -12,17 +12,23 @@ Future implementation: FULLSTACK_SPEC / DB_SPEC / FRONTEND_SPEC.
 
 Sous-livrable 036a implemente : BACKEND / DB optional test.
 
+Sous-livrable 036b implemente : BACKEND_TEST / DB_INTEGRATION / AUTH/JWT / TENANT_MEMBERSHIP.
+
 Initial spec creation mission: DOCS_ONLY.
 
 Current 036a mission: BACKEND implementation only.
 
 036a livre uniquement une commande backend dev-only de seed demo synthetique, sans frontend, sans JWT local, sans proxy Vite, sans endpoint HTTP, sans OpenAPI et sans migration DB.
 
+Current 036b mission: smoke backend/auth/dbIntegrationTest only.
+
+036b livre uniquement un test `dbIntegrationTest` backend prouvant que le seed 036a, PostgreSQL reel et la vraie validation JWT permettent a `GET /api/me` de resoudre `activeTenant` depuis la base, sans frontend, sans JWT command, sans proxy Vite, sans endpoint HTTP, sans OpenAPI et sans migration DB.
+
 ## Risk
 
 C.
 
-The remaining future implementation touches local authentication, frontend/backend local wiring and broader cross-tenant rejection checks. The 036a mission implements only the backend PostgreSQL demo seed command.
+The remaining future implementation touches local authentication documentation, frontend/backend local wiring and broader local demo execution. The 036a mission implements only the backend PostgreSQL demo seed command. The 036b mission implements only a narrow backend DB integration smoke around real JWT validation, `/api/me`, tenant membership and bad-tenant rejection through an existing endpoint.
 
 ## Role de cette spec
 
@@ -30,7 +36,7 @@ Cadrer une demo locale integree realiste de Ritomer avec backend reel, PostgreSQ
 
 Le but produit est de permettre de visualiser et tester le produit localement sans mock frontend principal, avec les vrais endpoints REST, les vraies validations backend, la vraie base PostgreSQL et un dataset demo persistant.
 
-Le cadrage initial ne creait aucun seed, ne modifiait aucun runtime, ne modifiait aucun contrat et ne definissait aucune valeur de configuration sensible. Depuis la decision CPO/CTO, seul 036a est autorise en implementation backend dev-only.
+Le cadrage initial ne creait aucun seed, ne modifiait aucun runtime, ne modifiait aucun contrat et ne definissait aucune valeur de configuration sensible. Depuis la decision CPO/CTO, 036a et 036b sont autorises en implementation backend bornee.
 
 ## Sous-livrable 036a - backend demo seed command dev-only
 
@@ -52,6 +58,28 @@ Le seed 036a :
 - n'ajoute aucun endpoint HTTP, bypass Spring Security, JWT command, frontend, proxy Vite, OpenAPI, migration DB, GraphQL ou IA runtime.
 
 Les suites `test` couvrent les garde-fous d'activation et l'absence de surface HTTP/auth sensible. La suite `dbIntegrationTest` couvre la preuve PostgreSQL reelle et l'idempotence quand une configuration PostgreSQL explicite est disponible.
+
+## Sous-livrable 036b - smoke backend auth me dbIntegrationTest
+
+036b est autorise et borne a un test backend `dbIntegrationTest`.
+
+Le smoke 036b :
+
+- reutilise le seed 036a dans le contexte Spring `dbtest` ;
+- genere un JWT HS256 uniquement en memoire dans le test ;
+- configure le test pour passer par le vrai `JwtDecoder` du backend ;
+- envoie un vrai header HTTP `Authorization: Bearer <jwt>` via `MockMvc` ;
+- verifie que `GET /api/me` sans `Authorization` retourne `401` ;
+- verifie que `GET /api/me` avec JWT signe et `sub` demo retourne `200` ;
+- verifie que le `sub` du JWT correspond a `DemoSeedLocalDataset.userExternalSubject` ;
+- verifie que `activeTenant.tenantId`, `activeTenant.tenantSlug` et `activeTenant.tenantName` correspondent au tenant demo seede ;
+- verifie que `effectiveRoles` contient `ACCOUNTANT` depuis `tenant_membership` en base ;
+- ajoute de faux claims tenant/role dans le JWT et verifie qu'ils ne pilotent ni `activeTenant`, ni `effectiveRoles` ;
+- teste un mauvais tenant sur un endpoint tenant-scoped existant, par exemple `GET /api/closing-folders/{closingFolderId}` avec `X-Tenant-Id` non autorise ou inexistant, et attend le comportement standard du repo (`403` si tenant inaccessible ou `404` si dossier hors tenant) ;
+- n'utilise pas `with(jwt())` pour le test principal ;
+- n'injecte aucune authentication mockee ;
+- ne court-circuite pas `BearerTokenAuthenticationFilter` ;
+- n'ajoute aucun endpoint HTTP de mint token, bypass Spring Security, header utilisateur arbitraire, frontend, proxy Vite, OpenAPI, migration DB, GraphQL ou IA runtime.
 
 ## Sources de verite relues
 
@@ -294,14 +322,14 @@ Aucun test runtime backend, frontend ou DB ne doit etre lance pour cette mission
 
 ## Gates
 
-- CTO Gate obligatoire avant toute implementation.
+- CTO Gate obligatoire avant toute implementation restante hors 036a et 036b.
 - CO Review non requise sauf ajout futur de wording CO/statutory nouveau.
 - Expert Board non requis a ce stade.
-- Security/privacy review recommandee avant implementation effective, car la future surface touche auth locale, tenant membership, donnees demo persistantes et garde-fous anti-prod.
+- Security/privacy review recommandee avant implementation effective restante, car la future surface touche auth locale, tenant membership, donnees demo persistantes et garde-fous anti-prod.
 
 ## Hors-scope strict de 036
 
-- Coder les sous-livrables hors 036a dans cette mission.
+- Coder les sous-livrables hors 036a ou 036b dans cette mission.
 - Modifier backend runtime dans cette mission.
 - Modifier frontend runtime dans cette mission.
 - Modifier contrat OpenAPI dans cette mission.
@@ -336,9 +364,9 @@ Aucun test runtime backend, frontend ou DB ne doit etre lance pour cette mission
 
 ## Revue humaine recommandee
 
-Revue CTO obligatoire avant toute implementation.
+Revue CTO obligatoire avant toute implementation restante hors 036a et 036b.
 
-Revue humaine specialisee recommandee lors de l'implementation future car le changement touchera probablement authentification locale, autorisation, separation tenant, audit, donnees sensibles potentielles, configuration locale et comportement DB seed.
+Revue humaine specialisee recommandee lors de l'implementation future restante car le changement touchera probablement authentification locale, autorisation, separation tenant, audit, donnees sensibles potentielles, configuration locale et comportement DB seed.
 
 CO Review non requise a ce stade documentaire, sauf si une implementation future introduit un wording CO/statutory nouveau.
 
