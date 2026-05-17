@@ -65,7 +65,7 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `specs/done/036-local-integrated-demo-real-backend-seed-v1.md`
 
 ### Active
-- AUCUNE
+- `specs/active/037-local-integrated-demo-manual-business-smoke-v1.md`
 
 ### Rappels
 - `030d runtime` provider reel reste reporte : aucun provider IA reel, aucun modele reel, aucun SDK, aucun prompt runtime actif, aucun cout provider, aucun appel reseau IA, aucun microservice IA, aucun GraphQL, aucun RAG/vector store et aucun auto-apply ne sont actives.
