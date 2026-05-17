@@ -13,7 +13,6 @@ import {
   BalanceImportHistoryPanel,
   type BalanceImportHistoryPanelState
 } from "./balance-import-history-panel";
-import { DossierProgressSummary } from "./dossier-progress-summary";
 import { ExportAuditPackPanel } from "./export-audit-pack-panel";
 import { MinimalAnnexPanel } from "./minimal-annex-panel";
 import { WorkpapersPanel } from "./workpapers-panel";
@@ -165,12 +164,61 @@ type ClosingRouteState =
       selectedImportFile: File | null;
     };
 
+type ClosingReadyState = Extract<ClosingRouteState, { kind: "closing_ready" }>;
+
 type ImportRefreshWarnings = ManualMappingRefreshWarnings & {
   closingFailed?: boolean;
   importDiffFailed?: boolean;
   importHistoryFailed?: boolean;
   suggestionsFailed?: boolean;
 };
+
+type CockpitTone = "error" | "info" | "neutral" | "success" | "warning";
+
+type CockpitBlocker = {
+  detail: string;
+  href: string;
+  sectionLabel: string;
+  title: string;
+  tone: CockpitTone;
+};
+
+type CockpitModel = {
+  blockers: CockpitBlocker[];
+  closingFolder: ClosingFolderSummary;
+  evidenceReview: string;
+  nextAction: {
+    detail: string;
+    href: string;
+    label: string;
+  };
+  previewExport: string;
+  readySummary: string;
+  status: {
+    detail: string;
+    label: string;
+    tone: CockpitTone;
+  };
+  steps: CockpitStep[];
+};
+
+type CockpitStep = {
+  detail: string;
+  href: string;
+  label: string;
+  stateLabel: string;
+  tone: CockpitTone;
+};
+
+const cockpitSectionLinks = [
+  { href: "#vue-closing", label: "Vue closing" },
+  { href: "#import-balance", label: "Import" },
+  { href: "#mapping", label: "Mapping" },
+  { href: "#controls", label: "Controls" },
+  { href: "#previews", label: "Previews" },
+  { href: "#evidence", label: "Evidence" },
+  { href: "#export-review", label: "Export" }
+] as const;
 
 const localDateTimeFormatter = new Intl.DateTimeFormat("fr-CH", {
   day: "2-digit",
@@ -1009,26 +1057,38 @@ function ClosingFolderRoute() {
           tenantSlug: state.activeTenant.tenantSlug
         }
       : undefined;
+  const cockpitModel = state.kind === "closing_ready" ? createCockpitModel(state) : null;
 
   return (
     <AppShell
       actionZone={
-        <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-          <div>
-            <p className="font-medium text-foreground">Zone d action</p>
-            <p className="text-muted-foreground">import CSV borne</p>
+        cockpitModel === null ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+            <div>
+              <p className="font-medium text-foreground">Zone d action</p>
+              <p className="text-muted-foreground">chargement du contexte dossier</p>
+            </div>
+            <Button asChild size="sm" variant="outline">
+              <Link to="/">Retour dossiers</Link>
+            </Button>
           </div>
-          <Button asChild size="sm" variant="outline">
-            <Link to="/">Retour dossiers</Link>
-          </Button>
-        </div>
+        ) : (
+          <ClosingActionZone model={cockpitModel} />
+        )
       }
       breadcrumb={[
         { label: "Dossiers de closing", href: "/" },
         { label: "Dossier" }
       ]}
-      description="Shell produit borne a GET /api/me, GET /api/closing-folders/{id}, GET /api/closing-folders/{closingFolderId}/controls, GET /api/closing-folders/{closingFolderId}/mappings/manual, GET /api/closing-folders/{closingFolderId}/financial-summary, GET /api/closing-folders/{closingFolderId}/financial-statements/structured, GET /api/closing-folders/{closingFolderId}/workpapers, GET /api/closing-folders/{closingFolderId}/imports/balance/versions, GET /api/closing-folders/{closingFolderId}/imports/balance/versions/{version}/diff-previous, PUT /api/closing-folders/{closingFolderId}/workpapers/{anchorCode}, POST /api/closing-folders/{closingFolderId}/workpapers/{anchorCode}/documents, GET /api/closing-folders/{closingFolderId}/documents/{documentId}/content, GET/POST /api/closing-folders/{closingFolderId}/export-packs, GET /api/closing-folders/{closingFolderId}/export-packs/{exportPackId}/content, GET /api/closing-folders/{closingFolderId}/minimal-annex puis POST /api/closing-folders/{closingFolderId}/imports/balance."
-      eyebrow="Route shell produit"
+      description={
+        cockpitModel === null
+          ? "Cockpit de closing en cours de chargement."
+          : `${formatClosingPeriod(
+              cockpitModel.closingFolder.periodStartOn,
+              cockpitModel.closingFolder.periodEndOn
+            )}. Revue humaine requise, sans promesse de livrable statutaire.`
+      }
+      eyebrow="Cockpit de closing"
       sidebarItems={[
         { href: "/", label: "Dossiers" },
         { href: `/closing-folders/${closingFolderId}`, label: "Dossier" }
@@ -1038,38 +1098,12 @@ function ClosingFolderRoute() {
     >
       {state.kind === "closing_ready" ? (
         <div className="grid gap-6">
-          <section className="panel p-6">
-            <div className="grid gap-6">
-              <div className="grid gap-2">
-                <p className="label-eyebrow">Dossier courant</p>
-                <h3 className="text-xl font-semibold text-foreground">{state.closingFolder.name}</h3>
-              </div>
-              <dl className="grid gap-4 md:grid-cols-2">
-                <DetailItem label="Status">
-                  <WorkflowBadge status={state.closingFolder.status} />
-                </DetailItem>
-                <DetailItem label="External ref">
-                  <span>{formatOptionalText(state.closingFolder.externalRef)}</span>
-                </DetailItem>
-                <DetailItem label="Period start on">
-                  <span>{formatLocalDate(state.closingFolder.periodStartOn)}</span>
-                </DetailItem>
-                <DetailItem label="Period end on">
-                  <span>{formatLocalDate(state.closingFolder.periodEndOn)}</span>
-                </DetailItem>
-              </dl>
-            </div>
-          </section>
-
-          <DossierProgressSummary
-            controlsState={state.controlsState}
-            financialStatementsStructuredState={state.financialStatementsStructuredState}
-            financialSummaryState={state.financialSummaryState}
-            manualMappingState={state.manualMappingState}
-            workpapersState={state.workpapersState}
+          <ClosingCockpit
+            activeTenant={state.activeTenant}
+            model={cockpitModel ?? createCockpitModel(state)}
           />
 
-          <section className="panel p-6">
+          <section className="panel scroll-mt-28 p-6" id="import-balance">
             <div className="grid gap-6">
               <div className="grid gap-2">
                 <p className="label-eyebrow">Import balance</p>
@@ -1115,7 +1149,7 @@ function ClosingFolderRoute() {
             </div>
           </section>
 
-          <section className="panel p-6">
+          <section className="panel scroll-mt-28 p-6" id="mapping">
             <div className="grid gap-6">
               <div className="grid gap-2">
                 <p className="label-eyebrow">Mapping manuel</p>
@@ -1155,7 +1189,7 @@ function ClosingFolderRoute() {
             </div>
           </section>
 
-          <section className="panel p-6">
+          <section className="panel scroll-mt-28 p-6" id="controls">
             <div className="grid gap-6">
               <div className="grid gap-2">
                 <p className="label-eyebrow">Controles</p>
@@ -1165,7 +1199,7 @@ function ClosingFolderRoute() {
             </div>
           </section>
 
-          <section className="panel p-6">
+          <section className="panel scroll-mt-28 p-6" id="previews">
             <div className="grid gap-6">
               <div className="grid gap-2">
                 <p className="label-eyebrow">Financial summary</p>
@@ -1175,7 +1209,7 @@ function ClosingFolderRoute() {
             </div>
           </section>
 
-          <section className="panel p-6">
+          <section className="panel scroll-mt-28 p-6">
             <div className="grid gap-6">
               <div className="grid gap-2">
                 <p className="label-eyebrow">Financial statements structured</p>
@@ -1187,28 +1221,32 @@ function ClosingFolderRoute() {
             </div>
           </section>
 
-          <WorkpapersPanel
-            activeTenant={state.activeTenant}
-            closingFolder={state.closingFolder}
-            closingFolderId={state.closingFolder.id}
-            effectiveRoles={state.effectiveRoles}
-            initialState={state.workpapersState}
-            key={`${state.activeTenant.tenantId}-${state.closingFolder.id}-${state.workpapersPanelRefreshKey}`}
-          />
+          <div className="scroll-mt-28" id="evidence">
+            <WorkpapersPanel
+              activeTenant={state.activeTenant}
+              closingFolder={state.closingFolder}
+              closingFolderId={state.closingFolder.id}
+              effectiveRoles={state.effectiveRoles}
+              initialState={state.workpapersState}
+              key={`${state.activeTenant.tenantId}-${state.closingFolder.id}-${state.workpapersPanelRefreshKey}`}
+            />
+          </div>
 
-          <ExportAuditPackPanel
-            activeTenant={state.activeTenant}
-            closingFolderId={state.closingFolder.id}
-            key={`exports-${state.activeTenant.tenantId}-${state.closingFolder.id}`}
-            onExportPackCreateSucceeded={handleExportPackCreateSucceeded}
-          />
+          <div className="grid scroll-mt-28 gap-6" id="export-review">
+            <ExportAuditPackPanel
+              activeTenant={state.activeTenant}
+              closingFolderId={state.closingFolder.id}
+              key={`exports-${state.activeTenant.tenantId}-${state.closingFolder.id}`}
+              onExportPackCreateSucceeded={handleExportPackCreateSucceeded}
+            />
 
-          <MinimalAnnexPanel
-            activeTenant={state.activeTenant}
-            closingFolderId={state.closingFolder.id}
-            key={`minimal-annex-${state.activeTenant.tenantId}-${state.closingFolder.id}`}
-            postExportPackRefreshRequestId={state.minimalAnnexRefreshRequestId}
-          />
+            <MinimalAnnexPanel
+              activeTenant={state.activeTenant}
+              closingFolderId={state.closingFolder.id}
+              key={`minimal-annex-${state.activeTenant.tenantId}-${state.closingFolder.id}`}
+              postExportPackRefreshRequestId={state.minimalAnnexRefreshRequestId}
+            />
+          </div>
         </div>
       ) : (
         <section className="panel p-6">
@@ -1237,6 +1275,933 @@ function ClosingFolderRoute() {
       )}
     </AppShell>
   );
+}
+
+function ClosingActionZone({ model }: { model: CockpitModel }) {
+  return (
+    <div className="flex flex-col gap-3 text-sm lg:flex-row lg:items-center lg:justify-between">
+      <div className="min-w-0">
+        <p className="font-semibold text-foreground">{model.status.label}</p>
+        <p className="text-muted-foreground">{model.nextAction.detail}</p>
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button asChild size="sm">
+          <a href={model.nextAction.href}>{model.nextAction.label}</a>
+        </Button>
+        <Button asChild size="sm" variant="outline">
+          <Link to="/">Retour dossiers</Link>
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function ClosingCockpit({
+  activeTenant,
+  model
+}: {
+  activeTenant: ActiveTenant;
+  model: CockpitModel;
+}) {
+  return (
+    <section
+      aria-labelledby="closing-cockpit-title"
+      className="panel scroll-mt-28 p-4"
+      id="vue-closing"
+    >
+      <div className="grid gap-4">
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+          <div className="min-w-0">
+            <p className="label-eyebrow">Dossier courant</p>
+            <h3
+              className="mt-2 text-2xl font-semibold text-foreground"
+              id="closing-cockpit-title"
+            >
+              {model.closingFolder.name}
+            </h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Tenant actif : {activeTenant.tenantName} - Periode :{" "}
+              <span className="tabular-nums">
+                {formatClosingPeriod(
+                  model.closingFolder.periodStartOn,
+                  model.closingFolder.periodEndOn
+                )}
+              </span>
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+            <StatusPill label={model.status.label} tone={model.status.tone} />
+            <p className="text-sm font-medium text-foreground">Revue humaine requise</p>
+          </div>
+        </div>
+
+        <dl className="flex flex-wrap gap-2">
+          <CockpitMetaChip label="Statut">
+            <WorkflowBadge status={model.closingFolder.status} />
+          </CockpitMetaChip>
+          <CockpitMetaChip label="Reference dossier">
+            <span>{formatOptionalText(model.closingFolder.externalRef)}</span>
+          </CockpitMetaChip>
+          <CockpitMetaChip label="Debut periode">
+            <span className="tabular-nums">{formatLocalDate(model.closingFolder.periodStartOn)}</span>
+          </CockpitMetaChip>
+          <CockpitMetaChip label="Fin periode">
+            <span className="tabular-nums">{formatLocalDate(model.closingFolder.periodEndOn)}</span>
+          </CockpitMetaChip>
+        </dl>
+
+        <div className="grid gap-3">
+          <div className="grid gap-1">
+            <p className="label-eyebrow">Progression dossier</p>
+            <h4 className="text-lg font-semibold text-foreground">
+              Closing - Import - Mapping - Controls - Previews - Evidence - Export
+            </h4>
+          </div>
+          <ol
+            aria-label="progression closing"
+            className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7"
+          >
+            {model.steps.map((step) => (
+              <li className="min-w-0" key={step.label}>
+                <a
+                  className="block h-full rounded-lg border bg-background/80 p-2.5 text-foreground no-underline transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  href={step.href}
+                >
+                  <span className="grid gap-1.5">
+                    <span className="text-sm font-semibold">{step.label}</span>
+                    <StatusPill label={step.stateLabel} tone={step.tone} />
+                    <span className="text-xs text-muted-foreground">{step.detail}</span>
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ol>
+        </div>
+
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(280px,0.9fr)]">
+          <div className="rounded-lg border bg-muted/20 p-3">
+            <div className="grid gap-2">
+              <div className="grid gap-1">
+                <p className="label-eyebrow">Prochaine action</p>
+                <p className="text-lg font-semibold text-foreground">{model.nextAction.label}</p>
+              </div>
+              <p className="text-sm text-muted-foreground">{model.nextAction.detail}</p>
+            </div>
+          </div>
+
+          <div className="rounded-lg border bg-muted/20 p-3">
+            <div className="grid gap-2">
+              <div className="grid gap-1">
+                <p className="label-eyebrow">Blockers principaux</p>
+                <p className="text-sm font-semibold text-foreground">
+                  {model.blockers.length === 0
+                    ? "Aucun blocker principal"
+                    : `${model.blockers.length} point(s) a traiter`}
+                </p>
+              </div>
+              <CockpitBlockerList blockers={model.blockers} />
+            </div>
+          </div>
+        </div>
+
+        <dl className="grid gap-3 lg:grid-cols-3">
+          <CockpitFactCard label="Ce qui est pret" value={model.readySummary} />
+          <CockpitFactCard label="Preuves et revue" value={model.evidenceReview} />
+          <CockpitFactCard label="Previews et export" value={model.previewExport} />
+        </dl>
+
+        <nav aria-label="Sections du dossier">
+          <ul className="flex flex-wrap gap-2">
+            {cockpitSectionLinks.map((link) => (
+              <li key={link.href}>
+                <a
+                  className="inline-flex rounded-md border px-3 py-2 text-sm font-medium text-foreground no-underline hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  href={link.href}
+                >
+                  {link.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      </div>
+    </section>
+  );
+}
+
+function CockpitMetaChip({ children, label }: { children: React.ReactNode; label: string }) {
+  return (
+    <div className="inline-flex min-h-9 items-center gap-2 rounded-md border bg-background/80 px-3 py-2">
+      <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
+      <dd className="text-sm font-semibold text-foreground">{children}</dd>
+    </div>
+  );
+}
+
+function CockpitBlockerList({ blockers }: { blockers: CockpitBlocker[] }) {
+  if (blockers.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Les read-models charges ne remontent pas de blocage prioritaire.
+      </p>
+    );
+  }
+
+  return (
+    <ul className="grid gap-1.5">
+      {blockers.map((blocker) => (
+        <li
+          className="rounded-md border bg-background/80 px-2 py-1.5"
+          key={`${blocker.href}-${blocker.title}`}
+        >
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <StatusPill
+              label={blocker.tone === "error" ? "bloquant" : "a verifier"}
+              tone={blocker.tone}
+            />
+            <a className="text-sm font-semibold" href={blocker.href}>
+              {blocker.sectionLabel}
+            </a>
+            <span className="text-sm font-medium text-foreground">{blocker.title}</span>
+          </div>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">{blocker.detail}</p>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function CockpitFactCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border bg-background/80 p-3">
+      <dt className="label-eyebrow">{label}</dt>
+      <dd className="mt-1.5 text-sm font-semibold text-foreground">{value}</dd>
+    </div>
+  );
+}
+
+function StatusPill({ label, tone }: { label: string; tone: CockpitTone }) {
+  const className =
+    tone === "success"
+      ? "border-success/25 bg-success/10 text-success"
+      : tone === "warning"
+        ? "border-warning/25 bg-warning/10 text-warning"
+        : tone === "error"
+          ? "border-error/25 bg-error/10 text-error"
+          : tone === "info"
+            ? "border-info/25 bg-info/10 text-info"
+            : "border-border bg-muted/30 text-muted-foreground";
+
+  return (
+    <span
+      className={`inline-flex w-fit items-center rounded-full border px-3 py-1 text-xs font-semibold ${className}`}
+    >
+      {label}
+    </span>
+  );
+}
+
+function createCockpitModel(state: ClosingReadyState): CockpitModel {
+  const blockers = createCockpitBlockers(state).slice(0, 3);
+  const status = createCockpitStatus(state, blockers);
+  const nextAction = createCockpitNextAction(state, blockers);
+
+  return {
+    blockers,
+    closingFolder: state.closingFolder,
+    evidenceReview: formatEvidenceReviewSummary(state.workpapersState),
+    nextAction,
+    previewExport: formatPreviewExportSummary(
+      state.financialSummaryState,
+      state.financialStatementsStructuredState
+    ),
+    readySummary: formatReadySummary(state),
+    status,
+    steps: createCockpitSteps(state)
+  };
+}
+
+function createCockpitStatus(
+  state: ClosingReadyState,
+  blockers: CockpitBlocker[]
+): CockpitModel["status"] {
+  if (state.closingFolder.status === "ARCHIVED") {
+    return {
+      detail: "Lecture autorisee sur dossier archive ; les actions d'ecriture restent bloquees par le workflow existant.",
+      label: "Dossier archive",
+      tone: "info"
+    };
+  }
+
+  if (blockers.some((blocker) => blocker.tone === "error")) {
+    return {
+      detail: "Un point bloquant doit etre traite avant de conclure la revue humaine.",
+      label: "Dossier bloque",
+      tone: "error"
+    };
+  }
+
+  if (hasLoadingCockpitSurface(state)) {
+    return {
+      detail: "Les read-models du dossier sont en cours de chargement.",
+      label: "Chargement du dossier",
+      tone: "neutral"
+    };
+  }
+
+  if (state.controlsState.kind === "ready" && state.controlsState.controls.readiness === "READY") {
+    if (
+      state.financialSummaryState.kind === "ready" &&
+      state.financialStatementsStructuredState.kind === "ready" &&
+      state.financialSummaryState.summary.statementState === "PREVIEW_READY" &&
+      state.financialStatementsStructuredState.financialStatements.statementState === "PREVIEW_READY"
+    ) {
+      return {
+        detail: "Les previews sont disponibles pour revue humaine et restent non statutaires.",
+        label: "Previews disponibles pour revue",
+        tone: "success"
+      };
+    }
+
+    return {
+      detail: "Les controls sont prets ; verifier les preuves et previews avant tout handoff.",
+      label: "Controls prets",
+      tone: "success"
+    };
+  }
+
+  return {
+    detail: "Le dossier est en preparation avec revue humaine requise.",
+    label: "Dossier en preparation",
+    tone: "warning"
+  };
+}
+
+function createCockpitNextAction(
+  state: ClosingReadyState,
+  blockers: CockpitBlocker[]
+): CockpitModel["nextAction"] {
+  const primaryBlocker = blockers[0];
+
+  if (primaryBlocker !== undefined) {
+    return {
+      detail: primaryBlocker.detail,
+      href: primaryBlocker.href,
+      label:
+        primaryBlocker.href === "#import-balance"
+          ? "Importer une balance"
+          : primaryBlocker.href === "#mapping"
+            ? "Reprendre le mapping"
+            : primaryBlocker.href === "#controls"
+              ? "Ouvrir les controls"
+              : primaryBlocker.href === "#evidence"
+                ? "Continuer les preuves"
+                : primaryBlocker.href === "#previews"
+                  ? "Ouvrir les previews"
+                  : "Voir le point bloquant"
+    };
+  }
+
+  if (hasLoadingCockpitSurface(state)) {
+    return {
+      detail: "Attendre la fin du chargement avant de prendre une decision.",
+      href: "#vue-closing",
+      label: "Suivre le chargement"
+    };
+  }
+
+  return {
+    detail: "Aucun blocker principal n'est remonte ; consulter le pack et la minimal annex preview pour la revue humaine.",
+    href: "#export-review",
+    label: "Voir export de revue"
+  };
+}
+
+function createCockpitBlockers(state: ClosingReadyState): CockpitBlocker[] {
+  const blockers: CockpitBlocker[] = [];
+
+  appendSurfaceStateBlocker(blockers, state.controlsState.kind, {
+    detail: "Controls indisponibles pour le moment. Reessayez avant de conclure la revue.",
+    href: "#controls",
+    sectionLabel: "Controls",
+    title: "Readiness non exploitable"
+  });
+  appendSurfaceStateBlocker(blockers, state.manualMappingState.kind, {
+    detail: "Le mapping manuel doit etre lisible avant de conclure la couverture du dossier.",
+    href: "#mapping",
+    sectionLabel: "Mapping",
+    title: "Mapping indisponible"
+  });
+  appendSurfaceStateBlocker(blockers, state.financialSummaryState.kind, {
+    detail: "La preview financiere reste bloquee par securite tant que les donnees ne sont pas coherentes.",
+    href: "#previews",
+    sectionLabel: "Previews",
+    title: "Financial summary indisponible"
+  });
+  appendSurfaceStateBlocker(blockers, state.financialStatementsStructuredState.kind, {
+    detail: "La preview structuree des etats financiers n'est pas exploitable pour la revue.",
+    href: "#previews",
+    sectionLabel: "Previews",
+    title: "Preview structuree indisponible"
+  });
+  appendSurfaceStateBlocker(blockers, state.workpapersState.kind, {
+    detail: "Les justifications et preuves ne peuvent pas etre evaluees pour le moment.",
+    href: "#evidence",
+    sectionLabel: "Evidence",
+    title: "Workpapers indisponibles"
+  });
+
+  if (state.controlsState.kind === "ready") {
+    const { controls } = state.controlsState;
+
+    if (!controls.latestImportPresent) {
+      blockers.push({
+        detail: "Aucun import valide n'est disponible. Importer une balance avant mapping et controls.",
+        href: "#import-balance",
+        sectionLabel: "Import",
+        title: "Import balance manquant",
+        tone: "error"
+      });
+    }
+
+    if (controls.mappingSummary.unmapped > 0) {
+      blockers.push({
+        detail: `${controls.mappingSummary.unmapped} compte(s) restent non mappes sur le dernier import.`,
+        href: "#mapping",
+        sectionLabel: "Mapping",
+        title: "Mapping manuel incomplet",
+        tone: "error"
+      });
+    }
+
+    const failedControl = controls.controls.find((control) => control.status === "FAIL");
+
+    if (failedControl !== undefined && controls.mappingSummary.unmapped === 0) {
+      blockers.push({
+        detail: "Un control bloque la readiness. Ouvrir la section Controls pour le detail metier.",
+        href: "#controls",
+        sectionLabel: "Controls",
+        title: "Readiness bloquee",
+        tone: "error"
+      });
+    }
+  }
+
+  if (state.manualMappingState.kind === "ready") {
+    const { projection } = state.manualMappingState;
+
+    if (projection.latestImportVersion === null) {
+      blockers.push({
+        detail: "Le mapping manuel attend un import valide.",
+        href: "#import-balance",
+        sectionLabel: "Import",
+        title: "Import requis pour mapper",
+        tone: "error"
+      });
+    } else if (projection.summary.unmapped > 0) {
+      blockers.push({
+        detail: `${projection.summary.unmapped} compte(s) attendent une decision humaine de mapping.`,
+        href: "#mapping",
+        sectionLabel: "Mapping",
+        title: "Decisions de mapping a completer",
+        tone: "error"
+      });
+    }
+  }
+
+  if (state.workpapersState.kind === "ready") {
+    const { summaryCounts } = state.workpapersState.workpapers;
+    const documentCounts = getWorkpaperDocumentCounts(state.workpapersState);
+
+    if (summaryCounts.missingCount > 0) {
+      blockers.push({
+        detail: `${summaryCounts.missingCount} workpaper(s) courant(s) restent a documenter.`,
+        href: "#evidence",
+        sectionLabel: "Evidence",
+        title: "Justifications a completer",
+        tone: "warning"
+      });
+    }
+
+    if (summaryCounts.staleCount > 0) {
+      blockers.push({
+        detail: `${summaryCounts.staleCount} justification(s) sont rattachees a une ancienne structure.`,
+        href: "#evidence",
+        sectionLabel: "Evidence",
+        title: "Justifications stale",
+        tone: "warning"
+      });
+    }
+
+    if (documentCounts.unverifiedCount > 0) {
+      blockers.push({
+        detail: `${documentCounts.unverifiedCount} piece(s) restent a verifier par un reviewer.`,
+        href: "#evidence",
+        sectionLabel: "Evidence",
+        title: "Pieces non verifiees",
+        tone: "warning"
+      });
+    }
+  }
+
+  if (
+    state.financialSummaryState.kind === "ready" &&
+    state.financialStatementsStructuredState.kind === "ready" &&
+    (state.financialSummaryState.summary.statementState === "PREVIEW_PARTIAL" ||
+      state.financialStatementsStructuredState.financialStatements.statementState === "BLOCKED")
+  ) {
+    blockers.push({
+      detail: "Les previews financieres restent partielles ou bloquees et ne sont pas statutaires.",
+      href: "#previews",
+      sectionLabel: "Previews",
+      title: "Previews a revoir",
+      tone: "warning"
+    });
+  }
+
+  return dedupeCockpitBlockers(blockers);
+}
+
+function appendSurfaceStateBlocker(
+  blockers: CockpitBlocker[],
+  kind: string,
+  blocker: Omit<CockpitBlocker, "tone">
+) {
+  if (kind === "loading" || kind === "ready") {
+    return;
+  }
+
+  blockers.push({
+    ...blocker,
+    detail:
+      kind === "invalid_payload"
+        ? `${blocker.detail} Donnees incoherentes : l'ecran reste bloque par securite.`
+        : blocker.detail,
+    tone: kind === "invalid_payload" ? "error" : "warning"
+  });
+}
+
+function dedupeCockpitBlockers(blockers: CockpitBlocker[]) {
+  const seenKeys = new Set<string>();
+  return blockers.filter((blocker) => {
+    const key = `${blocker.href}-${blocker.title}`;
+
+    if (seenKeys.has(key)) {
+      return false;
+    }
+
+    seenKeys.add(key);
+    return true;
+  });
+}
+
+function createCockpitSteps(state: ClosingReadyState): CockpitStep[] {
+  return [
+    {
+      detail: formatClosingPeriod(
+        state.closingFolder.periodStartOn,
+        state.closingFolder.periodEndOn
+      ),
+      href: "#vue-closing",
+      label: "Closing",
+      stateLabel: state.closingFolder.status === "ARCHIVED" ? "archive" : "en cours",
+      tone: state.closingFolder.status === "ARCHIVED" ? "info" : "warning"
+    },
+    createImportStep(state.controlsState),
+    createMappingStep(state.manualMappingState),
+    createControlsStep(state.controlsState),
+    createPreviewsStep(state.financialSummaryState, state.financialStatementsStructuredState),
+    createEvidenceStep(state.workpapersState),
+    {
+      detail: "Etat determine dans la section Export de revue.",
+      href: "#export-review",
+      label: "Export",
+      stateLabel: "indetermine",
+      tone: "neutral"
+    }
+  ];
+}
+
+function createImportStep(controlsState: ControlsShellState): CockpitStep {
+  if (controlsState.kind === "loading") {
+    return {
+      detail: "Etat import en chargement.",
+      href: "#import-balance",
+      label: "Import",
+      stateLabel: "chargement",
+      tone: "neutral"
+    };
+  }
+
+  if (controlsState.kind !== "ready") {
+    return {
+      detail: "Etat import indisponible.",
+      href: "#import-balance",
+      label: "Import",
+      stateLabel: controlsState.kind === "invalid_payload" ? "incoherent" : "indisponible",
+      tone: controlsState.kind === "invalid_payload" ? "error" : "warning"
+    };
+  }
+
+  if (!controlsState.controls.latestImportPresent) {
+    return {
+      detail: "Aucun import valide.",
+      href: "#import-balance",
+      label: "Import",
+      stateLabel: "manquant",
+      tone: "error"
+    };
+  }
+
+  return {
+    detail: `Version ${controlsState.controls.latestImportVersion ?? "non renseignee"}`,
+    href: "#import-balance",
+    label: "Import",
+    stateLabel: "pret",
+    tone: "success"
+  };
+}
+
+function createMappingStep(manualMappingState: ManualMappingShellState): CockpitStep {
+  if (manualMappingState.kind === "loading") {
+    return {
+      detail: "Mapping en chargement.",
+      href: "#mapping",
+      label: "Mapping",
+      stateLabel: "chargement",
+      tone: "neutral"
+    };
+  }
+
+  if (manualMappingState.kind !== "ready") {
+    return {
+      detail: "Mapping indisponible.",
+      href: "#mapping",
+      label: "Mapping",
+      stateLabel: manualMappingState.kind === "invalid_payload" ? "incoherent" : "indisponible",
+      tone: manualMappingState.kind === "invalid_payload" ? "error" : "warning"
+    };
+  }
+
+  const { projection } = manualMappingState;
+
+  if (projection.latestImportVersion === null) {
+    return {
+      detail: "Import requis avant mapping.",
+      href: "#mapping",
+      label: "Mapping",
+      stateLabel: "en attente",
+      tone: "warning"
+    };
+  }
+
+  if (projection.summary.unmapped > 0) {
+    return {
+      detail: `${projection.summary.unmapped} compte(s) non mappes.`,
+      href: "#mapping",
+      label: "Mapping",
+      stateLabel: "incomplet",
+      tone: "error"
+    };
+  }
+
+  return {
+    detail: `${projection.summary.mapped}/${projection.summary.total} compte(s) mappes.`,
+    href: "#mapping",
+    label: "Mapping",
+    stateLabel: "pret",
+    tone: "success"
+  };
+}
+
+function createControlsStep(controlsState: ControlsShellState): CockpitStep {
+  if (controlsState.kind === "loading") {
+    return {
+      detail: "Readiness en chargement.",
+      href: "#controls",
+      label: "Controls",
+      stateLabel: "chargement",
+      tone: "neutral"
+    };
+  }
+
+  if (controlsState.kind !== "ready") {
+    return {
+      detail: "Readiness indisponible.",
+      href: "#controls",
+      label: "Controls",
+      stateLabel: controlsState.kind === "invalid_payload" ? "incoherent" : "indisponible",
+      tone: controlsState.kind === "invalid_payload" ? "error" : "warning"
+    };
+  }
+
+  if (controlsState.controls.readiness === "READY") {
+    return {
+      detail: "Controls prets pour revue.",
+      href: "#controls",
+      label: "Controls",
+      stateLabel: "pret",
+      tone: "success"
+    };
+  }
+
+  return {
+    detail: "Controls bloquants.",
+    href: "#controls",
+    label: "Controls",
+    stateLabel: "bloque",
+    tone: "error"
+  };
+}
+
+function createPreviewsStep(
+  financialSummaryState: FinancialSummaryShellState,
+  financialStatementsStructuredState: FinancialStatementsStructuredShellState
+): CockpitStep {
+  if (
+    financialSummaryState.kind === "loading" ||
+    financialStatementsStructuredState.kind === "loading"
+  ) {
+    return {
+      detail: "Previews en chargement.",
+      href: "#previews",
+      label: "Previews",
+      stateLabel: "chargement",
+      tone: "neutral"
+    };
+  }
+
+  if (
+    financialSummaryState.kind !== "ready" ||
+    financialStatementsStructuredState.kind !== "ready"
+  ) {
+    return {
+      detail: "Previews indisponibles.",
+      href: "#previews",
+      label: "Previews",
+      stateLabel:
+        financialSummaryState.kind === "invalid_payload" ||
+        financialStatementsStructuredState.kind === "invalid_payload"
+          ? "incoherent"
+          : "indisponible",
+      tone:
+        financialSummaryState.kind === "invalid_payload" ||
+        financialStatementsStructuredState.kind === "invalid_payload"
+          ? "error"
+          : "warning"
+    };
+  }
+
+  if (
+    financialSummaryState.summary.statementState === "PREVIEW_READY" &&
+    financialStatementsStructuredState.financialStatements.statementState === "PREVIEW_READY"
+  ) {
+    return {
+      detail: "Non statutaires, pour revue humaine.",
+      href: "#previews",
+      label: "Previews",
+      stateLabel: "disponibles",
+      tone: "success"
+    };
+  }
+
+  if (
+    financialSummaryState.summary.statementState === "NO_DATA" &&
+    financialStatementsStructuredState.financialStatements.statementState === "NO_DATA"
+  ) {
+    return {
+      detail: "Aucune preview exploitable.",
+      href: "#previews",
+      label: "Previews",
+      stateLabel: "aucune",
+      tone: "warning"
+    };
+  }
+
+  return {
+    detail: "Preview partielle ou bloquee.",
+    href: "#previews",
+    label: "Previews",
+    stateLabel: "partiel",
+    tone: "warning"
+  };
+}
+
+function createEvidenceStep(workpapersState: WorkpapersShellState): CockpitStep {
+  if (workpapersState.kind === "loading") {
+    return {
+      detail: "Evidence en chargement.",
+      href: "#evidence",
+      label: "Evidence",
+      stateLabel: "chargement",
+      tone: "neutral"
+    };
+  }
+
+  if (workpapersState.kind !== "ready") {
+    return {
+      detail: "Evidence indisponible.",
+      href: "#evidence",
+      label: "Evidence",
+      stateLabel: workpapersState.kind === "invalid_payload" ? "incoherent" : "indisponible",
+      tone: workpapersState.kind === "invalid_payload" ? "error" : "warning"
+    };
+  }
+
+  const { summaryCounts } = workpapersState.workpapers;
+  const documentCounts = getWorkpaperDocumentCounts(workpapersState);
+
+  if (summaryCounts.totalCurrentAnchors === 0) {
+    return {
+      detail: "Aucun anchor courant.",
+      href: "#evidence",
+      label: "Evidence",
+      stateLabel: "vide",
+      tone: "neutral"
+    };
+  }
+
+  if (summaryCounts.missingCount > 0 || documentCounts.unverifiedCount > 0) {
+    return {
+      detail: `${summaryCounts.missingCount} workpaper(s) manquant(s), ${documentCounts.unverifiedCount} piece(s) non verifiee(s).`,
+      href: "#evidence",
+      label: "Evidence",
+      stateLabel: "a completer",
+      tone: "warning"
+    };
+  }
+
+  return {
+    detail: `${summaryCounts.withWorkpaperCount} workpaper(s), ${documentCounts.verifiedCount} piece(s) verifiee(s).`,
+    href: "#evidence",
+    label: "Evidence",
+    stateLabel: "pret",
+    tone: "success"
+  };
+}
+
+function formatReadySummary(state: ClosingReadyState) {
+  const importText =
+    state.controlsState.kind === "ready" && state.controlsState.controls.latestImportPresent
+      ? `import v${state.controlsState.controls.latestImportVersion ?? "?"}`
+      : "import a verifier";
+  const mappingText =
+    state.manualMappingState.kind === "ready"
+      ? `${state.manualMappingState.projection.summary.mapped}/${state.manualMappingState.projection.summary.total} comptes mappes`
+      : "mapping a verifier";
+  const controlsText =
+    state.controlsState.kind === "ready" && state.controlsState.controls.readiness === "READY"
+      ? "controls prets"
+      : "controls a verifier";
+
+  return `${importText} - ${mappingText} - ${controlsText}`;
+}
+
+function formatEvidenceReviewSummary(workpapersState: WorkpapersShellState) {
+  if (workpapersState.kind === "loading") {
+    return "Workpapers et preuves en chargement.";
+  }
+
+  if (workpapersState.kind !== "ready") {
+    return "Workpapers et preuves indisponibles pour le moment.";
+  }
+
+  const { summaryCounts } = workpapersState.workpapers;
+  const documentCounts = getWorkpaperDocumentCounts(workpapersState);
+
+  return `${summaryCounts.withWorkpaperCount}/${summaryCounts.totalCurrentAnchors} justification(s), ${documentCounts.documentsCount} piece(s), ${summaryCounts.readyForReviewCount} pret(s) pour revue, ${summaryCounts.reviewedCount} revu(s).`;
+}
+
+function formatPreviewExportSummary(
+  financialSummaryState: FinancialSummaryShellState,
+  financialStatementsStructuredState: FinancialStatementsStructuredShellState
+) {
+  const financialSummaryLabel =
+    financialSummaryState.kind === "ready"
+      ? formatFinancialSummaryStateLabel(financialSummaryState.summary.statementState)
+      : formatShellStateLabel(financialSummaryState.kind);
+  const structuredLabel =
+    financialStatementsStructuredState.kind === "ready"
+      ? formatStructuredPreviewStateLabel(
+          financialStatementsStructuredState.financialStatements.statementState
+        )
+      : formatShellStateLabel(financialStatementsStructuredState.kind);
+
+  return `${financialSummaryLabel} - ${structuredLabel}. Preview non statutaire. Revue humaine requise.`;
+}
+
+function getWorkpaperDocumentCounts(workpapersState: Extract<WorkpapersShellState, { kind: "ready" }>) {
+  return workpapersState.workpapers.items.reduce(
+    (counts, item) => {
+      for (const document of item.documents) {
+        counts.documentsCount += 1;
+
+        if (document.verificationStatus === "VERIFIED") {
+          counts.verifiedCount += 1;
+        } else if (document.verificationStatus === "REJECTED") {
+          counts.rejectedCount += 1;
+        } else {
+          counts.unverifiedCount += 1;
+        }
+      }
+
+      return counts;
+    },
+    {
+      documentsCount: 0,
+      rejectedCount: 0,
+      unverifiedCount: 0,
+      verifiedCount: 0
+    }
+  );
+}
+
+function hasLoadingCockpitSurface(state: ClosingReadyState) {
+  return (
+    state.controlsState.kind === "loading" ||
+    state.manualMappingState.kind === "loading" ||
+    state.financialSummaryState.kind === "loading" ||
+    state.financialStatementsStructuredState.kind === "loading" ||
+    state.workpapersState.kind === "loading"
+  );
+}
+
+function formatFinancialSummaryStateLabel(state: FinancialSummaryPreview["statementState"]) {
+  if (state === "PREVIEW_READY") {
+    return "Synthese financiere disponible";
+  }
+
+  if (state === "PREVIEW_PARTIAL") {
+    return "Synthese financiere partielle";
+  }
+
+  return "Synthese financiere sans donnee";
+}
+
+function formatStructuredPreviewStateLabel(
+  state: StructuredFinancialStatementsPreview["statementState"]
+) {
+  if (state === "PREVIEW_READY") {
+    return "Preview structuree disponible";
+  }
+
+  if (state === "BLOCKED") {
+    return "Preview structuree bloquee";
+  }
+
+  return "Preview structuree sans donnee";
+}
+
+function formatShellStateLabel(kind: string) {
+  if (kind === "loading") {
+    return "chargement";
+  }
+
+  if (kind === "invalid_payload") {
+    return "donnees incoherentes";
+  }
+
+  return "indisponible";
 }
 
 function ClosingFoldersSlot({ state }: { state: EntrypointListState }) {
