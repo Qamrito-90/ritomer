@@ -858,6 +858,75 @@ describe("router", () => {
       expectNoControlsNominalBlocks();
     });
 
+    it("renders the 038 cockpit summary before detailed sections without endpoint or raw id noise", async () => {
+      const fetchMock = vi.mocked(global.fetch);
+      primeClosingRoute(
+        fetchMock,
+        Promise.resolve(jsonResponse(200, BLOCKED_CONTROLS)),
+        Promise.resolve(jsonResponse(200, DEFAULT_MANUAL_MAPPING)),
+        Promise.resolve(jsonResponse(200, DEFAULT_FINANCIAL_SUMMARY)),
+        Promise.resolve(jsonResponse(200, DEFAULT_FINANCIAL_STATEMENTS_STRUCTURED)),
+        Promise.resolve(
+          jsonResponse(200, {
+            ...DEFAULT_WORKPAPERS,
+            closingFolderStatus: "DRAFT",
+            readiness: "BLOCKED"
+          })
+        )
+      );
+
+      renderRoute(CLOSING_ROUTE);
+
+      const cockpit = await screen.findByRole("region", { name: "Closing FY26" });
+
+      expect(within(cockpit).getByText("Dossier courant")).toBeInTheDocument();
+      expect(within(cockpit).getByText("Dossier bloque")).toBeInTheDocument();
+      expect(within(cockpit).getByText("Revue humaine requise")).toBeInTheDocument();
+      expect(within(cockpit).getByText("Statut")).toBeInTheDocument();
+      expect(within(cockpit).getByText("Reference dossier")).toBeInTheDocument();
+      expect(within(cockpit).getByText("Debut periode")).toBeInTheDocument();
+      expect(within(cockpit).getByText("Fin periode")).toBeInTheDocument();
+      expect(within(cockpit).getByText("Prochaine action")).toBeInTheDocument();
+      expect(within(cockpit).getByText("Reprendre le mapping")).toBeInTheDocument();
+      expect(within(cockpit).getByText("Blockers principaux")).toBeInTheDocument();
+      expect(within(cockpit).getByText("Mapping manuel incomplet")).toBeInTheDocument();
+      expect(within(cockpit).getByText("Ce qui est pret")).toBeInTheDocument();
+      expect(within(cockpit).getByText("Preuves et revue")).toBeInTheDocument();
+      expect(
+        within(cockpit).getByText("0/0 justification(s), 0 piece(s), 0 pret(s) pour revue, 0 revu(s).")
+      ).toBeInTheDocument();
+      expect(within(cockpit).getByText("Previews et export")).toBeInTheDocument();
+      expect(
+        within(cockpit).getByText(
+          "Synthese financiere partielle - Preview structuree bloquee. Preview non statutaire. Revue humaine requise."
+        )
+      ).toBeInTheDocument();
+
+      const progression = within(cockpit).getByLabelText("progression closing");
+      expect(progression).toHaveTextContent("Closing");
+      expect(progression).toHaveTextContent("Import");
+      expect(progression).toHaveTextContent("Mapping");
+      expect(progression).toHaveTextContent("Controls");
+      expect(progression).toHaveTextContent("Previews");
+      expect(progression).toHaveTextContent("Evidence");
+      expect(progression).toHaveTextContent("Export");
+      expect(progression).toHaveTextContent("indetermine");
+
+      expect(within(cockpit).getByRole("navigation", { name: "Sections du dossier" })).toBeInTheDocument();
+      expect(cockpit).not.toHaveTextContent("/api/");
+      expect(cockpit).not.toHaveTextContent(CLOSING_FOLDER.id);
+      expect(cockpit).not.toHaveTextContent(ACTIVE_TENANT.tenantId);
+      expect(cockpit).not.toHaveTextContent("Prepared for human review");
+      expect(cockpit).not.toHaveTextContent("Status");
+      expect(cockpit).not.toHaveTextContent("External ref");
+      expect(cockpit).not.toHaveTextContent("Period start on");
+      expect(cockpit).not.toHaveTextContent("Period end on");
+      expect(cockpit).not.toHaveTextContent("Human review required");
+      expect(cockpit).not.toHaveTextContent("ready for review");
+      expect(cockpit).not.toHaveTextContent("reviewed");
+      expect(fetchMock).toHaveBeenCalledTimes(12);
+    });
+
     it.each([
       { status: 401, text: "authentification requise" },
       { status: 403, text: "acces controls refuse" },
