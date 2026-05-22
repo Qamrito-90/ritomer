@@ -627,9 +627,13 @@ describe("router import balance", () => {
     renderClosingRoute();
     await waitForClosingRouteReady();
 
-    expect(await screen.findByText("Diff N/N-1")).toBeInTheDocument();
-    expect(screen.getByText("v2")).toBeInTheDocument();
-    expect(screen.getByText("v1")).toBeInTheDocument();
+    expect(await screen.findByText("Balance courante et historique")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Version" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Debit" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Credit" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Equilibre" })).toBeInTheDocument();
+    expect(screen.getAllByText("v2").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("v1").length).toBeGreaterThan(0);
     expect(screen.getByText("ajoutes")).toBeInTheDocument();
     expect(screen.getByText("supprimes")).toBeInTheDocument();
     expect(screen.getByText("modifies")).toBeInTheDocument();
@@ -688,7 +692,7 @@ describe("router import balance", () => {
     renderClosingRoute();
     await waitForClosingRouteReady();
 
-    expect(await screen.findByText("payload historique import invalide")).toBeInTheDocument();
+    expect(await screen.findByText("historique import bloque par securite")).toBeInTheDocument();
     const paths = getRequestPaths(fetchMock);
     expect(paths.some((path) => path.includes("/diff-previous"))).toBe(false);
     expectNoForbiddenImportCalls(paths, 1, 1, 1, 1, 1, 0);
@@ -724,7 +728,7 @@ describe("router import balance", () => {
     renderClosingRoute();
     await waitForClosingRouteReady();
 
-    expect(await screen.findByText("diff import indisponible")).toBeInTheDocument();
+    expect(await screen.findByText("comparaison N/N-1 indisponible")).toBeInTheDocument();
     expectNoForbiddenImportCalls(getRequestPaths(fetchMock));
   });
 
@@ -743,7 +747,7 @@ describe("router import balance", () => {
     renderClosingRoute();
     await waitForClosingRouteReady();
 
-    expect(await screen.findByText("payload diff import invalide")).toBeInTheDocument();
+    expect(await screen.findByText("comparaison N/N-1 bloquee par securite")).toBeInTheDocument();
     expectNoForbiddenImportCalls(getRequestPaths(fetchMock));
   });
 
@@ -858,7 +862,7 @@ describe("router import balance", () => {
     await user.upload(getImportInput(), new File(["csv"], "balance.csv"));
     await user.click(getImportButton());
 
-    expect(await screen.findByText("timeout import")).toBeInTheDocument();
+    expect(await screen.findByText("import trop long, reessayer avant de poursuivre")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(13);
   });
 
@@ -891,8 +895,10 @@ describe("router import balance", () => {
     await user.click(getImportButton());
 
     expect(await screen.findByText("balance importee avec succes")).toBeInTheDocument();
-    expect(screen.getByText("version import : 4")).toBeInTheDocument();
-    expect(screen.getByText("lignes importees : 12")).toBeInTheDocument();
+    const importSuccessBlock = screen.getByText("balance importee avec succes").closest("div");
+    expect(importSuccessBlock).not.toBeNull();
+    expectDefinitionValue(importSuccessBlock as HTMLElement, "version import", "4");
+    expectDefinitionValue(importSuccessBlock as HTMLElement, "lignes importees", "12");
     expect(await screen.findByText("Closing FY26 refreshed")).toBeInTheDocument();
     expect(screen.getByText("EXT-26-R")).toBeInTheDocument();
 
@@ -1092,7 +1098,7 @@ describe("router import balance", () => {
     expect(await screen.findByText("balance importee avec succes")).toBeInTheDocument();
     expect(screen.queryByText("rafraichissement historique imports impossible")).not.toBeInTheDocument();
     expect(screen.getByText("rafraichissement diff import impossible")).toBeInTheDocument();
-    expect(await screen.findByText("diff import indisponible")).toBeInTheDocument();
+    expect(await screen.findByText("comparaison N/N-1 indisponible")).toBeInTheDocument();
     expectNoForbiddenImportCalls(getRequestPaths(fetchMock), 2, 2, 2, 2, 2, 2);
   });
 
@@ -1115,7 +1121,9 @@ describe("router import balance", () => {
     await user.upload(getImportInput(), file);
     await user.click(getImportButton());
 
-    expect(await screen.findByText("payload import invalide")).toBeInTheDocument();
+    expect(
+      await screen.findByText("import bloque par securite, donnees de retour incoherentes")
+    ).toBeInTheDocument();
     expect(getImportInput().files?.[0]?.name).toBe("balance.csv");
     expect(getImportButton()).toBeEnabled();
     expect(fetchMock).toHaveBeenCalledTimes(13);
@@ -1199,8 +1207,14 @@ describe("router import balance", () => {
     { response: () => Promise.resolve(jsonResponse(403, {})), text: "acces import refuse" },
     { response: () => Promise.resolve(jsonResponse(404, {})), text: "dossier introuvable" },
     { response: () => Promise.resolve(jsonResponse(409, {})), text: "dossier archive, import impossible" },
-    { response: () => Promise.resolve(jsonResponse(500, {})), text: "erreur serveur import" },
-    { response: () => Promise.reject(new Error("network")), text: "erreur reseau import" }
+    {
+      response: () => Promise.resolve(jsonResponse(500, {})),
+      text: "import indisponible cote serveur, reessayer avant la revue"
+    },
+    {
+      response: () => Promise.reject(new Error("network")),
+      text: "import non transmis, verifier la connexion puis reessayer"
+    }
   ])("renders the exact import error state $text", async ({ response, text }) => {
     const fetchMock = vi.mocked(global.fetch);
     const user = userEvent.setup();

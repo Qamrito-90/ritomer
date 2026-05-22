@@ -1193,6 +1193,9 @@ function ClosingFolderRoute() {
               <div className="grid gap-2">
                 <p className="label-eyebrow">Import balance</p>
                 <h3 className="text-xl font-semibold text-foreground">Importer une balance CSV</h3>
+                <p className="text-sm text-muted-foreground">
+                  Import courant, historique et comparaison N/N-1 visibles pour une revue rapide.
+                </p>
               </div>
               <div className="grid gap-4">
                 <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
@@ -2688,11 +2691,13 @@ function ImportBalanceStatus({
 
   if (importState.kind === "success") {
     return (
-      <div aria-live="polite" className="grid gap-2">
+      <div aria-live="polite" className="grid gap-3 rounded-lg border bg-background/80 p-4">
         <p className="label-eyebrow">Etat visible</p>
         <p className="text-lg font-semibold text-foreground">balance importee avec succes</p>
-        <p className="text-sm font-medium text-foreground">version import : {importState.version}</p>
-        <p className="text-sm font-medium text-foreground">lignes importees : {importState.rowCount}</p>
+        <dl className="grid gap-3 sm:grid-cols-2">
+          <MetricItem label="version import" value={String(importState.version)} />
+          <MetricItem label="lignes importees" value={String(importState.rowCount)} />
+        </dl>
         {importState.refreshWarnings.closingFailed ? (
           <p className="text-sm font-medium text-foreground">rafraichissement dossier impossible</p>
         ) : null}
@@ -2736,10 +2741,13 @@ function ImportBalanceStatus({
 
   if (importState.kind === "bad_request") {
     return (
-      <div aria-live="polite" className="grid gap-2">
+      <div aria-live="polite" className="grid gap-3 rounded-lg border bg-background/80 p-4">
         <p className="label-eyebrow">Etat visible</p>
         <p className="text-lg font-semibold text-foreground">import invalide</p>
-        <p className="text-sm font-medium text-foreground">{importState.message}</p>
+        <p className="text-sm font-medium text-foreground">
+          Le fichier n'a pas ete importe. Corriger le CSV puis relancer l'import.
+        </p>
+        <p className="text-sm text-muted-foreground">{importState.message}</p>
         {importState.errors.length > 0 ? (
           <ul className="grid gap-1">
             {importState.errors.map((error, index) => (
@@ -2766,19 +2774,21 @@ function ImportBalanceStatus({
   }
 
   if (importState.kind === "server_error") {
-    return <StateMessage text="erreur serveur import" />;
+    return <StateMessage text="import indisponible cote serveur, reessayer avant la revue" />;
   }
 
   if (importState.kind === "network_error") {
-    return <StateMessage text="erreur reseau import" />;
+    return <StateMessage text="import non transmis, verifier la connexion puis reessayer" />;
   }
 
   if (importState.kind === "timeout") {
-    return <StateMessage text="timeout import" />;
+    return <StateMessage text="import trop long, reessayer avant de poursuivre" />;
   }
 
   if (importState.kind === "invalid_payload") {
-    return <StateMessage text="payload import invalide" />;
+    return (
+      <StateMessage text="import bloque par securite, donnees de retour incoherentes" />
+    );
   }
 
   if (importState.kind === "unexpected") {
@@ -2846,7 +2856,7 @@ function ManualMappingSlot({
   }
 
   if (state.kind === "invalid_payload") {
-    return <StateMessage text="payload mapping invalide" />;
+    return <StateMessage text="mapping bloque par securite, donnees incoherentes" />;
   }
 
   if (state.kind === "unexpected") {
@@ -2890,7 +2900,7 @@ function ManualMappingSlot({
 
       <ManualMappingMutationStatus state={manualMappingMutationState} />
 
-      <ControlsBlock title="Lignes a mapper">
+      <ControlsBlock title="Comptes sources et cibles">
         {state.projection.lines.length === 0 ? (
           <p className="text-sm font-medium text-foreground">aucune ligne a mapper</p>
         ) : (
@@ -2911,18 +2921,12 @@ function ManualMappingSlot({
                     className="min-w-0 overflow-hidden rounded-lg border bg-background/80 p-4"
                   >
                     <div className="grid min-w-0 gap-4">
-                      <dl className="grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-5">
-                        <DetailItem label="Compte">
-                          <span className="break-all tabular-nums">{line.accountCode}</span>
-                        </DetailItem>
-                        <DetailItem label="Libelle">
-                          <span className="break-words">{line.accountLabel}</span>
-                        </DetailItem>
-                        <DetailItem label="Debit">
-                          <span className="tabular-nums">{line.debit}</span>
-                        </DetailItem>
-                        <DetailItem label="Credit">
-                          <span className="tabular-nums">{line.credit}</span>
+                      <dl className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(8rem,0.55fr)_minmax(8rem,0.55fr)]">
+                        <DetailItem label="Compte source">
+                          <span className="block break-all tabular-nums">{line.accountCode}</span>
+                          <span className="mt-1 block break-words text-foreground">
+                            {line.accountLabel}
+                          </span>
                         </DetailItem>
                         <DetailItem label="Mapping courant">
                           <span className="break-words">
@@ -2931,9 +2935,15 @@ function ManualMappingSlot({
                               : `${targetLabelByCode.get(currentMapping.targetCode)} (${currentMapping.targetCode})`}
                           </span>
                         </DetailItem>
+                        <DetailItem label="Debit">
+                          <span className="block text-right tabular-nums">{line.debit}</span>
+                        </DetailItem>
+                        <DetailItem label="Credit">
+                          <span className="block text-right tabular-nums">{line.credit}</span>
+                        </DetailItem>
                       </dl>
 
-                      <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(9rem,auto)_minmax(9rem,auto)] lg:items-end">
+                      <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(10rem,auto)_minmax(10rem,auto)] lg:items-end">
                         <div className="grid min-w-0 gap-2">
                           <label
                             className="text-sm font-medium text-foreground"
@@ -3348,7 +3358,7 @@ function MetricItem({
     <div className="min-w-0 rounded-lg border bg-background/80 p-4">
       <dt className="text-sm text-muted-foreground">{label}</dt>
       <dd
-        className={`mt-2 text-sm font-medium text-foreground ${
+        className={`mt-2 text-sm font-medium tabular-nums text-foreground ${
           mono ? "break-all font-mono" : "break-words"
         }`}
       >
@@ -3692,7 +3702,7 @@ function formatManualMappingMutationState(
   }
 
   if (state.kind === "invalid_payload") {
-    return "payload mapping invalide";
+    return "mapping bloque par securite, donnees incoherentes";
   }
 
   return "mapping indisponible";

@@ -74,7 +74,7 @@ describe("BalanceImportHistoryPanel", () => {
     { state: { kind: "history_error" } as const, text: "historique import indisponible" },
     {
       state: { kind: "history_invalid_payload" } as const,
-      text: "payload historique import invalide"
+      text: "historique import bloque par securite"
     }
   ])("renders the stable state $text", ({ state, text }) => {
     render(<BalanceImportHistoryPanel state={state} />);
@@ -86,9 +86,16 @@ describe("BalanceImportHistoryPanel", () => {
     render(<BalanceImportHistoryPanel state={READY_STATE} />);
 
     expect(screen.getByText("Historique imports")).toBeInTheDocument();
-    expect(screen.getByText("Diff N/N-1")).toBeInTheDocument();
-    expect(screen.getByText("v4")).toBeInTheDocument();
-    expect(screen.getByText("v3")).toBeInTheDocument();
+    expect(screen.getByText("Balance courante et historique")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Version" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Date" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Lignes" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Debit" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Credit" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Equilibre" })).toBeInTheDocument();
+    expect(screen.getAllByText("v4").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("v3").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("oui").length).toBeGreaterThan(0);
 
     const metrics = screen.getByText("ajoutes").closest("dl");
     expect(metrics).not.toBeNull();
@@ -135,8 +142,8 @@ describe("BalanceImportHistoryPanel", () => {
       />
     );
 
-    expect(screen.getByText("v4")).toBeInTheDocument();
-    expect(screen.getByText("diff import indisponible")).toBeInTheDocument();
+    expect(screen.getAllByText("v4").length).toBeGreaterThan(0);
+    expect(screen.getByText("comparaison N/N-1 indisponible")).toBeInTheDocument();
   });
 
   it("renders diff invalid payload state while keeping the version summary visible", () => {
@@ -150,7 +157,7 @@ describe("BalanceImportHistoryPanel", () => {
       />
     );
 
-    expect(screen.getByText("v4")).toBeInTheDocument();
-    expect(screen.getByText("payload diff import invalide")).toBeInTheDocument();
+    expect(screen.getAllByText("v4").length).toBeGreaterThan(0);
+    expect(screen.getByText("comparaison N/N-1 bloquee par securite")).toBeInTheDocument();
   });
 });

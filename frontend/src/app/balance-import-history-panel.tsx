@@ -44,14 +44,17 @@ export function BalanceImportHistoryPanel({ state }: BalanceImportHistoryPanelPr
   return (
     <section
       aria-labelledby="balance-import-history-title"
-      className="rounded-lg border bg-muted/20 p-4"
+      className="min-w-0 overflow-hidden rounded-lg border bg-muted/20 p-4"
     >
       <div className="grid gap-4">
         <div className="grid gap-1">
           <p className="label-eyebrow">Historique imports</p>
           <h4 className="text-lg font-semibold text-foreground" id="balance-import-history-title">
-            Diff N/N-1
+            Balance courante et historique
           </h4>
+          <p className="text-sm text-muted-foreground">
+            Versions importees, volumes et ecarts N/N-1 deja disponibles pour revue.
+          </p>
         </div>
         <BalanceImportHistoryStateSlot state={state} />
       </div>
@@ -73,14 +76,22 @@ function BalanceImportHistoryStateSlot({ state }: { state: BalanceImportHistoryP
   }
 
   if (state.kind === "history_invalid_payload") {
-    return <StateMessage text="payload historique import invalide" />;
+    return (
+      <StateMessage
+        text="historique import bloque par securite"
+        detail="Les donnees recues sont incoherentes. Relancer le chargement avant de conclure la revue."
+      />
+    );
   }
 
   if (state.kind === "diff_error") {
     return (
       <div className="grid gap-4">
         <VersionSummary versions={state.versions} />
-        <StateMessage text="diff import indisponible" />
+        <StateMessage
+          text="comparaison N/N-1 indisponible"
+          detail="L'historique reste visible. Relancer le chargement pour revoir le diff."
+        />
       </div>
     );
   }
@@ -89,7 +100,10 @@ function BalanceImportHistoryStateSlot({ state }: { state: BalanceImportHistoryP
     return (
       <div className="grid gap-4">
         <VersionSummary versions={state.versions} />
-        <StateMessage text="payload diff import invalide" />
+        <StateMessage
+          text="comparaison N/N-1 bloquee par securite"
+          detail="Les donnees recues sont incoherentes. La comparaison reste fermee."
+        />
       </div>
     );
   }
@@ -120,29 +134,57 @@ function VersionSummary({ versions }: { versions: BalanceImportVersionSummary[] 
   return (
     <div className="grid gap-3">
       {currentVersion !== null ? (
-        <dl className="grid gap-3 sm:grid-cols-2">
-          <MetricItem label="derniere version connue" value={String(currentVersion.version)} />
-          <MetricItem label="lignes importees" value={String(currentVersion.rowCount)} />
+        <dl className="grid gap-3 sm:grid-cols-3 xl:grid-cols-6">
+          <MetricItem label="version courante" value={`v${currentVersion.version}`} />
+          <MetricItem label="date import" value={formatHistoryDate(currentVersion.importedAt)} />
+          <MetricItem label="lignes" value={String(currentVersion.rowCount)} />
+          <MetricItem label="debit" value={currentVersion.totalDebit} align="right" />
+          <MetricItem label="credit" value={currentVersion.totalCredit} align="right" />
+          <MetricItem
+            label="equilibre"
+            value={currentVersion.totalDebit === currentVersion.totalCredit ? "oui" : "a verifier"}
+          />
         </dl>
       ) : null}
-      <ul className="grid gap-2">
-        {visibleVersions.map((version) => (
-          <li
-            className="rounded-lg border bg-background/80 p-3 text-sm font-medium text-foreground"
-            key={version.version}
-          >
-            <span className="tabular-nums">v{version.version}</span>
-            <span className="text-muted-foreground"> - </span>
-            <span>{formatHistoryDate(version.importedAt)}</span>
-            <span className="text-muted-foreground"> - </span>
-            <span className="tabular-nums">{version.rowCount} lignes</span>
-            <span className="text-muted-foreground"> - </span>
-            <span className="tabular-nums">debit {version.totalDebit}</span>
-            <span className="text-muted-foreground"> / </span>
-            <span className="tabular-nums">credit {version.totalCredit}</span>
-          </li>
-        ))}
-      </ul>
+      <div className="min-w-0 overflow-hidden rounded-lg border bg-background/80">
+        <table className="w-full table-fixed text-sm">
+          <caption className="sr-only">Historique des imports balance</caption>
+          <thead className="bg-muted/40 text-muted-foreground">
+            <tr>
+              <th className="px-3 py-2 text-left font-medium" scope="col">Version</th>
+              <th className="px-3 py-2 text-left font-medium" scope="col">Date</th>
+              <th className="px-3 py-2 text-right font-medium" scope="col">Lignes</th>
+              <th className="px-3 py-2 text-right font-medium" scope="col">Debit</th>
+              <th className="px-3 py-2 text-right font-medium" scope="col">Credit</th>
+              <th className="px-3 py-2 text-left font-medium" scope="col">Equilibre</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {visibleVersions.map((version) => (
+              <tr key={version.version}>
+                <td className="px-3 py-2 font-medium tabular-nums text-foreground">
+                  v{version.version}
+                </td>
+                <td className="px-3 py-2 tabular-nums text-foreground">
+                  {formatHistoryDate(version.importedAt)}
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums text-foreground">
+                  {version.rowCount}
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums text-foreground">
+                  {version.totalDebit}
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums text-foreground">
+                  {version.totalCredit}
+                </td>
+                <td className="px-3 py-2 text-foreground">
+                  {version.totalDebit === version.totalCredit ? "oui" : "a verifier"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -155,22 +197,19 @@ function DiffDetails({ diff }: { diff: BalanceImportDiff }) {
       {diff.changed.length > 0 ? (
         <div className="grid gap-2">
           <p className="text-sm font-semibold text-foreground">lignes modifiees</p>
-          <ul className="grid gap-2">
+          <ul className="grid min-w-0 gap-2">
             {diff.changed.slice(0, diffDetailsLimit).map((line) => (
               <li
-                className="rounded-lg border bg-background/80 p-3 text-sm text-foreground"
+                className="grid min-w-0 gap-3 rounded-lg border bg-background/80 p-3 text-sm text-foreground md:grid-cols-[minmax(7rem,0.7fr)_minmax(0,1.3fr)_minmax(8rem,1fr)_minmax(8rem,1fr)] md:items-center"
                 key={line.accountCode}
               >
-                <span className="font-medium tabular-nums">{line.accountCode}</span>
-                <span className="text-muted-foreground"> - </span>
-                <span>{line.before.accountLabel}</span>
-                <span className="text-muted-foreground"> : </span>
-                <span className="tabular-nums">
-                  {line.before.debit}/{line.before.credit}
+                <span className="break-all font-medium tabular-nums">{line.accountCode}</span>
+                <span className="min-w-0 break-words">{line.before.accountLabel}</span>
+                <span className="text-right tabular-nums">
+                  avant {line.before.debit} / {line.before.credit}
                 </span>
-                <span className="text-muted-foreground"> vers </span>
-                <span className="tabular-nums">
-                  {line.after.debit}/{line.after.credit}
+                <span className="text-right tabular-nums">
+                  apres {line.after.debit} / {line.after.credit}
                 </span>
               </li>
             ))}
@@ -189,17 +228,15 @@ function DiffLineGroup({ label, lines }: { label: string; lines: BalanceImportDi
   return (
     <div className="grid gap-2">
       <p className="text-sm font-semibold text-foreground">{label}</p>
-      <ul className="grid gap-2">
+      <ul className="grid min-w-0 gap-2">
         {lines.slice(0, diffDetailsLimit).map((line) => (
           <li
-            className="rounded-lg border bg-background/80 p-3 text-sm text-foreground"
+            className="grid min-w-0 gap-3 rounded-lg border bg-background/80 p-3 text-sm text-foreground md:grid-cols-[minmax(7rem,0.7fr)_minmax(0,1.3fr)_minmax(8rem,1fr)] md:items-center"
             key={line.accountCode}
           >
-            <span className="font-medium tabular-nums">{line.accountCode}</span>
-            <span className="text-muted-foreground"> - </span>
-            <span>{line.accountLabel}</span>
-            <span className="text-muted-foreground"> - </span>
-            <span className="tabular-nums">
+            <span className="break-all font-medium tabular-nums">{line.accountCode}</span>
+            <span className="min-w-0 break-words">{line.accountLabel}</span>
+            <span className="text-right tabular-nums">
               debit {line.debit} / credit {line.credit}
             </span>
           </li>
@@ -209,20 +246,35 @@ function DiffLineGroup({ label, lines }: { label: string; lines: BalanceImportDi
   );
 }
 
-function MetricItem({ label, value }: { label: string; value: string }) {
+function MetricItem({
+  align = "left",
+  label,
+  value
+}: {
+  align?: "left" | "right";
+  label: string;
+  value: string;
+}) {
   return (
-    <div className="rounded-lg border bg-background/80 p-3">
+    <div className="min-w-0 rounded-lg border bg-background/80 p-3">
       <dt className="text-sm text-muted-foreground">{label}</dt>
-      <dd className="mt-2 text-sm font-medium tabular-nums text-foreground">{value}</dd>
+      <dd
+        className={`mt-2 break-words text-sm font-medium tabular-nums text-foreground ${
+          align === "right" ? "text-right" : ""
+        }`}
+      >
+        {value}
+      </dd>
     </div>
   );
 }
 
-function StateMessage({ text }: { text: string }) {
+function StateMessage({ detail, text }: { detail?: string; text: string }) {
   return (
     <div aria-live="polite" className="grid gap-1">
       <p className="label-eyebrow">Etat historique</p>
       <p className="text-sm font-semibold text-foreground">{text}</p>
+      {detail === undefined ? null : <p className="text-sm text-muted-foreground">{detail}</p>}
     </div>
   );
 }
