@@ -39,16 +39,16 @@ export function AppShell({
   children
 }: AppShellProps) {
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen overflow-x-hidden">
       <div className="mx-auto grid min-h-screen max-w-7xl gap-6 px-4 py-4 lg:grid-cols-[260px_minmax(0,1fr)] lg:px-6">
-        <aside className="panel bg-sidebar/90 p-4">
+        <aside className="panel min-w-0 bg-sidebar/90 p-4">
           <div className="grid gap-6">
             <div className="grid gap-2">
               <p className="label-eyebrow">Ritomer</p>
               <div>
-                <h1 className="text-xl font-semibold text-foreground">Closing workbench</h1>
+                <h1 className="text-xl font-semibold text-foreground">Workbench de closing</h1>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Shell lecture seule du frontend V1.
+                  Pilotage fiduciaire du dossier.
                 </p>
               </div>
             </div>
@@ -73,8 +73,8 @@ export function AppShell({
             </nav>
           </div>
         </aside>
-        <div className="flex min-h-screen flex-col gap-4">
-          <header className="panel p-5">
+        <div className="flex min-h-screen min-w-0 flex-col gap-4">
+          <header className="panel min-w-0 p-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="grid gap-3">
                 <div className="label-eyebrow">{eyebrow}</div>
@@ -111,15 +111,15 @@ export function AppShell({
               ) : null}
             </div>
           </header>
-          <div className="sticky top-4 z-10 panel border-dashed bg-card/90 p-4 backdrop-blur">
+          <div className="sticky top-4 z-10 panel min-w-0 border-dashed bg-card/90 p-4 backdrop-blur">
             {actionZone ?? (
               <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-                <p className="font-medium text-foreground">Zone d action</p>
-                <p className="text-muted-foreground">lecture seule</p>
+                <p className="font-medium text-foreground">Action recommandee</p>
+                <p className="text-muted-foreground">Selectionnez une section du dossier.</p>
               </div>
             )}
           </div>
-          <main className="flex-1">{children}</main>
+          <main className="min-w-0 flex-1 overflow-x-hidden">{children}</main>
         </div>
       </div>
     </div>

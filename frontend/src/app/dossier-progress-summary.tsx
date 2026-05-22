@@ -33,18 +33,18 @@ type ProgressItem = {
 };
 
 const statusLabels: Record<ProgressStatus, string> = {
-  blocked: "blocked",
-  done: "done",
-  empty: "empty",
-  error: "error",
-  incomplete: "incomplete",
-  loading: "loading",
-  missing: "missing",
-  ready: "ready",
-  "review-ready": "review-ready",
-  uploaded: "uploaded",
-  verified: "verified",
-  rejected: "rejected"
+  blocked: "bloque",
+  done: "fait",
+  empty: "vide",
+  error: "erreur",
+  incomplete: "incomplet",
+  loading: "chargement",
+  missing: "manquant",
+  ready: "pret",
+  "review-ready": "pret pour revue",
+  uploaded: "depose",
+  verified: "verifie",
+  rejected: "rejete"
 };
 
 export function DossierProgressSummary({
@@ -71,10 +71,10 @@ export function DossierProgressSummary({
             className="text-xl font-semibold text-foreground"
             id="dossier-progress-summary-title"
           >
-            Summary read-only
+            Synthese du dossier
           </h3>
           <p className="text-sm text-muted-foreground">
-            Preview non statutaire. Etat indicatif, pas un export final ni un document CO.
+            Previsualisation non statutaire. Etat indicatif, pas un export final ni un document CO.
           </p>
         </div>
         <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" aria-label="progression dossier">
@@ -114,7 +114,7 @@ function createProgressItems({
 }
 
 function createImportProgressItem(controlsState: ControlsShellState): ProgressItem {
-  const label = "Balance import";
+  const label = "Import balance";
 
   if (controlsState.kind === "loading") {
     return createLoadingItem(label);
@@ -183,25 +183,25 @@ function createMappingProgressItem(manualMappingState: ManualMappingShellState):
 
 function createControlsProgressItem(controlsState: ControlsShellState): ProgressItem {
   if (controlsState.kind === "loading") {
-    return createLoadingItem("Controls readiness");
+    return createLoadingItem("Etat de preparation");
   }
 
   if (controlsState.kind !== "ready") {
-    return createErrorItem("Controls readiness", "readiness indisponible");
+    return createErrorItem("Etat de preparation", "etat de preparation indisponible");
   }
 
   if (controlsState.controls.readiness === "READY") {
     return {
-      label: "Controls readiness",
+      label: "Etat de preparation",
       status: "ready",
-      detail: "readiness pret"
+      detail: "etat de preparation pret"
     };
   }
 
   return {
-    label: "Controls readiness",
+    label: "Etat de preparation",
     status: "blocked",
-    detail: "readiness bloquee par controls"
+    detail: "etat de preparation bloque par controles"
   };
 }
 
@@ -209,7 +209,7 @@ function createFinancialPreviewsProgressItem(
   financialSummaryState: FinancialSummaryShellState,
   financialStatementsStructuredState: FinancialStatementsStructuredShellState
 ): ProgressItem {
-  const label = "Financial previews";
+  const label = "Previsualisations financieres";
 
   if (
     financialSummaryState.kind === "loading" ||
@@ -222,7 +222,7 @@ function createFinancialPreviewsProgressItem(
     financialSummaryState.kind !== "ready" ||
     financialStatementsStructuredState.kind !== "ready"
   ) {
-    return createErrorItem(label, "previews indisponibles");
+    return createErrorItem(label, "previsualisations indisponibles");
   }
 
   const summaryState = financialSummaryState.summary.statementState;
@@ -232,7 +232,7 @@ function createFinancialPreviewsProgressItem(
     return {
       label,
       status: "missing",
-      detail: "aucune preview disponible"
+      detail: "aucune previsualisation disponible"
     };
   }
 
@@ -240,26 +240,26 @@ function createFinancialPreviewsProgressItem(
     return {
       label,
       status: "ready",
-      detail: "previews non statutaires disponibles"
+      detail: "previsualisations non statutaires disponibles"
     };
   }
 
   return {
     label,
     status: "blocked",
-    detail: "preview bloquee ou partielle"
+    detail: "previsualisation bloquee ou partielle"
   };
 }
 
 function createWorkpapersProgressItem(workpapersState: WorkpapersShellState): ProgressItem {
-  const label = "Workpaper coverage";
+  const label = "Couverture justifications";
 
   if (workpapersState.kind === "loading") {
     return createLoadingItem(label);
   }
 
   if (workpapersState.kind !== "ready") {
-    return createErrorItem(label, "workpapers indisponibles");
+    return createErrorItem(label, "justifications indisponibles");
   }
 
   const { summaryCounts } = workpapersState.workpapers;
@@ -268,7 +268,7 @@ function createWorkpapersProgressItem(workpapersState: WorkpapersShellState): Pr
     return {
       label,
       status: "empty",
-      detail: "aucun anchor courant"
+      detail: "aucune rubrique a documenter"
     };
   }
 
@@ -276,49 +276,49 @@ function createWorkpapersProgressItem(workpapersState: WorkpapersShellState): Pr
     return {
       label,
       status: "incomplete",
-      detail: `${summaryCounts.withWorkpaperCount} current, ${summaryCounts.missingCount} missing, ${summaryCounts.staleCount} stale`
+      detail: `${summaryCounts.withWorkpaperCount} courant(s), ${summaryCounts.missingCount} manquant(s), ${summaryCounts.staleCount} ancien(s)`
     };
   }
 
   return {
     label,
     status: "ready",
-    detail: `${summaryCounts.withWorkpaperCount} current, ${summaryCounts.missingCount} missing, ${summaryCounts.staleCount} stale`
+    detail: `${summaryCounts.withWorkpaperCount} courant(s), ${summaryCounts.missingCount} manquant(s), ${summaryCounts.staleCount} ancien(s)`
   };
 }
 
 function createEvidenceProgressItem(workpapersState: WorkpapersShellState): ProgressItem {
   if (workpapersState.kind === "loading") {
-    return createLoadingItem("Evidence documents");
+    return createLoadingItem("Pieces justificatives");
   }
 
   if (workpapersState.kind !== "ready") {
-    return createErrorItem("Evidence documents", "preuves indisponibles");
+    return createErrorItem("Pieces justificatives", "preuves indisponibles");
   }
 
   const counts = getCurrentDocumentCounts(workpapersState.workpapers.items);
 
   if (workpapersState.workpapers.summaryCounts.withWorkpaperCount === 0) {
     return {
-      label: "Evidence documents",
+      label: "Pieces justificatives",
       status: "missing",
-      detail: "workpapers requis avant preuves"
+      detail: "justifications requises avant preuves"
     };
   }
 
   if (counts.documentsCount === 0) {
     return {
-      label: "Evidence documents",
+      label: "Pieces justificatives",
       status: "missing",
       detail: "aucune preuve"
     };
   }
 
-  const detail = `${counts.documentsCount} uploaded, ${counts.verifiedCount} verified, ${counts.rejectedCount} rejected, ${counts.unverifiedCount} unverified`;
+  const detail = `${counts.documentsCount} deposee(s), ${counts.verifiedCount} verifiee(s), ${counts.rejectedCount} rejetee(s), ${counts.unverifiedCount} a verifier`;
 
   if (counts.unverifiedCount > 0) {
     return {
-      label: "Evidence documents",
+      label: "Pieces justificatives",
       status: "blocked",
       detail
     };
@@ -326,7 +326,7 @@ function createEvidenceProgressItem(workpapersState: WorkpapersShellState): Prog
 
   if (counts.rejectedCount > 0) {
     return {
-      label: "Evidence documents",
+      label: "Pieces justificatives",
       status: "rejected",
       detail
     };
@@ -334,14 +334,14 @@ function createEvidenceProgressItem(workpapersState: WorkpapersShellState): Prog
 
   if (counts.verifiedCount > 0) {
     return {
-      label: "Evidence documents",
+      label: "Pieces justificatives",
       status: "verified",
       detail
     };
   }
 
   return {
-    label: "Evidence documents",
+    label: "Pieces justificatives",
     status: "uploaded",
     detail
   };
@@ -349,43 +349,43 @@ function createEvidenceProgressItem(workpapersState: WorkpapersShellState): Prog
 
 function createReviewProgressItem(workpapersState: WorkpapersShellState): ProgressItem {
   if (workpapersState.kind === "loading") {
-    return createLoadingItem("Review");
+    return createLoadingItem("Revue");
   }
 
   if (workpapersState.kind !== "ready") {
-    return createErrorItem("Review", "review indisponible");
+    return createErrorItem("Revue", "revue indisponible");
   }
 
   const { summaryCounts } = workpapersState.workpapers;
 
   if (summaryCounts.withWorkpaperCount === 0 || summaryCounts.missingCount > 0) {
     return {
-      label: "Review",
+      label: "Revue",
       status: "blocked",
-      detail: "workpapers incomplets"
+      detail: "justifications incompletes"
     };
   }
 
   if (summaryCounts.reviewedCount === summaryCounts.withWorkpaperCount) {
     return {
-      label: "Review",
+      label: "Revue",
       status: "ready",
-      detail: `${summaryCounts.reviewedCount} reviewed`
+      detail: `${summaryCounts.reviewedCount} revu(s)`
     };
   }
 
   if (summaryCounts.readyForReviewCount > 0) {
     return {
-      label: "Review",
+      label: "Revue",
       status: "review-ready",
-      detail: `${summaryCounts.readyForReviewCount} ready for review, ${summaryCounts.reviewedCount} reviewed`
+      detail: `${summaryCounts.readyForReviewCount} pret(s) pour revue, ${summaryCounts.reviewedCount} revu(s)`
     };
   }
 
   return {
-    label: "Review",
+    label: "Revue",
     status: "blocked",
-    detail: "aucun workpaper ready for review"
+    detail: "aucune justification prete pour revue"
   };
 }
 

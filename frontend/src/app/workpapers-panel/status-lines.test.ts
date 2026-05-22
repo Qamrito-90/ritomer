@@ -103,14 +103,14 @@ describe("workpapers-panel status line helpers", () => {
         { decision: "VERIFIED", comment: "" },
         { kind: "success", documentId: DOCUMENT_ID, refreshFailed: true }
       )
-    ).toEqual(["decision document enregistree avec succes", "rafraichissement workpapers impossible"]);
+    ).toEqual(["decision document enregistree avec succes", "rafraichissement justifications impossible"]);
     expect(
       getDocumentDecisionStatusLines(
         DOCUMENT_ID,
         { decision: "VERIFIED", comment: "" },
         { kind: "conflict_workpaper_status", documentId: DOCUMENT_ID }
       )
-    ).toEqual(["decision document disponible quand le workpaper est READY_FOR_REVIEW"]);
+    ).toEqual(["decision document disponible quand la justification est READY_FOR_REVIEW"]);
     expect(
       getDocumentDecisionStatusLines(
         DOCUMENT_ID,
@@ -137,13 +137,13 @@ describe("workpapers-panel status line helpers", () => {
         anchorCode: "A",
         refreshFailed: true
       })
-    ).toEqual(["document uploade avec succes", "rafraichissement workpapers impossible"]);
+    ).toEqual(["document uploade avec succes", "rafraichissement justifications impossible"]);
     expect(
       getDocumentUploadStatusLines("A", validUploadDraft(), {
         kind: "conflict_workpaper_read_only",
         anchorCode: "A"
       })
-    ).toEqual(["document non modifiable pour ce workpaper"]);
+    ).toEqual(["document non modifiable pour cette justification"]);
     expect(
       getDocumentUploadStatusLines("A", validUploadDraft(), {
         kind: "unexpected",
@@ -168,7 +168,7 @@ describe("workpapers-panel status line helpers", () => {
         { decision: "REVIEWED", comment: "" },
         { kind: "idle" }
       )
-    ).toEqual(["Mark reviewed available once evidence is verified or no documents are attached"]);
+    ).toEqual(["Revue possible quand les preuves sont verifiees ou quand aucune piece n'est attachee"]);
     expect(
       getWorkpaperDecisionStatusLines(
         "BS.ASSET.CURRENT_SECTION",
@@ -176,7 +176,7 @@ describe("workpapers-panel status line helpers", () => {
         { decision: "CHANGES_REQUESTED", comment: " " },
         { kind: "idle" }
       )
-    ).toEqual(["Reviewer comment"]);
+    ).toEqual(["commentaire de revue requis"]);
     expect(
       getWorkpaperDecisionStatusLines(
         "BS.ASSET.CURRENT_SECTION",
@@ -188,7 +188,7 @@ describe("workpapers-panel status line helpers", () => {
           refreshFailed: true
         }
       )
-    ).toEqual(["workpaper decision saved", "decision sent, but workpapers refresh failed"]);
+    ).toEqual(["decision de revue enregistree", "rafraichissement justifications impossible"]);
     expect(
       getWorkpaperDecisionStatusLines(
         "BS.ASSET.CURRENT_SECTION",
@@ -196,7 +196,7 @@ describe("workpapers-panel status line helpers", () => {
         { decision: "REVIEWED", comment: "" },
         { kind: "conflict_other", anchorCode: "BS.ASSET.CURRENT_SECTION" }
       )
-    ).toEqual(["workpaper decision blocked by current review gates"]);
+    ).toEqual(["decision de revue bloquee par les controles de preuve"]);
   });
 
   it("keeps API result mappers pure and scoped to local UI states", () => {
@@ -226,14 +226,14 @@ describe("workpapers-panel status line helpers", () => {
 
   it("formats workpaper mutation states with the existing wording", () => {
     expect(formatWorkpaperMutationState({ kind: "submitting" })).toBe(
-      "enregistrement workpaper en cours"
+      "enregistrement justification en cours"
     );
     expect(formatWorkpaperMutationState({ kind: "invalid_workpapers_payload" })).toBe(
-      "payload workpapers invalide"
+      "payload justifications invalide"
     );
     expect(formatWorkpaperMutationState({ kind: "conflict_other" })).toBe(
-      "mise a jour workpaper impossible"
+      "mise a jour justification impossible"
     );
-    expect(formatWorkpaperMutationState({ kind: "unexpected" })).toBe("workpaper indisponible");
+    expect(formatWorkpaperMutationState({ kind: "unexpected" })).toBe("justification indisponible");
   });
 });

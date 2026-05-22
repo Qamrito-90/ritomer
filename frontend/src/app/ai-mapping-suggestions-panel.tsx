@@ -46,15 +46,15 @@ export type ManualMappingRefreshWarnings = {
 };
 
 const stateLabels: Record<MappingSuggestionsState, string> = {
-  DISABLED: "AI mapping suggestion disabled.",
-  NO_IMPORT: "No balance import available for AI mapping suggestion.",
-  READY: "AI mapping suggestion ready.",
-  PARTIAL: "Partial AI mapping suggestion coverage.",
-  ARCHIVED_READ_ONLY: "Archived read-only suggestion.",
-  UNAVAILABLE: "AI mapping suggestion unavailable.",
-  TIMEOUT: "AI mapping suggestion timeout.",
-  INVALID_MODEL_OUTPUT: "AI mapping suggestion output unavailable for review.",
-  INSUFFICIENT_EVIDENCE: "Insufficient evidence for AI mapping suggestion."
+  DISABLED: "Suggestions IA desactivees.",
+  NO_IMPORT: "Import balance requis pour les suggestions IA.",
+  READY: "Suggestions IA disponibles.",
+  PARTIAL: "Couverture partielle des suggestions IA.",
+  ARCHIVED_READ_ONLY: "Dossier archive, suggestions en lecture seule.",
+  UNAVAILABLE: "Suggestions IA indisponibles.",
+  TIMEOUT: "Timeout suggestions IA.",
+  INVALID_MODEL_OUTPUT: "Sortie IA indisponible pour revue.",
+  INSUFFICIENT_EVIDENCE: "Preuves insuffisantes pour suggestions IA."
 };
 
 type DecisionReviewState =
@@ -264,15 +264,15 @@ export function AiMappingSuggestionsPanel({
     <section aria-labelledby="ai-mapping-suggestion-title" className="rounded-lg border bg-muted/20 p-4">
       <div className="grid gap-4">
         <div className="grid gap-2">
-          <p className="label-eyebrow">AI mapping suggestion</p>
+          <p className="label-eyebrow">Suggestion IA de mapping</p>
           <h4
             className="text-lg font-semibold text-foreground"
             id="ai-mapping-suggestion-title"
           >
-            Human decision
+            Decision humaine
           </h4>
           <p className="text-sm text-muted-foreground">
-            Human review required. Manual mapping remains the authority.
+            Revue humaine requise. Le mapping manuel reste la reference.
           </p>
         </div>
 
@@ -315,7 +315,7 @@ function MappingSuggestionsStateSlot({
   ) => void;
 }) {
   if (state.kind === "loading") {
-    return <StateMessage text="loading AI mapping suggestion" />;
+    return <StateMessage text="chargement suggestion IA de mapping" />;
   }
 
   if (state.kind !== "ready") {
@@ -363,13 +363,13 @@ function ReadModelView({
     <div className="grid gap-4">
       <div className="rounded-lg border bg-background/80 p-4">
         <dl className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <MetricItem label="state" value={readModel.state} />
+          <MetricItem label="etat" value={readModel.state} />
           <MetricItem
-            label="latest import version"
-            value={readModel.latestImportVersion === null ? "none" : String(readModel.latestImportVersion)}
+            label="derniere version import"
+            value={readModel.latestImportVersion === null ? "aucune" : String(readModel.latestImportVersion)}
           />
-          <MetricItem label="taxonomy version" value={String(readModel.taxonomyVersion)} />
-          <MetricItem label="human review" value="Human review required" />
+          <MetricItem label="version taxonomie" value={String(readModel.taxonomyVersion)} />
+          <MetricItem label="revue humaine" value="requise" />
         </dl>
       </div>
 
@@ -379,7 +379,7 @@ function ReadModelView({
 
       {readModel.suggestions.length === 0 ? (
         <p className="rounded-lg border bg-background/80 p-4 text-sm font-medium text-foreground">
-          No AI mapping suggestion prepared.
+          Aucune suggestion IA preparee.
         </p>
       ) : (
         <ul className="grid gap-4">
@@ -455,19 +455,19 @@ function SuggestionCard({
 
   return (
     <article
-      aria-label={`AI mapping suggestion ${suggestion.accountCode}`}
-      className="grid gap-4 rounded-lg border bg-background/80 p-4"
+      aria-label={`suggestion IA mapping ${suggestion.accountCode}`}
+      className="grid min-w-0 gap-4 overflow-hidden rounded-lg border bg-background/80 p-4"
     >
       <div className="grid gap-3">
-        <dl className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          <DetailItem label="accountCode" value={suggestion.accountCode} />
-          <DetailItem label="accountLabel" value={suggestion.accountLabel} />
-          <DetailItem label="suggestedTargetCode" value={suggestion.suggestedTargetCode} />
-          <DetailItem label="confidence" value={formatConfidence(suggestion.confidence)} />
-          <DetailItem label="riskLevel" value={suggestion.riskLevel} />
+        <dl className="grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <DetailItem label="compte" value={suggestion.accountCode} />
+          <DetailItem label="libelle compte" value={suggestion.accountLabel} />
+          <DetailItem label="cible suggeree" value={suggestion.suggestedTargetCode} />
+          <DetailItem label="confiance" value={formatConfidence(suggestion.confidence)} />
+          <DetailItem label="niveau de risque" value={suggestion.riskLevel} />
           <DetailItem
-            label="requiresHumanReview"
-            value={suggestion.requiresHumanReview ? "Human review required" : "unavailable"}
+            label="revue humaine"
+            value={suggestion.requiresHumanReview ? "requise" : "indisponible"}
           />
         </dl>
 
@@ -478,7 +478,7 @@ function SuggestionCard({
       </div>
 
       <div className="grid gap-3">
-        <h5 className="text-sm font-semibold text-foreground">Evidence</h5>
+        <h5 className="text-sm font-semibold text-foreground">Preuves</h5>
         <ul className="grid gap-3">
           {suggestion.evidence.map((evidence, index) => (
             <li
@@ -487,8 +487,8 @@ function SuggestionCard({
             >
               <dl className="grid gap-2">
                 <DetailItem label="type" value={evidence.type} />
-                <DetailItem label="ref" value={evidence.ref} />
-                <DetailItem label="snippet" value={evidence.snippet} />
+                <DetailItem label="reference" value={evidence.ref} />
+                <DetailItem label="extrait" value={evidence.snippet} />
               </dl>
             </li>
           ))}
@@ -497,9 +497,9 @@ function SuggestionCard({
 
       <div className="grid gap-4 rounded-lg border bg-muted/20 p-4">
         <div className="grid gap-2">
-          <h5 className="text-sm font-semibold text-foreground">Human decision</h5>
+          <h5 className="text-sm font-semibold text-foreground">Decision humaine</h5>
           <p className="text-sm text-muted-foreground">
-            Human review required. Manual mapping remains the authority.
+            Revue humaine requise. Le mapping manuel reste la reference.
           </p>
         </div>
 
@@ -508,7 +508,7 @@ function SuggestionCard({
             className="text-sm font-medium text-foreground"
             htmlFor={`ai-review-comment-${suggestion.accountCode}`}
           >
-            Human decision reviewComment
+            Commentaire de revue
           </label>
           <textarea
             className="min-h-20 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:bg-muted"
@@ -525,21 +525,21 @@ function SuggestionCard({
           </p>
           {reviewCommentOverLimit ? (
             <p className="text-sm font-medium text-[hsl(var(--error-default))]">
-              Human decision reviewComment is limited to 600 characters.
+              Commentaire de revue limite a 600 caracteres.
             </p>
           ) : null}
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto] lg:items-end">
-          <div className="grid gap-2">
+        <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(8rem,auto)_minmax(11rem,auto)_minmax(8rem,auto)] xl:items-end">
+          <div className="grid min-w-0 gap-2">
             <label
               className="text-sm font-medium text-foreground"
               htmlFor={`ai-correction-target-${suggestion.accountCode}`}
             >
-              Correct with another target
+              Corriger avec une autre cible
             </label>
             <select
-              className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground disabled:cursor-not-allowed disabled:bg-muted"
+              className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground disabled:cursor-not-allowed disabled:bg-muted"
               disabled={!decisionable || submitting}
               id={`ai-correction-target-${suggestion.accountCode}`}
               onChange={(event) => {
@@ -547,7 +547,7 @@ function SuggestionCard({
               }}
               value={correctTargetCode}
             >
-              <option value="">Correct with another target</option>
+              <option value="">Corriger avec une autre cible</option>
               {selectableTargetOptions.map((target) => (
                 <option key={target.code} value={target.code}>
                   {formatTargetOption(target)}
@@ -556,22 +556,24 @@ function SuggestionCard({
             </select>
             {correctTargetCode === suggestion.suggestedTargetCode ? (
               <p className="text-sm font-medium text-foreground">
-                Correct with another target must differ from suggestedTargetCode.
+                La cible corrigee doit differer de la cible suggeree.
               </p>
             ) : null}
           </div>
 
           <Button
+            className="w-full xl:w-auto"
             disabled={primaryDecisionDisabled}
             onClick={() => {
               onDecision(readModel, suggestion, "ACCEPT");
             }}
             type="button"
           >
-            Accept suggestion
+            Accepter la suggestion
           </Button>
 
           <Button
+            className="w-full xl:w-auto"
             disabled={correctDisabled}
             onClick={() => {
               onDecision(readModel, suggestion, "CORRECT");
@@ -579,10 +581,11 @@ function SuggestionCard({
             type="button"
             variant="outline"
           >
-            Correct with another target
+            Corriger la cible
           </Button>
 
           <Button
+            className="w-full xl:w-auto"
             disabled={primaryDecisionDisabled}
             onClick={() => {
               onDecision(readModel, suggestion, "REJECT");
@@ -590,12 +593,12 @@ function SuggestionCard({
             type="button"
             variant="outline"
           >
-            Reject suggestion
+            Rejeter la suggestion
           </Button>
         </div>
 
         {!decisionable ? (
-          <p className="text-sm font-medium text-foreground">Human review required.</p>
+          <p className="text-sm font-medium text-foreground">Revue humaine requise.</p>
         ) : null}
 
         <DecisionStatus state={decisionState} />
@@ -611,7 +614,7 @@ function MappingSuggestionErrors({ errors }: { errors: MappingSuggestionError[] 
 
   return (
     <div className="grid gap-3">
-      <h5 className="text-sm font-semibold text-foreground">Read-model messages</h5>
+      <h5 className="text-sm font-semibold text-foreground">Messages de lecture</h5>
       <ul className="grid gap-3">
         {errors.map((error, index) => (
           <li
@@ -628,9 +631,11 @@ function MappingSuggestionErrors({ errors }: { errors: MappingSuggestionError[] 
 
 function DetailItem({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border bg-muted/30 p-3">
+    <div className="min-w-0 rounded-lg border bg-muted/30 p-3">
       <dt className="text-sm text-muted-foreground">{label}</dt>
-      <dd className="mt-2 text-sm font-medium tabular-nums text-foreground">{value}</dd>
+      <dd className="mt-2 min-w-0 break-words text-sm font-medium tabular-nums text-foreground">
+        {value}
+      </dd>
     </div>
   );
 }
@@ -642,7 +647,7 @@ function MetricItem({ label, value }: { label: string; value: string }) {
 function StateMessage({ text }: { text: string }) {
   return (
     <div aria-live="polite" className="grid gap-2">
-      <p className="label-eyebrow">Visible state</p>
+      <p className="label-eyebrow">Etat visible</p>
       <p className="text-lg font-semibold text-foreground">{text}</p>
     </div>
   );
@@ -656,7 +661,7 @@ function DecisionStatus({ state }: { state: DecisionReviewState }) {
   if (state.kind === "submitting") {
     return (
       <p aria-live="polite" className="text-sm font-medium text-foreground">
-        Human decision in progress: {state.decision}.
+        Decision humaine en cours : {state.decision}.
       </p>
     );
   }
@@ -665,7 +670,7 @@ function DecisionStatus({ state }: { state: DecisionReviewState }) {
     return (
       <div aria-live="polite" className="grid gap-2 text-sm font-medium text-foreground">
         <p>
-          Human decision recorded: {state.result.decision}. resultKind:{" "}
+          Decision humaine enregistree : {state.result.decision}. resultat :{" "}
           {state.result.resultKind}.
         </p>
         {state.refreshSuggestionsFailed ? <p>rafraichissement suggestions impossible</p> : null}
@@ -673,16 +678,16 @@ function DecisionStatus({ state }: { state: DecisionReviewState }) {
           <p>rafraichissement mapping impossible</p>
         ) : null}
         {state.manualMappingRefreshWarnings.controlsFailed ? (
-          <p>rafraichissement controls impossible</p>
+          <p>rafraichissement controles impossible</p>
         ) : null}
         {state.manualMappingRefreshWarnings.financialSummaryFailed ? (
-          <p>rafraichissement financial summary impossible</p>
+          <p>rafraichissement synthese financiere impossible</p>
         ) : null}
         {state.manualMappingRefreshWarnings.financialStatementsFailed ? (
-          <p>rafraichissement financial statements impossible</p>
+          <p>rafraichissement etats financiers impossible</p>
         ) : null}
         {state.manualMappingRefreshWarnings.workpapersFailed ? (
-          <p>rafraichissement workpapers impossible</p>
+          <p>rafraichissement justifications impossible</p>
         ) : null}
       </div>
     );
@@ -716,10 +721,10 @@ function RetainedDecisionStatuses({
 
   return (
     <div className="grid gap-3 rounded-lg border bg-background/80 p-4">
-      <h5 className="text-sm font-semibold text-foreground">Human decision</h5>
+      <h5 className="text-sm font-semibold text-foreground">Decision humaine</h5>
       {retainedStates.map(([accountCode, state]) => (
         <div className="grid gap-1" key={accountCode}>
-          <p className="text-sm text-muted-foreground">accountCode {accountCode}</p>
+          <p className="text-sm text-muted-foreground">compte {accountCode}</p>
           <DecisionStatus state={state} />
         </div>
       ))}
@@ -731,70 +736,70 @@ function formatShellState(
   state: Exclude<MappingSuggestionsShellState, { kind: "loading" | "ready" }>
 ) {
   if (state.kind === "auth_required") {
-    return "authentication required";
+    return "authentification requise";
   }
 
   if (state.kind === "forbidden") {
-    return "AI mapping suggestion access refused";
+    return "acces suggestion IA refuse";
   }
 
   if (state.kind === "not_found") {
-    return "AI mapping suggestion closing folder unavailable";
+    return "dossier indisponible pour suggestion IA";
   }
 
   if (state.kind === "network_error") {
-    return "AI mapping suggestion network error";
+    return "erreur reseau suggestion IA";
   }
 
   if (state.kind === "timeout") {
-    return "AI mapping suggestion timeout";
+    return "timeout suggestion IA";
   }
 
-  return "AI mapping suggestion unavailable.";
+  return "suggestion IA indisponible.";
 }
 
 function formatDecisionState(
   state: Exclude<DecisionReviewState, { kind: "idle" | "submitting" | "success" }>
 ) {
   if (state.kind === "bad_request") {
-    return "Human decision invalid payload.";
+    return "decision humaine invalide.";
   }
 
   if (state.kind === "auth_required") {
-    return "Human decision authentication required.";
+    return "authentification requise pour decision humaine.";
   }
 
   if (state.kind === "forbidden") {
-    return "Human decision forbidden.";
+    return "decision humaine refusee.";
   }
 
   if (state.kind === "not_found") {
-    return "Human decision suggestion not found.";
+    return "suggestion introuvable pour decision humaine.";
   }
 
   if (state.kind === "conflict") {
     return state.result === null
-      ? "Human decision conflict: suggestion changed or no longer decisionable."
-      : `Human decision conflict: ${state.result.resultKind}.`;
+      ? "Conflit de decision humaine : suggestion modifiee ou plus disponible pour decision."
+      : `Conflit de decision humaine : ${state.result.resultKind}.`;
   }
 
   if (state.kind === "server_error") {
-    return "Human decision server error.";
+    return "erreur serveur decision humaine.";
   }
 
   if (state.kind === "network_error") {
-    return "Human decision network error.";
+    return "erreur reseau decision humaine.";
   }
 
   if (state.kind === "timeout") {
-    return "Human decision timeout.";
+    return "timeout decision humaine.";
   }
 
   if (state.kind === "invalid_payload") {
-    return "Human decision invalid response payload.";
+    return "reponse decision humaine invalide.";
   }
 
-  return "Human decision unavailable.";
+  return "decision humaine indisponible.";
 }
 
 function formatConfidence(confidence: number) {

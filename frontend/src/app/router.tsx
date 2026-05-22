@@ -210,15 +210,88 @@ type CockpitStep = {
   tone: CockpitTone;
 };
 
-const cockpitSectionLinks = [
-  { href: "#vue-closing", label: "Vue closing" },
-  { href: "#import-balance", label: "Import" },
-  { href: "#mapping", label: "Mapping" },
-  { href: "#controls", label: "Controls" },
-  { href: "#previews", label: "Previews" },
-  { href: "#evidence", label: "Evidence" },
-  { href: "#export-review", label: "Export" }
-] as const;
+type WorkbenchPanelId =
+  | "overview"
+  | "import"
+  | "mapping"
+  | "controls"
+  | "previews"
+  | "evidence"
+  | "export";
+
+type WorkbenchPanelDefinition = {
+  href: string;
+  id: WorkbenchPanelId;
+  label: string;
+  panelId: string;
+  tabId: string;
+};
+
+const workbenchPanels: WorkbenchPanelDefinition[] = [
+  {
+    href: "#vue-closing",
+    id: "overview",
+    label: "Vue d'ensemble",
+    panelId: "workbench-panel-overview",
+    tabId: "workbench-tab-overview"
+  },
+  {
+    href: "#import-balance",
+    id: "import",
+    label: "Import",
+    panelId: "workbench-panel-import",
+    tabId: "workbench-tab-import"
+  },
+  {
+    href: "#mapping",
+    id: "mapping",
+    label: "Mapping",
+    panelId: "workbench-panel-mapping",
+    tabId: "workbench-tab-mapping"
+  },
+  {
+    href: "#controls",
+    id: "controls",
+    label: "Controles",
+    panelId: "workbench-panel-controls",
+    tabId: "workbench-tab-controls"
+  },
+  {
+    href: "#previews",
+    id: "previews",
+    label: "Previsualisations",
+    panelId: "workbench-panel-previews",
+    tabId: "workbench-tab-previews"
+  },
+  {
+    href: "#evidence",
+    id: "evidence",
+    label: "Preuves",
+    panelId: "workbench-panel-evidence",
+    tabId: "workbench-tab-evidence"
+  },
+  {
+    href: "#export-review",
+    id: "export",
+    label: "Export",
+    panelId: "workbench-panel-export",
+    tabId: "workbench-tab-export"
+  }
+];
+
+function getWorkbenchPanelById(panelId: WorkbenchPanelId) {
+  return (
+    workbenchPanels.find((panel) => panel.id === panelId) ??
+    workbenchPanels[0]!
+  );
+}
+
+function getWorkbenchPanelByHref(href: string) {
+  return (
+    workbenchPanels.find((panel) => panel.href === href) ??
+    workbenchPanels[0]!
+  );
+}
 
 const localDateTimeFormatter = new Intl.DateTimeFormat("fr-CH", {
   day: "2-digit",
@@ -336,25 +409,25 @@ function ClosingFoldersEntrypointRoute() {
       actionZone={
         <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
           <div>
-            <p className="font-medium text-foreground">Zone d action</p>
-            <p className="text-muted-foreground">lecture seule</p>
+            <p className="font-medium text-foreground">Action recommandee</p>
+            <p className="text-muted-foreground">Ouvrir un dossier pour poursuivre la revue.</p>
           </div>
-          <p className="text-muted-foreground">Aucune mutation dossier en V1.</p>
+          <p className="text-muted-foreground">Consultation des dossiers disponibles.</p>
         </div>
       }
       breadcrumb={[{ label: "Dossiers de closing" }]}
-      description="Entree produit read-only borne a GET /api/me puis GET /api/closing-folders."
-      eyebrow="Entree produit V1"
+      description="Selectionnez un dossier de closing pour consulter son etat de preparation."
+      eyebrow="Portefeuille dossiers"
       sidebarItems={[{ href: "/", label: "Dossiers" }]}
       tenant={tenant}
-      title="Entree dossiers de closing"
+      title="Dossiers de closing"
     >
       {hasActiveTenant(state) ? (
         <section className="panel p-6">
           <div className="grid gap-6">
             <div className="grid gap-2">
               <p className="label-eyebrow">Dossiers de closing</p>
-              <h3 className="text-xl font-semibold text-foreground">Liste read-only</h3>
+              <h3 className="text-xl font-semibold text-foreground">Portefeuille de closing</h3>
             </div>
             <ClosingFoldersSlot state={state} />
           </div>
@@ -378,11 +451,13 @@ function ClosingFoldersEntrypointRoute() {
 function ClosingFolderRoute() {
   const { closingFolderId = "" } = useParams();
   const [state, setState] = useState<ClosingRouteState>({ kind: "loading" });
+  const [activePanel, setActivePanel] = useState<WorkbenchPanelId>("overview");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importRequestIdRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
+    setActivePanel("overview");
 
     async function loadShellState() {
       setState({ kind: "loading" });
@@ -1065,7 +1140,7 @@ function ClosingFolderRoute() {
         cockpitModel === null ? (
           <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
             <div>
-              <p className="font-medium text-foreground">Zone d action</p>
+              <p className="font-medium text-foreground">Action recommandee</p>
               <p className="text-muted-foreground">chargement du contexte dossier</p>
             </div>
             <Button asChild size="sm" variant="outline">
@@ -1073,7 +1148,7 @@ function ClosingFolderRoute() {
             </Button>
           </div>
         ) : (
-          <ClosingActionZone model={cockpitModel} />
+          <ClosingActionZone model={cockpitModel} onPanelChange={setActivePanel} />
         )
       }
       breadcrumb={[
@@ -1097,17 +1172,27 @@ function ClosingFolderRoute() {
       title="Dossier de closing"
     >
       {state.kind === "closing_ready" ? (
-        <div className="grid gap-6">
+        <div className="grid min-w-0 gap-4 overflow-x-hidden">
           <ClosingCockpit
             activeTenant={state.activeTenant}
+            activePanel={activePanel}
             model={cockpitModel ?? createCockpitModel(state)}
+            onPanelChange={setActivePanel}
           />
 
-          <section className="panel scroll-mt-28 p-6" id="import-balance">
+          <WorkbenchPanel activePanel={activePanel} panelId="overview">
+            <OverviewWorkbenchPanel
+              activeTenant={state.activeTenant}
+              model={cockpitModel ?? createCockpitModel(state)}
+              onPanelChange={setActivePanel}
+            />
+          </WorkbenchPanel>
+
+          <WorkbenchPanel activePanel={activePanel} panelId="import">
             <div className="grid gap-6">
               <div className="grid gap-2">
                 <p className="label-eyebrow">Import balance</p>
-                <h3 className="text-xl font-semibold text-foreground">Upload CSV</h3>
+                <h3 className="text-xl font-semibold text-foreground">Importer une balance CSV</h3>
               </div>
               <div className="grid gap-4">
                 <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
@@ -1147,9 +1232,9 @@ function ClosingFolderRoute() {
                 <BalanceImportHistoryPanel state={state.balanceImportHistoryState} />
               </div>
             </div>
-          </section>
+          </WorkbenchPanel>
 
-          <section className="panel scroll-mt-28 p-6" id="mapping">
+          <WorkbenchPanel activePanel={activePanel} panelId="mapping">
             <div className="grid gap-6">
               <div className="grid gap-2">
                 <p className="label-eyebrow">Mapping manuel</p>
@@ -1187,41 +1272,53 @@ function ClosingFolderRoute() {
                 suggestionsRefreshRequestId={state.mappingSuggestionsRefreshRequestId}
               />
             </div>
-          </section>
+          </WorkbenchPanel>
 
-          <section className="panel scroll-mt-28 p-6" id="controls">
+          <WorkbenchPanel activePanel={activePanel} panelId="controls">
             <div className="grid gap-6">
               <div className="grid gap-2">
                 <p className="label-eyebrow">Controles</p>
-                <h3 className="text-xl font-semibold text-foreground">Cockpit read-only</h3>
+                <h3 className="text-xl font-semibold text-foreground">Etat de preparation</h3>
               </div>
               <ControlsSlot state={state.controlsState} />
             </div>
-          </section>
+          </WorkbenchPanel>
 
-          <section className="panel scroll-mt-28 p-6" id="previews">
-            <div className="grid gap-6">
+          <WorkbenchPanel activePanel={activePanel} panelId="previews">
+            <div className="grid min-w-0 gap-6">
               <div className="grid gap-2">
-                <p className="label-eyebrow">Financial summary</p>
-                <h3 className="text-xl font-semibold text-foreground">Preview read-only</h3>
+                <p className="label-eyebrow">Previsualisations financieres</p>
+                <h3 className="text-xl font-semibold text-foreground">
+                  Previsualisations financieres
+                </h3>
               </div>
-              <FinancialSummarySlot state={state.financialSummaryState} />
-            </div>
-          </section>
+              <div className="grid min-w-0 gap-6 xl:grid-cols-2">
+                <section className="grid min-w-0 gap-6">
+                  <div className="grid gap-2">
+                    <p className="label-eyebrow">Synthese financiere</p>
+                    <h4 className="text-lg font-semibold text-foreground">
+                      Previsualisation operationnelle
+                    </h4>
+                  </div>
+                  <FinancialSummarySlot state={state.financialSummaryState} />
+                </section>
 
-          <section className="panel scroll-mt-28 p-6">
-            <div className="grid gap-6">
-              <div className="grid gap-2">
-                <p className="label-eyebrow">Financial statements structured</p>
-                <h3 className="text-xl font-semibold text-foreground">Preview read-only</h3>
+                <section className="grid min-w-0 gap-6">
+                  <div className="grid gap-2">
+                    <p className="label-eyebrow">Etats financiers structures</p>
+                    <h4 className="text-lg font-semibold text-foreground">
+                      Previsualisation structuree
+                    </h4>
+                  </div>
+                  <FinancialStatementsStructuredSlot
+                    state={state.financialStatementsStructuredState}
+                  />
+                </section>
               </div>
-              <FinancialStatementsStructuredSlot
-                state={state.financialStatementsStructuredState}
-              />
             </div>
-          </section>
+          </WorkbenchPanel>
 
-          <div className="scroll-mt-28" id="evidence">
+          <WorkbenchPanel activePanel={activePanel} panelId="evidence" unframed>
             <WorkpapersPanel
               activeTenant={state.activeTenant}
               closingFolder={state.closingFolder}
@@ -1230,23 +1327,25 @@ function ClosingFolderRoute() {
               initialState={state.workpapersState}
               key={`${state.activeTenant.tenantId}-${state.closingFolder.id}-${state.workpapersPanelRefreshKey}`}
             />
-          </div>
+          </WorkbenchPanel>
 
-          <div className="grid scroll-mt-28 gap-6" id="export-review">
-            <ExportAuditPackPanel
-              activeTenant={state.activeTenant}
-              closingFolderId={state.closingFolder.id}
-              key={`exports-${state.activeTenant.tenantId}-${state.closingFolder.id}`}
-              onExportPackCreateSucceeded={handleExportPackCreateSucceeded}
-            />
+          <WorkbenchPanel activePanel={activePanel} panelId="export" unframed>
+            <div className="grid gap-6">
+              <ExportAuditPackPanel
+                activeTenant={state.activeTenant}
+                closingFolderId={state.closingFolder.id}
+                key={`exports-${state.activeTenant.tenantId}-${state.closingFolder.id}`}
+                onExportPackCreateSucceeded={handleExportPackCreateSucceeded}
+              />
 
-            <MinimalAnnexPanel
-              activeTenant={state.activeTenant}
-              closingFolderId={state.closingFolder.id}
-              key={`minimal-annex-${state.activeTenant.tenantId}-${state.closingFolder.id}`}
-              postExportPackRefreshRequestId={state.minimalAnnexRefreshRequestId}
-            />
-          </div>
+              <MinimalAnnexPanel
+                activeTenant={state.activeTenant}
+                closingFolderId={state.closingFolder.id}
+                key={`minimal-annex-${state.activeTenant.tenantId}-${state.closingFolder.id}`}
+                postExportPackRefreshRequestId={state.minimalAnnexRefreshRequestId}
+              />
+            </div>
+          </WorkbenchPanel>
         </div>
       ) : (
         <section className="panel p-6">
@@ -1277,7 +1376,133 @@ function ClosingFolderRoute() {
   );
 }
 
-function ClosingActionZone({ model }: { model: CockpitModel }) {
+function WorkbenchPanel({
+  activePanel,
+  children,
+  panelId,
+  unframed = false
+}: {
+  activePanel: WorkbenchPanelId;
+  children: ReactNode;
+  panelId: WorkbenchPanelId;
+  unframed?: boolean;
+}) {
+  const definition = getWorkbenchPanelById(panelId);
+  const active = activePanel === panelId;
+  const className = unframed
+    ? "scroll-mt-28 min-w-0 overflow-x-hidden"
+    : "panel scroll-mt-28 min-w-0 overflow-x-hidden p-5";
+
+  return (
+    <section
+      aria-labelledby={definition.tabId}
+      className={className}
+      data-anchor={definition.href.slice(1)}
+      hidden={!active}
+      id={definition.panelId}
+      role="tabpanel"
+      tabIndex={active ? 0 : -1}
+    >
+      {children}
+    </section>
+  );
+}
+
+function OverviewWorkbenchPanel({
+  activeTenant,
+  model,
+  onPanelChange
+}: {
+  activeTenant: ActiveTenant;
+  model: CockpitModel;
+  onPanelChange: (panelId: WorkbenchPanelId) => void;
+}) {
+  const nextActionPanel = getWorkbenchPanelByHref(model.nextAction.href).id;
+
+  return (
+    <div className="grid min-w-0 gap-5">
+      <div className="grid gap-2">
+        <p className="label-eyebrow">Vue d'ensemble</p>
+        <h3 className="text-xl font-semibold text-foreground">Decision du moment</h3>
+      </div>
+
+      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <section className="min-w-0 rounded-lg border bg-background/80 p-4">
+          <div className="grid gap-3">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <StatusPill label={model.status.label} tone={model.status.tone} />
+              <span className="text-sm font-semibold text-foreground">
+                {activeTenant.tenantName}
+              </span>
+            </div>
+            <p className="text-sm leading-6 text-muted-foreground">{model.status.detail}</p>
+            <dl className="grid gap-3 sm:grid-cols-2">
+              <DetailItem label="Reference dossier">
+                <span>{model.closingFolder.externalRef === null ? "non renseignee" : "renseignee"}</span>
+              </DetailItem>
+              <DetailItem label="Periode">
+                <span className="tabular-nums">
+                  {formatClosingPeriod(
+                    model.closingFolder.periodStartOn,
+                    model.closingFolder.periodEndOn
+                  )}
+                </span>
+              </DetailItem>
+            </dl>
+          </div>
+        </section>
+
+        <section className="min-w-0 rounded-lg border bg-muted/20 p-4">
+          <div className="grid gap-3">
+            <div className="grid gap-1">
+              <p className="label-eyebrow">Prochaine action</p>
+              <h4 className="text-lg font-semibold text-foreground">{model.nextAction.label}</h4>
+            </div>
+            <p className="text-sm leading-6 text-muted-foreground">{model.nextAction.detail}</p>
+            <div>
+              <Button
+                onClick={() => {
+                  onPanelChange(nextActionPanel);
+                }}
+                type="button"
+              >
+                {model.nextAction.label}
+              </Button>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <section className="min-w-0 rounded-lg border bg-background/80 p-4">
+        <div className="grid gap-3">
+          <div className="grid gap-1">
+            <p className="label-eyebrow">Blockers principaux</p>
+            <h4 className="text-lg font-semibold text-foreground">
+              {model.blockers.length === 0 ? "Aucun blocker principal" : "Points a traiter"}
+            </h4>
+          </div>
+          <CockpitBlockerList blockers={model.blockers} onPanelChange={onPanelChange} />
+        </div>
+      </section>
+
+        <dl className="grid min-w-0 gap-3 lg:grid-cols-3">
+          <CockpitFactCard label="Ce qui est pret" value={model.readySummary} />
+          <CockpitFactCard label="Preuves et revue" value={model.evidenceReview} />
+          <CockpitFactCard label="Previsualisations et export" value={model.previewExport} />
+        </dl>
+    </div>
+  );
+}
+
+function ClosingActionZone({
+  model,
+  onPanelChange
+}: {
+  model: CockpitModel;
+  onPanelChange: (panelId: WorkbenchPanelId) => void;
+}) {
+  const nextActionPanel = getWorkbenchPanelByHref(model.nextAction.href).id;
+
   return (
     <div className="flex flex-col gap-3 text-sm lg:flex-row lg:items-center lg:justify-between">
       <div className="min-w-0">
@@ -1285,8 +1510,14 @@ function ClosingActionZone({ model }: { model: CockpitModel }) {
         <p className="text-muted-foreground">{model.nextAction.detail}</p>
       </div>
       <div className="flex flex-wrap items-center gap-3">
-        <Button asChild size="sm">
-          <a href={model.nextAction.href}>{model.nextAction.label}</a>
+        <Button
+          onClick={() => {
+            onPanelChange(nextActionPanel);
+          }}
+          size="sm"
+          type="button"
+        >
+          {model.nextAction.label}
         </Button>
         <Button asChild size="sm" variant="outline">
           <Link to="/">Retour dossiers</Link>
@@ -1298,16 +1529,20 @@ function ClosingActionZone({ model }: { model: CockpitModel }) {
 
 function ClosingCockpit({
   activeTenant,
-  model
+  activePanel,
+  model,
+  onPanelChange
 }: {
   activeTenant: ActiveTenant;
+  activePanel: WorkbenchPanelId;
   model: CockpitModel;
+  onPanelChange: (panelId: WorkbenchPanelId) => void;
 }) {
   return (
     <section
       aria-labelledby="closing-cockpit-title"
       className="panel scroll-mt-28 p-4"
-      id="vue-closing"
+      id="closing-cockpit"
     >
       <div className="grid gap-4">
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
@@ -1354,7 +1589,7 @@ function ClosingCockpit({
           <div className="grid gap-1">
             <p className="label-eyebrow">Progression dossier</p>
             <h4 className="text-lg font-semibold text-foreground">
-              Closing - Import - Mapping - Controls - Previews - Evidence - Export
+              Closing - Import - Mapping - Controles - Previsualisations - Preuves - Export
             </h4>
           </div>
           <ol
@@ -1363,16 +1598,19 @@ function ClosingCockpit({
           >
             {model.steps.map((step) => (
               <li className="min-w-0" key={step.label}>
-                <a
-                  className="block h-full rounded-lg border bg-background/80 p-2.5 text-foreground no-underline transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  href={step.href}
+                <button
+                  className="block h-full w-full rounded-lg border bg-background/80 p-2.5 text-left text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  onClick={() => {
+                    onPanelChange(getWorkbenchPanelByHref(step.href).id);
+                  }}
+                  type="button"
                 >
                   <span className="grid gap-1.5">
                     <span className="text-sm font-semibold">{step.label}</span>
                     <StatusPill label={step.stateLabel} tone={step.tone} />
                     <span className="text-xs text-muted-foreground">{step.detail}</span>
                   </span>
-                </a>
+                </button>
               </li>
             ))}
           </ol>
@@ -1399,7 +1637,7 @@ function ClosingCockpit({
                     : `${model.blockers.length} point(s) a traiter`}
                 </p>
               </div>
-              <CockpitBlockerList blockers={model.blockers} />
+              <CockpitBlockerList blockers={model.blockers} onPanelChange={onPanelChange} />
             </div>
           </div>
         </div>
@@ -1407,22 +1645,38 @@ function ClosingCockpit({
         <dl className="grid gap-3 lg:grid-cols-3">
           <CockpitFactCard label="Ce qui est pret" value={model.readySummary} />
           <CockpitFactCard label="Preuves et revue" value={model.evidenceReview} />
-          <CockpitFactCard label="Previews et export" value={model.previewExport} />
+          <CockpitFactCard label="Previsualisations et export" value={model.previewExport} />
         </dl>
 
         <nav aria-label="Sections du dossier">
-          <ul className="flex flex-wrap gap-2">
-            {cockpitSectionLinks.map((link) => (
-              <li key={link.href}>
-                <a
-                  className="inline-flex rounded-md border px-3 py-2 text-sm font-medium text-foreground no-underline hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  href={link.href}
+          <div
+            aria-label="Panneaux du workbench"
+            className="flex flex-wrap gap-2"
+            role="tablist"
+          >
+            {workbenchPanels.map((panel) => {
+              const selected = panel.id === activePanel;
+
+              return (
+                <button
+                  aria-controls={panel.panelId}
+                  aria-selected={selected}
+                  className={`inline-flex rounded-md border px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                    selected ? "bg-[hsl(var(--state-selected))]" : "bg-background/80"
+                  }`}
+                  id={panel.tabId}
+                  key={panel.id}
+                  onClick={() => {
+                    onPanelChange(panel.id);
+                  }}
+                  role="tab"
+                  type="button"
                 >
-                  {link.label}
-                </a>
-              </li>
-            ))}
-          </ul>
+                  {panel.label}
+                </button>
+              );
+            })}
+          </div>
         </nav>
       </div>
     </section>
@@ -1438,7 +1692,13 @@ function CockpitMetaChip({ children, label }: { children: React.ReactNode; label
   );
 }
 
-function CockpitBlockerList({ blockers }: { blockers: CockpitBlocker[] }) {
+function CockpitBlockerList({
+  blockers,
+  onPanelChange
+}: {
+  blockers: CockpitBlocker[];
+  onPanelChange?: (panelId: WorkbenchPanelId) => void;
+}) {
   if (blockers.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -1459,9 +1719,15 @@ function CockpitBlockerList({ blockers }: { blockers: CockpitBlocker[] }) {
               label={blocker.tone === "error" ? "bloquant" : "a verifier"}
               tone={blocker.tone}
             />
-            <a className="text-sm font-semibold" href={blocker.href}>
+            <button
+              className="text-left text-sm font-semibold text-[hsl(var(--text-link))] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              onClick={() => {
+                onPanelChange?.(getWorkbenchPanelByHref(blocker.href).id);
+              }}
+              type="button"
+            >
               {blocker.sectionLabel}
-            </a>
+            </button>
             <span className="text-sm font-medium text-foreground">{blocker.title}</span>
           </div>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">{blocker.detail}</p>
@@ -1557,15 +1823,15 @@ function createCockpitStatus(
       state.financialStatementsStructuredState.financialStatements.statementState === "PREVIEW_READY"
     ) {
       return {
-        detail: "Les previews sont disponibles pour revue humaine et restent non statutaires.",
-        label: "Previews disponibles pour revue",
+        detail: "Les previsualisations sont disponibles pour revue humaine et restent non statutaires.",
+        label: "Previsualisations disponibles pour revue",
         tone: "success"
       };
     }
 
     return {
-      detail: "Les controls sont prets ; verifier les preuves et previews avant tout handoff.",
-      label: "Controls prets",
+      detail: "Les controles sont prets ; verifier les preuves et previsualisations avant tout handoff.",
+      label: "Controles prets",
       tone: "success"
     };
   }
@@ -1593,11 +1859,11 @@ function createCockpitNextAction(
           : primaryBlocker.href === "#mapping"
             ? "Reprendre le mapping"
             : primaryBlocker.href === "#controls"
-              ? "Ouvrir les controls"
+              ? "Ouvrir les controles"
               : primaryBlocker.href === "#evidence"
                 ? "Continuer les preuves"
                 : primaryBlocker.href === "#previews"
-                  ? "Ouvrir les previews"
+                  ? "Ouvrir les previsualisations"
                   : "Voir le point bloquant"
     };
   }
@@ -1611,7 +1877,7 @@ function createCockpitNextAction(
   }
 
   return {
-    detail: "Aucun blocker principal n'est remonte ; consulter le pack et la minimal annex preview pour la revue humaine.",
+    detail: "Aucun blocker principal n'est remonte ; consulter le pack et la previsualisation annexe minimale pour la revue humaine.",
     href: "#export-review",
     label: "Voir export de revue"
   };
@@ -1621,10 +1887,10 @@ function createCockpitBlockers(state: ClosingReadyState): CockpitBlocker[] {
   const blockers: CockpitBlocker[] = [];
 
   appendSurfaceStateBlocker(blockers, state.controlsState.kind, {
-    detail: "Controls indisponibles pour le moment. Reessayez avant de conclure la revue.",
+    detail: "Controles indisponibles pour le moment. Reessayez avant de conclure la revue.",
     href: "#controls",
-    sectionLabel: "Controls",
-    title: "Readiness non exploitable"
+    sectionLabel: "Controles",
+    title: "Etat de preparation non exploitable"
   });
   appendSurfaceStateBlocker(blockers, state.manualMappingState.kind, {
     detail: "Le mapping manuel doit etre lisible avant de conclure la couverture du dossier.",
@@ -1632,31 +1898,13 @@ function createCockpitBlockers(state: ClosingReadyState): CockpitBlocker[] {
     sectionLabel: "Mapping",
     title: "Mapping indisponible"
   });
-  appendSurfaceStateBlocker(blockers, state.financialSummaryState.kind, {
-    detail: "La preview financiere reste bloquee par securite tant que les donnees ne sont pas coherentes.",
-    href: "#previews",
-    sectionLabel: "Previews",
-    title: "Financial summary indisponible"
-  });
-  appendSurfaceStateBlocker(blockers, state.financialStatementsStructuredState.kind, {
-    detail: "La preview structuree des etats financiers n'est pas exploitable pour la revue.",
-    href: "#previews",
-    sectionLabel: "Previews",
-    title: "Preview structuree indisponible"
-  });
-  appendSurfaceStateBlocker(blockers, state.workpapersState.kind, {
-    detail: "Les justifications et preuves ne peuvent pas etre evaluees pour le moment.",
-    href: "#evidence",
-    sectionLabel: "Evidence",
-    title: "Workpapers indisponibles"
-  });
 
   if (state.controlsState.kind === "ready") {
     const { controls } = state.controlsState;
 
     if (!controls.latestImportPresent) {
       blockers.push({
-        detail: "Aucun import valide n'est disponible. Importer une balance avant mapping et controls.",
+        detail: "Aucun import valide n'est disponible. Importer une balance avant mapping et controles.",
         href: "#import-balance",
         sectionLabel: "Import",
         title: "Import balance manquant",
@@ -1678,10 +1926,10 @@ function createCockpitBlockers(state: ClosingReadyState): CockpitBlocker[] {
 
     if (failedControl !== undefined && controls.mappingSummary.unmapped === 0) {
       blockers.push({
-        detail: "Un control bloque la readiness. Ouvrir la section Controls pour le detail metier.",
+        detail: "Un controle bloque l'etat de preparation. Ouvrir la section Controles pour le detail metier.",
         href: "#controls",
-        sectionLabel: "Controls",
-        title: "Readiness bloquee",
+        sectionLabel: "Controles",
+        title: "Preparation bloquee",
         tone: "error"
       });
     }
@@ -1709,15 +1957,34 @@ function createCockpitBlockers(state: ClosingReadyState): CockpitBlocker[] {
     }
   }
 
+  appendSurfaceStateBlocker(blockers, state.financialSummaryState.kind, {
+    detail: "La previsualisation financiere reste bloquee par securite tant que les donnees ne sont pas coherentes.",
+    href: "#previews",
+    sectionLabel: "Previsualisations",
+    title: "Synthese financiere indisponible"
+  });
+  appendSurfaceStateBlocker(blockers, state.financialStatementsStructuredState.kind, {
+    detail: "La previsualisation structuree des etats financiers n'est pas exploitable pour la revue.",
+    href: "#previews",
+    sectionLabel: "Previsualisations",
+    title: "Previsualisation structuree indisponible"
+  });
+  appendSurfaceStateBlocker(blockers, state.workpapersState.kind, {
+    detail: "Les justifications et preuves ne peuvent pas etre evaluees pour le moment.",
+    href: "#evidence",
+    sectionLabel: "Preuves",
+    title: "Justifications indisponibles"
+  });
+
   if (state.workpapersState.kind === "ready") {
     const { summaryCounts } = state.workpapersState.workpapers;
     const documentCounts = getWorkpaperDocumentCounts(state.workpapersState);
 
     if (summaryCounts.missingCount > 0) {
       blockers.push({
-        detail: `${summaryCounts.missingCount} workpaper(s) courant(s) restent a documenter.`,
+        detail: `${summaryCounts.missingCount} justification(s) courante(s) restent a documenter.`,
         href: "#evidence",
-        sectionLabel: "Evidence",
+        sectionLabel: "Preuves",
         title: "Justifications a completer",
         tone: "warning"
       });
@@ -1727,8 +1994,8 @@ function createCockpitBlockers(state: ClosingReadyState): CockpitBlocker[] {
       blockers.push({
         detail: `${summaryCounts.staleCount} justification(s) sont rattachees a une ancienne structure.`,
         href: "#evidence",
-        sectionLabel: "Evidence",
-        title: "Justifications stale",
+        sectionLabel: "Preuves",
+        title: "Justifications obsoletes",
         tone: "warning"
       });
     }
@@ -1737,7 +2004,7 @@ function createCockpitBlockers(state: ClosingReadyState): CockpitBlocker[] {
       blockers.push({
         detail: `${documentCounts.unverifiedCount} piece(s) restent a verifier par un reviewer.`,
         href: "#evidence",
-        sectionLabel: "Evidence",
+        sectionLabel: "Preuves",
         title: "Pieces non verifiees",
         tone: "warning"
       });
@@ -1751,10 +2018,10 @@ function createCockpitBlockers(state: ClosingReadyState): CockpitBlocker[] {
       state.financialStatementsStructuredState.financialStatements.statementState === "BLOCKED")
   ) {
     blockers.push({
-      detail: "Les previews financieres restent partielles ou bloquees et ne sont pas statutaires.",
+      detail: "Les previsualisations financieres restent partielles ou bloquees et ne sont pas statutaires.",
       href: "#previews",
-      sectionLabel: "Previews",
-      title: "Previews a revoir",
+      sectionLabel: "Previsualisations",
+      title: "Previsualisations a revoir",
       tone: "warning"
     });
   }
@@ -1917,9 +2184,9 @@ function createMappingStep(manualMappingState: ManualMappingShellState): Cockpit
 function createControlsStep(controlsState: ControlsShellState): CockpitStep {
   if (controlsState.kind === "loading") {
     return {
-      detail: "Readiness en chargement.",
+      detail: "Etat de preparation en chargement.",
       href: "#controls",
-      label: "Controls",
+      label: "Controles",
       stateLabel: "chargement",
       tone: "neutral"
     };
@@ -1927,9 +2194,9 @@ function createControlsStep(controlsState: ControlsShellState): CockpitStep {
 
   if (controlsState.kind !== "ready") {
     return {
-      detail: "Readiness indisponible.",
+      detail: "Etat de preparation indisponible.",
       href: "#controls",
-      label: "Controls",
+      label: "Controles",
       stateLabel: controlsState.kind === "invalid_payload" ? "incoherent" : "indisponible",
       tone: controlsState.kind === "invalid_payload" ? "error" : "warning"
     };
@@ -1937,18 +2204,18 @@ function createControlsStep(controlsState: ControlsShellState): CockpitStep {
 
   if (controlsState.controls.readiness === "READY") {
     return {
-      detail: "Controls prets pour revue.",
+      detail: "Controles prets pour revue.",
       href: "#controls",
-      label: "Controls",
+      label: "Controles",
       stateLabel: "pret",
       tone: "success"
     };
   }
 
   return {
-    detail: "Controls bloquants.",
+    detail: "Controles bloquants.",
     href: "#controls",
-    label: "Controls",
+    label: "Controles",
     stateLabel: "bloque",
     tone: "error"
   };
@@ -1963,9 +2230,9 @@ function createPreviewsStep(
     financialStatementsStructuredState.kind === "loading"
   ) {
     return {
-      detail: "Previews en chargement.",
+      detail: "Previsualisations en chargement.",
       href: "#previews",
-      label: "Previews",
+      label: "Previsualisations",
       stateLabel: "chargement",
       tone: "neutral"
     };
@@ -1976,9 +2243,9 @@ function createPreviewsStep(
     financialStatementsStructuredState.kind !== "ready"
   ) {
     return {
-      detail: "Previews indisponibles.",
+      detail: "Previsualisations indisponibles.",
       href: "#previews",
-      label: "Previews",
+      label: "Previsualisations",
       stateLabel:
         financialSummaryState.kind === "invalid_payload" ||
         financialStatementsStructuredState.kind === "invalid_payload"
@@ -1999,7 +2266,7 @@ function createPreviewsStep(
     return {
       detail: "Non statutaires, pour revue humaine.",
       href: "#previews",
-      label: "Previews",
+      label: "Previsualisations",
       stateLabel: "disponibles",
       tone: "success"
     };
@@ -2010,18 +2277,18 @@ function createPreviewsStep(
     financialStatementsStructuredState.financialStatements.statementState === "NO_DATA"
   ) {
     return {
-      detail: "Aucune preview exploitable.",
+      detail: "Aucune previsualisation exploitable.",
       href: "#previews",
-      label: "Previews",
+      label: "Previsualisations",
       stateLabel: "aucune",
       tone: "warning"
     };
   }
 
   return {
-    detail: "Preview partielle ou bloquee.",
+    detail: "Previsualisation partielle ou bloquee.",
     href: "#previews",
-    label: "Previews",
+    label: "Previsualisations",
     stateLabel: "partiel",
     tone: "warning"
   };
@@ -2030,9 +2297,9 @@ function createPreviewsStep(
 function createEvidenceStep(workpapersState: WorkpapersShellState): CockpitStep {
   if (workpapersState.kind === "loading") {
     return {
-      detail: "Evidence en chargement.",
+      detail: "Preuves en chargement.",
       href: "#evidence",
-      label: "Evidence",
+      label: "Preuves",
       stateLabel: "chargement",
       tone: "neutral"
     };
@@ -2040,9 +2307,9 @@ function createEvidenceStep(workpapersState: WorkpapersShellState): CockpitStep 
 
   if (workpapersState.kind !== "ready") {
     return {
-      detail: "Evidence indisponible.",
+      detail: "Preuves indisponibles.",
       href: "#evidence",
-      label: "Evidence",
+      label: "Preuves",
       stateLabel: workpapersState.kind === "invalid_payload" ? "incoherent" : "indisponible",
       tone: workpapersState.kind === "invalid_payload" ? "error" : "warning"
     };
@@ -2055,7 +2322,7 @@ function createEvidenceStep(workpapersState: WorkpapersShellState): CockpitStep 
     return {
       detail: "Aucun anchor courant.",
       href: "#evidence",
-      label: "Evidence",
+      label: "Preuves",
       stateLabel: "vide",
       tone: "neutral"
     };
@@ -2063,18 +2330,18 @@ function createEvidenceStep(workpapersState: WorkpapersShellState): CockpitStep 
 
   if (summaryCounts.missingCount > 0 || documentCounts.unverifiedCount > 0) {
     return {
-      detail: `${summaryCounts.missingCount} workpaper(s) manquant(s), ${documentCounts.unverifiedCount} piece(s) non verifiee(s).`,
+      detail: `${summaryCounts.missingCount} justification(s) manquante(s), ${documentCounts.unverifiedCount} piece(s) non verifiee(s).`,
       href: "#evidence",
-      label: "Evidence",
+      label: "Preuves",
       stateLabel: "a completer",
       tone: "warning"
     };
   }
 
   return {
-    detail: `${summaryCounts.withWorkpaperCount} workpaper(s), ${documentCounts.verifiedCount} piece(s) verifiee(s).`,
+    detail: `${summaryCounts.withWorkpaperCount} justification(s), ${documentCounts.verifiedCount} piece(s) verifiee(s).`,
     href: "#evidence",
-    label: "Evidence",
+    label: "Preuves",
     stateLabel: "pret",
     tone: "success"
   };
@@ -2091,19 +2358,19 @@ function formatReadySummary(state: ClosingReadyState) {
       : "mapping a verifier";
   const controlsText =
     state.controlsState.kind === "ready" && state.controlsState.controls.readiness === "READY"
-      ? "controls prets"
-      : "controls a verifier";
+      ? "controles prets"
+      : "controles a verifier";
 
   return `${importText} - ${mappingText} - ${controlsText}`;
 }
 
 function formatEvidenceReviewSummary(workpapersState: WorkpapersShellState) {
   if (workpapersState.kind === "loading") {
-    return "Workpapers et preuves en chargement.";
+    return "Justifications et preuves en chargement.";
   }
 
   if (workpapersState.kind !== "ready") {
-    return "Workpapers et preuves indisponibles pour le moment.";
+    return "Justifications et preuves indisponibles pour le moment.";
   }
 
   const { summaryCounts } = workpapersState.workpapers;
@@ -2127,7 +2394,7 @@ function formatPreviewExportSummary(
         )
       : formatShellStateLabel(financialStatementsStructuredState.kind);
 
-  return `${financialSummaryLabel} - ${structuredLabel}. Preview non statutaire. Revue humaine requise.`;
+  return `${financialSummaryLabel} - ${structuredLabel}. Previsualisation non statutaire. Revue humaine requise.`;
 }
 
 function getWorkpaperDocumentCounts(workpapersState: Extract<WorkpapersShellState, { kind: "ready" }>) {
@@ -2182,14 +2449,14 @@ function formatStructuredPreviewStateLabel(
   state: StructuredFinancialStatementsPreview["statementState"]
 ) {
   if (state === "PREVIEW_READY") {
-    return "Preview structuree disponible";
+    return "Previsualisation structuree disponible";
   }
 
   if (state === "BLOCKED") {
-    return "Preview structuree bloquee";
+    return "Previsualisation structuree bloquee";
   }
 
-  return "Preview structuree sans donnee";
+  return "Previsualisation structuree sans donnee";
 }
 
 function formatShellStateLabel(kind: string) {
@@ -2273,7 +2540,7 @@ function ClosingFolderListCard({ closingFolder }: { closingFolder: ClosingFolder
 
 function ControlsSlot({ state }: { state: ControlsShellState }) {
   if (state.kind === "loading") {
-    return <StateMessage text="chargement controls" />;
+    return <StateMessage text="chargement controles" />;
   }
 
   if (state.kind === "auth_required") {
@@ -2281,27 +2548,27 @@ function ControlsSlot({ state }: { state: ControlsShellState }) {
   }
 
   if (state.kind === "forbidden") {
-    return <StateMessage text="acces controls refuse" />;
+    return <StateMessage text="acces controles refuse" />;
   }
 
   if (state.kind === "not_found") {
-    return <StateMessage text="controls introuvables" />;
+    return <StateMessage text="controles introuvables" />;
   }
 
   if (state.kind === "server_error") {
-    return <StateMessage text="erreur serveur controls" />;
+    return <StateMessage text="erreur serveur controles" />;
   }
 
   if (state.kind === "network_error") {
-    return <StateMessage text="erreur reseau controls" />;
+    return <StateMessage text="erreur reseau controles" />;
   }
 
   if (state.kind === "timeout") {
-    return <StateMessage text="timeout controls" />;
+    return <StateMessage text="timeout controles" />;
   }
 
   if (state.kind === "invalid_payload") {
-    return <StateMessage text="payload controls invalide" />;
+    return <StateMessage text="payload controles invalide" />;
   }
 
   if (state.kind === "unexpected") {
@@ -2313,7 +2580,7 @@ function ControlsSlot({ state }: { state: ControlsShellState }) {
 
 function FinancialSummarySlot({ state }: { state: FinancialSummaryShellState }) {
   if (state.kind === "loading") {
-    return <StateMessage text="chargement financial summary" />;
+    return <StateMessage text="chargement synthese financiere" />;
   }
 
   if (state.kind === "auth_required") {
@@ -2321,31 +2588,31 @@ function FinancialSummarySlot({ state }: { state: FinancialSummaryShellState }) 
   }
 
   if (state.kind === "forbidden") {
-    return <StateMessage text="acces financial summary refuse" />;
+    return <StateMessage text="acces synthese financiere refuse" />;
   }
 
   if (state.kind === "not_found") {
-    return <StateMessage text="financial summary introuvable" />;
+    return <StateMessage text="synthese financiere introuvable" />;
   }
 
   if (state.kind === "server_error") {
-    return <StateMessage text="erreur serveur financial summary" />;
+    return <StateMessage text="erreur serveur synthese financiere" />;
   }
 
   if (state.kind === "network_error") {
-    return <StateMessage text="erreur reseau financial summary" />;
+    return <StateMessage text="erreur reseau synthese financiere" />;
   }
 
   if (state.kind === "timeout") {
-    return <StateMessage text="timeout financial summary" />;
+    return <StateMessage text="timeout synthese financiere" />;
   }
 
   if (state.kind === "invalid_payload") {
-    return <StateMessage text="payload financial summary invalide" />;
+    return <StateMessage text="payload synthese financiere invalide" />;
   }
 
   if (state.kind === "bad_request" || state.kind === "unexpected") {
-    return <StateMessage text="financial summary indisponible" />;
+    return <StateMessage text="synthese financiere indisponible" />;
   }
 
   return <FinancialSummaryNominalBlocks summary={state.summary} />;
@@ -2357,7 +2624,7 @@ function FinancialStatementsStructuredSlot({
   state: FinancialStatementsStructuredShellState;
 }) {
   if (state.kind === "loading") {
-    return <StateMessage text="chargement structured preview" />;
+    return <StateMessage text="chargement previsualisation structuree" />;
   }
 
   if (state.kind === "auth_required") {
@@ -2365,31 +2632,31 @@ function FinancialStatementsStructuredSlot({
   }
 
   if (state.kind === "forbidden") {
-    return <StateMessage text="acces financial statements structured refuse" />;
+    return <StateMessage text="acces etats financiers structures refuse" />;
   }
 
   if (state.kind === "not_found") {
-    return <StateMessage text="financial statements structured introuvable" />;
+    return <StateMessage text="etats financiers structures introuvables" />;
   }
 
   if (state.kind === "server_error") {
-    return <StateMessage text="erreur serveur financial statements structured" />;
+    return <StateMessage text="erreur serveur etats financiers structures" />;
   }
 
   if (state.kind === "network_error") {
-    return <StateMessage text="erreur reseau financial statements structured" />;
+    return <StateMessage text="erreur reseau etats financiers structures" />;
   }
 
   if (state.kind === "timeout") {
-    return <StateMessage text="timeout financial statements structured" />;
+    return <StateMessage text="timeout etats financiers structures" />;
   }
 
   if (state.kind === "invalid_payload") {
-    return <StateMessage text="payload financial statements structured invalide" />;
+    return <StateMessage text="payload etats financiers structures invalide" />;
   }
 
   if (state.kind === "bad_request" || state.kind === "unexpected") {
-    return <StateMessage text="financial statements structured indisponible" />;
+    return <StateMessage text="etats financiers structures indisponibles" />;
   }
 
   return (
@@ -2430,23 +2697,25 @@ function ImportBalanceStatus({
           <p className="text-sm font-medium text-foreground">rafraichissement dossier impossible</p>
         ) : null}
         {importState.refreshWarnings.controlsFailed ? (
-          <p className="text-sm font-medium text-foreground">rafraichissement controls impossible</p>
+          <p className="text-sm font-medium text-foreground">rafraichissement controles impossible</p>
         ) : null}
         {importState.refreshWarnings.mappingFailed ? (
           <p className="text-sm font-medium text-foreground">rafraichissement mapping impossible</p>
         ) : null}
         {importState.refreshWarnings.financialSummaryFailed ? (
           <p className="text-sm font-medium text-foreground">
-            rafraichissement financial summary impossible
+            rafraichissement synthese financiere impossible
           </p>
         ) : null}
         {importState.refreshWarnings.financialStatementsFailed ? (
           <p className="text-sm font-medium text-foreground">
-            rafraichissement financial statements impossible
+            rafraichissement etats financiers impossible
           </p>
         ) : null}
         {importState.refreshWarnings.workpapersFailed ? (
-          <p className="text-sm font-medium text-foreground">rafraichissement workpapers impossible</p>
+          <p className="text-sm font-medium text-foreground">
+            rafraichissement justifications impossible
+          </p>
         ) : null}
         {importState.refreshWarnings.importHistoryFailed ? (
           <p className="text-sm font-medium text-foreground">
@@ -2625,7 +2894,7 @@ function ManualMappingSlot({
         {state.projection.lines.length === 0 ? (
           <p className="text-sm font-medium text-foreground">aucune ligne a mapper</p>
         ) : (
-          <ul className="grid gap-4">
+          <ul className="grid min-w-0 gap-4">
             {state.projection.lines.map((line) => {
               const currentMapping = findManualMappingForAccount(state.projection, line.accountCode);
               const selectedTargetCode = selectedTargets[line.accountCode] ?? "";
@@ -2639,15 +2908,15 @@ function ManualMappingSlot({
                 <li key={line.accountCode}>
                   <article
                     aria-label={`ligne mapping ${line.accountCode}`}
-                    className="rounded-lg border bg-background/80 p-4"
+                    className="min-w-0 overflow-hidden rounded-lg border bg-background/80 p-4"
                   >
-                    <div className="grid gap-4">
-                      <dl className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                    <div className="grid min-w-0 gap-4">
+                      <dl className="grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-5">
                         <DetailItem label="Compte">
-                          <span className="tabular-nums">{line.accountCode}</span>
+                          <span className="break-all tabular-nums">{line.accountCode}</span>
                         </DetailItem>
                         <DetailItem label="Libelle">
-                          <span>{line.accountLabel}</span>
+                          <span className="break-words">{line.accountLabel}</span>
                         </DetailItem>
                         <DetailItem label="Debit">
                           <span className="tabular-nums">{line.debit}</span>
@@ -2656,7 +2925,7 @@ function ManualMappingSlot({
                           <span className="tabular-nums">{line.credit}</span>
                         </DetailItem>
                         <DetailItem label="Mapping courant">
-                          <span>
+                          <span className="break-words">
                             {currentMapping === undefined
                               ? "aucun"
                               : `${targetLabelByCode.get(currentMapping.targetCode)} (${currentMapping.targetCode})`}
@@ -2664,8 +2933,8 @@ function ManualMappingSlot({
                         </DetailItem>
                       </dl>
 
-                      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto_auto] lg:items-end">
-                        <div className="grid gap-2">
+                      <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(9rem,auto)_minmax(9rem,auto)] lg:items-end">
+                        <div className="grid min-w-0 gap-2">
                           <label
                             className="text-sm font-medium text-foreground"
                             htmlFor={`mapping-target-${line.accountCode}`}
@@ -2673,7 +2942,7 @@ function ManualMappingSlot({
                             Cible
                           </label>
                           <select
-                            className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground disabled:cursor-not-allowed disabled:bg-muted"
+                            className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground disabled:cursor-not-allowed disabled:bg-muted"
                             disabled={controlsDisabled}
                             id={`mapping-target-${line.accountCode}`}
                             onChange={(event) => {
@@ -2691,16 +2960,20 @@ function ManualMappingSlot({
                         </div>
 
                         <Button
+                          aria-label="Enregistrer le mapping"
+                          className="w-full lg:w-auto"
                           disabled={saveDisabled}
                           onClick={() => {
                             void onSave(line.accountCode);
                           }}
                           type="button"
                         >
-                          Enregistrer le mapping
+                          Enregistrer
                         </Button>
 
                         <Button
+                          aria-label="Supprimer le mapping"
+                          className="w-full lg:w-auto"
                           disabled={deleteDisabled}
                           onClick={() => {
                             void onDelete(line.accountCode);
@@ -2708,7 +2981,7 @@ function ManualMappingSlot({
                           type="button"
                           variant="outline"
                         >
-                          Supprimer le mapping
+                          Supprimer
                         </Button>
                       </div>
                     </div>
@@ -2741,20 +3014,22 @@ function ManualMappingMutationStatus({ state }: { state: ManualMappingMutationSt
           <p className="text-sm font-medium text-foreground">rafraichissement mapping impossible</p>
         ) : null}
         {state.refreshWarnings.controlsFailed ? (
-          <p className="text-sm font-medium text-foreground">rafraichissement controls impossible</p>
+          <p className="text-sm font-medium text-foreground">rafraichissement controles impossible</p>
         ) : null}
         {state.refreshWarnings.financialSummaryFailed ? (
           <p className="text-sm font-medium text-foreground">
-            rafraichissement financial summary impossible
+            rafraichissement synthese financiere impossible
           </p>
         ) : null}
         {state.refreshWarnings.financialStatementsFailed ? (
           <p className="text-sm font-medium text-foreground">
-            rafraichissement financial statements impossible
+            rafraichissement etats financiers impossible
           </p>
         ) : null}
         {state.refreshWarnings.workpapersFailed ? (
-          <p className="text-sm font-medium text-foreground">rafraichissement workpapers impossible</p>
+          <p className="text-sm font-medium text-foreground">
+            rafraichissement justifications impossible
+          </p>
         ) : null}
         {state.refreshWarnings.suggestionsFailed ? (
           <p className="text-sm font-medium text-foreground">rafraichissement suggestions impossible</p>
@@ -2769,9 +3044,12 @@ function ManualMappingMutationStatus({ state }: { state: ManualMappingMutationSt
 function ControlsNominalBlocks({ controls }: { controls: ClosingControlsSummary }) {
   return (
     <div className="grid gap-4">
-      <ControlsBlock title="Readiness">
+      <ControlsBlock title="Resume de preparation">
         <dl className="grid gap-3 md:grid-cols-2">
-          <MetricItem label="readiness" value={controls.readiness === "READY" ? "pret" : "bloque"} />
+          <MetricItem
+            label="etat de preparation"
+            value={controls.readiness === "READY" ? "pret" : "bloque"}
+          />
           <MetricItem
             label="dernier import valide"
             value={controls.latestImportPresent ? "present" : "absent"}
@@ -2822,8 +3100,8 @@ function ControlsNominalBlocks({ controls }: { controls: ClosingControlsSummary 
         {controls.unmappedAccounts.length === 0 ? (
           <p className="text-sm font-medium text-foreground">aucun compte non mappe</p>
         ) : (
-          <div className="overflow-x-auto rounded-lg border">
-            <table className="min-w-full border-collapse text-left text-sm">
+          <div className="min-w-0 overflow-hidden rounded-lg border">
+            <table className="w-full table-fixed border-collapse text-left text-sm">
               <thead className="bg-muted/40">
                 <tr>
                   <th className="px-4 py-3 font-semibold text-foreground" scope="col">
@@ -2843,12 +3121,12 @@ function ControlsNominalBlocks({ controls }: { controls: ClosingControlsSummary 
               <tbody>
                 {controls.unmappedAccounts.map((account) => (
                   <tr className="border-t" key={`${account.accountCode}-${account.accountLabel}`}>
-                    <td className="px-4 py-3 font-medium tabular-nums text-foreground">
+                    <td className="break-all px-4 py-3 font-medium tabular-nums text-foreground">
                       {account.accountCode}
                     </td>
-                    <td className="px-4 py-3 text-foreground">{account.accountLabel}</td>
-                    <td className="px-4 py-3 tabular-nums text-foreground">{account.debit}</td>
-                    <td className="px-4 py-3 tabular-nums text-foreground">{account.credit}</td>
+                    <td className="break-words px-4 py-3 text-foreground">{account.accountLabel}</td>
+                    <td className="break-words px-4 py-3 tabular-nums text-foreground">{account.debit}</td>
+                    <td className="break-words px-4 py-3 tabular-nums text-foreground">{account.credit}</td>
                   </tr>
                 ))}
               </tbody>
@@ -2865,11 +3143,11 @@ function FinancialSummaryNominalBlocks({ summary }: { summary: FinancialSummaryP
     summary.statementState === "NO_DATA"
       ? "aucune donnee"
       : summary.statementState === "PREVIEW_PARTIAL"
-        ? "preview partielle"
-        : "preview prete";
+        ? "previsualisation partielle"
+        : "previsualisation prete";
 
   const previewLines = [
-    `etat preview : ${previewStateLabel}`,
+    `etat previsualisation : ${previewStateLabel}`,
     `version d import : ${summary.latestImportVersion === null ? "aucune" : String(summary.latestImportVersion)}`,
     `lignes total : ${summary.coverage.totalLines}`,
     `lignes mappees : ${summary.coverage.mappedLines}`,
@@ -2883,14 +3161,14 @@ function FinancialSummaryNominalBlocks({ summary }: { summary: FinancialSummaryP
   return (
     <div className="grid gap-4">
       <p className="rounded-lg border bg-background/80 p-4 text-sm font-medium text-foreground">
-        Preview non statutaire. Not a final CO deliverable. Do not use as statutory filing.
+        Previsualisation non statutaire. Pas un livrable statutaire final. Ne pas utiliser pour un depot officiel.
       </p>
 
-      <ControlsBlock title="Etat preview">
+      <ControlsBlock title="Etat de la previsualisation">
         <ReadonlyLineList lines={previewLines} />
         {summary.statementState === "NO_DATA" ? (
           <p className="text-sm font-medium text-foreground">
-            aucune preview financiere disponible
+            aucune previsualisation financiere disponible
           </p>
         ) : null}
       </ControlsBlock>
@@ -2935,10 +3213,10 @@ function FinancialStatementsStructuredNominalBlocks({
       ? "aucune donnee"
       : financialStatements.statementState === "BLOCKED"
         ? "bloquee"
-        : "preview prete";
+        : "previsualisation prete";
 
   const previewLines = [
-    `etat structured preview : ${previewStateLabel}`,
+    `etat previsualisation structuree : ${previewStateLabel}`,
     `version d import : ${financialStatements.latestImportVersion === null ? "aucune" : String(financialStatements.latestImportVersion)}`,
     `lignes total : ${financialStatements.coverage.totalLines}`,
     `lignes mappees : ${financialStatements.coverage.mappedLines}`,
@@ -2949,19 +3227,18 @@ function FinancialStatementsStructuredNominalBlocks({
   return (
     <div className="grid gap-4">
       <p className="rounded-lg border bg-background/80 p-4 text-sm font-medium text-foreground">
-        Preview structuree non statutaire. Not a final CO deliverable. Do not use as
-        statutory filing.
+        Previsualisation structuree non statutaire. Pas un livrable statutaire final. Ne pas utiliser pour un depot officiel.
       </p>
 
-      <ControlsBlock title="Etat structured preview">
+      <ControlsBlock title="Etat de la previsualisation structuree">
         <ReadonlyLineList lines={previewLines} />
         {financialStatements.statementState === "NO_DATA" ? (
           <p className="text-sm font-medium text-foreground">
-            aucune preview structuree disponible
+            aucune previsualisation structuree disponible
           </p>
         ) : null}
         {financialStatements.statementState === "BLOCKED" ? (
-          <p className="text-sm font-medium text-foreground">preview structuree bloquee</p>
+          <p className="text-sm font-medium text-foreground">previsualisation structuree bloquee</p>
         ) : null}
       </ControlsBlock>
 
@@ -3034,10 +3311,10 @@ function StructuredStatementGroupList({
 
 function ReadonlyLineList({ lines }: { lines: string[] }) {
   return (
-    <ul className="grid gap-3">
+    <ul className="grid min-w-0 gap-3">
       {lines.map((line, index) => (
         <li
-          className="rounded-lg border bg-background/80 p-4 text-sm font-medium tabular-nums text-foreground"
+          className="min-w-0 break-words rounded-lg border bg-background/80 p-4 text-sm font-medium tabular-nums text-foreground"
           key={`${index}-${line}`}
         >
           {line}
@@ -3049,8 +3326,8 @@ function ReadonlyLineList({ lines }: { lines: string[] }) {
 
 function ControlsBlock({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="rounded-lg border bg-muted/20 p-4">
-      <div className="grid gap-3">
+    <section className="min-w-0 overflow-hidden rounded-lg border bg-muted/20 p-4">
+      <div className="grid min-w-0 gap-3">
         <h4 className="text-lg font-semibold text-foreground">{title}</h4>
         {children}
       </div>
@@ -3068,9 +3345,13 @@ function MetricItem({
   mono?: boolean;
 }) {
   return (
-    <div className="rounded-lg border bg-background/80 p-4">
+    <div className="min-w-0 rounded-lg border bg-background/80 p-4">
       <dt className="text-sm text-muted-foreground">{label}</dt>
-      <dd className={`mt-2 text-sm font-medium text-foreground ${mono ? "break-all font-mono" : ""}`}>
+      <dd
+        className={`mt-2 text-sm font-medium text-foreground ${
+          mono ? "break-all font-mono" : "break-words"
+        }`}
+      >
         {value}
       </dd>
     </div>
@@ -3105,9 +3386,11 @@ function StateMessage({ text }: { text: string }) {
 
 function DetailItem({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="rounded-lg border bg-muted/30 p-4">
+    <div className="min-w-0 rounded-lg border bg-muted/30 p-4">
       <dt className="text-sm text-muted-foreground">{label}</dt>
-      <dd className="mt-2 text-sm font-medium text-foreground">{children}</dd>
+      <dd className="mt-2 min-w-0 break-words text-sm font-medium text-foreground">
+        {children}
+      </dd>
     </div>
   );
 }

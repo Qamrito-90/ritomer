@@ -100,9 +100,9 @@ function BalanceImportHistoryStateSlot({ state }: { state: BalanceImportHistoryP
     <div className="grid gap-4">
       <VersionSummary versions={versions} />
       <dl className="grid gap-3 sm:grid-cols-3">
-        <MetricItem label="added" value={String(diff.added.length)} />
-        <MetricItem label="removed" value={String(diff.removed.length)} />
-        <MetricItem label="changed" value={String(diff.changed.length)} />
+        <MetricItem label="ajoutes" value={String(diff.added.length)} />
+        <MetricItem label="supprimes" value={String(diff.removed.length)} />
+        <MetricItem label="modifies" value={String(diff.changed.length)} />
       </dl>
       {diff.previousVersion === null ? (
         <StateMessage text="aucune version precedente a comparer" />
@@ -150,11 +150,11 @@ function VersionSummary({ versions }: { versions: BalanceImportVersionSummary[] 
 function DiffDetails({ diff }: { diff: BalanceImportDiff }) {
   return (
     <div className="grid gap-3">
-      <DiffLineGroup label="added details" lines={diff.added} />
-      <DiffLineGroup label="removed details" lines={diff.removed} />
+      <DiffLineGroup label="lignes ajoutees" lines={diff.added} />
+      <DiffLineGroup label="lignes supprimees" lines={diff.removed} />
       {diff.changed.length > 0 ? (
         <div className="grid gap-2">
-          <p className="text-sm font-semibold text-foreground">changed details</p>
+          <p className="text-sm font-semibold text-foreground">lignes modifiees</p>
           <ul className="grid gap-2">
             {diff.changed.slice(0, diffDetailsLimit).map((line) => (
               <li

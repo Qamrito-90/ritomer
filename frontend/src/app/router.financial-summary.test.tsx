@@ -1,5 +1,6 @@
 import { RouterProvider } from "react-router-dom";
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { createAppMemoryRouter } from "./router";
 
@@ -238,10 +239,10 @@ const BLOCKED_MINIMAL_ANNEX = {
   isStatutory: false,
   requiresHumanReview: true,
   legalNotice: {
-    title: "Preview non statutaire.",
-    notOfficialCoAnnex: "Not a final CO deliverable.",
+    title: "Previsualisation non statutaire.",
+    notOfficialCoAnnex: "Pas un livrable statutaire final.",
     noAutomaticValidation: "Aucune decision automatique.",
-    humanReviewRequired: "Human review required."
+    humanReviewRequired: "requise."
   },
   basis: {
     controlsReadiness: "BLOCKED",
@@ -360,14 +361,16 @@ async function waitForNominalShell() {
   expect(await screen.findByText("Dossier courant")).toBeInTheDocument();
   expect(await screen.findByText("Import balance")).toBeInTheDocument();
   expect(await screen.findByText("Mapping manuel")).toBeInTheDocument();
-  expect(await screen.findByRole("heading", { name: "Cockpit read-only" })).toBeInTheDocument();
-  expect(await screen.findByText("Financial summary")).toBeInTheDocument();
-  expect(await screen.findByText("Financial statements structured")).toBeInTheDocument();
-  expect(await screen.findByText("Workpapers")).toBeInTheDocument();
-  expect(await screen.findByText("AI mapping suggestion")).toBeInTheDocument();
-  expect(await screen.findByText("Audit-ready export pack")).toBeInTheDocument();
-  expect(await screen.findByText("No audit-ready pack generated yet.")).toBeInTheDocument();
-  expect(await screen.findByText("Minimal annex preview")).toBeInTheDocument();
+  expect(await screen.findByText("Etat de preparation")).toBeInTheDocument();
+  expect(await screen.findByText("Synthese financiere")).toBeInTheDocument();
+  expect(await screen.findByText("Etats financiers structures")).toBeInTheDocument();
+  expect(await screen.findByText("Justifications")).toBeInTheDocument();
+  expect(await screen.findByText("Suggestion IA de mapping")).toBeInTheDocument();
+  expect(await screen.findByText("Pack export auditable")).toBeInTheDocument();
+  expect(await screen.findByText("Annexe minimale")).toBeInTheDocument();
+
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("tab", { name: "Previsualisations" }));
 }
 
 function getRequestPaths(fetchMock: ReturnType<typeof vi.fn>) {
@@ -390,10 +393,10 @@ function expectExistingBlocksVisible() {
   expect(screen.getByText("Dossier courant")).toBeInTheDocument();
   expect(screen.getByText("Import balance")).toBeInTheDocument();
   expect(screen.getByText("Mapping manuel")).toBeInTheDocument();
-  expect(screen.getByRole("heading", { name: "Cockpit read-only" })).toBeInTheDocument();
-  expect(screen.getByText("Financial summary")).toBeInTheDocument();
-  expect(screen.getByText("Financial statements structured")).toBeInTheDocument();
-  expect(screen.getByText("Workpapers")).toBeInTheDocument();
+  expect(screen.getByText("Etat de preparation")).toBeInTheDocument();
+  expect(screen.getByText("Synthese financiere")).toBeInTheDocument();
+  expect(screen.getByText("Etats financiers structures")).toBeInTheDocument();
+  expect(screen.getByText("Justifications")).toBeInTheDocument();
 }
 
 describe("router financial summary", () => {
@@ -406,15 +409,18 @@ describe("router financial summary", () => {
     vi.restoreAllMocks();
   });
 
-  it("places Financial summary after Controles, loads it only after /api/me and dossier, and keeps the request scope closed", async () => {
+  it("places Synthese financiere after Controles, loads it only after /api/me and dossier, and keeps the request scope closed", async () => {
     const fetchMock = vi.mocked(global.fetch);
     primeNominalRoute(fetchMock);
 
     renderClosingRoute();
     await waitForNominalShell();
 
-    const controlsHeading = screen.getByRole("heading", { name: "Cockpit read-only" });
-    const financialSummaryLabel = screen.getByText("Financial summary");
+    const controlsHeading = screen.getByRole("heading", {
+      hidden: true,
+      name: "Etat de preparation"
+    });
+    const financialSummaryLabel = screen.getByText("Synthese financiere");
 
     expect(
       Boolean(
@@ -442,7 +448,7 @@ describe("router financial summary", () => {
     expectNoForbiddenPaths(paths);
   });
 
-  it("shows chargement financial summary while the request is pending and keeps the other blocks visible", async () => {
+  it("shows chargement synthese financiere while the request is pending and keeps the other blocks visible", async () => {
     const fetchMock = vi.mocked(global.fetch);
     primeNominalRoute(fetchMock, {
       financialSummary: () => new Promise(() => {})
@@ -451,26 +457,26 @@ describe("router financial summary", () => {
     renderClosingRoute();
     await waitForNominalShell();
 
-    expect(await screen.findByText("chargement financial summary")).toBeInTheDocument();
+    expect(await screen.findByText("chargement synthese financiere")).toBeInTheDocument();
     expectExistingBlocksVisible();
     expect(
       screen.queryByText(
-        "Preview non statutaire. Not a final CO deliverable. Do not use as statutory filing."
+        "Previsualisation non statutaire. Pas un livrable statutaire final. Ne pas utiliser pour un depot officiel."
       )
     ).not.toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(12);
   });
 
   it.each([
-    { response: () => jsonResponse(400, {}), text: "financial summary indisponible" },
+    { response: () => jsonResponse(400, {}), text: "synthese financiere indisponible" },
     { response: () => jsonResponse(401, {}), text: "authentification requise" },
-    { response: () => jsonResponse(403, {}), text: "acces financial summary refuse" },
-    { response: () => jsonResponse(404, {}), text: "financial summary introuvable" },
-    { response: () => jsonResponse(500, {}), text: "erreur serveur financial summary" },
-    { response: () => Promise.reject(new Error("network")), text: "erreur reseau financial summary" },
-    { response: () => Promise.reject(new Error("timeout")), text: "timeout financial summary" },
-    { response: () => jsonResponse(418, {}), text: "financial summary indisponible" }
-  ])("renders the exact financial summary error state '$text' and keeps the existing blocks visible", async ({ response, text }) => {
+    { response: () => jsonResponse(403, {}), text: "acces synthese financiere refuse" },
+    { response: () => jsonResponse(404, {}), text: "synthese financiere introuvable" },
+    { response: () => jsonResponse(500, {}), text: "erreur serveur synthese financiere" },
+    { response: () => Promise.reject(new Error("network")), text: "erreur reseau synthese financiere" },
+    { response: () => Promise.reject(new Error("timeout")), text: "timeout synthese financiere" },
+    { response: () => jsonResponse(418, {}), text: "synthese financiere indisponible" }
+  ])("renders the exact synthese financiere error state '$text' and keeps the existing blocks visible", async ({ response, text }) => {
     const fetchMock = vi.mocked(global.fetch);
     primeNominalRoute(fetchMock, {
       financialSummary: response
@@ -481,10 +487,10 @@ describe("router financial summary", () => {
 
     expect(await screen.findByText(text)).toBeInTheDocument();
     expectExistingBlocksVisible();
-    expect(screen.queryByRole("heading", { name: "Etat preview" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Etat de la previsualisation" })).not.toBeInTheDocument();
     expect(
       screen.queryByText(
-        "Preview non statutaire. Not a final CO deliverable. Do not use as statutory filing."
+        "Previsualisation non statutaire. Pas un livrable statutaire final. Ne pas utiliser pour un depot officiel."
       )
     ).not.toBeInTheDocument();
   });
@@ -549,7 +555,7 @@ describe("router financial summary", () => {
       label: "body 200 non JSON",
       response: () => textResponse(200, "not-json", "application/json")
     }
-  ])("renders payload financial summary invalide for $label", async ({ response }) => {
+  ])("renders payload synthese financiere invalide for $label", async ({ response }) => {
     const fetchMock = vi.mocked(global.fetch);
     primeNominalRoute(fetchMock, {
       financialSummary: response
@@ -558,9 +564,9 @@ describe("router financial summary", () => {
     renderClosingRoute();
     await waitForNominalShell();
 
-    expect(await screen.findByText("payload financial summary invalide")).toBeInTheDocument();
+    expect(await screen.findByText("payload synthese financiere invalide")).toBeInTheDocument();
     expectExistingBlocksVisible();
-    expect(screen.queryByRole("heading", { name: "Etat preview" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Etat de la previsualisation" })).not.toBeInTheDocument();
   });
 
   it("renders the exact NO_DATA preview state and the non-statutory reminder", async () => {
@@ -574,10 +580,10 @@ describe("router financial summary", () => {
 
     expect(
       await screen.findByText(
-        "Preview non statutaire. Not a final CO deliverable. Do not use as statutory filing."
+        "Previsualisation non statutaire. Pas un livrable statutaire final. Ne pas utiliser pour un depot officiel."
       )
     ).toBeInTheDocument();
-    expect(screen.getByText("etat preview : aucune donnee")).toBeInTheDocument();
+    expect(screen.getByText("etat previsualisation : aucune donnee")).toBeInTheDocument();
     expect(screen.getByText("version d import : aucune")).toBeInTheDocument();
     expect(screen.getByText("lignes total : 0")).toBeInTheDocument();
     expect(screen.getByText("lignes mappees : 0")).toBeInTheDocument();
@@ -586,7 +592,7 @@ describe("router financial summary", () => {
     expect(screen.getByText("impact non mappe debit : 0")).toBeInTheDocument();
     expect(screen.getByText("impact non mappe credit : 0")).toBeInTheDocument();
     expect(screen.getByText("impact non mappe net : 0")).toBeInTheDocument();
-    expect(screen.getByText("aucune preview financiere disponible")).toBeInTheDocument();
+    expect(screen.getByText("aucune previsualisation financiere disponible")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Bilan synthetique" })).not.toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { name: "Compte de resultat synthetique" })
@@ -601,16 +607,16 @@ describe("router financial summary", () => {
 
     renderClosingRoute();
     await waitForNominalShell();
-    const financialSummarySection = screen.getByText("Financial summary").closest("section");
+    const financialSummarySection = screen.getByText("Synthese financiere").closest("section");
     expect(financialSummarySection).not.toBeNull();
     const summary = within(financialSummarySection as HTMLElement);
 
     expect(
       await summary.findByText(
-        "Preview non statutaire. Not a final CO deliverable. Do not use as statutory filing."
+        "Previsualisation non statutaire. Pas un livrable statutaire final. Ne pas utiliser pour un depot officiel."
       )
     ).toBeInTheDocument();
-    expect(summary.getByText("etat preview : preview partielle")).toBeInTheDocument();
+    expect(summary.getByText("etat previsualisation : previsualisation partielle")).toBeInTheDocument();
     expect(summary.getByText("version d import : 2")).toBeInTheDocument();
     expect(summary.getByText("lignes total : 3")).toBeInTheDocument();
     expect(summary.getByText("lignes mappees : 2")).toBeInTheDocument();
@@ -648,16 +654,16 @@ describe("router financial summary", () => {
 
     renderClosingRoute();
     await waitForNominalShell();
-    const financialSummarySection = screen.getByText("Financial summary").closest("section");
+    const financialSummarySection = screen.getByText("Synthese financiere").closest("section");
     expect(financialSummarySection).not.toBeNull();
     const summary = within(financialSummarySection as HTMLElement);
 
     expect(
       await summary.findByText(
-        "Preview non statutaire. Not a final CO deliverable. Do not use as statutory filing."
+        "Previsualisation non statutaire. Pas un livrable statutaire final. Ne pas utiliser pour un depot officiel."
       )
     ).toBeInTheDocument();
-    expect(summary.getByText("etat preview : preview prete")).toBeInTheDocument();
+    expect(summary.getByText("etat previsualisation : previsualisation prete")).toBeInTheDocument();
     expect(summary.getByText("version d import : 2")).toBeInTheDocument();
     expect(summary.getByText("lignes total : 2")).toBeInTheDocument();
     expect(summary.getByText("lignes mappees : 2")).toBeInTheDocument();

@@ -125,32 +125,32 @@ function stubRandomUUID(...values: string[]) {
 }
 
 function getSuggestionCard() {
-  return screen.getByLabelText("AI mapping suggestion 1000");
+  return screen.getByLabelText("suggestion IA mapping 1000");
 }
 
 function getAcceptButton() {
-  return within(getSuggestionCard()).getByRole("button", { name: "Accept suggestion" });
+  return within(getSuggestionCard()).getByRole("button", { name: "Accepter la suggestion" });
 }
 
 function getCorrectButton() {
   return within(getSuggestionCard()).getByRole("button", {
-    name: "Correct with another target"
+    name: "Corriger la cible"
   });
 }
 
 function getRejectButton() {
-  return within(getSuggestionCard()).getByRole("button", { name: "Reject suggestion" });
+  return within(getSuggestionCard()).getByRole("button", { name: "Rejeter la suggestion" });
 }
 
 function getCorrectionSelect() {
   return within(getSuggestionCard()).getByLabelText(
-    "Correct with another target"
+    "Corriger avec une autre cible"
   ) as HTMLSelectElement;
 }
 
 function getReviewComment() {
   return within(getSuggestionCard()).getByLabelText(
-    "Human decision reviewComment"
+    "Commentaire de revue"
   ) as HTMLTextAreaElement;
 }
 
@@ -179,28 +179,28 @@ describe("AiMappingSuggestionsPanel", () => {
     vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => {})));
 
     const loadingRender = renderPanel();
-    expect(screen.getByText("loading AI mapping suggestion")).toBeInTheDocument();
+    expect(screen.getByText("chargement suggestion IA de mapping")).toBeInTheDocument();
     loadingRender.unmount();
 
     vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(jsonResponse(500, {})));
     renderPanel();
-    expect(await screen.findByText("AI mapping suggestion unavailable.")).toBeInTheDocument();
+    expect(await screen.findByText("suggestion IA indisponible.")).toBeInTheDocument();
 
     vi.unstubAllGlobals();
     vi.stubGlobal("fetch", vi.fn().mockRejectedValueOnce(new Error("network")));
     renderPanel();
-    expect(await screen.findByText("AI mapping suggestion network error")).toBeInTheDocument();
+    expect(await screen.findByText("erreur reseau suggestion IA")).toBeInTheDocument();
   });
 
   it.each([
-    ["DISABLED", "AI mapping suggestion disabled."],
-    ["NO_IMPORT", "No balance import available for AI mapping suggestion."],
-    ["PARTIAL", "Partial AI mapping suggestion coverage."],
-    ["ARCHIVED_READ_ONLY", "Archived read-only suggestion."],
-    ["UNAVAILABLE", "AI mapping suggestion unavailable."],
-    ["TIMEOUT", "AI mapping suggestion timeout."],
-    ["INVALID_MODEL_OUTPUT", "AI mapping suggestion output unavailable for review."],
-    ["INSUFFICIENT_EVIDENCE", "Insufficient evidence for AI mapping suggestion."]
+    ["DISABLED", "Suggestions IA desactivees."],
+    ["NO_IMPORT", "Import balance requis pour les suggestions IA."],
+    ["PARTIAL", "Couverture partielle des suggestions IA."],
+    ["ARCHIVED_READ_ONLY", "Dossier archive, suggestions en lecture seule."],
+    ["UNAVAILABLE", "Suggestions IA indisponibles."],
+    ["TIMEOUT", "Timeout suggestions IA."],
+    ["INVALID_MODEL_OUTPUT", "Sortie IA indisponible pour revue."],
+    ["INSUFFICIENT_EVIDENCE", "Preuves insuffisantes pour suggestions IA."]
   ] as const)("renders %s read-model state", async (state, expectedText) => {
     const fetchMock = vi.mocked(global.fetch);
     fetchMock.mockResolvedValueOnce(jsonResponse(200, readModelForState(state)));
@@ -209,9 +209,9 @@ describe("AiMappingSuggestionsPanel", () => {
 
     expect(await screen.findByText(expectedText)).toBeInTheDocument();
     expect(screen.getByText(state)).toBeInTheDocument();
-    expect(screen.getByText("AI mapping suggestion")).toBeInTheDocument();
-    expect(screen.getAllByText("Human review required. Manual mapping remains the authority.").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Human decision").length).toBeGreaterThan(0);
+    expect(screen.getByText("Suggestion IA de mapping")).toBeInTheDocument();
+    expect(screen.getAllByText("Revue humaine requise. Le mapping manuel reste la reference.").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Decision humaine").length).toBeGreaterThan(0);
   });
 
   it("renders READY with visible suggestion details and evidence", async () => {
@@ -220,20 +220,20 @@ describe("AiMappingSuggestionsPanel", () => {
 
     const { container } = renderPanel();
 
-    const card = await screen.findByLabelText("AI mapping suggestion 1000");
-    expect(within(card).getByText("accountCode")).toBeInTheDocument();
+    const card = await screen.findByLabelText("suggestion IA mapping 1000");
+    expect(within(card).getByText("compte")).toBeInTheDocument();
     expect(within(card).getByText("1000")).toBeInTheDocument();
-    expect(within(card).getByText("accountLabel")).toBeInTheDocument();
+    expect(within(card).getByText("libelle compte")).toBeInTheDocument();
     expect(within(card).getAllByText("Bank CHF")).toHaveLength(2);
-    expect(within(card).getByText("suggestedTargetCode")).toBeInTheDocument();
+    expect(within(card).getByText("cible suggeree")).toBeInTheDocument();
     expect(within(card).getByText("BS.ASSET.CASH_AND_EQUIVALENTS")).toBeInTheDocument();
     expect(within(card).getByText("82 %")).toBeInTheDocument();
     expect(within(card).getByText("MEDIUM")).toBeInTheDocument();
-    expect(within(card).getAllByText("Human review required")).toHaveLength(1);
+    expect(within(card).getAllByText("requise")).toHaveLength(1);
     expect(
       within(card).getByText("Account label and target taxonomy are consistent with cash.")
     ).toBeInTheDocument();
-    expect(within(card).getByText("Evidence")).toBeInTheDocument();
+    expect(within(card).getByText("Preuves")).toBeInTheDocument();
     expect(within(card).getByText("ACCOUNT_LABEL")).toBeInTheDocument();
     expect(within(card).getByText("balance_import_line:1000")).toBeInTheDocument();
     expect(within(card).getByText("TARGET_TAXONOMY")).toBeInTheDocument();
@@ -241,10 +241,10 @@ describe("AiMappingSuggestionsPanel", () => {
       within(card).getByText("manual-mapping-targets-v2:BS.ASSET.CASH_AND_EQUIVALENTS")
     ).toBeInTheDocument();
     expect(within(card).getByText("Cash and cash equivalents")).toBeInTheDocument();
-    expect(container).toHaveTextContent("Evidence");
+    expect(container).toHaveTextContent("Preuves");
 
-    const evidenceHeading = within(card).getByText("Evidence");
-    const acceptButton = within(card).getByRole("button", { name: "Accept suggestion" });
+    const evidenceHeading = within(card).getByText("Preuves");
+    const acceptButton = within(card).getByRole("button", { name: "Accepter la suggestion" });
     expect(Boolean(evidenceHeading.compareDocumentPosition(acceptButton) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
   });
 
@@ -256,8 +256,8 @@ describe("AiMappingSuggestionsPanel", () => {
 
     renderPanel();
 
-    expect(await screen.findByText("AI mapping suggestion ready.")).toBeInTheDocument();
-    expect(screen.getByText("No AI mapping suggestion prepared.")).toBeInTheDocument();
+    expect(await screen.findByText("Suggestions IA disponibles.")).toBeInTheDocument();
+    expect(screen.getByText("Aucune suggestion IA preparee.")).toBeInTheDocument();
   });
 
   it("shows backend read-model messages", async () => {
@@ -276,7 +276,7 @@ describe("AiMappingSuggestionsPanel", () => {
 
     renderPanel();
 
-    expect(await screen.findByText("Read-model messages")).toBeInTheDocument();
+    expect(await screen.findByText("Messages de lecture")).toBeInTheDocument();
     expect(
       screen.getByText("PARTIAL_SUGGESTIONS: One account has no sufficient evidence.")
     ).toBeInTheDocument();
@@ -289,11 +289,11 @@ describe("AiMappingSuggestionsPanel", () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(200, READY_MAPPING_SUGGESTIONS));
 
     const { container } = renderPanel();
-    await screen.findByLabelText("AI mapping suggestion 1000");
+    await screen.findByLabelText("suggestion IA mapping 1000");
 
-    expect(screen.getByRole("button", { name: "Accept suggestion" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Correct with another target" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Reject suggestion" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Accepter la suggestion" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Corriger la cible" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Rejeter la suggestion" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /bulk/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
     expect(container).not.toHaveTextContent("/mappings/suggestions/");
@@ -325,14 +325,14 @@ describe("AiMappingSuggestionsPanel", () => {
       .mockResolvedValueOnce(jsonResponse(200, REFRESHED_MAPPING_SUGGESTIONS));
 
     renderPanel();
-    await screen.findByLabelText("AI mapping suggestion 1000");
+    await screen.findByLabelText("suggestion IA mapping 1000");
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(randomUUID).not.toHaveBeenCalled();
 
     await user.click(getAcceptButton());
 
-    expect(await screen.findByText(/Human decision recorded: ACCEPT/)).toBeInTheDocument();
+    expect(await screen.findByText(/Decision humaine enregistree : ACCEPT/)).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(randomUUID).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[1]?.[0]).toBe(
@@ -368,13 +368,13 @@ describe("AiMappingSuggestionsPanel", () => {
       .mockResolvedValueOnce(jsonResponse(500, {}));
 
     renderPanel();
-    await screen.findByLabelText("AI mapping suggestion 1000");
+    await screen.findByLabelText("suggestion IA mapping 1000");
 
     await user.click(getRejectButton());
 
-    expect(await screen.findByText(/Human decision recorded: REJECT/)).toBeInTheDocument();
+    expect(await screen.findByText(/Decision humaine enregistree : REJECT/)).toBeInTheDocument();
     expect(screen.getByText("rafraichissement suggestions impossible")).toBeInTheDocument();
-    expect(screen.getByLabelText("AI mapping suggestion 1000")).toBeInTheDocument();
+    expect(screen.getByLabelText("suggestion IA mapping 1000")).toBeInTheDocument();
   });
 
   it("runs the manual mapping refresh callback only when the decision result applied mapping", async () => {
@@ -407,14 +407,14 @@ describe("AiMappingSuggestionsPanel", () => {
       .mockResolvedValueOnce(jsonResponse(200, REFRESHED_MAPPING_SUGGESTIONS));
 
     renderPanel({ onManualMappingMutationConfirmed });
-    await screen.findByLabelText("AI mapping suggestion 1000");
+    await screen.findByLabelText("suggestion IA mapping 1000");
 
     await user.click(getAcceptButton());
-    expect(await screen.findByText(/resultKind: MANUAL_MAPPING_NOOP/)).toBeInTheDocument();
+    expect(await screen.findByText(/resultat : MANUAL_MAPPING_NOOP/)).toBeInTheDocument();
     expect(onManualMappingMutationConfirmed).not.toHaveBeenCalled();
 
     await user.click(getAcceptButton());
-    expect(await screen.findByText(/resultKind: MANUAL_MAPPING_CREATED/)).toBeInTheDocument();
+    expect(await screen.findByText(/resultat : MANUAL_MAPPING_CREATED/)).toBeInTheDocument();
     expect(onManualMappingMutationConfirmed).toHaveBeenCalledTimes(1);
   });
 
@@ -438,7 +438,7 @@ describe("AiMappingSuggestionsPanel", () => {
       .mockResolvedValueOnce(jsonResponse(200, REFRESHED_MAPPING_SUGGESTIONS));
 
     renderPanel();
-    await screen.findByLabelText("AI mapping suggestion 1000");
+    await screen.findByLabelText("suggestion IA mapping 1000");
 
     expect(getCorrectionSelect()).toBeEnabled();
     expect(getCorrectButton()).toBeDisabled();
@@ -447,7 +447,7 @@ describe("AiMappingSuggestionsPanel", () => {
     expect(getCorrectButton()).toBeDisabled();
     expect(
       within(getSuggestionCard()).getByText(
-        "Correct with another target must differ from suggestedTargetCode."
+        "La cible corrigee doit differer de la cible suggeree."
       )
     ).toBeInTheDocument();
 
@@ -455,7 +455,7 @@ describe("AiMappingSuggestionsPanel", () => {
     expect(getCorrectButton()).toBeEnabled();
     await user.click(getCorrectButton());
 
-    expect(await screen.findByText(/Human decision recorded: CORRECT/)).toBeInTheDocument();
+    expect(await screen.findByText(/Decision humaine enregistree : CORRECT/)).toBeInTheDocument();
     expect(getRequestBody(fetchMock, 1)).toEqual({
       decision: "CORRECT",
       latestImportVersion: 3,
@@ -482,12 +482,12 @@ describe("AiMappingSuggestionsPanel", () => {
       .mockResolvedValueOnce(jsonResponse(200, REFRESHED_MAPPING_SUGGESTIONS));
 
     renderPanel();
-    await screen.findByLabelText("AI mapping suggestion 1000");
+    await screen.findByLabelText("suggestion IA mapping 1000");
 
     await user.type(getReviewComment(), "  reject with evidence  ");
     await user.click(getRejectButton());
 
-    expect(await screen.findByText(/Human decision recorded: REJECT/)).toBeInTheDocument();
+    expect(await screen.findByText(/Decision humaine enregistree : REJECT/)).toBeInTheDocument();
     expect(getRequestBody(fetchMock, 1)).toEqual({
       decision: "REJECT",
       latestImportVersion: 3,
@@ -509,12 +509,12 @@ describe("AiMappingSuggestionsPanel", () => {
       .mockImplementationOnce(() => new Promise<Response>(() => {}));
 
     renderPanel();
-    await screen.findByLabelText("AI mapping suggestion 1000");
+    await screen.findByLabelText("suggestion IA mapping 1000");
 
     await user.click(getAcceptButton());
     await user.click(getAcceptButton());
 
-    expect(await screen.findByText("Human decision in progress: ACCEPT.")).toBeInTheDocument();
+    expect(await screen.findByText("Decision humaine en cours : ACCEPT.")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(getAcceptButton()).toBeDisabled();
     expect(getCorrectButton()).toBeDisabled();
@@ -542,13 +542,13 @@ describe("AiMappingSuggestionsPanel", () => {
       .mockResolvedValueOnce(jsonResponse(200, REFRESHED_MAPPING_SUGGESTIONS));
 
     renderPanel();
-    await screen.findByLabelText("AI mapping suggestion 1000");
+    await screen.findByLabelText("suggestion IA mapping 1000");
 
     await user.click(getAcceptButton());
-    expect(await screen.findByText("Human decision network error.")).toBeInTheDocument();
+    expect(await screen.findByText("erreur reseau decision humaine.")).toBeInTheDocument();
 
     await user.click(getAcceptButton());
-    expect(await screen.findByText(/Human decision recorded: ACCEPT/)).toBeInTheDocument();
+    expect(await screen.findByText(/Decision humaine enregistree : ACCEPT/)).toBeInTheDocument();
 
     expect(randomUUID).toHaveBeenCalledTimes(1);
     expect(getRequestHeaders(fetchMock, 1)["Idempotency-Key"]).toBe("retry-key-1");
@@ -576,17 +576,17 @@ describe("AiMappingSuggestionsPanel", () => {
       .mockResolvedValueOnce(jsonResponse(200, REFRESHED_MAPPING_SUGGESTIONS));
 
     renderPanel();
-    await screen.findByLabelText("AI mapping suggestion 1000");
+    await screen.findByLabelText("suggestion IA mapping 1000");
 
     await user.type(getReviewComment(), "first");
     await user.click(getAcceptButton());
-    expect(await screen.findByText("Human decision network error.")).toBeInTheDocument();
+    expect(await screen.findByText("erreur reseau decision humaine.")).toBeInTheDocument();
 
     await user.clear(getReviewComment());
     await user.type(getReviewComment(), "second");
     await user.click(getAcceptButton());
 
-    expect(await screen.findByText(/Human decision recorded: ACCEPT/)).toBeInTheDocument();
+    expect(await screen.findByText(/Decision humaine enregistree : ACCEPT/)).toBeInTheDocument();
     expect(randomUUID).toHaveBeenCalledTimes(2);
     expect(getRequestHeaders(fetchMock, 1)["Idempotency-Key"]).toBe("comment-key-1");
     expect(getRequestHeaders(fetchMock, 2)["Idempotency-Key"]).toBe("comment-key-2");
@@ -609,12 +609,12 @@ describe("AiMappingSuggestionsPanel", () => {
       );
 
     renderPanel();
-    await screen.findByLabelText("AI mapping suggestion 1000");
+    await screen.findByLabelText("suggestion IA mapping 1000");
 
     await user.click(getAcceptButton());
 
     expect(
-      await screen.findByText("Human decision conflict: CONFLICT_FINGERPRINT_MISMATCH.")
+      await screen.findByText("Conflit de decision humaine : CONFLICT_FINGERPRINT_MISMATCH.")
     ).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });

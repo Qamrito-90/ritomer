@@ -227,7 +227,7 @@ export function getDocumentDecisionAvailabilityMessage(
   }
 
   if (item.workpaper === null || item.workpaper.status !== "READY_FOR_REVIEW") {
-    return "decision document disponible quand le workpaper est READY_FOR_REVIEW";
+    return "decision document disponible quand la justification est READY_FOR_REVIEW";
   }
 
   if (getReadableDocumentId(document) === null) {
@@ -243,23 +243,23 @@ export function getWorkpaperDecisionAvailabilityMessage(
   item: WorkpaperReadModelItem
 ) {
   if (workpapers.closingFolderStatus === "ARCHIVED") {
-    return "workpaper decision unavailable for this status";
+    return "decision de revue indisponible pour ce statut";
   }
 
   if (workpapers.readiness !== "READY") {
-    return "workpaper decision unavailable for this status";
+    return "decision de revue indisponible pour ce statut";
   }
 
   if (!hasWorkpaperReviewerRole(effectiveRoles)) {
-    return "workpaper decision refused";
+    return "decision de revue refusee";
   }
 
   if (!item.isCurrentStructure || item.workpaper === null) {
-    return "workpaper decision unavailable for this status";
+    return "decision de revue indisponible pour ce statut";
   }
 
   if (item.workpaper.status !== "READY_FOR_REVIEW") {
-    return "workpaper decision unavailable for this status";
+    return "decision de revue indisponible pour ce statut";
   }
 
   return null;
@@ -270,11 +270,11 @@ export function getWorkpapersGlobalReadOnlyMessage(
   effectiveRoles: EffectiveRolesHint
 ) {
   if (workpapers.closingFolderStatus === "ARCHIVED") {
-    return "dossier archive, workpaper en lecture seule";
+    return "dossier archive, justification en lecture seule";
   }
 
   if (workpapers.readiness !== "READY") {
-    return "workpaper non modifiable tant que les controles ne sont pas READY";
+    return "justification non modifiable tant que les controles ne sont pas READY";
   }
 
   if (!hasWorkpaperWritableRole(effectiveRoles)) {
@@ -293,7 +293,7 @@ export function getCurrentWorkpaperUploadAvailabilityMessage(
   }
 
   if (item.workpaper === null) {
-    return "upload disponible apres creation du workpaper";
+    return "ajout de piece disponible apres creation de la justification";
   }
 
   return null;
@@ -311,7 +311,7 @@ export function getCurrentWorkpaperReadOnlyMessage(
     item.workpaper !== null &&
     (item.workpaper.status === "READY_FOR_REVIEW" || item.workpaper.status === "REVIEWED")
   ) {
-    return "workpaper en lecture seule";
+    return "justification en lecture seule";
   }
 
   return null;

@@ -160,11 +160,12 @@ export function ExportAuditPackPanel({
         <div className="grid gap-2">
           <p className="label-eyebrow">Exports</p>
           <h3 className="text-xl font-semibold text-foreground" id="export-audit-pack-title">
-            Audit-ready export pack
+            Pack export auditable
           </h3>
           <p className="text-sm text-muted-foreground">
-            Backend-generated ZIP for human review and audit handoff. Non statutory. Not a
-            final CO deliverable. Human review required before client or statutory use.
+            ZIP genere par le backend pour revue humaine et transmission d'audit. Non
+            statutaire. Pas un livrable statutaire final. Revue humaine requise avant usage
+            client ou officiel.
           </p>
         </div>
 
@@ -176,7 +177,7 @@ export function ExportAuditPackPanel({
             }}
             type="button"
           >
-            Generate audit-ready pack
+            Generer le pack auditable
           </Button>
         </div>
 
@@ -212,13 +213,13 @@ function ExportPackList({
   }
 
   if (state.exportPacks.length === 0) {
-    return <StateMessage text="No audit-ready pack generated yet." />;
+    return <StateMessage text="Aucun pack auditable genere." />;
   }
 
   return (
     <div className="grid gap-4">
       <p className="rounded-lg border bg-background/80 p-4 text-sm font-medium text-foreground">
-        Audit-ready pack available.
+        Pack auditable disponible.
       </p>
       <ul className="grid gap-4">
         {state.exportPacks.map((exportPack) => (
@@ -256,7 +257,7 @@ function ExportPackList({
                   }}
                   type="button"
                 >
-                  Download ZIP
+                  Telecharger ZIP
                 </Button>
               </div>
 
@@ -275,15 +276,15 @@ function CreateExportPackStatus({ state }: { state: CreateUiState }) {
   }
 
   if (state.kind === "submitting") {
-    return <StatusLine text="generating audit-ready pack" />;
+    return <StatusLine text="generation du pack auditable" />;
   }
 
   if (state.kind === "success") {
     return (
       <div className="grid gap-2">
-        <StatusLine text="Audit-ready pack available." />
+        <StatusLine text="Pack auditable disponible." />
         {state.refreshFailed ? (
-          <StatusLine text="Export pack list refresh unavailable." />
+          <StatusLine text="rafraichissement liste packs impossible" />
         ) : null}
       </div>
     );
@@ -306,7 +307,7 @@ function DownloadExportPackStatus({
   if (state.kind === "submitting") {
     return (
       <div aria-live="polite">
-        <StatusLine text="downloading audit-ready pack" />
+        <StatusLine text="telechargement pack auditable" />
       </div>
     );
   }
@@ -314,7 +315,7 @@ function DownloadExportPackStatus({
   if (state.kind === "success") {
     return (
       <div aria-live="polite">
-        <StatusLine text="Download ZIP started." />
+        <StatusLine text="telechargement ZIP demarre" />
       </div>
     );
   }
@@ -390,30 +391,30 @@ function formatCreateState(
   }
 
   if (state.kind === "forbidden") {
-    return "Export pack generation blocked.";
+    return "generation pack export bloquee.";
   }
 
   if (state.kind === "not_found") {
-    return "Export pack generation blocked.";
+    return "generation pack export bloquee.";
   }
 
   if (state.kind === "conflict_other") {
-    return "Export pack generation blocked.";
+    return "generation pack export bloquee.";
   }
 
   if (state.kind === "server_error") {
-    return "Export pack generation blocked.";
+    return "generation pack export bloquee.";
   }
 
   if (state.kind === "network_error") {
-    return "Export pack generation blocked.";
+    return "generation pack export bloquee.";
   }
 
   if (state.kind === "timeout") {
-    return "Export pack generation blocked.";
+    return "generation pack export bloquee.";
   }
 
-  return "Export pack generation blocked.";
+  return "generation pack export bloquee.";
 }
 
 function formatDownloadState(
@@ -423,7 +424,7 @@ function formatDownloadState(
     return "authentication required";
   }
 
-  return "Export pack download unavailable.";
+  return "telechargement pack export indisponible.";
 }
 
 function formatByteSize(byteSize: number) {
