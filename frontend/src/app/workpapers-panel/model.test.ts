@@ -208,9 +208,9 @@ describe("workpapers-panel model helpers", () => {
         createItem({ workpaper: { status: "REVIEWED", noteText: "Done", evidences: [] } }),
         null
       )
-    ).toBe("workpaper en lecture seule");
+    ).toBe("justification en lecture seule");
     expect(getCurrentWorkpaperUploadAvailabilityMessage(createItem({ workpaper: null }), null)).toBe(
-      "upload disponible apres creation du workpaper"
+      "ajout de piece disponible apres creation de la justification"
     );
   });
 
@@ -226,13 +226,13 @@ describe("workpapers-panel model helpers", () => {
         createWorkpapers({ closingFolderStatus: "ARCHIVED", items: [item] }),
         ["ACCOUNTANT"]
       )
-    ).toBe("dossier archive, workpaper en lecture seule");
+    ).toBe("dossier archive, justification en lecture seule");
     expect(
       getWorkpapersGlobalReadOnlyMessage(
         createWorkpapers({ readiness: "BLOCKED", items: [item] }),
         ["ACCOUNTANT"]
       )
-    ).toBe("workpaper non modifiable tant que les controles ne sont pas READY");
+    ).toBe("justification non modifiable tant que les controles ne sont pas READY");
     expect(getWorkpapersGlobalReadOnlyMessage(workpapers, ["REVIEWER"])).toBe("lecture seule");
     expect(getDocumentDecisionAvailabilityMessage(workpapers, ["REVIEWER"], item, item.documents[0]))
       .toBe(null);
@@ -245,10 +245,10 @@ describe("workpapers-panel model helpers", () => {
         createItem({ workpaper: null }),
         item.documents[0]
       )
-    ).toBe("decision document disponible quand le workpaper est READY_FOR_REVIEW");
+    ).toBe("decision document disponible quand la justification est READY_FOR_REVIEW");
     expect(getWorkpaperDecisionAvailabilityMessage(workpapers, ["REVIEWER"], item)).toBe(null);
     expect(getWorkpaperDecisionAvailabilityMessage(workpapers, ["ACCOUNTANT"], item)).toBe(
-      "workpaper decision refused"
+      "decision de revue refusee"
     );
     expect(
       getWorkpaperDecisionAvailabilityMessage(
@@ -256,10 +256,10 @@ describe("workpapers-panel model helpers", () => {
         ["REVIEWER"],
         item
       )
-    ).toBe("workpaper decision unavailable for this status");
+    ).toBe("decision de revue indisponible pour ce statut");
     expect(
       getWorkpaperDecisionAvailabilityMessage(workpapers, ["REVIEWER"], createItem({ workpaper: null }))
-    ).toBe("workpaper decision unavailable for this status");
+    ).toBe("decision de revue indisponible pour ce statut");
   });
 
   it("validates upload drafts and file allow-list inputs", () => {

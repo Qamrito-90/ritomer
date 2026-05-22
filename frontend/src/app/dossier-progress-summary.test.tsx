@@ -419,44 +419,48 @@ describe("DossierProgressSummary", () => {
   it("renders the compact read-only progress from existing route read models", () => {
     renderSummary();
 
-    expect(screen.getByRole("heading", { name: "Summary read-only" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Synthese du dossier" })).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Preview non statutaire. Etat indicatif, pas un export final ni un document CO."
+        "Previsualisation non statutaire. Etat indicatif, pas un export final ni un document CO."
       )
     ).toBeInTheDocument();
 
-    expect(within(getProgressItem("Balance import")).getByText("done")).toBeInTheDocument();
-    expect(within(getProgressItem("Balance import")).getByText("version 3")).toBeInTheDocument();
+    expect(within(getProgressItem("Import balance")).getByText("fait")).toBeInTheDocument();
+    expect(within(getProgressItem("Import balance")).getByText("version 3")).toBeInTheDocument();
 
-    expect(within(getProgressItem("Mapping")).getByText("ready")).toBeInTheDocument();
+    expect(within(getProgressItem("Mapping")).getByText("pret")).toBeInTheDocument();
     expect(within(getProgressItem("Mapping")).getByText("2/2 comptes mappes")).toBeInTheDocument();
 
-    expect(within(getProgressItem("Controls readiness")).getByText("ready")).toBeInTheDocument();
-    expect(within(getProgressItem("Controls readiness")).getByText("readiness pret")).toBeInTheDocument();
-
-    expect(within(getProgressItem("Financial previews")).getByText("ready")).toBeInTheDocument();
+    expect(within(getProgressItem("Etat de preparation")).getByText("pret")).toBeInTheDocument();
     expect(
-      within(getProgressItem("Financial previews")).getByText(
-        "previews non statutaires disponibles"
+      within(getProgressItem("Etat de preparation")).getByText("etat de preparation pret")
+    ).toBeInTheDocument();
+
+    expect(within(getProgressItem("Previsualisations financieres")).getByText("pret")).toBeInTheDocument();
+    expect(
+      within(getProgressItem("Previsualisations financieres")).getByText(
+        "previsualisations non statutaires disponibles"
       )
     ).toBeInTheDocument();
 
-    expect(within(getProgressItem("Workpaper coverage")).getByText("ready")).toBeInTheDocument();
+    expect(within(getProgressItem("Couverture justifications")).getByText("pret")).toBeInTheDocument();
     expect(
-      within(getProgressItem("Workpaper coverage")).getByText("2 current, 0 missing, 0 stale")
-    ).toBeInTheDocument();
-
-    expect(within(getProgressItem("Evidence documents")).getByText("rejected")).toBeInTheDocument();
-    expect(
-      within(getProgressItem("Evidence documents")).getByText(
-        "2 uploaded, 1 verified, 1 rejected, 0 unverified"
+      within(getProgressItem("Couverture justifications")).getByText(
+        "2 courant(s), 0 manquant(s), 0 ancien(s)"
       )
     ).toBeInTheDocument();
 
-    expect(within(getProgressItem("Review")).getByText("review-ready")).toBeInTheDocument();
+    expect(within(getProgressItem("Pieces justificatives")).getByText("rejete")).toBeInTheDocument();
     expect(
-      within(getProgressItem("Review")).getByText("1 ready for review, 1 reviewed")
+      within(getProgressItem("Pieces justificatives")).getByText(
+        "2 deposee(s), 1 verifiee(s), 1 rejetee(s), 0 a verifier"
+      )
+    ).toBeInTheDocument();
+
+    expect(within(getProgressItem("Revue")).getByText("pret pour revue")).toBeInTheDocument();
+    expect(
+      within(getProgressItem("Revue")).getByText("1 pret(s) pour revue, 1 revu(s)")
     ).toBeInTheDocument();
   });
 
@@ -468,16 +472,19 @@ describe("DossierProgressSummary", () => {
       workpapersState: { kind: "timeout" }
     });
 
-    expect(within(getProgressItem("Balance import")).getByText("loading")).toBeInTheDocument();
-    expect(within(getProgressItem("Balance import")).getByText("chargement")).toBeInTheDocument();
-    expect(within(getProgressItem("Mapping")).getByText("error")).toBeInTheDocument();
+    expect(within(getProgressItem("Import balance")).getAllByText("chargement")).toHaveLength(2);
+    expect(within(getProgressItem("Mapping")).getByText("erreur")).toBeInTheDocument();
     expect(within(getProgressItem("Mapping")).getByText("etat mapping indisponible")).toBeInTheDocument();
-    expect(within(getProgressItem("Financial previews")).getByText("error")).toBeInTheDocument();
     expect(
-      within(getProgressItem("Financial previews")).getByText("previews indisponibles")
+      within(getProgressItem("Previsualisations financieres")).getByText("erreur")
     ).toBeInTheDocument();
-    expect(within(getProgressItem("Workpaper coverage")).getByText("error")).toBeInTheDocument();
-    expect(within(getProgressItem("Review")).getByText("error")).toBeInTheDocument();
+    expect(
+      within(getProgressItem("Previsualisations financieres")).getByText(
+        "previsualisations indisponibles"
+      )
+    ).toBeInTheDocument();
+    expect(within(getProgressItem("Couverture justifications")).getByText("erreur")).toBeInTheDocument();
+    expect(within(getProgressItem("Revue")).getByText("erreur")).toBeInTheDocument();
   });
 
   it("renders empty and missing states without storage keys or forbidden wording", () => {
@@ -489,25 +496,31 @@ describe("DossierProgressSummary", () => {
       workpapersState: EMPTY_WORKPAPERS
     });
 
-    expect(within(getProgressItem("Balance import")).getByText("missing")).toBeInTheDocument();
-    expect(within(getProgressItem("Balance import")).getByText("aucun import valide")).toBeInTheDocument();
-    expect(within(getProgressItem("Mapping")).getByText("missing")).toBeInTheDocument();
+    expect(within(getProgressItem("Import balance")).getByText("manquant")).toBeInTheDocument();
+    expect(within(getProgressItem("Import balance")).getByText("aucun import valide")).toBeInTheDocument();
+    expect(within(getProgressItem("Mapping")).getByText("manquant")).toBeInTheDocument();
     expect(within(getProgressItem("Mapping")).getByText("balance import manquant")).toBeInTheDocument();
-    expect(within(getProgressItem("Controls readiness")).getByText("blocked")).toBeInTheDocument();
+    expect(within(getProgressItem("Etat de preparation")).getByText("bloque")).toBeInTheDocument();
     expect(
-      within(getProgressItem("Controls readiness")).getByText("readiness bloquee par controls")
+      within(getProgressItem("Etat de preparation")).getByText(
+        "etat de preparation bloque par controles"
+      )
     ).toBeInTheDocument();
-    expect(within(getProgressItem("Financial previews")).getByText("missing")).toBeInTheDocument();
     expect(
-      within(getProgressItem("Financial previews")).getByText("aucune preview disponible")
+      within(getProgressItem("Previsualisations financieres")).getByText("manquant")
     ).toBeInTheDocument();
-    expect(within(getProgressItem("Workpaper coverage")).getByText("empty")).toBeInTheDocument();
-    expect(within(getProgressItem("Workpaper coverage")).getByText("aucun anchor courant")).toBeInTheDocument();
-    expect(within(getProgressItem("Evidence documents")).getByText("missing")).toBeInTheDocument();
     expect(
-      within(getProgressItem("Evidence documents")).getByText("workpapers requis avant preuves")
+      within(getProgressItem("Previsualisations financieres")).getByText(
+        "aucune previsualisation disponible"
+      )
     ).toBeInTheDocument();
-    expect(within(getProgressItem("Review")).getByText("blocked")).toBeInTheDocument();
+    expect(within(getProgressItem("Couverture justifications")).getByText("vide")).toBeInTheDocument();
+    expect(within(getProgressItem("Couverture justifications")).getByText("aucune rubrique a documenter")).toBeInTheDocument();
+    expect(within(getProgressItem("Pieces justificatives")).getByText("manquant")).toBeInTheDocument();
+    expect(
+      within(getProgressItem("Pieces justificatives")).getByText("justifications requises avant preuves")
+    ).toBeInTheDocument();
+    expect(within(getProgressItem("Revue")).getByText("bloque")).toBeInTheDocument();
 
     expect(container).not.toHaveTextContent(/storage_object_key|storageObjectKey|signed URL/i);
     expect(container).not.toHaveTextContent(

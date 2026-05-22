@@ -810,8 +810,10 @@ export function WorkpapersPanel({
     <section className="panel p-6">
       <div className="grid gap-6">
         <div className="grid gap-2">
-          <p className="label-eyebrow">Workpapers</p>
-          <h3 className="text-xl font-semibold text-foreground">Maker update unitaire</h3>
+          <p className="label-eyebrow">Justifications</p>
+          <h3 className="text-xl font-semibold text-foreground">
+            Mise a jour des justifications
+          </h3>
         </div>
         <WorkpapersSlot
           documentDecisionDrafts={documentDecisionDrafts}

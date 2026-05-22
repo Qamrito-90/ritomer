@@ -360,8 +360,8 @@ const BLOCKED_MINIMAL_ANNEX = {
   isStatutory: false,
   requiresHumanReview: true,
   legalNotice: {
-    title: "Preview non statutaire.",
-    notOfficialCoAnnex: "Not a final CO deliverable.",
+    title: "Previsualisation non statutaire.",
+    notOfficialCoAnnex: "Pas un livrable statutaire final.",
     noAutomaticValidation: "Aucune decision automatique.",
     humanReviewRequired: "Human review required."
   },
@@ -511,29 +511,33 @@ function primeReadyClosingRoute(
     .mockResolvedValueOnce(jsonResponse(200, INITIAL_FINANCIAL_SUMMARY))
     .mockResolvedValueOnce(jsonResponse(200, INITIAL_FINANCIAL_STATEMENTS_STRUCTURED))
     .mockResolvedValueOnce(jsonResponse(200, INITIAL_WORKPAPERS))
-    .mockResolvedValueOnce(historyResponses.versions);
+    .mockResolvedValueOnce(historyResponses.versions)
+    .mockResolvedValueOnce(jsonResponse(200, EMPTY_MAPPING_SUGGESTIONS))
+    .mockResolvedValueOnce(jsonResponse(200, EMPTY_EXPORT_PACKS))
+    .mockResolvedValueOnce(jsonResponse(200, BLOCKED_MINIMAL_ANNEX));
 
   if (historyResponses.diff !== undefined) {
     fetchMock.mockResolvedValueOnce(historyResponses.diff);
   }
-
-  fetchMock
-    .mockResolvedValueOnce(jsonResponse(200, EMPTY_MAPPING_SUGGESTIONS))
-    .mockResolvedValueOnce(jsonResponse(200, EMPTY_EXPORT_PACKS))
-    .mockResolvedValueOnce(jsonResponse(200, BLOCKED_MINIMAL_ANNEX));
 }
 
 async function waitForClosingRouteReady() {
+  const user = userEvent.setup();
+
   expect(await screen.findByText("Dossier courant")).toBeInTheDocument();
   expect(await screen.findByText("Import balance")).toBeInTheDocument();
   expect(await screen.findByText("Mapping manuel")).toBeInTheDocument();
-  expect(await screen.findByText("Cockpit read-only")).toBeInTheDocument();
-  expect(await screen.findByText("Financial summary")).toBeInTheDocument();
-  expect(await screen.findByText("Financial statements structured")).toBeInTheDocument();
-  expect(await screen.findByText("Workpapers")).toBeInTheDocument();
-  expect(await screen.findByText("AI mapping suggestion")).toBeInTheDocument();
-  expect(await screen.findByText("Audit-ready export pack")).toBeInTheDocument();
-  expect(await screen.findByText("Minimal annex preview")).toBeInTheDocument();
+  expect(await screen.findByText("Etat de preparation")).toBeInTheDocument();
+  expect(await screen.findByText("Synthese financiere")).toBeInTheDocument();
+  expect(await screen.findByText("Etats financiers structures")).toBeInTheDocument();
+  expect(await screen.findByText("Justifications")).toBeInTheDocument();
+  expect(await screen.findByText("Suggestion IA de mapping")).toBeInTheDocument();
+  expect(await screen.findByText("Pack export auditable")).toBeInTheDocument();
+  expect(await screen.findByText("Annexe minimale")).toBeInTheDocument();
+
+  await user.click(screen.getByRole("tab", { name: "Import" }));
+  expect(await screen.findByRole("heading", { name: "Importer une balance CSV" })).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Upload CSV" })).not.toBeInTheDocument();
 }
 
 function getImportInput() {
@@ -626,9 +630,9 @@ describe("router import balance", () => {
     expect(await screen.findByText("Diff N/N-1")).toBeInTheDocument();
     expect(screen.getByText("v2")).toBeInTheDocument();
     expect(screen.getByText("v1")).toBeInTheDocument();
-    expect(screen.getByText("added")).toBeInTheDocument();
-    expect(screen.getByText("removed")).toBeInTheDocument();
-    expect(screen.getByText("changed")).toBeInTheDocument();
+    expect(screen.getByText("ajoutes")).toBeInTheDocument();
+    expect(screen.getByText("supprimes")).toBeInTheDocument();
+    expect(screen.getByText("modifies")).toBeInTheDocument();
     expect(screen.getAllByText("Receivable").length).toBeGreaterThan(0);
 
     const paths = getRequestPaths(fetchMock);
@@ -892,19 +896,28 @@ describe("router import balance", () => {
     expect(await screen.findByText("Closing FY26 refreshed")).toBeInTheDocument();
     expect(screen.getByText("EXT-26-R")).toBeInTheDocument();
 
-    const readinessBlock = screen.getByRole("heading", { name: "Readiness" }).closest("section");
+    await user.click(screen.getByRole("tab", { name: "Controles" }));
+    const readinessBlock = screen.getByRole("heading", { name: "Etat de preparation" }).closest("section");
     expect(readinessBlock).not.toBeNull();
     expectDefinitionValue(readinessBlock as HTMLElement, "version d import", "4");
     expect(screen.getByText("Latest valid balance import version 4 is available.")).toBeInTheDocument();
     expect(screen.queryByText("Latest valid balance import version 2 is available.")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Mapping" }));
     expect(await screen.findByLabelText("ligne mapping 3000")).toBeInTheDocument();
     expect(screen.getAllByText("Sales refreshed").length).toBeGreaterThan(0);
-    expect(screen.getByText("etat preview : preview prete")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Previsualisations" }));
+    expect(screen.getByText("etat previsualisation : previsualisation prete")).toBeInTheDocument();
     expect(screen.getAllByText("resultat net : 300").length).toBeGreaterThan(0);
-    expect(screen.getByText("etat structured preview : preview prete")).toBeInTheDocument();
+    expect(screen.getByText("etat previsualisation structuree : previsualisation prete")).toBeInTheDocument();
     expect(screen.getByText("total produits : 300")).toBeInTheDocument();
-    expect(screen.getByText("anchors courants total : 1")).toBeInTheDocument();
-    expect(screen.getByText("AI mapping suggestion ready.")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Preuves" }));
+    expect(screen.getByText("rubriques a documenter : 1")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Mapping" }));
+    expect(screen.getByText("Suggestions IA disponibles.")).toBeInTheDocument();
 
     const paths = getRequestPaths(fetchMock);
     expect(paths).toEqual([
@@ -967,8 +980,8 @@ describe("router import balance", () => {
     expect(screen.getByText("Closing FY26")).toBeInTheDocument();
     expect(screen.queryByText("Closing FY26 refreshed")).not.toBeInTheDocument();
     expect(screen.getByText("Latest valid balance import version 2 is available.")).toBeInTheDocument();
-    expect(screen.getByText("etat preview : preview partielle")).toBeInTheDocument();
-    expect(await screen.findByText("AI mapping suggestion ready.")).toBeInTheDocument();
+    expect(screen.getByText("etat previsualisation : previsualisation partielle")).toBeInTheDocument();
+    expect(await screen.findByText("Suggestions IA disponibles.")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(22);
     expectNoForbiddenImportCalls(getRequestPaths(fetchMock), 2, 2, 2, 2);
   });
@@ -1002,13 +1015,13 @@ describe("router import balance", () => {
     await user.click(getImportButton());
 
     expect(await screen.findByText("balance importee avec succes")).toBeInTheDocument();
-    expect(screen.getByText("rafraichissement controls impossible")).toBeInTheDocument();
+    expect(screen.getByText("rafraichissement controles impossible")).toBeInTheDocument();
     expect(await screen.findByText("Closing FY26 refreshed")).toBeInTheDocument();
     expect(screen.getByText("EXT-26-R")).toBeInTheDocument();
     expect(screen.getByText("Latest valid balance import version 2 is available.")).toBeInTheDocument();
     expect(screen.queryByText("Latest valid balance import version 4 is available.")).not.toBeInTheDocument();
-    expect(await screen.findByText("etat preview : preview prete")).toBeInTheDocument();
-    expect(await screen.findByText("AI mapping suggestion ready.")).toBeInTheDocument();
+    expect(await screen.findByText("etat previsualisation : previsualisation prete")).toBeInTheDocument();
+    expect(await screen.findByText("Suggestions IA disponibles.")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(22);
     expectNoForbiddenImportCalls(getRequestPaths(fetchMock), 2, 2, 2, 2);
   });

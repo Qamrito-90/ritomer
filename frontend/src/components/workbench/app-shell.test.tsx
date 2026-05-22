@@ -8,12 +8,12 @@ describe("AppShell", () => {
     const { container } = render(
       <MemoryRouter>
         <AppShell
-          actionZone={<p>lecture seule</p>}
+          actionZone={<p>Action recommandee</p>}
           breadcrumb={[
             { label: "Closing folders", href: "/" },
             { label: "Folder 1" }
           ]}
-          description="Shell lecture seule"
+          description="Pilotage fiduciaire"
           eyebrow="Route shell produit"
           sidebarItems={[
             { href: "/", label: "Demonstration" },
@@ -29,7 +29,9 @@ describe("AppShell", () => {
 
     expect(screen.getByRole("navigation", { name: "Navigation principale" })).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toBeInTheDocument();
-    expect(screen.getByText("lecture seule")).toBeInTheDocument();
+    expect(screen.getByText("Action recommandee")).toBeInTheDocument();
+    expect(screen.queryByText("Shell lecture seule du frontend V1.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Zone d action")).not.toBeInTheDocument();
     expect(screen.getByLabelText("tenant actif")).toHaveTextContent("Tenant Alpha");
     expect((await axe(container)).violations).toEqual([]);
   });

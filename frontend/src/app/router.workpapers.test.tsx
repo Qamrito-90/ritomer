@@ -195,8 +195,8 @@ const BLOCKED_MINIMAL_ANNEX = {
   isStatutory: false,
   requiresHumanReview: true,
   legalNotice: {
-    title: "Preview non statutaire.",
-    notOfficialCoAnnex: "Not a final CO deliverable.",
+    title: "Previsualisation non statutaire.",
+    notOfficialCoAnnex: "Pas un livrable statutaire final.",
     noAutomaticValidation: "Aucune decision automatique.",
     humanReviewRequired: "Human review required."
   },
@@ -280,13 +280,13 @@ async function waitForNominalShell() {
   await screen.findByText("Progression dossier");
   await screen.findByText("Import balance");
   await screen.findByText("Mapping manuel");
-  await screen.findByText("Financial summary");
-  await screen.findByText("Financial statements structured");
-  await screen.findByText("Workpapers");
-  await screen.findByText("AI mapping suggestion");
-  await screen.findByText("Audit-ready export pack");
-  await screen.findByText("No audit-ready pack generated yet.");
-  await screen.findByText("Minimal annex preview");
+  await screen.findByText("Synthese financiere");
+  await screen.findByText("Etats financiers structures");
+  await screen.findByText("Justifications");
+  await screen.findByText("Suggestion IA de mapping");
+  await screen.findByText("Pack export auditable");
+  await screen.findByText("Aucun pack auditable genere.");
+  await screen.findByText("Annexe minimale");
 }
 
 function getRequestPaths(fetchMock: ReturnType<typeof vi.fn>) {
@@ -338,7 +338,7 @@ describe("router workpapers smoke", () => {
     vi.restoreAllMocks();
   });
 
-  it("keeps Workpapers after Financial statements structured and preserves the initial request scope", async () => {
+  it("keeps Workpapers after Etats financiers structures and preserves the initial request scope", async () => {
     const fetchMock = vi.mocked(global.fetch);
     primeNominalRoute(fetchMock);
 
@@ -348,8 +348,8 @@ describe("router workpapers smoke", () => {
     expectNodeBefore(screen.getByText("Dossier courant"), screen.getByText("Progression dossier"));
     expectNodeBefore(screen.getByText("Progression dossier"), screen.getByText("Import balance"));
     expectNodeBefore(
-      screen.getByText("Financial statements structured"),
-      screen.getByText("Workpapers")
+      screen.getByText("Etats financiers structures"),
+      screen.getByText("Justifications")
     );
     expect(getRequestPaths(fetchMock)).toEqual([
       "/api/me",

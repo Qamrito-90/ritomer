@@ -39,7 +39,7 @@ const BLOCKED_MINIMAL_ANNEX_WITHOUT_EXPORT: MinimalAnnexReadModel = {
   requiresHumanReview: true,
   legalNotice: {
     title: "Annexe minimale operationnelle, non statutaire.",
-    notOfficialCoAnnex: "Not a final CO deliverable.",
+    notOfficialCoAnnex: "Pas un livrable statutaire final.",
     noAutomaticValidation: "Aucune decision comptable automatique n'est effectuee.",
     humanReviewRequired: "Revue humaine requise avant tout usage engageant."
   },
@@ -193,7 +193,7 @@ describe("ExportAuditPackPanel", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const emptyRender = renderPanel();
-    expect(await screen.findByText("No audit-ready pack generated yet.")).toBeInTheDocument();
+    expect(await screen.findByText("Aucun pack auditable genere.")).toBeInTheDocument();
     emptyRender.unmount();
 
     const errorRender = renderPanel();
@@ -202,7 +202,7 @@ describe("ExportAuditPackPanel", () => {
 
     renderPanel();
     expect(await screen.findByText("audit-ready-pack.zip")).toBeInTheDocument();
-    expect(screen.getByText("Audit-ready pack available.")).toBeInTheDocument();
+    expect(screen.getByText("Pack auditable disponible.")).toBeInTheDocument();
   });
 
   it("creates an export pack with 201 and refreshes the list", async () => {
@@ -214,9 +214,9 @@ describe("ExportAuditPackPanel", () => {
       .mockResolvedValueOnce(jsonResponse(200, { items: [VALID_EXPORT_PACK] }));
 
     renderPanel();
-    expect(await screen.findByText("No audit-ready pack generated yet.")).toBeInTheDocument();
+    expect(await screen.findByText("Aucun pack auditable genere.")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Generate audit-ready pack" }));
+    await user.click(screen.getByRole("button", { name: "Generer le pack auditable" }));
 
     expect(await screen.findByText("audit-ready-pack.zip")).toBeInTheDocument();
     expect(getRequestPaths(fetchMock)).toEqual([
@@ -236,8 +236,8 @@ describe("ExportAuditPackPanel", () => {
       .mockResolvedValueOnce(jsonResponse(200, { items: [VALID_EXPORT_PACK] }));
 
     renderPanel();
-    await screen.findByText("No audit-ready pack generated yet.");
-    await user.click(screen.getByRole("button", { name: "Generate audit-ready pack" }));
+    await screen.findByText("Aucun pack auditable genere.");
+    await user.click(screen.getByRole("button", { name: "Generer le pack auditable" }));
 
     expect(await screen.findByText("audit-ready-pack.zip")).toBeInTheDocument();
     expect(getPostExportPackCalls(fetchMock)).toHaveLength(1);
@@ -288,16 +288,16 @@ describe("ExportAuditPackPanel", () => {
 
       renderExportAndMinimalAnnexHarness();
 
-      expect(await screen.findByText("No audit-ready pack generated yet.")).toBeInTheDocument();
-      expect(await screen.findByText("export pack basis : absent")).toBeInTheDocument();
+      expect(await screen.findByText("Aucun pack auditable genere.")).toBeInTheDocument();
+      expect(await screen.findByText("base pack export : absente")).toBeInTheDocument();
 
-      await user.click(screen.getByRole("button", { name: "Generate audit-ready pack" }));
+      await user.click(screen.getByRole("button", { name: "Generer le pack auditable" }));
 
       expect(await screen.findByText("audit-ready-pack.zip")).toBeInTheDocument();
-      expect(await screen.findByText("export pack basis : present")).toBeInTheDocument();
+      expect(await screen.findByText("base pack export : presente")).toBeInTheDocument();
       expect(getMinimalAnnexCalls(fetchMock)).toHaveLength(2);
       expect(
-        screen.queryByText("rafraichissement minimal annex impossible")
+        screen.queryByText("rafraichissement annexe minimale impossible")
       ).not.toBeInTheDocument();
 
       const requestPaths = getRequestPaths(fetchMock);
@@ -322,10 +322,10 @@ describe("ExportAuditPackPanel", () => {
       .mockResolvedValueOnce(jsonResponse(status, {}));
 
     renderPanel();
-    await screen.findByText("No audit-ready pack generated yet.");
-    await user.click(screen.getByRole("button", { name: "Generate audit-ready pack" }));
+    await screen.findByText("Aucun pack auditable genere.");
+    await user.click(screen.getByRole("button", { name: "Generer le pack auditable" }));
 
-    expect(await screen.findByText("Export pack generation blocked.")).toBeInTheDocument();
+    expect(await screen.findByText("generation pack export bloquee.")).toBeInTheDocument();
   });
 
   it("does not create or download automatically at mount", async () => {
@@ -367,7 +367,7 @@ describe("ExportAuditPackPanel", () => {
 
       renderPanel();
       await screen.findByText("audit-ready-pack.zip");
-      await user.click(screen.getByRole("button", { name: "Download ZIP" }));
+      await user.click(screen.getByRole("button", { name: "Telecharger ZIP" }));
 
       await waitFor(() => {
         expect(createObjectUrl).toHaveBeenCalledTimes(1);
@@ -397,9 +397,9 @@ describe("ExportAuditPackPanel", () => {
 
     renderPanel();
     await screen.findByText("audit-ready-pack.zip");
-    await user.click(screen.getByRole("button", { name: "Download ZIP" }));
+    await user.click(screen.getByRole("button", { name: "Telecharger ZIP" }));
 
-    expect(await screen.findByText("Export pack download unavailable.")).toBeInTheDocument();
+    expect(await screen.findByText("telechargement pack export indisponible.")).toBeInTheDocument();
   });
 
   it("does not refresh minimal annex or show its warning after ZIP download", async () => {
@@ -443,19 +443,19 @@ describe("ExportAuditPackPanel", () => {
       renderExportAndMinimalAnnexHarness();
 
       await screen.findByText("audit-ready-pack.zip");
-      await screen.findByText("export pack basis : present");
+      await screen.findByText("base pack export : presente");
 
       expect(getMinimalAnnexCalls(fetchMock)).toHaveLength(1);
 
-      await user.click(screen.getByRole("button", { name: "Download ZIP" }));
+      await user.click(screen.getByRole("button", { name: "Telecharger ZIP" }));
 
-      expect(await screen.findByText("Download ZIP started.")).toBeInTheDocument();
+      expect(await screen.findByText("telechargement ZIP demarre")).toBeInTheDocument();
       expect(click).toHaveBeenCalledTimes(1);
       expect(revokeObjectUrl).toHaveBeenCalledWith("blob:ritomer-export");
       expect(getDownloadContentCalls(fetchMock)).toHaveLength(1);
       expect(getMinimalAnnexCalls(fetchMock)).toHaveLength(1);
       expect(
-        screen.queryByText("rafraichissement minimal annex impossible")
+        screen.queryByText("rafraichissement annexe minimale impossible")
       ).not.toBeInTheDocument();
     } finally {
       Object.defineProperty(URL, "createObjectURL", {
@@ -479,8 +479,8 @@ describe("ExportAuditPackPanel", () => {
       .mockResolvedValueOnce(jsonResponse(200, { items: [VALID_EXPORT_PACK] }));
     const { container } = renderPanel();
 
-    await screen.findByText("No audit-ready pack generated yet.");
-    const button = screen.getByRole("button", { name: "Generate audit-ready pack" });
+    await screen.findByText("Aucun pack auditable genere.");
+    const button = screen.getByRole("button", { name: "Generer le pack auditable" });
 
     await user.click(button);
     await user.click(button);
@@ -522,7 +522,7 @@ describe("ExportAuditPackPanel", () => {
 
       renderPanel();
       await screen.findByText("audit-ready-pack.zip");
-      const button = screen.getByRole("button", { name: "Download ZIP" });
+      const button = screen.getByRole("button", { name: "Telecharger ZIP" });
 
       await user.click(button);
       await user.click(button);
@@ -556,8 +556,8 @@ describe("ExportAuditPackPanel", () => {
       .mockResolvedValueOnce(jsonResponse(200, { items: [VALID_EXPORT_PACK] }));
 
     renderPanel();
-    await screen.findByText("No audit-ready pack generated yet.");
-    await user.click(screen.getByRole("button", { name: "Generate audit-ready pack" }));
+    await screen.findByText("Aucun pack auditable genere.");
+    await user.click(screen.getByRole("button", { name: "Generer le pack auditable" }));
     await screen.findByText("audit-ready-pack.zip");
 
     expect(storageSetItem).not.toHaveBeenCalled();
@@ -596,11 +596,11 @@ describe("ExportAuditPackPanel", () => {
 
     await screen.findByText("audit-ready-pack.zip");
 
-    expect(container).toHaveTextContent("Non statutory.");
+    expect(container).toHaveTextContent("Non statutaire.");
     expect(container).toHaveTextContent(
-      "Human review required before client or statutory use."
+      "Revue humaine requise avant usage client ou officiel."
     );
-    expect(container).toHaveTextContent("Not a final CO deliverable.");
+    expect(container).toHaveTextContent("Pas un livrable statutaire final.");
 
     const forbiddenPhrases = [
       "CO-" + "ready",

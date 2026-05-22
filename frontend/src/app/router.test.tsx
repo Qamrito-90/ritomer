@@ -240,10 +240,10 @@ const BLOCKED_MINIMAL_ANNEX = {
   isStatutory: false,
   requiresHumanReview: true,
   legalNotice: {
-    title: "Preview non statutaire.",
-    notOfficialCoAnnex: "Not a final CO deliverable.",
+    title: "Previsualisation non statutaire.",
+    notOfficialCoAnnex: "Pas un livrable statutaire final.",
     noAutomaticValidation: "Aucune decision automatique.",
-    humanReviewRequired: "Human review required."
+    humanReviewRequired: "requise."
   },
   basis: {
     controlsReadiness: "BLOCKED",
@@ -386,9 +386,32 @@ function primeClosingRoute(
 }
 
 function expectNoControlsNominalBlocks() {
-  expect(screen.queryByRole("heading", { name: "Readiness" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Resume de preparation" })).not.toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: "Prochaine action" })).not.toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: "Comptes non mappes" })).not.toBeInTheDocument();
+}
+
+function expectNoPrototypeMicrocopy(container: HTMLElement = document.body) {
+  [
+    "Controls",
+    "Workpapers",
+    "Maker update unitaire",
+    "Resume workpapers",
+    "anchors courants",
+    "anchors sans workpaper",
+    "added",
+    "removed",
+    "changed",
+    "Previews read-only",
+    "Financial summary",
+    "Financial statements structured",
+    "Zone d action",
+    "Liste read-only",
+    "Entree produit V1",
+    "Shell lecture seule du frontend V1"
+  ].forEach((text) => {
+    expect(container).not.toHaveTextContent(text);
+  });
 }
 
 async function expectControlsState(text: string) {
@@ -396,10 +419,10 @@ async function expectControlsState(text: string) {
   expect(await screen.findByLabelText("tenant actif")).toHaveTextContent("Tenant Alpha");
   expect(screen.getByText("Dossier courant")).toBeInTheDocument();
   expect(screen.getByText("Closing FY26")).toBeInTheDocument();
-  expect(screen.getByText("Controles")).toBeInTheDocument();
-  expect(await screen.findByText("No audit-ready pack generated yet.")).toBeInTheDocument();
-  expect(await screen.findByText("AI mapping suggestion")).toBeInTheDocument();
-  expect(await screen.findByText("Minimal annex preview")).toBeInTheDocument();
+  expect(screen.getByRole("tab", { name: "Controles" })).toBeInTheDocument();
+  expect(await screen.findByText("Aucun pack auditable genere.")).toBeInTheDocument();
+  expect(await screen.findByText("Suggestion IA de mapping")).toBeInTheDocument();
+  expect(await screen.findByText("Annexe minimale")).toBeInTheDocument();
   expectNoControlsNominalBlocks();
 }
 
@@ -408,6 +431,11 @@ async function flushTimeout() {
     vi.advanceTimersByTime(DEFAULT_REQUEST_TIMEOUT_MS);
     await Promise.resolve();
   });
+}
+
+async function openWorkbenchPanel(label: string) {
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("tab", { name: label }));
 }
 
 describe("router", () => {
@@ -432,7 +460,7 @@ describe("router", () => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
       expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/me");
       expect(screen.queryByLabelText("tenant actif")).not.toBeInTheDocument();
-      expect(screen.queryByText("Liste read-only")).not.toBeInTheDocument();
+      expect(screen.queryByText("Portefeuille de closing")).not.toBeInTheDocument();
     });
 
     it("renders authentification requise on /api/me 401 and never calls /api/closing-folders", async () => {
@@ -479,7 +507,7 @@ describe("router", () => {
 
       expect(await expectVisibleText("authentification requise")).toBeInTheDocument();
       expect(await screen.findByLabelText("tenant actif")).toHaveTextContent("Tenant Alpha");
-      expect(screen.getByText("Liste read-only")).toBeInTheDocument();
+      expect(screen.getByText("Portefeuille de closing")).toBeInTheDocument();
       expect(fetchMock).toHaveBeenCalledTimes(2);
       expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/closing-folders");
     });
@@ -494,7 +522,7 @@ describe("router", () => {
 
       expect(await expectVisibleText("acces dossiers refuse")).toBeInTheDocument();
       expect(await screen.findByLabelText("tenant actif")).toHaveTextContent("Tenant Alpha");
-      expect(screen.getByText("Liste read-only")).toBeInTheDocument();
+      expect(screen.getByText("Portefeuille de closing")).toBeInTheDocument();
       expect(screen.queryByRole("link", { name: "Ouvrir" })).not.toBeInTheDocument();
     });
 
@@ -516,7 +544,7 @@ describe("router", () => {
 
       expect(await expectVisibleText("dossiers indisponibles")).toBeInTheDocument();
       expect(await screen.findByLabelText("tenant actif")).toHaveTextContent("Tenant Alpha");
-      expect(screen.getByText("Liste read-only")).toBeInTheDocument();
+      expect(screen.getByText("Portefeuille de closing")).toBeInTheDocument();
       expect(screen.queryByRole("link", { name: "Ouvrir" })).not.toBeInTheDocument();
     });
 
@@ -530,7 +558,7 @@ describe("router", () => {
 
       expect(await expectVisibleText("aucun dossier de closing")).toBeInTheDocument();
       expect(await screen.findByLabelText("tenant actif")).toHaveTextContent("Tenant Alpha");
-      expect(screen.getByText("Liste read-only")).toBeInTheDocument();
+      expect(screen.getByText("Portefeuille de closing")).toBeInTheDocument();
       expect(screen.queryByText("Cross-tenant folder")).not.toBeInTheDocument();
     });
 
@@ -558,7 +586,7 @@ describe("router", () => {
       expect(screen.queryByText("Cross-tenant folder")).not.toBeInTheDocument();
       expect(screen.getAllByRole("link", { name: "Ouvrir" })).toHaveLength(2);
       expect(await screen.findByLabelText("tenant actif")).toHaveTextContent("Tenant Alpha");
-      expect(screen.getByText("Liste read-only")).toBeInTheDocument();
+      expect(screen.getByText("Portefeuille de closing")).toBeInTheDocument();
       expect(screen.queryByLabelText("Closing folder id")).not.toBeInTheDocument();
       expect(screen.queryByText("Surface de demonstration interne")).not.toBeInTheDocument();
 
@@ -576,6 +604,7 @@ describe("router", () => {
         `/api/closing-folders/${CLOSING_FOLDER.id}/controls`
       );
       expect((await axe(container)).violations).toEqual([]);
+      expectNoPrototypeMicrocopy(container);
     });
 
     it("navigates with Ouvrir to /closing-folders/:closingFolderId and reuses the existing shell and cockpit", async () => {
@@ -609,11 +638,11 @@ describe("router", () => {
       await user.click(within(folderCard as HTMLElement).getByRole("link", { name: "Ouvrir" }));
 
       expect(await screen.findByText("Dossier courant")).toBeInTheDocument();
-      expect(await screen.findByText("Cockpit read-only")).toBeInTheDocument();
-      expect(await screen.findByText("Workpapers")).toBeInTheDocument();
-      expect(await screen.findByText("AI mapping suggestion")).toBeInTheDocument();
-      expect(await screen.findByText("No audit-ready pack generated yet.")).toBeInTheDocument();
-      expect(await screen.findByText("Minimal annex preview")).toBeInTheDocument();
+      expect(await screen.findByText("Etat de preparation")).toBeInTheDocument();
+      expect(await screen.findByText("Justifications")).toBeInTheDocument();
+      expect(await screen.findByText("Suggestion IA de mapping")).toBeInTheDocument();
+      expect(await screen.findByText("Aucun pack auditable genere.")).toBeInTheDocument();
+      expect(await screen.findByText("Annexe minimale")).toBeInTheDocument();
       expect(await screen.findByLabelText("tenant actif")).toHaveTextContent("Tenant Alpha");
       expect(fetchMock).toHaveBeenCalledTimes(14);
       expect(fetchMock.mock.calls[2]?.[0]).toBe("/api/me");
@@ -852,8 +881,8 @@ describe("router", () => {
 
       expect(await screen.findByText("Closing FY26")).toBeInTheDocument();
       expect(screen.getByText("Dossier courant")).toBeInTheDocument();
-      expect(await expectVisibleText("chargement controls")).toBeInTheDocument();
-      expect(await screen.findByText("No audit-ready pack generated yet.")).toBeInTheDocument();
+      expect(await expectVisibleText("chargement controles")).toBeInTheDocument();
+      expect(await screen.findByText("Aucun pack auditable genere.")).toBeInTheDocument();
       expect(fetchMock).toHaveBeenCalledTimes(12);
       expectNoControlsNominalBlocks();
     });
@@ -895,10 +924,10 @@ describe("router", () => {
       expect(
         within(cockpit).getByText("0/0 justification(s), 0 piece(s), 0 pret(s) pour revue, 0 revu(s).")
       ).toBeInTheDocument();
-      expect(within(cockpit).getByText("Previews et export")).toBeInTheDocument();
+      expect(within(cockpit).getByText("Previsualisations et export")).toBeInTheDocument();
       expect(
         within(cockpit).getByText(
-          "Synthese financiere partielle - Preview structuree bloquee. Preview non statutaire. Revue humaine requise."
+          "Synthese financiere partielle - Previsualisation structuree bloquee. Previsualisation non statutaire. Revue humaine requise."
         )
       ).toBeInTheDocument();
 
@@ -906,9 +935,9 @@ describe("router", () => {
       expect(progression).toHaveTextContent("Closing");
       expect(progression).toHaveTextContent("Import");
       expect(progression).toHaveTextContent("Mapping");
-      expect(progression).toHaveTextContent("Controls");
-      expect(progression).toHaveTextContent("Previews");
-      expect(progression).toHaveTextContent("Evidence");
+      expect(progression).toHaveTextContent("Controles");
+      expect(progression).toHaveTextContent("Previsualisations");
+      expect(progression).toHaveTextContent("Preuves");
       expect(progression).toHaveTextContent("Export");
       expect(progression).toHaveTextContent("indetermine");
 
@@ -927,11 +956,118 @@ describe("router", () => {
       expect(fetchMock).toHaveBeenCalledTimes(12);
     });
 
+    it("renders a compact workbench with tabs, one active detail panel, and structural overflow guards", async () => {
+      const fetchMock = vi.mocked(global.fetch);
+      primeClosingRoute(fetchMock, Promise.resolve(jsonResponse(200, BLOCKED_CONTROLS)));
+
+      const { container } = renderRoute(CLOSING_ROUTE);
+
+      const cockpit = await screen.findByRole("region", { name: "Closing FY26" });
+      const tablist = within(cockpit).getByRole("tablist", { name: "Panneaux du workbench" });
+      const overviewPanel = await screen.findByRole("tabpanel", { name: "Vue d'ensemble" });
+
+      expect(container.firstElementChild).toHaveClass("overflow-x-hidden");
+      expect(container.querySelector("main")).toHaveClass("min-w-0", "overflow-x-hidden");
+      expect(overviewPanel).toHaveClass("min-w-0", "overflow-x-hidden");
+      expect(within(tablist).getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+        "Vue d'ensemble",
+        "Import",
+        "Mapping",
+        "Controles",
+        "Previsualisations",
+        "Preuves",
+        "Export"
+      ]);
+      expect(within(tablist).getByRole("tab", { name: "Vue d'ensemble" })).toHaveAttribute(
+        "aria-selected",
+        "true"
+      );
+      expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
+      expect(screen.queryByRole("tabpanel", { name: "Import" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("tabpanel", { name: "Mapping" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Importer une balance CSV" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Projection du dernier import" })).not.toBeInTheDocument();
+
+      expect(within(cockpit).getByText("Tenant actif : Tenant Alpha - Periode :")).toBeInTheDocument();
+      expect(within(cockpit).getByText("Dossier bloque")).toBeInTheDocument();
+      expect(within(cockpit).getByText("Prochaine action")).toBeInTheDocument();
+      expect(within(cockpit).getByText("Mapping manuel incomplet")).toBeInTheDocument();
+      expect(within(cockpit).getByLabelText("progression closing")).toHaveTextContent("Mapping");
+      expect(within(overviewPanel).getByText("Decision du moment")).toBeInTheDocument();
+      expect(within(overviewPanel).getByText("Tenant Alpha")).toBeInTheDocument();
+      expect(within(overviewPanel).getByText("Points a traiter")).toBeInTheDocument();
+      expect(overviewPanel).not.toHaveTextContent("/api/");
+      expect(overviewPanel).not.toHaveTextContent(CLOSING_FOLDER.id);
+      expect(overviewPanel).not.toHaveTextContent(ACTIVE_TENANT.tenantId);
+      expectNoPrototypeMicrocopy(cockpit);
+      expect(fetchMock).toHaveBeenCalledTimes(12);
+    });
+
+    it("keeps long mapping rows bounded with wrapping fields and aligned actions", async () => {
+      const fetchMock = vi.mocked(global.fetch);
+      const longAccountCode = "999999999999999999999999999999999999999999";
+      const longAccountLabel =
+        "Libelle tres long pour verifier que la ligne de mapping ne force pas un scroll horizontal sauvage dans le workbench";
+      const longMapping = {
+        ...DEFAULT_MANUAL_MAPPING,
+        summary: {
+          total: 1,
+          mapped: 0,
+          unmapped: 1
+        },
+        lines: [
+          {
+            accountCode: longAccountCode,
+            accountLabel: longAccountLabel,
+            debit: "1234567890.00",
+            credit: "0"
+          }
+        ],
+        mappings: [],
+        targets: [
+          {
+            code: "PL.REVENUE.EXTRA.LONG.TARGET.CODE",
+            label: "Produit avec libelle long",
+            selectable: true
+          }
+        ]
+      };
+
+      primeClosingRoute(
+        fetchMock,
+        Promise.resolve(jsonResponse(200, BLOCKED_CONTROLS)),
+        Promise.resolve(jsonResponse(200, longMapping))
+      );
+
+      renderRoute(CLOSING_ROUTE);
+
+      expect(await screen.findByRole("region", { name: "Closing FY26" })).toBeInTheDocument();
+      await openWorkbenchPanel("Mapping");
+
+      const mappingPanel = screen.getByRole("tabpanel", { name: "Mapping" });
+      const mappingLine = await within(mappingPanel).findByLabelText(`ligne mapping ${longAccountCode}`);
+
+      expect(mappingPanel).toHaveClass("overflow-x-hidden");
+      expect(mappingLine).toHaveClass("min-w-0", "overflow-hidden");
+      expect(within(mappingLine).getByText(longAccountCode)).toHaveClass("break-all");
+      expect(within(mappingLine).getByText(longAccountLabel)).toHaveClass("break-words");
+      expect(within(mappingLine).getByLabelText("Cible")).toHaveClass("w-full", "min-w-0");
+      expect(within(mappingLine).getByRole("button", { name: "Enregistrer le mapping" })).toHaveClass(
+        "w-full"
+      );
+      expect(within(mappingLine).getByRole("button", { name: "Supprimer le mapping" })).toHaveClass(
+        "w-full"
+      );
+      expect(mappingPanel).not.toHaveTextContent("/api/");
+      expect(mappingPanel).not.toHaveTextContent(CLOSING_FOLDER.id);
+      expect(fetchMock).toHaveBeenCalledTimes(12);
+    });
+
     it.each([
       { status: 401, text: "authentification requise" },
-      { status: 403, text: "acces controls refuse" },
-      { status: 404, text: "controls introuvables" },
-      { status: 500, text: "erreur serveur controls" },
+      { status: 403, text: "acces controles refuse" },
+      { status: 404, text: "controles introuvables" },
+      { status: 500, text: "erreur serveur controles" },
       { status: 400, text: "controles indisponibles" }
     ])("renders the exact controls state for HTTP $status", async ({ status, text }) => {
       const fetchMock = vi.mocked(global.fetch);
@@ -943,7 +1079,7 @@ describe("router", () => {
       expect(fetchMock).toHaveBeenCalledTimes(12);
     });
 
-    it("renders erreur reseau controls on a controls network failure", async () => {
+    it("renders erreur reseau controles on a controls network failure", async () => {
       const fetchMock = vi.mocked(global.fetch);
       fetchMock
         .mockResolvedValueOnce(jsonResponse(200, { activeTenant: ACTIVE_TENANT }))
@@ -961,11 +1097,11 @@ describe("router", () => {
 
       renderRoute(CLOSING_ROUTE);
 
-      await expectControlsState("erreur reseau controls");
+      await expectControlsState("erreur reseau controles");
       expect(fetchMock).toHaveBeenCalledTimes(12);
     });
 
-    it("renders timeout controls on a controls timeout failure", async () => {
+    it("renders timeout controles on a controls timeout failure", async () => {
       const fetchMock = vi.mocked(global.fetch);
       fetchMock
         .mockResolvedValueOnce(jsonResponse(200, { activeTenant: ACTIVE_TENANT }))
@@ -983,11 +1119,11 @@ describe("router", () => {
 
       renderRoute(CLOSING_ROUTE);
 
-      await expectControlsState("timeout controls");
+      await expectControlsState("timeout controles");
       expect(fetchMock).toHaveBeenCalledTimes(12);
     });
 
-    it("renders payload controls invalide when the controls payload is incomplete", async () => {
+    it("renders payload controles invalide when the controls payload is incomplete", async () => {
       const fetchMock = vi.mocked(global.fetch);
       primeClosingRoute(
         fetchMock,
@@ -1001,7 +1137,7 @@ describe("router", () => {
 
       renderRoute(CLOSING_ROUTE);
 
-      await expectControlsState("payload controls invalide");
+      await expectControlsState("payload controles invalide");
       expect(fetchMock).toHaveBeenCalledTimes(12);
     });
 
@@ -1018,7 +1154,9 @@ describe("router", () => {
       expect(screen.getByText("31.12.2026")).toBeInTheDocument();
       expect(screen.getByText("DRAFT")).toBeInTheDocument();
 
-      const readinessHeading = screen.getByRole("heading", { name: "Readiness" });
+      await openWorkbenchPanel("Controles");
+
+      const readinessHeading = screen.getByRole("heading", { name: "Resume de preparation" });
       const controlsHeading = screen.getByRole("heading", { name: "Controles" });
       const nextActionHeading = screen.getByRole("heading", { name: "Prochaine action" });
       const unmappedHeading = screen.getByRole("heading", { name: "Comptes non mappes" });
@@ -1037,7 +1175,7 @@ describe("router", () => {
       expect(nextActionBlock).not.toBeNull();
       expect(unmappedBlock).not.toBeNull();
 
-      expectDefinitionValue(readinessBlock as HTMLElement, "readiness", "pret");
+      expectDefinitionValue(readinessBlock as HTMLElement, "etat de preparation", "pret");
       expectDefinitionValue(readinessBlock as HTMLElement, "dernier import valide", "present");
       expectDefinitionValue(readinessBlock as HTMLElement, "version d import", "3");
       expectDefinitionValue(readinessBlock as HTMLElement, "comptes total", "2");
@@ -1059,7 +1197,7 @@ describe("router", () => {
 
       expect(screen.queryByText(ACTIVE_TENANT.tenantId)).not.toBeInTheDocument();
       expect(screen.queryByText(CLOSING_FOLDER.id)).not.toBeInTheDocument();
-      expect(await screen.findByText("No audit-ready pack generated yet.")).toBeInTheDocument();
+      expect(await screen.findByText("Aucun pack auditable genere.")).toBeInTheDocument();
       expect(fetchMock).toHaveBeenCalledTimes(12);
 
       expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/me");
@@ -1107,6 +1245,7 @@ describe("router", () => {
       expect(getRequestHeaders(fetchMock, 8)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
       expect(getRequestHeaders(fetchMock, 9)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
       expect((await axe(container)).violations).toEqual([]);
+      expectNoPrototypeMicrocopy(container);
     });
 
     it("renders the exact BLOCKED controls blocks, keeps backend order, and keeps nextAction.path read-only", async () => {
@@ -1116,9 +1255,11 @@ describe("router", () => {
       renderRoute(CLOSING_ROUTE);
 
       expect(await screen.findByText("Closing FY26")).toBeInTheDocument();
-      expect(await screen.findByText("No audit-ready pack generated yet.")).toBeInTheDocument();
+      expect(await screen.findByText("Aucun pack auditable genere.")).toBeInTheDocument();
 
-      const readinessBlock = screen.getByRole("heading", { name: "Readiness" }).closest("section");
+      await openWorkbenchPanel("Controles");
+
+      const readinessBlock = screen.getByRole("heading", { name: "Resume de preparation" }).closest("section");
       const controlsBlock = screen.getByRole("heading", { name: "Controles" }).closest("section");
       const nextActionBlock = screen.getByRole("heading", { name: "Prochaine action" }).closest("section");
       const unmappedBlock = screen
@@ -1130,7 +1271,7 @@ describe("router", () => {
       expect(nextActionBlock).not.toBeNull();
       expect(unmappedBlock).not.toBeNull();
 
-      expectDefinitionValue(readinessBlock as HTMLElement, "readiness", "bloque");
+      expectDefinitionValue(readinessBlock as HTMLElement, "etat de preparation", "bloque");
       expectDefinitionValue(readinessBlock as HTMLElement, "dernier import valide", "present");
       expectDefinitionValue(readinessBlock as HTMLElement, "version d import", "2");
       expectDefinitionValue(readinessBlock as HTMLElement, "comptes total", "3");

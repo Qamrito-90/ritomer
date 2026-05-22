@@ -100,7 +100,7 @@ export function WorkpapersSlot({
   workpaperDrafts: Record<string, WorkpaperDraft>;
 }) {
   if (state.kind === "loading") {
-    return <StateMessage text="chargement workpapers" />;
+    return <StateMessage text="chargement justifications" />;
   }
 
   if (state.kind === "auth_required") {
@@ -108,31 +108,31 @@ export function WorkpapersSlot({
   }
 
   if (state.kind === "forbidden") {
-    return <StateMessage text="acces workpapers refuse" />;
+    return <StateMessage text="acces justifications refuse" />;
   }
 
   if (state.kind === "not_found") {
-    return <StateMessage text="workpapers introuvables" />;
+    return <StateMessage text="justifications introuvables" />;
   }
 
   if (state.kind === "server_error") {
-    return <StateMessage text="erreur serveur workpapers" />;
+    return <StateMessage text="erreur serveur justifications" />;
   }
 
   if (state.kind === "network_error") {
-    return <StateMessage text="erreur reseau workpapers" />;
+    return <StateMessage text="erreur reseau justifications" />;
   }
 
   if (state.kind === "timeout") {
-    return <StateMessage text="timeout workpapers" />;
+    return <StateMessage text="timeout justifications" />;
   }
 
   if (state.kind === "invalid_payload") {
-    return <StateMessage text="payload workpapers invalide" />;
+    return <StateMessage text="payload justifications invalide" />;
   }
 
   if (state.kind === "bad_request" || state.kind === "unexpected") {
-    return <StateMessage text="workpapers indisponibles" />;
+    return <StateMessage text="justifications indisponibles" />;
   }
 
   return (
@@ -220,12 +220,12 @@ function WorkpapersNominalBlocks({
   workpapers: ClosingWorkpapersReadModel;
 }) {
   const summaryLines = [
-    `anchors courants total : ${workpapers.summaryCounts.totalCurrentAnchors}`,
-    `anchors avec workpaper : ${workpapers.summaryCounts.withWorkpaperCount}`,
-    `workpapers prets pour revue : ${workpapers.summaryCounts.readyForReviewCount}`,
-    `workpapers revus : ${workpapers.summaryCounts.reviewedCount}`,
-    `workpapers stale : ${workpapers.summaryCounts.staleCount}`,
-    `anchors sans workpaper : ${workpapers.summaryCounts.missingCount}`
+    `rubriques a documenter : ${workpapers.summaryCounts.totalCurrentAnchors}`,
+    `rubriques avec justification : ${workpapers.summaryCounts.withWorkpaperCount}`,
+    `justifications pretes pour revue : ${workpapers.summaryCounts.readyForReviewCount}`,
+    `justifications revues : ${workpapers.summaryCounts.reviewedCount}`,
+    `justifications obsoletes : ${workpapers.summaryCounts.staleCount}`,
+    `rubriques sans justification : ${workpapers.summaryCounts.missingCount}`
   ];
   const globalReadOnlyMessage = getWorkpapersGlobalReadOnlyMessage(workpapers, effectiveRoles);
   const makerControlsDisabled =
@@ -245,12 +245,12 @@ function WorkpapersNominalBlocks({
   return (
     <div className="grid gap-4">
       <p className="rounded-lg border bg-background/80 p-4 text-sm font-medium text-foreground">
-        Mise a jour maker unitaire sur les workpapers courants uniquement.
+        Mise a jour des justifications courantes uniquement.
       </p>
 
       <WorkpaperMutationStatus state={mutationState} />
 
-      <ControlsBlock title="Resume workpapers">
+      <ControlsBlock title="Synthese des justifications">
         <ReadonlyLineList lines={summaryLines} />
       </ControlsBlock>
 
@@ -259,12 +259,12 @@ function WorkpapersNominalBlocks({
       ) : null}
 
       {workpapers.items.length === 0 && workpapers.staleWorkpapers.length === 0 ? (
-        <p className="text-sm font-medium text-foreground">aucun workpaper disponible</p>
+        <p className="text-sm font-medium text-foreground">aucune justification disponible</p>
       ) : null}
 
-      <ControlsBlock title="Workpapers courants">
+      <ControlsBlock title="Justifications courantes">
         {workpapers.items.length === 0 ? (
-          <p className="text-sm font-medium text-foreground">aucun workpaper courant</p>
+          <p className="text-sm font-medium text-foreground">aucune justification courante</p>
         ) : (
           <ul className="grid gap-4">
             {workpapers.items.map((item) => {
@@ -356,12 +356,14 @@ function WorkpapersNominalBlocks({
       </ControlsBlock>
 
       {workpapers.staleWorkpapers.length > 0 ? (
-        <p className="text-sm font-medium text-foreground">workpapers stale en lecture seule</p>
+        <p className="text-sm font-medium text-foreground">
+          justifications obsoletes en lecture seule
+        </p>
       ) : null}
 
-      <ControlsBlock title="Workpapers stale">
+      <ControlsBlock title="Justifications obsoletes">
         {workpapers.staleWorkpapers.length === 0 ? (
-          <p className="text-sm font-medium text-foreground">aucun workpaper stale</p>
+          <p className="text-sm font-medium text-foreground">aucune justification obsolete</p>
         ) : (
           <ul className="grid gap-4">
             {workpapers.staleWorkpapers.map((item) => (
@@ -454,10 +456,10 @@ function WorkpaperCard({
   workpaperDecisionState?: WorkpaperDecisionState;
 }) {
   const lines = [
-    `anchor code : ${item.anchorCode}`,
-    `statement kind : ${item.statementKind}`,
-    `breakdown type : ${item.breakdownType}`,
-    `etat workpaper : ${item.workpaper === null ? "aucun" : item.workpaper.status}`
+    `rubrique : ${item.anchorCode}`,
+    `etat financier : ${item.statementKind}`,
+    `type de detail : ${item.breakdownType}`,
+    `etat justification : ${item.workpaper === null ? "aucune" : item.workpaper.status}`
   ];
   const canRenderMakerForm =
     draft !== null &&
@@ -515,12 +517,12 @@ function WorkpaperCard({
       : null;
 
   if (item.workpaper !== null) {
-    lines.push(`note workpaper : ${item.workpaper.noteText}`);
+    lines.push(`note de justification : ${item.workpaper.noteText}`);
   }
 
   return (
     <article
-      aria-label={`workpaper ${item.anchorCode}`}
+      aria-label={`justification ${item.anchorCode}`}
       className="rounded-lg border bg-background/80 p-4"
     >
       <div className="grid gap-4">
@@ -533,7 +535,7 @@ function WorkpaperCard({
 
         {existingReviewerComment !== null ? (
           <div className="grid gap-2 rounded-md border border-border bg-muted/30 p-3">
-            <p className="text-sm font-semibold text-foreground">Reviewer requested changes</p>
+            <p className="text-sm font-semibold text-foreground">Changements demandes par la revue</p>
             <p className="whitespace-pre-wrap text-sm text-foreground">{existingReviewerComment}</p>
           </div>
         ) : null}
@@ -545,7 +547,7 @@ function WorkpaperCard({
                 className="text-sm font-medium text-foreground"
                 htmlFor={`workpaper-note-${item.anchorCode}`}
               >
-                Note workpaper
+                Note de justification
               </label>
               <textarea
                 className="min-h-28 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground disabled:cursor-not-allowed disabled:bg-muted"
@@ -564,7 +566,7 @@ function WorkpaperCard({
                   className="text-sm font-medium text-foreground"
                   htmlFor={`workpaper-status-${item.anchorCode}`}
                 >
-                  Statut maker
+                  Statut de preparation
                 </label>
                 <select
                   className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground disabled:cursor-not-allowed disabled:bg-muted"
@@ -587,7 +589,7 @@ function WorkpaperCard({
                 }}
                 type="button"
               >
-                Enregistrer le workpaper
+                Enregistrer la justification
               </Button>
             </div>
           </div>
@@ -598,14 +600,14 @@ function WorkpaperCard({
         ) : null}
 
         {canRenderDocumentUploadSection ? (
-          <ControlsBlock title="Upload document">
+          <ControlsBlock title="Ajouter une piece">
             <div className="grid gap-4">
               <div className="grid gap-2">
                 <label
                   className="text-sm font-medium text-foreground"
                   htmlFor={`workpaper-document-file-${item.anchorCode}`}
                 >
-                  Fichier document
+                  Fichier justificatif
                 </label>
                 <Input
                   accept={documentUploadInputAccept}
@@ -623,7 +625,7 @@ function WorkpaperCard({
                   className="text-sm font-medium text-foreground"
                   htmlFor={`workpaper-document-source-${item.anchorCode}`}
                 >
-                  Source document
+                  Source de la piece
                 </label>
                 <Input
                   disabled={controlsDisabled}
@@ -641,7 +643,7 @@ function WorkpaperCard({
                   className="text-sm font-medium text-foreground"
                   htmlFor={`workpaper-document-date-${item.anchorCode}`}
                 >
-                  Date document
+                  Date de la piece
                 </label>
                 <Input
                   disabled={controlsDisabled}
@@ -673,7 +675,7 @@ function WorkpaperCard({
                   }}
                   type="button"
                 >
-                  Uploader le document
+                  Ajouter la piece
                 </Button>
               </div>
             </div>
@@ -681,7 +683,7 @@ function WorkpaperCard({
         ) : null}
 
         {workpapersForWorkpaperDecision !== null ? (
-          <ControlsBlock title="Decision reviewer workpaper">
+          <ControlsBlock title="Decision de revue justification">
             {canRenderWorkpaperDecision && workpaperDecisionDraft !== null ? (
               <div
                 aria-busy={
@@ -695,7 +697,7 @@ function WorkpaperCard({
                     className="text-sm font-medium text-foreground"
                     htmlFor={`workpaper-decision-${item.anchorCode}`}
                   >
-                    Decision reviewer workpaper
+                    Decision de revue justification
                   </label>
                   <select
                     className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground disabled:cursor-not-allowed disabled:bg-muted"
@@ -707,9 +709,9 @@ function WorkpaperCard({
                     value={workpaperDecisionDraft.decision}
                   >
                     <option disabled={!canMarkWorkpaperReviewed(item)} value="REVIEWED">
-                      Mark reviewed
+                      Marquer comme revue
                     </option>
-                    <option value="CHANGES_REQUESTED">Request changes</option>
+                    <option value="CHANGES_REQUESTED">Demander des changements</option>
                   </select>
                 </div>
 
@@ -719,7 +721,7 @@ function WorkpaperCard({
                       className="text-sm font-medium text-foreground"
                       htmlFor={`workpaper-decision-comment-${item.anchorCode}`}
                     >
-                      Reviewer comment
+                      Commentaire de revue
                     </label>
                     <textarea
                       className="min-h-24 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground disabled:cursor-not-allowed disabled:bg-muted"
@@ -757,7 +759,7 @@ function WorkpaperCard({
                     }}
                     type="button"
                   >
-                    Save reviewer decision
+                    Enregistrer la decision de revue
                   </Button>
                 </div>
               </div>
@@ -765,7 +767,7 @@ function WorkpaperCard({
               <div className="grid gap-2">
                 <p className="text-sm font-medium text-foreground">
                   {workpaperDecisionAvailabilityMessage ??
-                    "workpaper decision unavailable for this status"}
+                    "decision de revue indisponible pour ce statut"}
                 </p>
                 {workpaperDecisionStatusLines.length > 0 ? (
                   <div aria-live="polite" className="grid gap-2">
@@ -856,7 +858,7 @@ function WorkpaperCard({
                       {canRenderDocumentDecision && documentDecisionDraft !== null ? (
                         <div className="grid gap-3">
                           <p className="text-sm font-semibold text-foreground">
-                            Decision reviewer document
+                            Decision de revue document
                           </p>
 
                           <div className="grid gap-2">
@@ -864,7 +866,7 @@ function WorkpaperCard({
                               className="text-sm font-medium text-foreground"
                               htmlFor={`document-decision-${documentId}`}
                             >
-                              Decision reviewer document
+                              Decision de revue document
                             </label>
                             <select
                               className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground disabled:cursor-not-allowed disabled:bg-muted"
@@ -946,7 +948,7 @@ function WorkpaperCard({
         </ControlsBlock>
 
         {item.documentVerificationSummary !== null ? (
-          <ControlsBlock title="Verification documents">
+          <ControlsBlock title="Verification des documents">
             <ReadonlyLineList
               lines={[
                 `documents total : ${item.documentVerificationSummary.documentsCount}`,
@@ -968,16 +970,16 @@ function WorkpaperMutationStatus({ state }: { state: WorkpaperMutationState }) {
   }
 
   return (
-    <ControlsBlock title="Etat mutation workpaper">
+    <ControlsBlock title="Etat mise a jour justification">
       {state.kind === "success" ? (
         <div aria-live="polite" className="grid gap-2">
           <p className="label-eyebrow">Etat visible</p>
           <p className="text-lg font-semibold text-foreground">
-            workpaper enregistre avec succes
+            justification enregistree avec succes
           </p>
           {state.refreshFailed ? (
             <p className="text-sm font-medium text-foreground">
-              rafraichissement workpapers impossible
+              rafraichissement justifications impossible
             </p>
           ) : null}
         </div>

@@ -90,15 +90,15 @@ describe("BalanceImportHistoryPanel", () => {
     expect(screen.getByText("v4")).toBeInTheDocument();
     expect(screen.getByText("v3")).toBeInTheDocument();
 
-    const metrics = screen.getByText("added").closest("dl");
+    const metrics = screen.getByText("ajoutes").closest("dl");
     expect(metrics).not.toBeNull();
     expect(within(metrics as HTMLElement).getAllByText("1")).toHaveLength(3);
-    expect(within(metrics as HTMLElement).getByText("removed")).toBeInTheDocument();
-    expect(within(metrics as HTMLElement).getByText("changed")).toBeInTheDocument();
+    expect(within(metrics as HTMLElement).getByText("supprimes")).toBeInTheDocument();
+    expect(within(metrics as HTMLElement).getByText("modifies")).toBeInTheDocument();
 
-    expect(screen.getByText("added details")).toBeInTheDocument();
-    expect(screen.getByText("removed details")).toBeInTheDocument();
-    expect(screen.getByText("changed details")).toBeInTheDocument();
+    expect(screen.getByText("lignes ajoutees")).toBeInTheDocument();
+    expect(screen.getByText("lignes supprimees")).toBeInTheDocument();
+    expect(screen.getByText("lignes modifiees")).toBeInTheDocument();
     expect(screen.getByText("Sales")).toBeInTheDocument();
     expect(screen.getByText("Old suspense")).toBeInTheDocument();
     expect(screen.getByText("Cash")).toBeInTheDocument();

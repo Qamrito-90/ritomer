@@ -80,7 +80,7 @@ export function getDocumentDecisionStatusLines(
 
     if (state.kind === "success") {
       return state.refreshFailed
-        ? ["decision document enregistree avec succes", "rafraichissement workpapers impossible"]
+        ? ["decision document enregistree avec succes", "rafraichissement justifications impossible"]
         : ["decision document enregistree avec succes"];
     }
 
@@ -101,7 +101,7 @@ export function getDocumentDecisionStatusLines(
     }
 
     if (state.kind === "workpaper_not_ready") {
-      return ["decision document disponible quand le workpaper est READY_FOR_REVIEW"];
+      return ["decision document disponible quand la justification est READY_FOR_REVIEW"];
     }
 
     if (state.kind === "bad_request") {
@@ -129,11 +129,11 @@ export function getDocumentDecisionStatusLines(
     }
 
     if (state.kind === "conflict_stale") {
-      return ["document indisponible sur un workpaper stale"];
+      return ["document indisponible sur une justification obsolete"];
     }
 
     if (state.kind === "conflict_workpaper_status") {
-      return ["decision document disponible quand le workpaper est READY_FOR_REVIEW"];
+      return ["decision document disponible quand la justification est READY_FOR_REVIEW"];
     }
 
     if (state.kind === "conflict_other") {
@@ -178,7 +178,7 @@ export function getDocumentUploadStatusLines(
 
     if (state.kind === "success") {
       return state.refreshFailed
-        ? ["document uploade avec succes", "rafraichissement workpapers impossible"]
+        ? ["document uploade avec succes", "rafraichissement justifications impossible"]
         : ["document uploade avec succes"];
     }
 
@@ -207,7 +207,7 @@ export function getDocumentUploadStatusLines(
     }
 
     if (state.kind === "not_found") {
-      return ["workpaper introuvable pour upload document"];
+      return ["justification introuvable pour ajout de piece"];
     }
 
     if (state.kind === "conflict_archived") {
@@ -219,11 +219,11 @@ export function getDocumentUploadStatusLines(
     }
 
     if (state.kind === "conflict_stale") {
-      return ["document indisponible sur un workpaper stale"];
+      return ["document indisponible sur une justification obsolete"];
     }
 
     if (state.kind === "conflict_workpaper_read_only") {
-      return ["document non modifiable pour ce workpaper"];
+      return ["document non modifiable pour cette justification"];
     }
 
     if (state.kind === "conflict_other") {
@@ -265,17 +265,17 @@ export function getWorkpaperDecisionStatusLines(
 ) {
   if (state.kind !== "idle" && state.anchorCode === anchorCode) {
     if (state.kind === "submitting") {
-      return ["Decision reviewer workpaper"];
+      return ["decision de revue justification en cours"];
     }
 
     if (state.kind === "success") {
       return state.refreshFailed
-        ? ["workpaper decision saved", "decision sent, but workpapers refresh failed"]
-        : ["workpaper decision saved"];
+        ? ["decision de revue enregistree", "rafraichissement justifications impossible"]
+        : ["decision de revue enregistree"];
     }
 
     if (state.kind === "comment_required") {
-      return ["Reviewer comment"];
+      return ["commentaire de revue requis"];
     }
 
     if (
@@ -283,30 +283,30 @@ export function getWorkpaperDecisionStatusLines(
       state.kind === "read_only_not_ready" ||
       state.kind === "unavailable_status"
     ) {
-      return ["workpaper decision unavailable for this status"];
+      return ["decision de revue indisponible pour ce statut"];
     }
 
     if (state.kind === "read_only_role" || state.kind === "bad_request" || state.kind === "forbidden") {
-      return ["workpaper decision refused"];
+      return ["decision de revue refusee"];
     }
 
     if (state.kind === "not_found") {
-      return ["workpaper not found for decision"];
+      return ["justification introuvable pour decision"];
     }
 
     if (state.kind === "conflict_other" || state.kind === "mark_reviewed_blocked") {
-      return ["workpaper decision blocked by current review gates"];
+      return ["decision de revue bloquee par les controles de preuve"];
     }
 
-    return ["workpaper decision refused"];
+    return ["decision de revue refusee"];
   }
 
   if (draft.decision === "CHANGES_REQUESTED" && draft.comment.trim().length === 0) {
-    return ["Reviewer comment"];
+    return ["commentaire de revue requis"];
   }
 
   if (draft.decision === "REVIEWED" && !canMarkWorkpaperReviewed(item)) {
-    return ["Mark reviewed available once evidence is verified or no documents are attached"];
+    return ["Revue possible quand les preuves sont verifiees ou quand aucune piece n'est attachee"];
   }
 
   return [];
@@ -406,15 +406,15 @@ export function formatWorkpaperMutationState(
   state: Exclude<WorkpaperMutationState, { kind: "idle" | "success" }>
 ) {
   if (state.kind === "submitting") {
-    return "enregistrement workpaper en cours";
+    return "enregistrement justification en cours";
   }
 
   if (state.kind === "read_only_archived") {
-    return "dossier archive, workpaper en lecture seule";
+    return "dossier archive, justification en lecture seule";
   }
 
   if (state.kind === "read_only_not_ready") {
-    return "workpaper non modifiable tant que les controles ne sont pas READY";
+    return "justification non modifiable tant que les controles ne sont pas READY";
   }
 
   if (state.kind === "read_only_role") {
@@ -422,15 +422,15 @@ export function formatWorkpaperMutationState(
   }
 
   if (state.kind === "stale_read_only") {
-    return "workpapers stale en lecture seule";
+    return "justifications obsoletes en lecture seule";
   }
 
   if (state.kind === "item_read_only") {
-    return "workpaper en lecture seule";
+    return "justification en lecture seule";
   }
 
   if (state.kind === "invalid_workpaper") {
-    return "workpaper invalide";
+    return "justification invalide";
   }
 
   if (state.kind === "auth_required") {
@@ -438,7 +438,7 @@ export function formatWorkpaperMutationState(
   }
 
   if (state.kind === "forbidden") {
-    return "acces workpapers refuse";
+    return "acces justifications refuse";
   }
 
   if (state.kind === "not_found") {
@@ -446,36 +446,36 @@ export function formatWorkpaperMutationState(
   }
 
   if (state.kind === "conflict_archived") {
-    return "dossier archive, workpaper non modifiable";
+    return "dossier archive, justification non modifiable";
   }
 
   if (state.kind === "conflict_not_ready") {
-    return "workpaper non modifiable tant que les controles ne sont pas READY";
+    return "justification non modifiable tant que les controles ne sont pas READY";
   }
 
   if (state.kind === "conflict_other") {
-    return "mise a jour workpaper impossible";
+    return "mise a jour justification impossible";
   }
 
   if (state.kind === "server_error") {
-    return "erreur serveur workpapers";
+    return "erreur serveur justifications";
   }
 
   if (state.kind === "network_error") {
-    return "erreur reseau workpapers";
+    return "erreur reseau justifications";
   }
 
   if (state.kind === "timeout") {
-    return "timeout workpapers";
+    return "timeout justifications";
   }
 
   if (state.kind === "invalid_payload") {
-    return "payload workpaper invalide";
+    return "payload justification invalide";
   }
 
   if (state.kind === "invalid_workpapers_payload") {
-    return "payload workpapers invalide";
+    return "payload justifications invalide";
   }
 
-  return "workpaper indisponible";
+  return "justification indisponible";
 }

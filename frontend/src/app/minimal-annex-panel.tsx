@@ -122,16 +122,16 @@ export function MinimalAnnexPanel({
     <section className="panel p-6" aria-labelledby="minimal-annex-preview-title">
       <div className="grid gap-6">
         <div className="grid gap-2">
-          <p className="label-eyebrow">Minimal annex preview</p>
+          <p className="label-eyebrow">Annexe minimale</p>
           <h3
             className="text-xl font-semibold text-foreground"
             id="minimal-annex-preview-title"
           >
-            Read-only preview
+            Previsualisation en lecture seule
           </h3>
           <p className="text-sm text-muted-foreground">
-            Preview non statutaire. Prepared for human review. Human review required.
-            Not a final CO deliverable. Do not use as statutory filing.
+            Previsualisation non statutaire. Preparee pour revue humaine. Revue humaine requise.
+            Pas un livrable statutaire final. Ne pas utiliser pour un depot officiel.
           </p>
         </div>
 
@@ -140,7 +140,7 @@ export function MinimalAnnexPanel({
             aria-live="polite"
             className="rounded-lg border bg-background/80 p-4 text-sm font-medium text-foreground"
           >
-            rafraichissement minimal annex impossible
+            rafraichissement annexe minimale impossible
           </p>
         ) : null}
 
@@ -152,7 +152,7 @@ export function MinimalAnnexPanel({
 
 function MinimalAnnexStateSlot({ state }: { state: MinimalAnnexShellState }) {
   if (state.kind === "loading") {
-    return <StateMessage text="loading minimal annex preview" />;
+    return <StateMessage text="chargement previsualisation annexe minimale" />;
   }
 
   if (state.kind !== "ready") {
@@ -166,42 +166,42 @@ function MinimalAnnexStateSlot({ state }: { state: MinimalAnnexShellState }) {
     <div className="grid gap-4">
       <div className="rounded-lg border bg-background/80 p-4">
         <dl className="grid gap-4 md:grid-cols-2">
-          <MetricItem label="annex state" value={stateLabel} />
-          <MetricItem label="readiness source" value={minimalAnnex.readiness} />
-          <MetricItem label="preview type" value={minimalAnnex.presentationType} />
-          <MetricItem label="human review" value="required" />
+          <MetricItem label="etat annexe" value={stateLabel} />
+          <MetricItem label="etat de preparation" value={minimalAnnex.readiness} />
+          <MetricItem label="type de previsualisation" value={minimalAnnex.presentationType} />
+          <MetricItem label="revue humaine" value="requise" />
         </dl>
       </div>
 
-      <ReadonlyBlock title="Non-statutory limits">
+      <ReadonlyBlock title="Limites non statutaires">
         <ReadonlyLineList
           lines={[
-            "Read-only preview.",
-            "Prepared for human review.",
-            "Human review required.",
-            "Not a final CO deliverable.",
-            "Do not use as statutory filing."
+            "Previsualisation en lecture seule.",
+            "Preparee pour revue humaine.",
+            "Revue humaine requise.",
+            "Pas un livrable statutaire final.",
+            "Ne pas utiliser pour un depot officiel."
           ]}
         />
       </ReadonlyBlock>
 
-      <IssueList issues={minimalAnnex.blockers} title="Blockers" />
-      <IssueList issues={minimalAnnex.warnings} title="Warnings" />
+      <IssueList issues={minimalAnnex.blockers} title="Blocages" />
+      <IssueList issues={minimalAnnex.warnings} title="Alertes" />
 
-      <ReadonlyBlock title="Basis summary">
+      <ReadonlyBlock title="Base de calcul">
         <ReadonlyLineList lines={formatBasisLines(minimalAnnex.basis)} />
       </ReadonlyBlock>
 
       {minimalAnnex.annex !== null ? (
-        <ReadonlyBlock title="Evidence summary">
+        <ReadonlyBlock title="Synthese des preuves">
           <ReadonlyLineList
             lines={formatEvidenceSummaryLines(minimalAnnex.annex.evidenceSummary)}
           />
         </ReadonlyBlock>
       ) : (
-        <ReadonlyBlock title="Evidence summary">
+        <ReadonlyBlock title="Synthese des preuves">
           <p className="text-sm font-medium text-foreground">
-            Evidence summary unavailable while preview is BLOCKED.
+            Synthese des preuves indisponible tant que la previsualisation est bloquee.
           </p>
         </ReadonlyBlock>
       )}
@@ -214,12 +214,12 @@ function IssueList({
   title
 }: {
   issues: MinimalAnnexIssue[];
-  title: "Blockers" | "Warnings";
+  title: "Blocages" | "Alertes";
 }) {
   if (issues.length === 0) {
     return (
       <ReadonlyBlock title={title}>
-        <p className="text-sm font-medium text-foreground">No {title.toLowerCase()} reported.</p>
+        <p className="text-sm font-medium text-foreground">Aucun element signale.</p>
       </ReadonlyBlock>
     );
   }
@@ -239,7 +239,7 @@ function IssueList({
               <p className="text-muted-foreground">{formatIssueMessage(issue.message)}</p>
               {issue.target !== null ? (
                 <p className="text-muted-foreground">
-                  Target: {issue.target.type}
+                  Cible: {issue.target.type}
                   {issue.target.code !== null ? ` / ${issue.target.code}` : ""}
                 </p>
               ) : null}
@@ -289,7 +289,7 @@ function MetricItem({ label, value }: { label: string; value: string }) {
 function StateMessage({ text }: { text: string }) {
   return (
     <div aria-live="polite" className="grid gap-2">
-      <p className="label-eyebrow">Visible state</p>
+      <p className="label-eyebrow">Etat visible</p>
       <p className="text-lg font-semibold text-foreground">{text}</p>
     </div>
   );
@@ -298,32 +298,32 @@ function StateMessage({ text }: { text: string }) {
 function formatBasisLines(basis: MinimalAnnexBasis) {
   const exportPackLines =
     basis.exportPack === null
-      ? ["export pack basis : absent"]
+      ? ["base pack export : absente"]
       : [
-          "export pack basis : present",
-          `export pack created at : ${formatDateTime(basis.exportPack.createdAt)}`,
-          `export pack import version : ${basis.exportPack.basisImportVersion}`,
-          `export pack taxonomy version : ${basis.exportPack.basisTaxonomyVersion}`
+          "base pack export : presente",
+          `pack export cree le : ${formatDateTime(basis.exportPack.createdAt)}`,
+          `version import du pack : ${basis.exportPack.basisImportVersion}`,
+          `version taxonomie du pack : ${basis.exportPack.basisTaxonomyVersion}`
         ];
 
   return [
-    `controls readiness : ${basis.controlsReadiness ?? "none"}`,
-    `latest import version : ${basis.latestImportVersion ?? "none"}`,
-    `taxonomy version : ${basis.taxonomyVersion ?? "none"}`,
-    `structured statement state : ${basis.structuredStatementState ?? "none"}`,
-    `structured presentation type : ${basis.structuredPresentationType ?? "none"}`,
+    `readiness controles : ${basis.controlsReadiness ?? "aucune"}`,
+    `derniere version import : ${basis.latestImportVersion ?? "aucune"}`,
+    `version taxonomie : ${basis.taxonomyVersion ?? "aucune"}`,
+    `etat previsualisation structuree : ${basis.structuredStatementState ?? "aucun"}`,
+    `type presentation structuree : ${basis.structuredPresentationType ?? "aucun"}`,
     ...exportPackLines
   ];
 }
 
 function formatEvidenceSummaryLines(summary: MinimalAnnexEvidenceSummary) {
   return [
-    `current workpapers : ${summary.currentWorkpaperCount}`,
-    `attached documents : ${summary.attachedDocumentCount}`,
-    `verified documents : ${summary.verifiedDocumentCount}`,
-    `rejected document traces : ${summary.rejectedDocumentTraceCount}`,
-    `stale workpapers excluded : ${summary.staleWorkpaperExcludedCount}`,
-    `current workpapers without document : ${summary.currentWorkpaperWithoutDocumentCount}`
+    `justifications courantes : ${summary.currentWorkpaperCount}`,
+    `documents attaches : ${summary.attachedDocumentCount}`,
+    `documents verifies : ${summary.verifiedDocumentCount}`,
+    `traces documents rejetes : ${summary.rejectedDocumentTraceCount}`,
+    `justifications obsoletes exclues : ${summary.staleWorkpaperExcludedCount}`,
+    `justifications courantes sans document : ${summary.currentWorkpaperWithoutDocumentCount}`
   ];
 }
 
@@ -331,31 +331,31 @@ function formatErrorState(
   state: Exclude<MinimalAnnexShellState, { kind: "loading" | "ready" }>
 ) {
   if (state.kind === "auth_required") {
-    return "authentication required";
+    return "authentification requise";
   }
 
   if (state.kind === "forbidden") {
-    return "minimal annex preview access refused";
+    return "acces previsualisation annexe minimale refuse";
   }
 
   if (state.kind === "not_found") {
-    return "closing folder unavailable for minimal annex preview";
+    return "dossier indisponible pour la previsualisation annexe minimale";
   }
 
   if (state.kind === "timeout") {
-    return "minimal annex preview timeout";
+    return "timeout previsualisation annexe minimale";
   }
 
   if (state.kind === "network_error") {
-    return "minimal annex preview network error";
+    return "erreur reseau previsualisation annexe minimale";
   }
 
-  return "Minimal annex preview unavailable.";
+  return "previsualisation annexe minimale indisponible";
 }
 
 function formatIssueMessage(message: string) {
   if (containsForbiddenUiWording(message)) {
-    return "Issue message held for human review.";
+    return "Message masque pour revue humaine.";
   }
 
   return message;
