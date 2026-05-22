@@ -2,13 +2,45 @@
 
 ## Status
 
-Active.
+Done.
 
 ## Surface
 
 DOCS_GIT / FRONTEND_SPEC.
 
-Cette spec cadre le prochain increment UX frontend. La creation de cette spec ne livre aucun code runtime, aucun backend, aucun frontend runtime, aucun endpoint, aucun contrat OpenAPI, aucune migration DB, aucune CI, aucun token, aucun secret, aucune valeur `.env`, aucune donnee demo supplementaire, aucune IA runtime et aucun GraphQL.
+Cette spec cloture l'increment UX frontend 038 apres implementation frontend, rework layout, microcopy finale et smoke visuel utilisateur. La cloture documentaire ne livre aucun code runtime, aucun backend, aucun frontend runtime, aucun endpoint, aucun contrat OpenAPI, aucune migration DB, aucune CI, aucun token, aucun secret, aucune valeur `.env`, aucune donnee demo supplementaire, aucune IA runtime et aucun GraphQL.
+
+## Resultat final
+
+038 est acceptee en `Done` comme cockpit intermediaire de closing demo local.
+
+Resultat livre par l'implementation frontend deja mergee :
+
+- cockpit frontend implemente sur la route dossier ;
+- structure workbench avec panneaux et hierarchie de lecture plus claire ;
+- tenant, dossier, statut, prochaine action, blockers et progression visibles ;
+- chemin de closing rendu plus scannable ;
+- wording metier ameliore par rapport a la premiere version ;
+- mapping observe sans chevauchement bouton/contenu ;
+- pas de scroll horizontal sauvage observe lors du smoke visuel utilisateur ;
+- checks frontend passes ;
+- PR #61 et PR #62 mergees.
+
+Retour utilisateur integre :
+
+- premiere version 038 : `FAIL UX`, trop brouillon, pas assez premium ;
+- rework layout : amelioration structurelle avec panneaux, mais wording encore trop prototype ;
+- microcopy finale : amelioration acceptable ;
+- verdict final CPO : `PASS 038` comme cockpit intermediaire, pas encore POC premium final.
+
+Dette residuelle :
+
+- polish data-heavy ;
+- lisibilite detaillee ;
+- design premium approfondi ;
+- experience POC premium finale a traiter dans une future spec dediee.
+
+038 ameliore donc le cockpit de closing local, mais ne livre pas encore une experience POC premium finale.
 
 ## Risk
 

@@ -64,9 +64,10 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `specs/done/035-pilot-export-pack-minimal-annex-refresh-ui-v1.md`
 - `specs/done/036-local-integrated-demo-real-backend-seed-v1.md`
 - `specs/done/037-local-integrated-demo-manual-business-smoke-v1.md`
+- `specs/done/038-local-demo-closing-workbench-ux-cockpit-v1.md`
 
 ### Active
-- `specs/active/038-local-demo-closing-workbench-ux-cockpit-v1.md`
+- AUCUNE spec active.
 
 ### Rappels
 - `030d runtime` provider reel reste reporte : aucun provider IA reel, aucun modele reel, aucun SDK, aucun prompt runtime actif, aucun cout provider, aucun appel reseau IA, aucun microservice IA, aucun GraphQL, aucun RAG/vector store et aucun auto-apply ne sont actives.
@@ -126,7 +127,7 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `035-pilot-export-pack-minimal-annex-refresh-ui-v1` ferme le refresh frontend non bloquant de `Minimal annex preview` apres creation reussie d'un `Audit-ready export pack`, sans backend, DB, contrat/OpenAPI, IA runtime, GraphQL, mutation workpaper/document ni promesse CO/statutory.
 - `036-local-integrated-demo-real-backend-seed-v1` a livre une demo locale integree avec backend reel, PostgreSQL reel, auth JWT reelle, tenant et membership reels, et donnees demo synthetiques persistees. 036a livre uniquement la commande backend de seed PostgreSQL demo, sans frontend, sans commande JWT, sans endpoint HTTP, sans OpenAPI et sans migration DB. 036b prouve `/api/me` avec vrai bearer signe en `dbIntegrationTest`. 036c ajoute uniquement le proxy frontend Vite dev-only pour consommer `/api` via backend local, avec bearer conserve dans le shell local Node/Vite et jamais dans le navigateur.
 - `037-local-integrated-demo-manual-business-smoke-v1` cloture le smoke manuel local observe par l'utilisateur en PASS technique : health backend direct `200`, `/api/me` backend sans JWT `401`, `/api/me` via proxy Vite avec JWT local `200`, tenant demo synthetique `ritomer-demo-036a` / `Ritomer Demo Fiduciaire SA`, role `ACCOUNTANT`, dossier `Demo Closing FY2025` visible et ouvrable, surfaces principales visibles, mauvais tenant rejete `403`, sans `Authorization` visible dans les Request Headers navigateur et sans token observe dans navigateur, URL, storage ou repo. La cloture ne livre aucun code runtime, aucun test, aucun contrat, aucune migration, aucune IA runtime, aucun GraphQL, aucun RAG, aucun provider, aucun secret et aucune spec suivante. Dette residuelle : UX fonctionnelle mais trop lineaire, trop longue, trop technique et pas encore POC/premium.
-- `038-local-demo-closing-workbench-ux-cockpit-v1` est active : elle cadre un increment frontend strict pour transformer le dossier demo local en cockpit de closing plus clair, avec synthese haut de page, chemin closing visible, statuts et blockers comprehensibles, tout en conservant les endpoints REST existants et sans backend, DB, OpenAPI, auth/JWT/proxy, IA runtime, GraphQL, nouvelle donnee demo, nouvelle mutation ni promesse CO/statutaire finale.
+- `038-local-demo-closing-workbench-ux-cockpit-v1` est livre : PR #61 et PR #62 sont mergees et l'increment frontend transforme le dossier demo local en cockpit de closing intermediaire avec structure workbench/panneaux, synthese haut de page, chemin closing visible, tenant, dossier, statut, prochaine action, blockers et progression visibles, wording metier ameliore, mapping observe sans chevauchement bouton/contenu et sans scroll horizontal sauvage observe lors du smoke visuel utilisateur. Les checks frontend sont passes. Verdict CPO : `PASS 038` comme cockpit intermediaire, pas encore POC premium final. Dette residuelle a traiter dans une future spec : polish data-heavy, lisibilite detaillee et design premium approfondi.
 - Les lectures sur `ARCHIVED` restent autorisees si le tenant et le RBAC sont valides.
 - Les lectures `GET` sur `controls`, `financial-summary`, `financial-statements-structured`, `workpapers` et `minimal-annex` n'ecrivent aucun `audit_event`.
 - Les tests PostgreSQL reels restent opt-in via `dbIntegrationTest`, sans Docker local requis.
