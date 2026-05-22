@@ -836,7 +836,7 @@ describe("router manual mapping", () => {
             unmapped: 0
           }
         }),
-      text: "payload mapping invalide"
+      text: "mapping bloque par securite, donnees incoherentes"
     }
   ])("renders the exact mapping read state '$text'", async ({ factory, text }) => {
     const fetchMock = vi.mocked(global.fetch);
@@ -1279,7 +1279,7 @@ describe("router manual mapping", () => {
     expectNoOutOfScopePaths(getRequestPaths(fetchMock), 2, 2, 2, 2);
   });
 
-  it("renders payload mapping invalide and skips refresh when the PUT success payload is incoherent", async () => {
+  it("renders a fail-closed mapping message and skips refresh when the PUT success payload is incoherent", async () => {
     const fetchMock = vi.mocked(global.fetch);
     const user = userEvent.setup();
     primeNominalRoute(fetchMock, {
@@ -1292,7 +1292,9 @@ describe("router manual mapping", () => {
     await user.selectOptions(getLineTargetSelect("2000"), "PL.REVENUE");
     await user.click(getLineSaveButton("2000"));
 
-    expect(await screen.findByText("payload mapping invalide")).toBeInTheDocument();
+    expect(
+      await screen.findByText("mapping bloque par securite, donnees incoherentes")
+    ).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(13);
   });
 
