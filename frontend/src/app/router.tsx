@@ -1,4 +1,4 @@
-import type { ChangeEvent, ReactNode } from "react";
+import type { ChangeEvent, ReactNode, RefObject } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, createBrowserRouter, createMemoryRouter, useParams } from "react-router-dom";
 import { AppShell } from "../components/workbench/app-shell";
@@ -1192,48 +1192,27 @@ function ClosingFolderRoute() {
             <div className="grid gap-6">
               <div className="grid gap-2">
                 <p className="label-eyebrow">Import balance</p>
-                <h3 className="text-xl font-semibold text-foreground">Importer une balance CSV</h3>
+                <h3 className="text-xl font-semibold text-foreground">Revue des imports balance</h3>
                 <p className="text-sm text-muted-foreground">
                   Import courant, historique et comparaison N/N-1 visibles pour une revue rapide.
                 </p>
               </div>
-              <div className="grid gap-4">
-                <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
-                  <div className="grid gap-2">
-                    <label className="text-sm font-medium text-foreground" htmlFor="balance-import-file">
-                      Fichier CSV
-                    </label>
-                    <Input
-                      accept=".csv,text/csv"
-                      disabled={
-                        state.closingFolder.status === "ARCHIVED" ||
-                        state.importState.kind === "uploading" ||
-                        state.importState.kind === "conflict_archived"
-                      }
-                      id="balance-import-file"
-                      onChange={handleImportFileSelection}
-                      ref={fileInputRef}
-                      type="file"
-                    />
-                  </div>
-                  <Button
-                    disabled={!canImportBalance(state)}
-                    onClick={() => {
+              <BalanceImportHistoryPanel
+                state={state.balanceImportHistoryState}
+                uploadSlot={
+                  <ImportBalanceUploadPanel
+                    canImport={canImportBalance(state)}
+                    closingFolder={state.closingFolder}
+                    fileInputRef={fileInputRef}
+                    importState={state.importState}
+                    selectedImportFile={state.selectedImportFile}
+                    onFileChange={handleImportFileSelection}
+                    onImport={() => {
                       void handleImportBalance();
                     }}
-                    type="button"
-                  >
-                    Importer la balance
-                  </Button>
-                </div>
-                <p className="text-sm text-muted-foreground">CSV uniquement</p>
-                <ImportBalanceStatus
-                  closingFolder={state.closingFolder}
-                  importState={state.importState}
-                  selectedImportFile={state.selectedImportFile}
-                />
-                <BalanceImportHistoryPanel state={state.balanceImportHistoryState} />
-              </div>
+                  />
+                }
+              />
             </div>
           </WorkbenchPanel>
 
@@ -2669,6 +2648,73 @@ function FinancialStatementsStructuredSlot({
   );
 }
 
+function ImportBalanceUploadPanel({
+  canImport,
+  closingFolder,
+  fileInputRef,
+  importState,
+  onFileChange,
+  onImport,
+  selectedImportFile
+}: {
+  canImport: boolean;
+  closingFolder: ClosingFolderSummary;
+  fileInputRef: RefObject<HTMLInputElement>;
+  importState: ImportBalanceState;
+  onFileChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  onImport: () => void;
+  selectedImportFile: File | null;
+}) {
+  const importDisabled =
+    closingFolder.status === "ARCHIVED" ||
+    importState.kind === "uploading" ||
+    importState.kind === "conflict_archived";
+
+  return (
+    <section
+      aria-labelledby="balance-import-upload-title"
+      className="min-w-0 overflow-hidden rounded-lg border bg-background/80 p-4"
+    >
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:items-start">
+        <div className="grid min-w-0 gap-1">
+          <p className="label-eyebrow">Nouvel import CSV</p>
+          <h4 className="text-base font-semibold text-foreground" id="balance-import-upload-title">
+            Ajouter une version
+          </h4>
+          <p className="text-sm text-muted-foreground">
+            CSV uniquement. La nouvelle version reste soumise aux controles existants.
+          </p>
+        </div>
+        <div className="grid min-w-0 gap-3">
+          <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+            <div className="grid min-w-0 gap-2">
+              <label className="text-sm font-medium text-foreground" htmlFor="balance-import-file">
+                Fichier CSV
+              </label>
+              <Input
+                accept=".csv,text/csv"
+                disabled={importDisabled}
+                id="balance-import-file"
+                onChange={onFileChange}
+                ref={fileInputRef}
+                type="file"
+              />
+            </div>
+            <Button disabled={!canImport} onClick={onImport} size="sm" type="button">
+              Importer la balance
+            </Button>
+          </div>
+          <ImportBalanceStatus
+            closingFolder={closingFolder}
+            importState={importState}
+            selectedImportFile={selectedImportFile}
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function ImportBalanceStatus({
   closingFolder,
   importState,
@@ -2870,7 +2916,7 @@ function ManualMappingSlot({
   );
   const writable = isManualMappingWritable(closingFolder, effectiveRoles, state.projection);
   const controlsDisabled = !writable || manualMappingRefreshPending;
-  const targetLabelByCode = createTargetLabelByCode(state.projection);
+  const targetByCode = createTargetByCode(state.projection);
   const selectableTargets = state.projection.targets.filter((target) => target.selectable);
 
   return (
@@ -2900,108 +2946,205 @@ function ManualMappingSlot({
 
       <ManualMappingMutationStatus state={manualMappingMutationState} />
 
-      <ControlsBlock title="Comptes sources et cibles">
-        {state.projection.lines.length === 0 ? (
-          <p className="text-sm font-medium text-foreground">aucune ligne a mapper</p>
-        ) : (
-          <ul className="grid min-w-0 gap-4">
-            {state.projection.lines.map((line) => {
-              const currentMapping = findManualMappingForAccount(state.projection, line.accountCode);
-              const selectedTargetCode = selectedTargets[line.accountCode] ?? "";
-              const saveDisabled =
-                controlsDisabled ||
-                selectedTargetCode === "" ||
-                currentMapping?.targetCode === selectedTargetCode;
-              const deleteDisabled = controlsDisabled || currentMapping === undefined;
+      <section
+        aria-labelledby="manual-mapping-table-title"
+        className="min-w-0 overflow-hidden rounded-lg border bg-muted/20 p-4"
+      >
+        <div className="grid min-w-0 gap-3">
+          <h4 className="text-lg font-semibold text-foreground" id="manual-mapping-table-title">
+            Table mapping
+          </h4>
+          {state.projection.lines.length === 0 ? (
+            <p className="text-sm font-medium text-foreground">aucune ligne a mapper</p>
+          ) : (
+            <div className="min-w-0 overflow-hidden rounded-lg border bg-background/80">
+              <table className="w-full table-fixed text-sm">
+                <caption className="sr-only">Table de revue du mapping manuel</caption>
+                <thead className="hidden bg-muted/40 text-muted-foreground md:table-header-group">
+                  <tr>
+                    <th className="w-[27%] px-3 py-2 text-left font-medium" scope="col">
+                      Compte source
+                    </th>
+                    <th className="w-[9%] px-3 py-2 text-right font-medium" scope="col">
+                      Débit
+                    </th>
+                    <th className="w-[9%] px-3 py-2 text-right font-medium" scope="col">
+                      Crédit
+                    </th>
+                    <th className="w-[20%] px-3 py-2 text-left font-medium" scope="col">
+                      Affectation actuelle
+                    </th>
+                    <th className="w-[23%] px-3 py-2 text-left font-medium" scope="col">
+                      Nouvelle affectation
+                    </th>
+                    <th className="w-[12%] px-3 py-2 text-left font-medium" scope="col">
+                      Action
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {state.projection.lines.map((line) => {
+                    const currentMapping = findManualMappingForAccount(
+                      state.projection,
+                      line.accountCode
+                    );
+                    const selectedTargetCode = selectedTargets[line.accountCode] ?? "";
+                    const currentMappingDisplay =
+                      currentMapping === undefined
+                        ? { code: null, label: "Aucune affectation" }
+                        : {
+                            code: currentMapping.targetCode,
+                            label:
+                              targetByCode.get(currentMapping.targetCode)?.label ??
+                              currentMapping.targetCode
+                          };
+                    const selectedTargetDisplay =
+                      selectedTargetCode === ""
+                        ? null
+                        : { code: selectedTargetCode };
+                    const saveDisabled =
+                      controlsDisabled ||
+                      selectedTargetCode === "" ||
+                      currentMapping?.targetCode === selectedTargetCode;
+                    const deleteDisabled = controlsDisabled || currentMapping === undefined;
 
-              return (
-                <li key={line.accountCode}>
-                  <article
-                    aria-label={`ligne mapping ${line.accountCode}`}
-                    className="min-w-0 overflow-hidden rounded-lg border bg-background/80 p-4"
-                  >
-                    <div className="grid min-w-0 gap-4">
-                      <dl className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(8rem,0.55fr)_minmax(8rem,0.55fr)]">
-                        <DetailItem label="Compte source">
-                          <span className="block break-all tabular-nums">{line.accountCode}</span>
-                          <span className="mt-1 block break-words text-foreground">
-                            {line.accountLabel}
-                          </span>
-                        </DetailItem>
-                        <DetailItem label="Mapping courant">
-                          <span className="break-words">
-                            {currentMapping === undefined
-                              ? "aucun"
-                              : `${targetLabelByCode.get(currentMapping.targetCode)} (${currentMapping.targetCode})`}
-                          </span>
-                        </DetailItem>
-                        <DetailItem label="Debit">
-                          <span className="block text-right tabular-nums">{line.debit}</span>
-                        </DetailItem>
-                        <DetailItem label="Credit">
-                          <span className="block text-right tabular-nums">{line.credit}</span>
-                        </DetailItem>
-                      </dl>
+                    return (
+                      <tr
+                        aria-label={`ligne mapping ${line.accountCode}`}
+                        className="grid min-w-0 gap-3 p-3 md:table-row md:p-0"
+                        key={line.accountCode}
+                      >
+                        <td className="block min-w-0 md:table-cell md:px-3 md:py-3 md:align-top">
+                          <div className="grid min-w-0 gap-1">
+                            <span className="text-xs font-medium text-muted-foreground md:hidden">
+                              Compte source
+                            </span>
+                            <span className="block max-w-full break-all text-sm font-semibold leading-5 tabular-nums text-foreground">
+                              {line.accountCode}
+                            </span>
+                            <span className="block max-w-full break-words text-sm leading-5 text-foreground">
+                              {line.accountLabel}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="block min-w-0 md:table-cell md:px-3 md:py-3 md:align-top">
+                          <div className="grid min-w-0 gap-1 md:text-right">
+                            <span className="text-xs font-medium text-muted-foreground md:hidden">
+                              Débit
+                            </span>
+                            <span className="block break-words text-right tabular-nums text-foreground">
+                              {line.debit}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="block min-w-0 md:table-cell md:px-3 md:py-3 md:align-top">
+                          <div className="grid min-w-0 gap-1 md:text-right">
+                            <span className="text-xs font-medium text-muted-foreground md:hidden">
+                              Crédit
+                            </span>
+                            <span className="block break-words text-right tabular-nums text-foreground">
+                              {line.credit}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="block min-w-0 md:table-cell md:px-3 md:py-3 md:align-top">
+                          <div className="grid min-w-0 gap-1">
+                            <span className="text-xs font-medium text-muted-foreground md:hidden">
+                              Affectation actuelle
+                            </span>
+                            <span className="break-words font-medium text-foreground">
+                              {currentMappingDisplay.label}
+                            </span>
+                            {currentMappingDisplay.code === null ? null : (
+                              <span
+                                className="block max-w-full truncate text-xs font-mono text-muted-foreground"
+                                title={currentMappingDisplay.code}
+                              >
+                                {currentMappingDisplay.code}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="block min-w-0 md:table-cell md:px-3 md:py-3 md:align-top">
+                          <div className="grid min-w-0 gap-2">
+                            <span className="text-xs font-medium text-muted-foreground md:hidden">
+                              Nouvelle affectation
+                            </span>
+                            <label
+                              className="sr-only"
+                              htmlFor={`mapping-target-${line.accountCode}`}
+                            >
+                              Cible
+                            </label>
+                            <select
+                              className="h-10 w-full min-w-0 max-w-full truncate rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground disabled:cursor-not-allowed disabled:bg-muted"
+                              disabled={controlsDisabled}
+                              id={`mapping-target-${line.accountCode}`}
+                              onChange={(event) => {
+                                onTargetChange(line.accountCode, event.currentTarget.value);
+                              }}
+                              value={selectedTargetCode}
+                            >
+                              <option value="">Choisir une rubrique</option>
+                              {selectableTargets.map((target) => (
+                                <option key={target.code} value={target.code}>
+                                  {target.label}
+                                </option>
+                              ))}
+                            </select>
+                            {selectedTargetDisplay === null ? null : (
+                              <span
+                                className="block max-w-full truncate text-xs font-mono text-muted-foreground"
+                                title={selectedTargetDisplay.code}
+                              >
+                                {selectedTargetDisplay.code}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="block min-w-0 md:table-cell md:px-3 md:py-3 md:align-top">
+                          <div className="grid min-w-0 gap-2">
+                            <span className="text-xs font-medium text-muted-foreground md:hidden">
+                              Action
+                            </span>
+                            <Button
+                              aria-label="Enregistrer le mapping"
+                              className="w-full"
+                              disabled={saveDisabled}
+                              onClick={() => {
+                                void onSave(line.accountCode);
+                              }}
+                              size="sm"
+                              type="button"
+                              variant="secondary"
+                            >
+                              Enregistrer
+                            </Button>
 
-                      <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(10rem,auto)_minmax(10rem,auto)] lg:items-end">
-                        <div className="grid min-w-0 gap-2">
-                          <label
-                            className="text-sm font-medium text-foreground"
-                            htmlFor={`mapping-target-${line.accountCode}`}
-                          >
-                            Cible
-                          </label>
-                          <select
-                            className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground disabled:cursor-not-allowed disabled:bg-muted"
-                            disabled={controlsDisabled}
-                            id={`mapping-target-${line.accountCode}`}
-                            onChange={(event) => {
-                              onTargetChange(line.accountCode, event.currentTarget.value);
-                            }}
-                            value={selectedTargetCode}
-                          >
-                            <option value="">Choisir une cible</option>
-                            {selectableTargets.map((target) => (
-                              <option key={target.code} value={target.code}>
-                                {formatManualMappingTargetOption(target.label, target.code)}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <Button
-                          aria-label="Enregistrer le mapping"
-                          className="w-full lg:w-auto"
-                          disabled={saveDisabled}
-                          onClick={() => {
-                            void onSave(line.accountCode);
-                          }}
-                          type="button"
-                        >
-                          Enregistrer
-                        </Button>
-
-                        <Button
-                          aria-label="Supprimer le mapping"
-                          className="w-full lg:w-auto"
-                          disabled={deleteDisabled}
-                          onClick={() => {
-                            void onDelete(line.accountCode);
-                          }}
-                          type="button"
-                          variant="outline"
-                        >
-                          Supprimer
-                        </Button>
-                      </div>
-                    </div>
-                  </article>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </ControlsBlock>
+                            <Button
+                              aria-label="Supprimer le mapping"
+                              className="w-full"
+                              disabled={deleteDisabled}
+                              onClick={() => {
+                                void onDelete(line.accountCode);
+                              }}
+                              size="sm"
+                              type="button"
+                              variant="ghost"
+                            >
+                              Supprimer
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   );
 }
@@ -3515,8 +3658,8 @@ function createManualMappingSelectedTargets(projection: ManualMappingProjection)
   ) as Record<string, string | undefined>;
 }
 
-function createTargetLabelByCode(projection: ManualMappingProjection) {
-  return new Map(projection.targets.map((target) => [target.code, target.label]));
+function createTargetByCode(projection: ManualMappingProjection) {
+  return new Map(projection.targets.map((target) => [target.code, target]));
 }
 
 function getSelectableTargetCodes(projection: ManualMappingProjection) {
@@ -3527,10 +3670,6 @@ function getSelectableTargetCodes(projection: ManualMappingProjection) {
 
 function findManualMappingForAccount(projection: ManualMappingProjection, accountCode: string) {
   return projection.mappings.find((mapping) => mapping.accountCode === accountCode);
-}
-
-function formatManualMappingTargetOption(label: string, code: string) {
-  return `${label} (${code})`;
 }
 
 function mapUploadResultToImportState(

@@ -751,7 +751,7 @@ describe("router manual mapping", () => {
     expect(screen.getByRole("tabpanel", { name: "Mapping" })).toBeInTheDocument();
     const mappingHeading = getMappingHeading();
     expect(mappingHeading).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Importer une balance CSV" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Revue des imports balance" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Etat de preparation" })).not.toBeInTheDocument();
     expect(getRequestPaths(fetchMock)).toEqual([
       "/api/me",
@@ -778,6 +778,54 @@ describe("router manual mapping", () => {
     expect(getRequestHeaders(fetchMock, 8)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
     expect(getRequestHeaders(fetchMock, 9)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
     expect(getRequestHeaders(fetchMock, 10)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
+    expectNoOutOfScopePaths(getRequestPaths(fetchMock));
+  });
+
+  it("renders manual mapping as a review table without bulk or automatic apply controls", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    primeNominalRoute(fetchMock);
+
+    renderClosingRoute();
+    await waitForNominalShell();
+
+    const mappingSection = getMappingSection();
+    const mappingTable = within(mappingSection).getByRole("table", {
+      name: "Table de revue du mapping manuel"
+    });
+
+    [
+      "Compte source",
+      "Débit",
+      "Crédit",
+      "Affectation actuelle",
+      "Nouvelle affectation",
+      "Action"
+    ].forEach((columnName) => {
+      expect(within(mappingTable).getByRole("columnheader", { name: columnName })).toBeInTheDocument();
+    });
+
+    ["Debit", "Credit", "Mapping courant", "Cible a appliquer", "Cible"].forEach((columnName) => {
+      expect(within(mappingTable).queryByRole("columnheader", { name: columnName })).not.toBeInTheDocument();
+    });
+
+    expect(within(mappingTable).getByLabelText("ligne mapping 1000")).toBeInTheDocument();
+    expect(within(mappingTable).getByLabelText("ligne mapping 2000")).toBeInTheDocument();
+    const currentMapping = getLineDetailCard("1000", "Affectation actuelle");
+    expect(within(currentMapping).getByText("Actif")).toBeInTheDocument();
+    expect(within(currentMapping).getByText("BS.ASSET")).toHaveClass(
+      "max-w-full",
+      "truncate",
+      "text-xs",
+      "font-mono",
+      "text-muted-foreground"
+    );
+    const actionCell = within(getLine("1000")).getByText("Action").closest("div");
+    expect(actionCell).toHaveClass("grid", "min-w-0", "gap-2");
+    expect(mappingTable.querySelector("article")).toBeNull();
+    expect(within(mappingSection).queryByRole("button", { name: /appliquer tout/i })).not.toBeInTheDocument();
+    expect(within(mappingSection).queryByRole("button", { name: /bulk/i })).not.toBeInTheDocument();
+    expect(mappingSection).not.toHaveTextContent("auto-apply");
+    expect(mappingSection).not.toHaveTextContent("Application automatique");
     expectNoOutOfScopePaths(getRequestPaths(fetchMock));
   });
 
@@ -927,11 +975,15 @@ describe("router manual mapping", () => {
       expect(getLineDeleteButton("1000")).toBeEnabled();
       expect(
         Array.from(getLineTargetSelect("2000").options).map((option) => option.textContent)
-      ).toEqual(["Choisir une cible", "Actif (BS.ASSET)", "Produit (PL.REVENUE)"]);
+      ).toEqual(["Choisir une rubrique", "Actif", "Produit"]);
+      const mappedLine = getLineDetailCard("1000", "Affectation actuelle");
+      expect(within(mappedLine).getByText("Actif")).toBeInTheDocument();
+      expect(within(mappedLine).getByText("BS.ASSET")).toBeInTheDocument();
       expect(
-        within(getLineDetailCard("1000", "Mapping courant")).getByText("Actif (BS.ASSET)")
+        within(getLineDetailCard("2000", "Affectation actuelle")).getByText(
+          "Aucune affectation"
+        )
       ).toBeInTheDocument();
-      expect(within(getLineDetailCard("2000", "Mapping courant")).getByText("aucun")).toBeInTheDocument();
     }
   );
 
@@ -1047,8 +1099,9 @@ describe("router manual mapping", () => {
     });
 
     expect(
-      await within(getLineDetailCard("2000", "Mapping courant")).findByText("Produit (PL.REVENUE)")
+      await within(getLineDetailCard("2000", "Affectation actuelle")).findByText("Produit")
     ).toBeInTheDocument();
+    expect(within(getLineDetailCard("2000", "Affectation actuelle")).getByText("PL.REVENUE")).toBeInTheDocument();
     expect(await screen.findByText("Manual mapping is complete on the latest import.")).toBeInTheDocument();
     expect(await screen.findByText("etat previsualisation : previsualisation prete")).toBeInTheDocument();
     expect(await screen.findByText("rubriques a documenter : 1")).toBeInTheDocument();
@@ -1121,8 +1174,9 @@ describe("router manual mapping", () => {
       targetCode: "BS.ASSET"
     });
     expect(
-      await within(getLineDetailCard("2000", "Mapping courant")).findByText("Actif (BS.ASSET)")
+      await within(getLineDetailCard("2000", "Affectation actuelle")).findByText("Actif")
     ).toBeInTheDocument();
+    expect(within(getLineDetailCard("2000", "Affectation actuelle")).getByText("BS.ASSET")).toBeInTheDocument();
     expect(await screen.findByText("etat previsualisation : previsualisation prete")).toBeInTheDocument();
     expect(await screen.findByText("rubriques a documenter : 1")).toBeInTheDocument();
     expectNoOutOfScopePaths(getRequestPaths(fetchMock), 2, 2, 2, 2);
@@ -1271,8 +1325,9 @@ describe("router manual mapping", () => {
     resolveControlsRefresh?.(jsonResponse(200, REFRESHED_CONTROLS));
 
     expect(
-      await within(getLineDetailCard("2000", "Mapping courant")).findByText("Produit (PL.REVENUE)")
+      await within(getLineDetailCard("2000", "Affectation actuelle")).findByText("Produit")
     ).toBeInTheDocument();
+    expect(within(getLineDetailCard("2000", "Affectation actuelle")).getByText("PL.REVENUE")).toBeInTheDocument();
     expect(await screen.findByText("Manual mapping is complete on the latest import.")).toBeInTheDocument();
     expect(await screen.findByText("etat previsualisation : previsualisation prete")).toBeInTheDocument();
     expect(await screen.findByText("Suggestions IA disponibles.")).toBeInTheDocument();
@@ -1429,7 +1484,11 @@ describe("router manual mapping", () => {
     expect(deleteHeaders.Accept).toBe("application/json");
     expect(deleteHeaders["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
     expect(deleteInit.body).toBeUndefined();
-    expect(await within(getLineDetailCard("1000", "Mapping courant")).findByText("aucun")).toBeInTheDocument();
+    expect(
+      await within(getLineDetailCard("1000", "Affectation actuelle")).findByText(
+        "Aucune affectation"
+      )
+    ).toBeInTheDocument();
     expect(await screen.findByText("etat previsualisation : previsualisation prete")).toBeInTheDocument();
     expect(await screen.findByText("Suggestions IA disponibles.")).toBeInTheDocument();
     expectNoOutOfScopePaths(getRequestPaths(fetchMock), 2, 2, 2, 2);
@@ -1462,7 +1521,11 @@ describe("router manual mapping", () => {
 
     expect(await screen.findByText("mapping enregistre avec succes")).toBeInTheDocument();
     expect(screen.getByText("rafraichissement mapping impossible")).toBeInTheDocument();
-    expect(within(getLineDetailCard("2000", "Mapping courant")).getByText("aucun")).toBeInTheDocument();
+    expect(
+      within(getLineDetailCard("2000", "Affectation actuelle")).getByText(
+        "Aucune affectation"
+      )
+    ).toBeInTheDocument();
     expect(getLineTargetSelect("2000")).toHaveValue("PL.REVENUE");
     expect(screen.getByText("Manual mapping is complete on the latest import.")).toBeInTheDocument();
   });
@@ -1489,7 +1552,11 @@ describe("router manual mapping", () => {
 
     expect(await screen.findByText("mapping supprime avec succes")).toBeInTheDocument();
     expect(screen.getByText("rafraichissement controles impossible")).toBeInTheDocument();
-    expect(await within(getLineDetailCard("1000", "Mapping courant")).findByText("aucun")).toBeInTheDocument();
+    expect(
+      await within(getLineDetailCard("1000", "Affectation actuelle")).findByText(
+        "Aucune affectation"
+      )
+    ).toBeInTheDocument();
     expect(screen.getByText("1 account(s) remain unmapped on the latest import.")).toBeInTheDocument();
     expect(screen.queryByText("Manual mapping is complete on the latest import.")).not.toBeInTheDocument();
   });
