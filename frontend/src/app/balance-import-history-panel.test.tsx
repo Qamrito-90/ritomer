@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import {
   BalanceImportHistoryPanel,
@@ -67,6 +67,12 @@ const READY_STATE: BalanceImportHistoryPanelState = {
   }
 };
 
+function expectNodeBefore(first: HTMLElement, second: HTMLElement) {
+  expect(Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(
+    true
+  );
+}
+
 describe("BalanceImportHistoryPanel", () => {
   it.each([
     { state: { kind: "loading" } as const, text: "chargement historique imports" },
@@ -87,28 +93,49 @@ describe("BalanceImportHistoryPanel", () => {
 
     expect(screen.getByText("Historique imports")).toBeInTheDocument();
     expect(screen.getByText("Balance courante et historique")).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Version" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Date" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Lignes" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Debit" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Credit" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Equilibre" })).toBeInTheDocument();
+    expect(screen.getByText("Resume courant")).toBeInTheDocument();
+    expect(screen.getByText("Versions importees")).toBeInTheDocument();
+    expect(screen.getAllByRole("columnheader", { name: "Version" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("columnheader", { name: "Date import" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("columnheader", { name: "Lignes" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("columnheader", { name: "Debit" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("columnheader", { name: "Credit" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("columnheader", { name: "Equilibre" }).length).toBeGreaterThan(0);
+    expect(screen.getByRole("columnheader", { name: "Type" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Compte" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Libelle" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Avant debit/credit" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Apres debit/credit" })).toBeInTheDocument();
     expect(screen.getAllByText("v4").length).toBeGreaterThan(0);
     expect(screen.getAllByText("v3").length).toBeGreaterThan(0);
     expect(screen.getAllByText("oui").length).toBeGreaterThan(0);
 
-    const metrics = screen.getByText("ajoutes").closest("dl");
-    expect(metrics).not.toBeNull();
-    expect(within(metrics as HTMLElement).getAllByText("1")).toHaveLength(3);
-    expect(within(metrics as HTMLElement).getByText("supprimes")).toBeInTheDocument();
-    expect(within(metrics as HTMLElement).getByText("modifies")).toBeInTheDocument();
+    expect(screen.getByText("Ajoutees 1")).toBeInTheDocument();
+    expect(screen.getByText("Supprimees 1")).toBeInTheDocument();
+    expect(screen.getByText("Modifiees 1")).toBeInTheDocument();
 
-    expect(screen.getByText("lignes ajoutees")).toBeInTheDocument();
-    expect(screen.getByText("lignes supprimees")).toBeInTheDocument();
-    expect(screen.getByText("lignes modifiees")).toBeInTheDocument();
+    expect(screen.getByText("Ajoutee")).toBeInTheDocument();
+    expect(screen.getByText("Supprimee")).toBeInTheDocument();
+    expect(screen.getByText("Modifiee")).toBeInTheDocument();
     expect(screen.getByText("Sales")).toBeInTheDocument();
     expect(screen.getByText("Old suspense")).toBeInTheDocument();
     expect(screen.getByText("Cash")).toBeInTheDocument();
+  });
+
+  it("places the optional CSV import slot after the current summary and before history", () => {
+    render(
+      <BalanceImportHistoryPanel
+        state={READY_STATE}
+        uploadSlot={<div>Nouvel import CSV</div>}
+      />
+    );
+
+    const currentSummary = screen.getByText("Resume courant");
+    const upload = screen.getByText("Nouvel import CSV");
+    const history = screen.getByText("Versions importees");
+
+    expectNodeBefore(currentSummary, upload);
+    expectNodeBefore(upload, history);
   });
 
   it("renders no previous version state when previousVersion is null", () => {

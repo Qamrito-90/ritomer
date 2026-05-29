@@ -985,7 +985,7 @@ describe("router", () => {
       expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
       expect(screen.queryByRole("tabpanel", { name: "Import" })).not.toBeInTheDocument();
       expect(screen.queryByRole("tabpanel", { name: "Mapping" })).not.toBeInTheDocument();
-      expect(screen.queryByRole("heading", { name: "Importer une balance CSV" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Revue des imports balance" })).not.toBeInTheDocument();
       expect(screen.queryByRole("heading", { name: "Projection du dernier import" })).not.toBeInTheDocument();
 
       expect(within(cockpit).getByText("Tenant actif : Tenant Alpha - Periode :")).toBeInTheDocument();
@@ -1045,13 +1045,23 @@ describe("router", () => {
       await openWorkbenchPanel("Mapping");
 
       const mappingPanel = screen.getByRole("tabpanel", { name: "Mapping" });
+      const mappingTable = within(mappingPanel).getByRole("table", {
+        name: "Table de revue du mapping manuel"
+      });
       const mappingLine = await within(mappingPanel).findByLabelText(`ligne mapping ${longAccountCode}`);
 
       expect(mappingPanel).toHaveClass("overflow-x-hidden");
-      expect(mappingLine).toHaveClass("min-w-0", "overflow-hidden");
+      expect(mappingTable.parentElement).toHaveClass("min-w-0", "overflow-hidden");
+      expect(mappingTable.querySelector("article")).toBeNull();
+      expect(mappingLine).toHaveClass("min-w-0");
       expect(within(mappingLine).getByText(longAccountCode)).toHaveClass("break-all");
       expect(within(mappingLine).getByText(longAccountLabel)).toHaveClass("break-words");
-      expect(within(mappingLine).getByLabelText("Cible")).toHaveClass("w-full", "min-w-0");
+      expect(within(mappingLine).getByLabelText("Cible")).toHaveClass(
+        "w-full",
+        "min-w-0",
+        "max-w-full",
+        "truncate"
+      );
       expect(within(mappingLine).getByRole("button", { name: "Enregistrer le mapping" })).toHaveClass(
         "w-full"
       );

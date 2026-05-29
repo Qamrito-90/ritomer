@@ -536,7 +536,8 @@ async function waitForClosingRouteReady() {
   expect(await screen.findByText("Annexe minimale")).toBeInTheDocument();
 
   await user.click(screen.getByRole("tab", { name: "Import" }));
-  expect(await screen.findByRole("heading", { name: "Importer une balance CSV" })).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "Revue des imports balance" })).toBeInTheDocument();
+  expect(screen.getByText("Nouvel import CSV")).toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: "Upload CSV" })).not.toBeInTheDocument();
 }
 
@@ -628,15 +629,21 @@ describe("router import balance", () => {
     await waitForClosingRouteReady();
 
     expect(await screen.findByText("Balance courante et historique")).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Version" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Debit" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Credit" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Equilibre" })).toBeInTheDocument();
+    expect(screen.getByText("Resume courant")).toBeInTheDocument();
+    expect(screen.getByText("Versions importees")).toBeInTheDocument();
+    expect(screen.getAllByRole("columnheader", { name: "Version" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("columnheader", { name: "Date import" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("columnheader", { name: "Debit" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("columnheader", { name: "Credit" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("columnheader", { name: "Equilibre" }).length).toBeGreaterThan(0);
+    expect(screen.getByRole("columnheader", { name: "Type" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Avant debit/credit" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Apres debit/credit" })).toBeInTheDocument();
     expect(screen.getAllByText("v2").length).toBeGreaterThan(0);
     expect(screen.getAllByText("v1").length).toBeGreaterThan(0);
-    expect(screen.getByText("ajoutes")).toBeInTheDocument();
-    expect(screen.getByText("supprimes")).toBeInTheDocument();
-    expect(screen.getByText("modifies")).toBeInTheDocument();
+    expect(screen.getByText("Ajoutees 1")).toBeInTheDocument();
+    expect(screen.getByText("Supprimees 0")).toBeInTheDocument();
+    expect(screen.getByText("Modifiees 1")).toBeInTheDocument();
     expect(screen.getAllByText("Receivable").length).toBeGreaterThan(0);
 
     const paths = getRequestPaths(fetchMock);
