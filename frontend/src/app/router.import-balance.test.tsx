@@ -531,7 +531,7 @@ async function waitForClosingRouteReady() {
   expect(await screen.findByText("Synthese financiere")).toBeInTheDocument();
   expect(await screen.findByText("Etats financiers structures")).toBeInTheDocument();
   expect(await screen.findByText("Justifications")).toBeInTheDocument();
-  expect(await screen.findByText("Suggestion IA de mapping")).toBeInTheDocument();
+  expect(await screen.findByText("Suggestions de mapping a revoir")).toBeInTheDocument();
   expect(await screen.findByText("Pack export auditable")).toBeInTheDocument();
   expect(await screen.findByText("Annexe minimale")).toBeInTheDocument();
 
@@ -930,7 +930,7 @@ describe("router import balance", () => {
     expect(screen.getByText("rubriques a documenter : 1")).toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "Mapping" }));
-    expect(screen.getByText("Suggestions IA disponibles.")).toBeInTheDocument();
+    expect(screen.getByText("Suggestions pretes pour revue humaine. Aucune decision automatique.")).toBeInTheDocument();
 
     const paths = getRequestPaths(fetchMock);
     expect(paths).toEqual([
@@ -994,7 +994,9 @@ describe("router import balance", () => {
     expect(screen.queryByText("Closing FY26 refreshed")).not.toBeInTheDocument();
     expect(screen.getByText("Latest valid balance import version 2 is available.")).toBeInTheDocument();
     expect(screen.getByText("etat previsualisation : previsualisation partielle")).toBeInTheDocument();
-    expect(await screen.findByText("Suggestions IA disponibles.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Suggestions pretes pour revue humaine. Aucune decision automatique.")
+    ).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(22);
     expectNoForbiddenImportCalls(getRequestPaths(fetchMock), 2, 2, 2, 2);
   });
@@ -1034,7 +1036,9 @@ describe("router import balance", () => {
     expect(screen.getByText("Latest valid balance import version 2 is available.")).toBeInTheDocument();
     expect(screen.queryByText("Latest valid balance import version 4 is available.")).not.toBeInTheDocument();
     expect(await screen.findByText("etat previsualisation : previsualisation prete")).toBeInTheDocument();
-    expect(await screen.findByText("Suggestions IA disponibles.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Suggestions pretes pour revue humaine. Aucune decision automatique.")
+    ).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(22);
     expectNoForbiddenImportCalls(getRequestPaths(fetchMock), 2, 2, 2, 2);
   });
