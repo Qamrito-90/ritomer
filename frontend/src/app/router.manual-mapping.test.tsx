@@ -610,7 +610,7 @@ async function waitForNominalShell() {
   expect(await screen.findByText("Synthese financiere")).toBeInTheDocument();
   expect(await screen.findByText("Etats financiers structures")).toBeInTheDocument();
   expect(await screen.findByText("Justifications")).toBeInTheDocument();
-  expect(await screen.findByText("Suggestion IA de mapping")).toBeInTheDocument();
+  expect(await screen.findByText("Suggestions de mapping a revoir")).toBeInTheDocument();
   expect(await screen.findByText("Pack export auditable")).toBeInTheDocument();
   expect(await screen.findByText("Aucun pack auditable genere.")).toBeInTheDocument();
   expect(await screen.findByText("Annexe minimale")).toBeInTheDocument();
@@ -1045,7 +1045,7 @@ describe("router manual mapping", () => {
 
     renderClosingRoute();
     await waitForNominalShell();
-    await screen.findByLabelText("suggestion IA mapping 2000");
+    await screen.findByLabelText("suggestion mapping 2000 a revoir");
 
     expect(fetchMock).toHaveBeenCalledTimes(12);
     expect(getRequestPaths(fetchMock)).not.toContain(
@@ -1058,9 +1058,9 @@ describe("router manual mapping", () => {
     ).toBe(false);
     expect(getLineTargetSelect("2000")).toHaveValue("");
 
-    await user.click(screen.getByRole("button", { name: "Accepter la suggestion" }));
+    await user.click(screen.getByRole("button", { name: "Accepter" }));
 
-    expect(await screen.findByText(/Decision humaine enregistree : ACCEPT/)).toBeInTheDocument();
+    expect(await screen.findByText(/Decision humaine enregistree : accepter/)).toBeInTheDocument();
     expect(getRequestPaths(fetchMock)).toEqual([
       "/api/me",
       `/api/closing-folders/${CLOSING_FOLDER.id}`,
@@ -1136,15 +1136,15 @@ describe("router manual mapping", () => {
 
     renderClosingRoute();
     await waitForNominalShell();
-    await screen.findByLabelText("suggestion IA mapping 2000");
+    await screen.findByLabelText("suggestion mapping 2000 a revoir");
 
     await user.selectOptions(
       screen.getByLabelText("Corriger avec une autre cible"),
       "BS.ASSET"
     );
-    await user.click(screen.getByRole("button", { name: "Corriger la cible" }));
+    await user.click(screen.getByRole("button", { name: "Corriger" }));
 
-    expect(await screen.findByText(/Decision humaine enregistree : CORRECT/)).toBeInTheDocument();
+    expect(await screen.findByText(/Decision humaine enregistree : corriger/)).toBeInTheDocument();
     expect(getRequestPaths(fetchMock)).toEqual([
       "/api/me",
       `/api/closing-folders/${CLOSING_FOLDER.id}`,
@@ -1202,11 +1202,11 @@ describe("router manual mapping", () => {
 
     renderClosingRoute();
     await waitForNominalShell();
-    await screen.findByLabelText("suggestion IA mapping 2000");
+    await screen.findByLabelText("suggestion mapping 2000 a revoir");
 
-    await user.click(screen.getByRole("button", { name: "Rejeter la suggestion" }));
+    await user.click(screen.getByRole("button", { name: "Rejeter" }));
 
-    expect(await screen.findByText(/Decision humaine enregistree : REJECT/)).toBeInTheDocument();
+    expect(await screen.findByText(/Decision humaine enregistree : rejeter/)).toBeInTheDocument();
     expect(getRequestPaths(fetchMock)).toEqual([
       "/api/me",
       `/api/closing-folders/${CLOSING_FOLDER.id}`,
@@ -1248,11 +1248,11 @@ describe("router manual mapping", () => {
 
     renderClosingRoute();
     await waitForNominalShell();
-    await screen.findByLabelText("suggestion IA mapping 2000");
+    await screen.findByLabelText("suggestion mapping 2000 a revoir");
 
-    await user.click(screen.getByRole("button", { name: "Accepter la suggestion" }));
+    await user.click(screen.getByRole("button", { name: "Accepter" }));
 
-    expect(await screen.findByText("Decision humaine en cours : ACCEPT.")).toBeInTheDocument();
+    expect(await screen.findByText("Decision humaine en cours : accepter.")).toBeInTheDocument();
     expect(getLineTargetSelect("2000")).toHaveValue("");
     expect(fetchMock).toHaveBeenCalledTimes(13);
   });
@@ -1330,7 +1330,9 @@ describe("router manual mapping", () => {
     expect(within(getLineDetailCard("2000", "Affectation actuelle")).getByText("PL.REVENUE")).toBeInTheDocument();
     expect(await screen.findByText("Manual mapping is complete on the latest import.")).toBeInTheDocument();
     expect(await screen.findByText("etat previsualisation : previsualisation prete")).toBeInTheDocument();
-    expect(await screen.findByText("Suggestions IA disponibles.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Suggestions pretes pour revue humaine. Aucune decision automatique.")
+    ).toBeInTheDocument();
     expectNoOutOfScopePaths(getRequestPaths(fetchMock), 2, 2, 2, 2);
   });
 
@@ -1490,7 +1492,9 @@ describe("router manual mapping", () => {
       )
     ).toBeInTheDocument();
     expect(await screen.findByText("etat previsualisation : previsualisation prete")).toBeInTheDocument();
-    expect(await screen.findByText("Suggestions IA disponibles.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Suggestions pretes pour revue humaine. Aucune decision automatique.")
+    ).toBeInTheDocument();
     expectNoOutOfScopePaths(getRequestPaths(fetchMock), 2, 2, 2, 2);
   });
 

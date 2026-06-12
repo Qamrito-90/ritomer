@@ -283,7 +283,7 @@ async function waitForNominalShell() {
   await screen.findByText("Synthese financiere");
   await screen.findByText("Etats financiers structures");
   await screen.findByText("Justifications");
-  await screen.findByText("Suggestion IA de mapping");
+  await screen.findByText("Suggestions de mapping a revoir");
   await screen.findByText("Pack export auditable");
   await screen.findByText("Aucun pack auditable genere.");
   await screen.findByText("Annexe minimale");

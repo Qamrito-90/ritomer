@@ -421,7 +421,7 @@ async function expectControlsState(text: string) {
   expect(screen.getByText("Closing FY26")).toBeInTheDocument();
   expect(screen.getByRole("tab", { name: "Controles" })).toBeInTheDocument();
   expect(await screen.findByText("Aucun pack auditable genere.")).toBeInTheDocument();
-  expect(await screen.findByText("Suggestion IA de mapping")).toBeInTheDocument();
+  expect(await screen.findByText("Suggestions de mapping a revoir")).toBeInTheDocument();
   expect(await screen.findByText("Annexe minimale")).toBeInTheDocument();
   expectNoControlsNominalBlocks();
 }
@@ -640,7 +640,7 @@ describe("router", () => {
       expect(await screen.findByText("Dossier courant")).toBeInTheDocument();
       expect(await screen.findByText("Etat de preparation")).toBeInTheDocument();
       expect(await screen.findByText("Justifications")).toBeInTheDocument();
-      expect(await screen.findByText("Suggestion IA de mapping")).toBeInTheDocument();
+      expect(await screen.findByText("Suggestions de mapping a revoir")).toBeInTheDocument();
       expect(await screen.findByText("Aucun pack auditable genere.")).toBeInTheDocument();
       expect(await screen.findByText("Annexe minimale")).toBeInTheDocument();
       expect(await screen.findByLabelText("tenant actif")).toHaveTextContent("Tenant Alpha");

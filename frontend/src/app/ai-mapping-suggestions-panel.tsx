@@ -46,15 +46,23 @@ export type ManualMappingRefreshWarnings = {
 };
 
 const stateLabels: Record<MappingSuggestionsState, string> = {
-  DISABLED: "Suggestions IA desactivees.",
-  NO_IMPORT: "Import balance requis pour les suggestions IA.",
-  READY: "Suggestions IA disponibles.",
-  PARTIAL: "Couverture partielle des suggestions IA.",
-  ARCHIVED_READ_ONLY: "Dossier archive, suggestions en lecture seule.",
-  UNAVAILABLE: "Suggestions IA indisponibles.",
-  TIMEOUT: "Timeout suggestions IA.",
-  INVALID_MODEL_OUTPUT: "Sortie IA indisponible pour revue.",
-  INSUFFICIENT_EVIDENCE: "Preuves insuffisantes pour suggestions IA."
+  DISABLED:
+    "Suggestions desactivees pour cette demo locale. Aucune suggestion n'est generee. Continuez avec le mapping manuel.",
+  NO_IMPORT:
+    "Import balance requis avant une aide de mapping. Le mapping manuel reste disponible.",
+  READY: "Suggestions pretes pour revue humaine. Aucune decision automatique.",
+  PARTIAL:
+    "Suggestions partielles a revoir. Le mapping manuel reste la reference.",
+  ARCHIVED_READ_ONLY:
+    "Dossier archive : suggestions consultables uniquement. Aucune decision automatique.",
+  UNAVAILABLE:
+    "Suggestions indisponibles pour le moment. Le mapping manuel reste utilisable.",
+  TIMEOUT:
+    "Suggestions indisponibles pour le moment. Le mapping manuel reste utilisable.",
+  INVALID_MODEL_OUTPUT:
+    "Suggestions non exploitables pour le moment. Le mapping manuel reste utilisable.",
+  INSUFFICIENT_EVIDENCE:
+    "Preuves insuffisantes pour preparer des suggestions. Continuez avec le mapping manuel."
 };
 
 type DecisionReviewState =
@@ -264,15 +272,18 @@ export function AiMappingSuggestionsPanel({
     <section aria-labelledby="ai-mapping-suggestion-title" className="rounded-lg border bg-muted/20 p-4">
       <div className="grid gap-4">
         <div className="grid gap-2">
-          <p className="label-eyebrow">Suggestion IA de mapping</p>
+          <p className="label-eyebrow">Aide locale a la revue</p>
           <h4
             className="text-lg font-semibold text-foreground"
             id="ai-mapping-suggestion-title"
           >
-            Decision humaine
+            Suggestions de mapping a revoir
           </h4>
           <p className="text-sm text-muted-foreground">
-            Revue humaine requise. Le mapping manuel reste la reference.
+            Aucune IA reelle n'est active. Aucun service IA externe n'est appele. Le mapping manuel reste la reference.
+          </p>
+          <p className="text-sm font-medium text-foreground">
+            Revue humaine obligatoire. Aucune decision automatique.
           </p>
         </div>
 
@@ -315,7 +326,7 @@ function MappingSuggestionsStateSlot({
   ) => void;
 }) {
   if (state.kind === "loading") {
-    return <StateMessage text="chargement suggestion IA de mapping" />;
+    return <StateMessage text="Chargement des suggestions de mapping." />;
   }
 
   if (state.kind !== "ready") {
@@ -359,17 +370,19 @@ function ReadModelView({
     decision: MappingSuggestionDecision
   ) => void;
 }) {
+  const suggestionsCount = readModel.suggestions.length;
+
   return (
     <div className="grid gap-4">
       <div className="rounded-lg border bg-background/80 p-4">
         <dl className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <MetricItem label="etat" value={readModel.state} />
+          <MetricItem label="suggestions a revoir" value={formatSuggestionCount(suggestionsCount)} />
           <MetricItem
-            label="derniere version import"
+            label="import courant"
             value={readModel.latestImportVersion === null ? "aucune" : String(readModel.latestImportVersion)}
           />
-          <MetricItem label="version taxonomie" value={String(readModel.taxonomyVersion)} />
-          <MetricItem label="revue humaine" value="requise" />
+          <MetricItem label="autorite metier" value="mapping manuel" />
+          <MetricItem label="revue humaine" value="obligatoire" />
         </dl>
       </div>
 
@@ -378,9 +391,12 @@ function ReadModelView({
       <MappingSuggestionErrors errors={readModel.errors} />
 
       {readModel.suggestions.length === 0 ? (
-        <p className="rounded-lg border bg-background/80 p-4 text-sm font-medium text-foreground">
-          Aucune suggestion IA preparee.
-        </p>
+        <div className="grid gap-2 rounded-lg border bg-background/80 p-4">
+          <p className="text-sm font-semibold text-foreground">Aucune suggestion a revoir</p>
+          <p className="text-sm text-muted-foreground">
+            Aucune suggestion n'est generee. Le mapping manuel reste disponible et fait reference pour cette demo.
+          </p>
+        </div>
       ) : (
         <ul className="grid gap-4">
           {readModel.suggestions.map((suggestion) => (
@@ -455,7 +471,7 @@ function SuggestionCard({
 
   return (
     <article
-      aria-label={`suggestion IA mapping ${suggestion.accountCode}`}
+      aria-label={`suggestion mapping ${suggestion.accountCode} a revoir`}
       className="grid min-w-0 gap-4 overflow-hidden rounded-lg border bg-background/80 p-4"
     >
       <div className="grid gap-3">
@@ -464,16 +480,17 @@ function SuggestionCard({
           <DetailItem label="libelle compte" value={suggestion.accountLabel} />
           <DetailItem label="cible suggeree" value={suggestion.suggestedTargetCode} />
           <DetailItem label="confiance" value={formatConfidence(suggestion.confidence)} />
-          <DetailItem label="niveau de risque" value={suggestion.riskLevel} />
           <DetailItem
             label="revue humaine"
-            value={suggestion.requiresHumanReview ? "requise" : "indisponible"}
+            value={suggestion.requiresHumanReview ? "obligatoire" : "indisponible"}
           />
         </dl>
 
         <div className="rounded-lg border bg-muted/20 p-4">
-          <p className="text-sm text-muted-foreground">rationale courte</p>
-          <p className="mt-2 text-sm font-medium text-foreground">{suggestion.rationale}</p>
+          <p className="text-sm text-muted-foreground">Raison de suggestion</p>
+          <p className="mt-2 text-sm font-medium text-foreground">
+            Proposition a verifier avec les preuves ci-dessous avant toute decision humaine.
+          </p>
         </div>
       </div>
 
@@ -486,8 +503,8 @@ function SuggestionCard({
               key={`${suggestion.accountCode}-${evidence.type}-${evidence.ref}-${index}`}
             >
               <dl className="grid gap-2">
-                <DetailItem label="type" value={evidence.type} />
-                <DetailItem label="reference" value={evidence.ref} />
+                <DetailItem label="source" value={formatEvidenceType(evidence.type)} />
+                <DetailItem label="repere" value={formatEvidenceReference(evidence)} />
                 <DetailItem label="extrait" value={evidence.snippet} />
               </dl>
             </li>
@@ -499,7 +516,7 @@ function SuggestionCard({
         <div className="grid gap-2">
           <h5 className="text-sm font-semibold text-foreground">Decision humaine</h5>
           <p className="text-sm text-muted-foreground">
-            Revue humaine requise. Le mapping manuel reste la reference.
+            Revue humaine obligatoire. Le mapping manuel reste la reference.
           </p>
         </div>
 
@@ -569,7 +586,7 @@ function SuggestionCard({
             }}
             type="button"
           >
-            Accepter la suggestion
+            Accepter
           </Button>
 
           <Button
@@ -581,7 +598,7 @@ function SuggestionCard({
             type="button"
             variant="outline"
           >
-            Corriger la cible
+            Corriger
           </Button>
 
           <Button
@@ -593,12 +610,12 @@ function SuggestionCard({
             type="button"
             variant="outline"
           >
-            Rejeter la suggestion
+            Rejeter
           </Button>
         </div>
 
         {!decisionable ? (
-          <p className="text-sm font-medium text-foreground">Revue humaine requise.</p>
+          <p className="text-sm font-medium text-foreground">Revue humaine obligatoire.</p>
         ) : null}
 
         <DecisionStatus state={decisionState} />
@@ -614,14 +631,14 @@ function MappingSuggestionErrors({ errors }: { errors: MappingSuggestionError[] 
 
   return (
     <div className="grid gap-3">
-      <h5 className="text-sm font-semibold text-foreground">Messages de lecture</h5>
+      <h5 className="text-sm font-semibold text-foreground">Points de revue</h5>
       <ul className="grid gap-3">
         {errors.map((error, index) => (
           <li
             className="rounded-lg border bg-background/80 p-4 text-sm font-medium text-foreground"
             key={`${error.code}-${index}`}
           >
-            {error.code}: {error.message}
+            {formatMappingSuggestionError(error)}
           </li>
         ))}
       </ul>
@@ -647,7 +664,7 @@ function MetricItem({ label, value }: { label: string; value: string }) {
 function StateMessage({ text }: { text: string }) {
   return (
     <div aria-live="polite" className="grid gap-2">
-      <p className="label-eyebrow">Etat visible</p>
+      <p className="label-eyebrow">Statut de revue</p>
       <p className="text-lg font-semibold text-foreground">{text}</p>
     </div>
   );
@@ -661,7 +678,7 @@ function DecisionStatus({ state }: { state: DecisionReviewState }) {
   if (state.kind === "submitting") {
     return (
       <p aria-live="polite" className="text-sm font-medium text-foreground">
-        Decision humaine en cours : {state.decision}.
+        Decision humaine en cours : {formatDecisionLabel(state.decision)}.
       </p>
     );
   }
@@ -670,8 +687,8 @@ function DecisionStatus({ state }: { state: DecisionReviewState }) {
     return (
       <div aria-live="polite" className="grid gap-2 text-sm font-medium text-foreground">
         <p>
-          Decision humaine enregistree : {state.result.decision}. resultat :{" "}
-          {state.result.resultKind}.
+          Decision humaine enregistree : {formatDecisionLabel(state.result.decision)}.{" "}
+          {formatDecisionResultKind(state.result.resultKind)}.
         </p>
         {state.refreshSuggestionsFailed ? <p>rafraichissement suggestions impossible</p> : null}
         {state.manualMappingRefreshWarnings.mappingFailed ? (
@@ -736,74 +753,228 @@ function formatShellState(
   state: Exclude<MappingSuggestionsShellState, { kind: "loading" | "ready" }>
 ) {
   if (state.kind === "auth_required") {
-    return "authentification requise";
+    return "Suggestions indisponibles pour le moment. Le mapping manuel reste utilisable.";
   }
 
   if (state.kind === "forbidden") {
-    return "acces suggestion IA refuse";
+    return "Suggestions indisponibles pour le moment. Le mapping manuel reste utilisable.";
   }
 
   if (state.kind === "not_found") {
-    return "dossier indisponible pour suggestion IA";
+    return "Suggestions indisponibles pour le moment. Le mapping manuel reste utilisable.";
   }
 
   if (state.kind === "network_error") {
-    return "erreur reseau suggestion IA";
+    return "Suggestions indisponibles pour le moment. Le mapping manuel reste utilisable.";
   }
 
   if (state.kind === "timeout") {
-    return "timeout suggestion IA";
+    return "Suggestions indisponibles pour le moment. Le mapping manuel reste utilisable.";
   }
 
-  return "suggestion IA indisponible.";
+  return "Suggestions indisponibles pour le moment. Le mapping manuel reste utilisable.";
 }
 
 function formatDecisionState(
   state: Exclude<DecisionReviewState, { kind: "idle" | "submitting" | "success" }>
 ) {
   if (state.kind === "bad_request") {
-    return "decision humaine invalide.";
+    return "Decision humaine impossible avec ces informations.";
   }
 
   if (state.kind === "auth_required") {
-    return "authentification requise pour decision humaine.";
+    return "Decision humaine indisponible pour le moment. Continuez avec le mapping manuel.";
   }
 
   if (state.kind === "forbidden") {
-    return "decision humaine refusee.";
+    return "Decision humaine indisponible pour le moment. Continuez avec le mapping manuel.";
   }
 
   if (state.kind === "not_found") {
-    return "suggestion introuvable pour decision humaine.";
+    return "Suggestion indisponible pour cette decision. Continuez avec le mapping manuel.";
   }
 
   if (state.kind === "conflict") {
     return state.result === null
-      ? "Conflit de decision humaine : suggestion modifiee ou plus disponible pour decision."
-      : `Conflit de decision humaine : ${state.result.resultKind}.`;
+      ? "Suggestion modifiee ou plus disponible pour decision. Relisez le mapping manuel avant de continuer."
+      : formatDecisionResultKind(state.result.resultKind);
   }
 
   if (state.kind === "server_error") {
-    return "erreur serveur decision humaine.";
+    return "Decision humaine indisponible pour le moment. Reessayez ou continuez avec le mapping manuel.";
   }
 
   if (state.kind === "network_error") {
-    return "erreur reseau decision humaine.";
+    return "Decision humaine indisponible pour le moment. Reessayez ou continuez avec le mapping manuel.";
   }
 
   if (state.kind === "timeout") {
-    return "timeout decision humaine.";
+    return "Decision humaine indisponible pour le moment. Reessayez ou continuez avec le mapping manuel.";
   }
 
   if (state.kind === "invalid_payload") {
-    return "reponse decision humaine invalide.";
+    return "Decision humaine bloquee par securite. Continuez avec le mapping manuel.";
   }
 
-  return "decision humaine indisponible.";
+  return "Decision humaine indisponible pour le moment. Continuez avec le mapping manuel.";
 }
 
 function formatConfidence(confidence: number) {
   return `${Math.round(confidence * 100)} %`;
+}
+
+function formatSuggestionCount(count: number) {
+  if (count === 0) {
+    return "aucune";
+  }
+
+  if (count === 1) {
+    return "1 suggestion";
+  }
+
+  return `${count} suggestions`;
+}
+
+function formatEvidenceType(type: MappingSuggestion["evidence"][number]["type"]) {
+  if (type === "ACCOUNT_LABEL") {
+    return "Libelle du compte";
+  }
+
+  if (type === "BALANCE_IMPORT_LINE") {
+    return "Ligne de balance";
+  }
+
+  if (type === "TARGET_TAXONOMY") {
+    return "Taxonomie de mapping";
+  }
+
+  if (type === "HISTORICAL_MAPPING") {
+    return "Mapping historique";
+  }
+
+  if (type === "RULE_DOC") {
+    return "Regle documentee";
+  }
+
+  return "Modele de note";
+}
+
+function formatEvidenceReference(evidence: MappingSuggestion["evidence"][number]) {
+  if (
+    evidence.type === "ACCOUNT_LABEL" ||
+    evidence.type === "BALANCE_IMPORT_LINE"
+  ) {
+    const lineRef = getLastReferenceSegment(evidence.ref);
+    return lineRef === undefined || lineRef.length === 0
+      ? "ligne de balance"
+      : `ligne de balance ${lineRef}`;
+  }
+
+  if (evidence.type === "TARGET_TAXONOMY") {
+    const targetCode = getLastReferenceSegment(evidence.ref);
+    return targetCode === undefined || targetCode.length === 0
+      ? "cible de mapping"
+      : `cible ${targetCode}`;
+  }
+
+  return "preuve rattachee";
+}
+
+function getLastReferenceSegment(reference: string) {
+  const segments = reference.split(":");
+  return segments[segments.length - 1];
+}
+
+function formatMappingSuggestionError(error: MappingSuggestionError) {
+  if (error.code === "AI_MAPPING_SUGGESTIONS_DISABLED") {
+    return "Suggestions desactivees pour cette demo locale. Continuez avec le mapping manuel.";
+  }
+
+  if (error.code === "NO_LATEST_IMPORT") {
+    return "Import balance requis avant de preparer des suggestions. Le mapping manuel reste disponible.";
+  }
+
+  if (error.code === "PARTIAL_SUGGESTIONS") {
+    return "Certaines lignes n'ont pas assez de preuves pour une suggestion. Revoyez-les dans le mapping manuel.";
+  }
+
+  if (error.code === "INSUFFICIENT_EVIDENCE") {
+    return "Preuves insuffisantes pour preparer des suggestions. Continuez avec le mapping manuel.";
+  }
+
+  if (error.code === "ARCHIVED_READ_ONLY") {
+    return "Dossier archive : lecture seule. Aucune decision automatique.";
+  }
+
+  return "Suggestions indisponibles pour le moment. Le mapping manuel reste utilisable.";
+}
+
+function formatDecisionLabel(decision: MappingSuggestionDecision) {
+  if (decision === "ACCEPT") {
+    return "accepter";
+  }
+
+  if (decision === "CORRECT") {
+    return "corriger";
+  }
+
+  return "rejeter";
+}
+
+function formatDecisionResultKind(resultKind: MappingSuggestionDecisionResult["resultKind"]) {
+  if (resultKind === "MANUAL_MAPPING_CREATED") {
+    return "Mapping manuel cree apres validation humaine";
+  }
+
+  if (resultKind === "MANUAL_MAPPING_UPDATED") {
+    return "Mapping manuel mis a jour apres validation humaine";
+  }
+
+  if (resultKind === "MANUAL_MAPPING_NOOP") {
+    return "Aucun changement de mapping manuel necessaire";
+  }
+
+  if (resultKind === "REJECT_RECORDED") {
+    return "Rejet enregistre pour revue";
+  }
+
+  if (resultKind === "CONFLICT_ARCHIVED") {
+    return "Dossier archive : decision non appliquee";
+  }
+
+  if (resultKind === "CONFLICT_NO_IMPORT") {
+    return "Import courant requis avant decision";
+  }
+
+  if (resultKind === "CONFLICT_FLAG_OFF") {
+    return "Suggestions desactivees pour cette demo locale";
+  }
+
+  if (resultKind === "CONFLICT_NON_DECISIONABLE") {
+    return "Suggestion non disponible pour decision";
+  }
+
+  if (resultKind === "CONFLICT_SUGGESTION_ABSENT") {
+    return "Suggestion absente de la derniere lecture";
+  }
+
+  if (resultKind === "CONFLICT_FINGERPRINT_MISMATCH") {
+    return "Suggestion modifiee depuis la derniere lecture";
+  }
+
+  if (resultKind === "CONFLICT_STALE_IMPORT") {
+    return "Import plus recent detecte avant decision";
+  }
+
+  if (resultKind === "CONFLICT_ACCOUNT_ABSENT") {
+    return "Compte absent du dernier import";
+  }
+
+  if (resultKind === "CONFLICT_TARGET_MISMATCH") {
+    return "Cible de mapping incoherente avec la suggestion";
+  }
+
+  return "Cible non selectionnable pour le mapping manuel";
 }
 
 function buildDecisionRequest(

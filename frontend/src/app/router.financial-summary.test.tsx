@@ -365,7 +365,7 @@ async function waitForNominalShell() {
   expect(await screen.findByText("Synthese financiere")).toBeInTheDocument();
   expect(await screen.findByText("Etats financiers structures")).toBeInTheDocument();
   expect(await screen.findByText("Justifications")).toBeInTheDocument();
-  expect(await screen.findByText("Suggestion IA de mapping")).toBeInTheDocument();
+  expect(await screen.findByText("Suggestions de mapping a revoir")).toBeInTheDocument();
   expect(await screen.findByText("Pack export auditable")).toBeInTheDocument();
   expect(await screen.findByText("Annexe minimale")).toBeInTheDocument();
 
