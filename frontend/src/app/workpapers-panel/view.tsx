@@ -4,6 +4,7 @@ import { Input } from "../../components/ui/input";
 import type { EffectiveRolesHint } from "../../lib/api/me";
 import type {
   ClosingWorkpapersReadModel,
+  WorkpaperDocument,
   WorkpaperReadModelItem,
   WorkpapersShellState
 } from "../../lib/api/workpapers";
@@ -24,6 +25,7 @@ import {
   getWorkpaperDecisionDraft,
   getWorkpaperDraft,
   getWorkpapersGlobalReadOnlyMessage,
+  hasWorkpaperDraftChanges,
   hasDocumentReadableRole,
   isWorkpaperDocumentUploadEditable
 } from "./model";
@@ -45,6 +47,12 @@ import type {
   WorkpaperDraft,
   WorkpaperMutationState
 } from "./types";
+
+type FactItem = {
+  detail?: ReactNode;
+  label: string;
+  value: ReactNode;
+};
 
 export function WorkpapersSlot({
   documentDecisionDrafts,
@@ -100,39 +108,39 @@ export function WorkpapersSlot({
   workpaperDrafts: Record<string, WorkpaperDraft>;
 }) {
   if (state.kind === "loading") {
-    return <StateMessage text="chargement justifications" />;
+    return <StateMessage text="Chargement des justifications / preuves." />;
   }
 
   if (state.kind === "auth_required") {
-    return <StateMessage text="authentification requise" />;
+    return <StateMessage text="Authentification requise pour consulter les preuves." />;
   }
 
   if (state.kind === "forbidden") {
-    return <StateMessage text="acces justifications refuse" />;
+    return <StateMessage text="Acces aux justifications / preuves refuse." />;
   }
 
   if (state.kind === "not_found") {
-    return <StateMessage text="justifications introuvables" />;
+    return <StateMessage text="Justifications / preuves introuvables pour ce dossier." />;
   }
 
   if (state.kind === "server_error") {
-    return <StateMessage text="erreur serveur justifications" />;
+    return <StateMessage text="Justifications / preuves indisponibles pour le moment." />;
   }
 
   if (state.kind === "network_error") {
-    return <StateMessage text="erreur reseau justifications" />;
+    return <StateMessage text="Connexion indisponible pendant le chargement des preuves." />;
   }
 
   if (state.kind === "timeout") {
-    return <StateMessage text="timeout justifications" />;
+    return <StateMessage text="Delai depasse pendant le chargement des preuves. Reessayez avant de poursuivre la revue." />;
   }
 
   if (state.kind === "invalid_payload") {
-    return <StateMessage text="payload justifications invalide" />;
+    return <StateMessage text="Données de preuves incohérentes. L’écran reste bloqué par sécurité." />;
   }
 
   if (state.kind === "bad_request" || state.kind === "unexpected") {
-    return <StateMessage text="justifications indisponibles" />;
+    return <StateMessage text="Justifications / preuves indisponibles pour le moment." />;
   }
 
   return (
@@ -219,13 +227,39 @@ function WorkpapersNominalBlocks({
   workpaperDrafts: Record<string, WorkpaperDraft>;
   workpapers: ClosingWorkpapersReadModel;
 }) {
-  const summaryLines = [
-    `rubriques a documenter : ${workpapers.summaryCounts.totalCurrentAnchors}`,
-    `rubriques avec justification : ${workpapers.summaryCounts.withWorkpaperCount}`,
-    `justifications pretes pour revue : ${workpapers.summaryCounts.readyForReviewCount}`,
-    `justifications revues : ${workpapers.summaryCounts.reviewedCount}`,
-    `justifications obsoletes : ${workpapers.summaryCounts.staleCount}`,
-    `rubriques sans justification : ${workpapers.summaryCounts.missingCount}`
+  const documentCounts = getWorkpapersDocumentCounts(workpapers.items);
+  const summaryFacts: FactItem[] = [
+    {
+      label: "Rubriques a documenter",
+      value: workpapers.summaryCounts.totalCurrentAnchors
+    },
+    {
+      label: "Justifications existantes",
+      value: workpapers.summaryCounts.withWorkpaperCount
+    },
+    {
+      label: "Pretes pour revue",
+      value: workpapers.summaryCounts.readyForReviewCount
+    },
+    {
+      label: "Revue terminee",
+      value: workpapers.summaryCounts.reviewedCount
+    },
+    {
+      label: "Pieces attachees",
+      value: documentCounts.total
+    },
+    {
+      detail:
+        documentCounts.rejected > 0
+          ? "Verifier les pieces rejetees avant de terminer la revue."
+          : "Completer les pieces manquantes puis verifier les preuves rattachees.",
+      label: "Prochaine action humaine",
+      value:
+        workpapers.summaryCounts.missingCount > 0 || documentCounts.unverified > 0
+          ? "Continuer les preuves"
+          : "Relire les justifications"
+    }
   ];
   const globalReadOnlyMessage = getWorkpapersGlobalReadOnlyMessage(workpapers, effectiveRoles);
   const makerControlsDisabled =
@@ -245,24 +279,27 @@ function WorkpapersNominalBlocks({
   return (
     <div className="grid gap-4">
       <p className="rounded-lg border bg-background/80 p-4 text-sm font-medium text-foreground">
-        Mise a jour des justifications courantes uniquement.
+        Prochaine action : completer les rubriques sans justification, joindre les pieces utiles,
+        puis envoyer les preuves pretes en revue.
       </p>
 
       <WorkpaperMutationStatus state={mutationState} />
 
-      <ControlsBlock title="Synthese des justifications">
-        <ReadonlyLineList lines={summaryLines} />
+      <ControlsBlock title="Synthese Justifications / Preuves">
+        <ReadonlyFactList facts={summaryFacts} />
       </ControlsBlock>
 
       {globalReadOnlyMessage !== null ? (
-        <p className="text-sm font-medium text-foreground">{globalReadOnlyMessage}</p>
+        <p className="text-sm font-medium text-foreground">
+          {formatAvailabilityMessage(globalReadOnlyMessage)}
+        </p>
       ) : null}
 
       {workpapers.items.length === 0 && workpapers.staleWorkpapers.length === 0 ? (
         <p className="text-sm font-medium text-foreground">aucune justification disponible</p>
       ) : null}
 
-      <ControlsBlock title="Justifications courantes">
+      <ControlsBlock id="justifications-preuves-current" title="Rubriques a documenter">
         {workpapers.items.length === 0 ? (
           <p className="text-sm font-medium text-foreground">aucune justification courante</p>
         ) : (
@@ -356,15 +393,10 @@ function WorkpapersNominalBlocks({
       </ControlsBlock>
 
       {workpapers.staleWorkpapers.length > 0 ? (
-        <p className="text-sm font-medium text-foreground">
-          justifications obsoletes en lecture seule
-        </p>
-      ) : null}
-
-      <ControlsBlock title="Justifications obsoletes">
-        {workpapers.staleWorkpapers.length === 0 ? (
-          <p className="text-sm font-medium text-foreground">aucune justification obsolete</p>
-        ) : (
+        <ControlsBlock title="Ancienne version">
+          <p className="text-sm font-medium text-foreground">
+            Justification rattachée à une ancienne structure
+          </p>
           <ul className="grid gap-4">
             {workpapers.staleWorkpapers.map((item) => (
               <li key={`${item.anchorCode}-stale`}>
@@ -378,8 +410,8 @@ function WorkpapersNominalBlocks({
               </li>
             ))}
           </ul>
-        )}
-      </ControlsBlock>
+        </ControlsBlock>
+      ) : null}
     </div>
   );
 }
@@ -455,11 +487,19 @@ function WorkpaperCard({
   workpaperDecisionDrafts?: Record<string, WorkpaperDecisionDraft>;
   workpaperDecisionState?: WorkpaperDecisionState;
 }) {
-  const lines = [
-    `rubrique : ${item.anchorCode}`,
-    `etat financier : ${item.statementKind}`,
-    `type de detail : ${item.breakdownType}`,
-    `etat justification : ${item.workpaper === null ? "aucune" : item.workpaper.status}`
+  const facts: FactItem[] = [
+    {
+      label: "Justification",
+      value: formatWorkpaperStatus(item.workpaper?.status ?? null)
+    },
+    {
+      label: "Pieces attachees",
+      value: item.documents.length
+    },
+    {
+      label: "Verification",
+      value: formatVerificationSummary(item)
+    }
   ];
   const canRenderMakerForm =
     draft !== null &&
@@ -509,6 +549,25 @@ function WorkpaperCard({
           workpaperDecisionState
         )
       : [];
+  const saveDisabledReason =
+    canRenderMakerForm && draft !== null
+      ? getWorkpaperSaveDisabledReason(item, draft, controlsDisabled, saveDisabled)
+      : null;
+  const saveDisabledReasonId =
+    saveDisabledReason === null ? undefined : `workpaper-save-reason-${item.anchorCode}`;
+  const workpaperDecisionDisabledReason =
+    canRenderWorkpaperDecision && workpaperDecisionDraft !== null
+      ? getWorkpaperDecisionDisabledReason(
+          item,
+          workpaperDecisionDraft,
+          workpaperDecisionControlsDisabled,
+          workpaperDecisionStatusLines
+        )
+      : null;
+  const workpaperDecisionDisabledReasonId =
+    workpaperDecisionDisabledReason === null
+      ? undefined
+      : `workpaper-decision-reason-${item.anchorCode}`;
   const existingReviewerComment =
     item.workpaper?.status === "CHANGES_REQUESTED" &&
     typeof item.workpaper.reviewComment === "string" &&
@@ -516,21 +575,37 @@ function WorkpaperCard({
       ? item.workpaper.reviewComment.trim()
       : null;
 
-  if (item.workpaper !== null) {
-    lines.push(`note de justification : ${item.workpaper.noteText}`);
-  }
-
   return (
     <article
       aria-label={`justification ${item.anchorCode}`}
       className="rounded-lg border bg-background/80 p-4"
     >
       <div className="grid gap-4">
-        <p className="text-sm font-semibold text-foreground">{item.anchorLabel}</p>
-        <ReadonlyLineList lines={lines} />
+        <div className="grid gap-2">
+          <p className="label-eyebrow">Rubrique</p>
+          <p className="text-base font-semibold text-foreground">{item.anchorLabel}</p>
+        </div>
+        <ReadonlyFactList facts={facts} />
+
+        {item.workpaper !== null ? (
+          <div className="grid gap-2 rounded-md border border-border bg-muted/30 p-3">
+            <p className="text-sm font-semibold text-foreground">Justification existante</p>
+            <p className="whitespace-pre-wrap text-sm text-foreground">
+              {item.workpaper.noteText}
+            </p>
+          </div>
+        ) : null}
+
+        {!item.isCurrentStructure ? (
+          <p className="text-sm font-medium text-foreground">
+            Justification rattachée à une ancienne structure
+          </p>
+        ) : null}
 
         {makerReadOnlyMessage !== null ? (
-          <p className="text-sm font-medium text-foreground">{makerReadOnlyMessage}</p>
+          <p className="text-sm font-medium text-foreground">
+            {formatAvailabilityMessage(makerReadOnlyMessage)}
+          </p>
         ) : null}
 
         {existingReviewerComment !== null ? (
@@ -577,12 +652,13 @@ function WorkpaperCard({
                   }}
                   value={draft.status}
                 >
-                  <option value="DRAFT">DRAFT</option>
-                  <option value="READY_FOR_REVIEW">READY_FOR_REVIEW</option>
+                  <option value="DRAFT">Brouillon</option>
+                  <option value="READY_FOR_REVIEW">Prête pour revue</option>
                 </select>
               </div>
 
               <Button
+                aria-describedby={saveDisabledReasonId}
                 disabled={controlsDisabled || saveDisabled}
                 onClick={() => {
                   void onSave(item.anchorCode);
@@ -591,12 +667,22 @@ function WorkpaperCard({
               >
                 Enregistrer la justification
               </Button>
+              {saveDisabledReason !== null ? (
+                <p
+                  className="text-sm font-medium text-muted-foreground"
+                  id={saveDisabledReasonId}
+                >
+                  {saveDisabledReason}
+                </p>
+              ) : null}
             </div>
           </div>
         ) : null}
 
         {uploadAvailabilityMessage !== null ? (
-          <p className="text-sm font-medium text-foreground">{uploadAvailabilityMessage}</p>
+          <p className="text-sm font-medium text-foreground">
+            {formatAvailabilityMessage(uploadAvailabilityMessage)}
+          </p>
         ) : null}
 
         {canRenderDocumentUploadSection ? (
@@ -625,7 +711,7 @@ function WorkpaperCard({
                   className="text-sm font-medium text-foreground"
                   htmlFor={`workpaper-document-source-${item.anchorCode}`}
                 >
-                  Source de la piece
+                  Origine de la piece
                 </label>
                 <Input
                   disabled={controlsDisabled}
@@ -709,9 +795,9 @@ function WorkpaperCard({
                     value={workpaperDecisionDraft.decision}
                   >
                     <option disabled={!canMarkWorkpaperReviewed(item)} value="REVIEWED">
-                      Marquer comme revue
+                      Revue terminée
                     </option>
-                    <option value="CHANGES_REQUESTED">Demander des changements</option>
+                    <option value="CHANGES_REQUESTED">À corriger</option>
                   </select>
                 </div>
 
@@ -750,6 +836,7 @@ function WorkpaperCard({
 
                 <div>
                   <Button
+                    aria-describedby={workpaperDecisionDisabledReasonId}
                     disabled={
                       workpaperDecisionControlsDisabled ||
                       !canSubmitWorkpaperDecision(item, workpaperDecisionDraft)
@@ -761,13 +848,23 @@ function WorkpaperCard({
                   >
                     Enregistrer la decision de revue
                   </Button>
+                  {workpaperDecisionDisabledReason !== null ? (
+                    <p
+                      className="text-sm font-medium text-muted-foreground"
+                      id={workpaperDecisionDisabledReasonId}
+                    >
+                      {workpaperDecisionDisabledReason}
+                    </p>
+                  ) : null}
                 </div>
               </div>
             ) : (
               <div className="grid gap-2">
                 <p className="text-sm font-medium text-foreground">
-                  {workpaperDecisionAvailabilityMessage ??
-                    "decision de revue indisponible pour ce statut"}
+                  {formatAvailabilityMessage(
+                    workpaperDecisionAvailabilityMessage ??
+                      "decision de revue indisponible pour ce statut"
+                  )}
                 </p>
                 {workpaperDecisionStatusLines.length > 0 ? (
                   <div aria-live="polite" className="grid gap-2">
@@ -783,9 +880,9 @@ function WorkpaperCard({
           </ControlsBlock>
         ) : null}
 
-        <ControlsBlock title="Documents inclus">
+        <ControlsBlock title="Pieces / preuves attachees">
           {item.documents.length === 0 ? (
-            <p className="text-sm font-medium text-foreground">aucun document inclus</p>
+            <p className="text-sm font-medium text-foreground">Aucune piece attachee</p>
           ) : (
             <ul className="grid gap-3">
               {item.documents.map((document, index) => {
@@ -825,13 +922,40 @@ function WorkpaperCard({
                         documentDecisionState
                       )
                     : [];
+                const documentDecisionDisabledReason =
+                  canRenderDocumentDecision && documentDecisionDraft !== null
+                    ? getDocumentDecisionDisabledReason(
+                        documentDecisionDraft,
+                        documentDecisionControlsDisabled,
+                        documentDecisionStatusLines
+                      )
+                    : null;
+                const documentDecisionDisabledReasonId =
+                  documentDecisionDisabledReason === null
+                    ? undefined
+                    : `document-decision-reason-${documentId}`;
 
                 return (
                   <li key={`${item.anchorCode}-${index}-${document.fileName}`}>
                     <div className="grid gap-3 rounded-lg border bg-background/80 p-4">
-                      <p className="text-sm font-medium tabular-nums text-foreground">
-                        {`${document.fileName} | ${document.mediaType} | ${document.sourceLabel} | verification : ${document.verificationStatus}`}
-                      </p>
+                      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(12rem,auto)] md:items-start">
+                        <div className="min-w-0">
+                          <p className="break-words text-sm font-semibold text-foreground">
+                            {document.fileName}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            Origine : {document.sourceLabel}
+                          </p>
+                        </div>
+                        <div className="grid gap-1 text-sm md:text-right">
+                          <p className="font-medium text-foreground">
+                            {formatDocumentVerificationStatus(document.verificationStatus)}
+                          </p>
+                          <p className="tabular-nums text-muted-foreground">
+                            {formatDocumentDate(document.documentDate)}
+                          </p>
+                        </div>
+                      </div>
 
                       {canRenderDownloadButton ? (
                         <div>
@@ -842,7 +966,7 @@ function WorkpaperCard({
                             }}
                             type="button"
                           >
-                            Telecharger le document
+                            Telecharger la piece
                           </Button>
                         </div>
                       ) : null}
@@ -858,7 +982,7 @@ function WorkpaperCard({
                       {canRenderDocumentDecision && documentDecisionDraft !== null ? (
                         <div className="grid gap-3">
                           <p className="text-sm font-semibold text-foreground">
-                            Decision de revue document
+                            Verification de la piece
                           </p>
 
                           <div className="grid gap-2">
@@ -866,7 +990,7 @@ function WorkpaperCard({
                               className="text-sm font-medium text-foreground"
                               htmlFor={`document-decision-${documentId}`}
                             >
-                              Decision de revue document
+                              Statut de verification
                             </label>
                             <select
                               className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground disabled:cursor-not-allowed disabled:bg-muted"
@@ -877,8 +1001,8 @@ function WorkpaperCard({
                               }}
                               value={documentDecisionDraft.decision}
                             >
-                              <option value="VERIFIED">VERIFIED</option>
-                              <option value="REJECTED">REJECTED</option>
+                              <option value="VERIFIED">Vérifiée</option>
+                              <option value="REJECTED">Rejetée</option>
                             </select>
                           </div>
 
@@ -888,7 +1012,7 @@ function WorkpaperCard({
                                 className="text-sm font-medium text-foreground"
                                 htmlFor={`document-decision-comment-${documentId}`}
                               >
-                                Commentaire reviewer
+                                Commentaire de verification
                               </label>
                               <textarea
                                 className="min-h-24 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground disabled:cursor-not-allowed disabled:bg-muted"
@@ -907,6 +1031,7 @@ function WorkpaperCard({
 
                           <div>
                             <Button
+                              aria-describedby={documentDecisionDisabledReasonId}
                               disabled={
                                 documentDecisionControlsDisabled ||
                                 !canSubmitDocumentDecision(documentDecisionDraft)
@@ -916,8 +1041,16 @@ function WorkpaperCard({
                               }}
                               type="button"
                             >
-                              Enregistrer la decision document
+                              Enregistrer la verification
                             </Button>
+                            {documentDecisionDisabledReason !== null ? (
+                              <p
+                                className="text-sm font-medium text-muted-foreground"
+                                id={documentDecisionDisabledReasonId}
+                              >
+                                {documentDecisionDisabledReason}
+                              </p>
+                            ) : null}
                           </div>
                         </div>
                       ) : null}
@@ -925,7 +1058,7 @@ function WorkpaperCard({
                       {documentDecisionAvailabilityMessage !== null ? (
                         <div aria-live="polite">
                           <p className="text-sm font-medium text-foreground">
-                            {documentDecisionAvailabilityMessage}
+                            {formatAvailabilityMessage(documentDecisionAvailabilityMessage)}
                           </p>
                         </div>
                       ) : null}
@@ -948,13 +1081,25 @@ function WorkpaperCard({
         </ControlsBlock>
 
         {item.documentVerificationSummary !== null ? (
-          <ControlsBlock title="Verification des documents">
-            <ReadonlyLineList
-              lines={[
-                `documents total : ${item.documentVerificationSummary.documentsCount}`,
-                `documents non verifies : ${item.documentVerificationSummary.unverifiedCount}`,
-                `documents verifies : ${item.documentVerificationSummary.verifiedCount}`,
-                `documents rejetes : ${item.documentVerificationSummary.rejectedCount}`
+          <ControlsBlock title="Verification des pieces">
+            <ReadonlyFactList
+              facts={[
+                {
+                  label: "Pieces total",
+                  value: item.documentVerificationSummary.documentsCount
+                },
+                {
+                  label: "À vérifier",
+                  value: item.documentVerificationSummary.unverifiedCount
+                },
+                {
+                  label: "Vérifiées",
+                  value: item.documentVerificationSummary.verifiedCount
+                },
+                {
+                  label: "Rejetées",
+                  value: item.documentVerificationSummary.rejectedCount
+                }
               ]}
             />
           </ControlsBlock>
@@ -962,6 +1107,202 @@ function WorkpaperCard({
       </div>
     </article>
   );
+}
+
+function getWorkpapersDocumentCounts(items: WorkpaperReadModelItem[]) {
+  return items.reduce(
+    (counts, item) => {
+      for (const document of item.documents) {
+        counts.total += 1;
+
+        if (document.verificationStatus === "UNVERIFIED") {
+          counts.unverified += 1;
+        }
+
+        if (document.verificationStatus === "VERIFIED") {
+          counts.verified += 1;
+        }
+
+        if (document.verificationStatus === "REJECTED") {
+          counts.rejected += 1;
+        }
+      }
+
+      return counts;
+    },
+    {
+      rejected: 0,
+      total: 0,
+      unverified: 0,
+      verified: 0
+    }
+  );
+}
+
+function formatAvailabilityMessage(message: string) {
+  if (message === "justification non modifiable tant que les controles ne sont pas READY") {
+    return "justification non modifiable tant que les controles ne sont pas prets";
+  }
+
+  if (message === "verification document non modifiable tant que les controles ne sont pas READY") {
+    return "verification de piece non modifiable tant que les controles ne sont pas prets";
+  }
+
+  if (message === "dossier archive, verification document en lecture seule") {
+    return "dossier archive, verification de piece en lecture seule";
+  }
+
+  if (message === "verification reviewer en lecture seule") {
+    return "verification de piece en lecture seule";
+  }
+
+  if (message === "decision document disponible quand la justification est READY_FOR_REVIEW") {
+    return "verification disponible quand la justification est prete pour revue";
+  }
+
+  if (message === "decision document indisponible") {
+    return "verification de piece indisponible";
+  }
+
+  if (message === "decision de revue refusee") {
+    return "Revue indisponible pour cette rubrique.";
+  }
+
+  if (message === "decision de revue indisponible pour ce statut") {
+    return "revue de justification indisponible pour ce statut";
+  }
+
+  return message;
+}
+
+function getWorkpaperSaveDisabledReason(
+  item: WorkpaperReadModelItem,
+  draft: WorkpaperDraft,
+  controlsDisabled: boolean,
+  saveDisabled: boolean
+) {
+  if (!controlsDisabled && !saveDisabled) {
+    return null;
+  }
+
+  if (controlsDisabled) {
+    return "Action indisponible pendant la mise a jour en cours.";
+  }
+
+  if (draft.noteText.trim().length === 0) {
+    return "Ajoutez une justification avant d'enregistrer.";
+  }
+
+  if (item.workpaper !== null && !hasWorkpaperDraftChanges(item, draft)) {
+    return "Aucune modification a enregistrer.";
+  }
+
+  return "Action indisponible dans l'etat actuel.";
+}
+
+function getWorkpaperDecisionDisabledReason(
+  item: WorkpaperReadModelItem,
+  draft: WorkpaperDecisionDraft,
+  controlsDisabled: boolean,
+  statusLines: string[]
+) {
+  if (!controlsDisabled && canSubmitWorkpaperDecision(item, draft)) {
+    return null;
+  }
+
+  if (statusLines.length > 0) {
+    return null;
+  }
+
+  if (controlsDisabled) {
+    return "Action indisponible pendant la revue en cours.";
+  }
+
+  return "Action indisponible dans l'etat actuel.";
+}
+
+function getDocumentDecisionDisabledReason(
+  draft: DocumentDecisionDraft,
+  controlsDisabled: boolean,
+  statusLines: string[]
+) {
+  if (!controlsDisabled && canSubmitDocumentDecision(draft)) {
+    return null;
+  }
+
+  if (statusLines.length > 0) {
+    return null;
+  }
+
+  if (controlsDisabled) {
+    return "Action indisponible pendant la verification en cours.";
+  }
+
+  return "Action indisponible dans l'etat actuel.";
+}
+
+function formatWorkpaperStatus(status: string | null | undefined) {
+  if (status === "DRAFT") {
+    return "Brouillon";
+  }
+
+  if (status === "READY_FOR_REVIEW") {
+    return "Prête pour revue";
+  }
+
+  if (status === "CHANGES_REQUESTED") {
+    return "À corriger";
+  }
+
+  if (status === "REVIEWED") {
+    return "Revue terminée";
+  }
+
+  return "À compléter";
+}
+
+function formatDocumentVerificationStatus(status: WorkpaperDocument["verificationStatus"]) {
+  if (status === "VERIFIED") {
+    return "Vérifiée";
+  }
+
+  if (status === "REJECTED") {
+    return "Rejetée";
+  }
+
+  return "À vérifier";
+}
+
+function formatVerificationSummary(item: WorkpaperReadModelItem) {
+  const summary = item.documentVerificationSummary;
+
+  if (summary === null || summary.documentsCount === 0) {
+    return "Aucune piece attachee";
+  }
+
+  if (summary.rejectedCount > 0) {
+    return `${summary.rejectedCount} rejetee(s)`;
+  }
+
+  if (summary.unverifiedCount > 0) {
+    return `${summary.unverifiedCount} a verifier`;
+  }
+
+  return "Pieces verifiees";
+}
+
+function formatDocumentDate(documentDate: WorkpaperDocument["documentDate"]) {
+  if (typeof documentDate !== "string" || documentDate.length === 0) {
+    return "Date non renseignee";
+  }
+
+  const [year, month, day] = documentDate.split("-");
+
+  if (year === undefined || month === undefined || day === undefined) {
+    return documentDate;
+  }
+
+  return `${day}.${month}.${year}`;
 }
 
 function WorkpaperMutationStatus({ state }: { state: WorkpaperMutationState }) {
@@ -990,24 +1331,37 @@ function WorkpaperMutationStatus({ state }: { state: WorkpaperMutationState }) {
   );
 }
 
-function ReadonlyLineList({ lines }: { lines: string[] }) {
+function ReadonlyFactList({ facts }: { facts: FactItem[] }) {
   return (
     <ul className="grid gap-3">
-      {lines.map((line, index) => (
-        <li
-          className="rounded-lg border bg-background/80 p-4 text-sm font-medium tabular-nums text-foreground"
-          key={`${index}-${line}`}
-        >
-          {line}
+      {facts.map((fact) => (
+        <li className="rounded-lg border bg-background/80 p-4" key={fact.label}>
+          <dl className="grid gap-1">
+            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {fact.label}
+            </dt>
+            <dd className="text-sm font-semibold tabular-nums text-foreground">{fact.value}</dd>
+            {fact.detail !== undefined ? (
+              <dd className="text-sm text-muted-foreground">{fact.detail}</dd>
+            ) : null}
+          </dl>
         </li>
       ))}
     </ul>
   );
 }
 
-function ControlsBlock({ title, children }: { title: string; children: ReactNode }) {
+function ControlsBlock({
+  children,
+  id,
+  title
+}: {
+  children: ReactNode;
+  id?: string;
+  title: string;
+}) {
   return (
-    <section className="rounded-lg border bg-muted/20 p-4">
+    <section className="rounded-lg border bg-muted/20 p-4" id={id}>
       <div className="grid gap-3">
         <h4 className="text-lg font-semibold text-foreground">{title}</h4>
         {children}

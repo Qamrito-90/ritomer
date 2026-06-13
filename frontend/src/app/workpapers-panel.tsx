@@ -1,5 +1,6 @@
 import type { ChangeEvent } from "react";
 import { useRef, useState } from "react";
+import { Button } from "../components/ui/button";
 import type { ClosingFolderSummary } from "../lib/api/closing-folders";
 import type { ActiveTenant, EffectiveRolesHint } from "../lib/api/me";
 import {
@@ -807,13 +808,22 @@ export function WorkpapersPanel({
   }
 
   return (
-    <section className="panel p-6">
+    <section aria-labelledby="justifications-preuves-heading" className="panel p-6">
       <div className="grid gap-6">
-        <div className="grid gap-2">
-          <p className="label-eyebrow">Justifications</p>
-          <h3 className="text-xl font-semibold text-foreground">
-            Mise a jour des justifications
-          </h3>
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+          <div className="grid gap-2">
+            <p className="label-eyebrow">Justifications / Preuves</p>
+            <h3 className="text-xl font-semibold text-foreground" id="justifications-preuves-heading">
+              Continuer les preuves
+            </h3>
+            <p className="max-w-3xl text-sm text-muted-foreground">
+              Documenter les rubriques, joindre les pieces et envoyer les justifications pretes
+              en revue humaine.
+            </p>
+          </div>
+          <Button asChild>
+            <a href="#justifications-preuves-current">Continuer les preuves</a>
+          </Button>
         </div>
         <WorkpapersSlot
           documentDecisionDrafts={documentDecisionDrafts}

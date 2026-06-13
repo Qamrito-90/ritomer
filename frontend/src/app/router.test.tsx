@@ -639,7 +639,7 @@ describe("router", () => {
 
       expect(await screen.findByText("Dossier courant")).toBeInTheDocument();
       expect(await screen.findByText("Etat de preparation")).toBeInTheDocument();
-      expect(await screen.findByText("Justifications")).toBeInTheDocument();
+      expect(await screen.findByText("Justifications / Preuves")).toBeInTheDocument();
       expect(await screen.findByText("Suggestions de mapping a revoir")).toBeInTheDocument();
       expect(await screen.findByText("Aucun pack auditable genere.")).toBeInTheDocument();
       expect(await screen.findByText("Annexe minimale")).toBeInTheDocument();

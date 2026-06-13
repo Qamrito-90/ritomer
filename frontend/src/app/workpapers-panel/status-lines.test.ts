@@ -74,13 +74,13 @@ describe("workpapers-panel status line helpers", () => {
         kind: "submitting",
         documentId: DOCUMENT_ID
       })
-    ).toBe("telechargement document en cours");
+    ).toBe("Telechargement de la piece en cours");
     expect(
       getDocumentDownloadStatusLine(createDocument(), {
         kind: "forbidden",
         documentId: DOCUMENT_ID
       })
-    ).toBe("acces documents refuse");
+    ).toBe("acces pieces refuse");
     expect(
       getDocumentDownloadStatusLine(createDocument(), {
         kind: "unexpected",
@@ -96,33 +96,33 @@ describe("workpapers-panel status line helpers", () => {
         { decision: "REJECTED", comment: " " },
         { kind: "idle" }
       )
-    ).toEqual(["commentaire reviewer requis"]);
+    ).toEqual(["commentaire de verification requis"]);
     expect(
       getDocumentDecisionStatusLines(
         DOCUMENT_ID,
         { decision: "VERIFIED", comment: "" },
         { kind: "success", documentId: DOCUMENT_ID, refreshFailed: true }
       )
-    ).toEqual(["decision document enregistree avec succes", "rafraichissement justifications impossible"]);
+    ).toEqual(["Verification de la piece enregistree", "rafraichissement justifications impossible"]);
     expect(
       getDocumentDecisionStatusLines(
         DOCUMENT_ID,
         { decision: "VERIFIED", comment: "" },
         { kind: "conflict_workpaper_status", documentId: DOCUMENT_ID }
       )
-    ).toEqual(["decision document disponible quand la justification est READY_FOR_REVIEW"]);
+    ).toEqual(["Verification disponible quand la justification est prete pour revue"]);
     expect(
       getDocumentDecisionStatusLines(
         DOCUMENT_ID,
         { decision: "VERIFIED", comment: "" },
         { kind: "invalid_payload", documentId: DOCUMENT_ID }
       )
-    ).toEqual(["payload decision document invalide"]);
+    ).toEqual(["Données de preuves incohérentes. L’écran reste bloqué par sécurité."]);
   });
 
   it("maps upload states and upload draft validation to exact visible lines", () => {
     expect(getDocumentUploadStatusLines("A", validUploadDraft(), { kind: "idle" })).toEqual([
-      "fichier pret pour upload"
+      "Piece prete a ajouter"
     ]);
     expect(
       getDocumentUploadStatusLines(
@@ -137,19 +137,19 @@ describe("workpapers-panel status line helpers", () => {
         anchorCode: "A",
         refreshFailed: true
       })
-    ).toEqual(["document uploade avec succes", "rafraichissement justifications impossible"]);
+    ).toEqual(["Piece ajoutee avec succes", "rafraichissement justifications impossible"]);
     expect(
       getDocumentUploadStatusLines("A", validUploadDraft(), {
         kind: "conflict_workpaper_read_only",
         anchorCode: "A"
       })
-    ).toEqual(["document non modifiable pour cette justification"]);
+    ).toEqual(["piece non modifiable pour cette justification"]);
     expect(
       getDocumentUploadStatusLines("A", validUploadDraft(), {
         kind: "unexpected",
         anchorCode: "A"
       })
-    ).toEqual(["upload document indisponible"]);
+    ).toEqual(["ajout de piece indisponible"]);
   });
 
   it("maps workpaper decision states and draft validation to exact visible lines", () => {
@@ -194,6 +194,14 @@ describe("workpapers-panel status line helpers", () => {
         "BS.ASSET.CURRENT_SECTION",
         createWorkpaperItem(),
         { decision: "REVIEWED", comment: "" },
+        { kind: "forbidden", anchorCode: "BS.ASSET.CURRENT_SECTION" }
+      )
+    ).toEqual(["Revue indisponible pour cette rubrique."]);
+    expect(
+      getWorkpaperDecisionStatusLines(
+        "BS.ASSET.CURRENT_SECTION",
+        createWorkpaperItem(),
+        { decision: "REVIEWED", comment: "" },
         { kind: "conflict_other", anchorCode: "BS.ASSET.CURRENT_SECTION" }
       )
     ).toEqual(["decision de revue bloquee par les controles de preuve"]);
@@ -229,7 +237,7 @@ describe("workpapers-panel status line helpers", () => {
       "enregistrement justification en cours"
     );
     expect(formatWorkpaperMutationState({ kind: "invalid_workpapers_payload" })).toBe(
-      "payload justifications invalide"
+      "Données de preuves incohérentes. L’écran reste bloqué par sécurité."
     );
     expect(formatWorkpaperMutationState({ kind: "conflict_other" })).toBe(
       "mise a jour justification impossible"
