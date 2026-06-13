@@ -350,11 +350,11 @@ export function validateDocumentUploadDraft(
   const trimmedSourceLabel = draft.sourceLabel.trim();
 
   if (trimmedSourceLabel.length === 0) {
-    return { kind: "invalid", message: "source du document requise" };
+    return { kind: "invalid", message: "origine de la piece requise" };
   }
 
   if (draft.documentDate !== "" && !isIsoDateOnly(draft.documentDate)) {
-    return { kind: "invalid", message: "date document invalide" };
+    return { kind: "invalid", message: "date de piece invalide" };
   }
 
   return {

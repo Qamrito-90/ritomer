@@ -530,7 +530,7 @@ async function waitForClosingRouteReady() {
   expect(await screen.findByText("Etat de preparation")).toBeInTheDocument();
   expect(await screen.findByText("Synthese financiere")).toBeInTheDocument();
   expect(await screen.findByText("Etats financiers structures")).toBeInTheDocument();
-  expect(await screen.findByText("Justifications")).toBeInTheDocument();
+  expect(await screen.findByText("Justifications / Preuves")).toBeInTheDocument();
   expect(await screen.findByText("Suggestions de mapping a revoir")).toBeInTheDocument();
   expect(await screen.findByText("Pack export auditable")).toBeInTheDocument();
   expect(await screen.findByText("Annexe minimale")).toBeInTheDocument();
@@ -927,7 +927,16 @@ describe("router import balance", () => {
     expect(screen.getByText("total produits : 300")).toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "Preuves" }));
-    expect(screen.getByText("rubriques a documenter : 1")).toBeInTheDocument();
+    const evidencePanel = await screen.findByRole("tabpanel", { name: "Preuves" });
+    const summaryBlock = within(evidencePanel)
+      .getByText("Synthese Justifications / Preuves")
+      .closest("section");
+    expect(summaryBlock).not.toBeNull();
+    const totalCurrentAnchorsFact = within(summaryBlock as HTMLElement)
+      .getByText("Rubriques a documenter")
+      .closest("dl");
+    expect(totalCurrentAnchorsFact).not.toBeNull();
+    expect(within(totalCurrentAnchorsFact as HTMLElement).getByText("1")).toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "Mapping" }));
     expect(screen.getByText("Suggestions pretes pour revue humaine. Aucune decision automatique.")).toBeInTheDocument();

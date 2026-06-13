@@ -1,5 +1,6 @@
 import { RouterProvider } from "react-router-dom";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createAppMemoryRouter } from "./router";
 
@@ -275,18 +276,14 @@ function renderClosingRoute() {
   return render(<RouterProvider router={router} />);
 }
 
-async function waitForNominalShell() {
+async function waitForNominalShell(fetchMock: ReturnType<typeof vi.fn>) {
   await screen.findByText("Dossier courant");
   await screen.findByText("Progression dossier");
-  await screen.findByText("Import balance");
-  await screen.findByText("Mapping manuel");
-  await screen.findByText("Synthese financiere");
-  await screen.findByText("Etats financiers structures");
-  await screen.findByText("Justifications");
-  await screen.findByText("Suggestions de mapping a revoir");
-  await screen.findByText("Pack export auditable");
-  await screen.findByText("Aucun pack auditable genere.");
-  await screen.findByText("Annexe minimale");
+  await screen.findByRole("tab", { name: "Previsualisations" });
+  await screen.findByRole("tab", { name: "Preuves" });
+  await waitFor(() => {
+    expect(fetchMock).toHaveBeenCalledTimes(12);
+  });
 }
 
 function getRequestPaths(fetchMock: ReturnType<typeof vi.fn>) {
@@ -340,17 +337,20 @@ describe("router workpapers smoke", () => {
 
   it("keeps Workpapers after Etats financiers structures and preserves the initial request scope", async () => {
     const fetchMock = vi.mocked(global.fetch);
+    const user = userEvent.setup();
     primeNominalRoute(fetchMock);
 
     renderClosingRoute();
-    await waitForNominalShell();
+    await waitForNominalShell(fetchMock);
 
     expectNodeBefore(screen.getByText("Dossier courant"), screen.getByText("Progression dossier"));
-    expectNodeBefore(screen.getByText("Progression dossier"), screen.getByText("Import balance"));
     expectNodeBefore(
-      screen.getByText("Etats financiers structures"),
-      screen.getByText("Justifications")
+      screen.getByRole("tab", { name: "Previsualisations" }),
+      screen.getByRole("tab", { name: "Preuves" })
     );
+    await user.click(screen.getByRole("tab", { name: "Preuves" }));
+    expect(await screen.findByRole("heading", { name: "Continuer les preuves" })).toBeVisible();
+    expect(screen.getByText("Justifications / Preuves")).toBeVisible();
     expect(getRequestPaths(fetchMock)).toEqual([
       "/api/me",
       `/api/closing-folders/${CLOSING_FOLDER.id}`,

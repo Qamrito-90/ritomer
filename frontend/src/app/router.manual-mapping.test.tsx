@@ -609,13 +609,32 @@ async function waitForNominalShell() {
   expect(await screen.findByText("Etat de preparation")).toBeInTheDocument();
   expect(await screen.findByText("Synthese financiere")).toBeInTheDocument();
   expect(await screen.findByText("Etats financiers structures")).toBeInTheDocument();
-  expect(await screen.findByText("Justifications")).toBeInTheDocument();
+  expect(await screen.findByText("Justifications / Preuves")).toBeInTheDocument();
   expect(await screen.findByText("Suggestions de mapping a revoir")).toBeInTheDocument();
   expect(await screen.findByText("Pack export auditable")).toBeInTheDocument();
   expect(await screen.findByText("Aucun pack auditable genere.")).toBeInTheDocument();
   expect(await screen.findByText("Annexe minimale")).toBeInTheDocument();
 
   await user.click(screen.getByRole("tab", { name: "Mapping" }));
+}
+
+async function expectVisibleWorkpapersTotalCurrentAnchors(
+  user: ReturnType<typeof userEvent.setup>,
+  expectedCount: string
+) {
+  await user.click(screen.getByRole("tab", { name: "Preuves" }));
+  const evidencePanel = await screen.findByRole("tabpanel", { name: "Preuves" });
+  const summaryBlock = within(evidencePanel)
+    .getByText("Synthese Justifications / Preuves")
+    .closest("section");
+  expect(summaryBlock).not.toBeNull();
+  const totalCurrentAnchorsFact = within(summaryBlock as HTMLElement)
+    .getByText("Rubriques a documenter")
+    .closest("dl");
+  expect(totalCurrentAnchorsFact).not.toBeNull();
+  expect(
+    within(totalCurrentAnchorsFact as HTMLElement).getByText(expectedCount)
+  ).toBeInTheDocument();
 }
 
 function getRequestHeaders(fetchMock: ReturnType<typeof vi.fn>, index: number) {
@@ -1104,7 +1123,7 @@ describe("router manual mapping", () => {
     expect(within(getLineDetailCard("2000", "Affectation actuelle")).getByText("PL.REVENUE")).toBeInTheDocument();
     expect(await screen.findByText("Manual mapping is complete on the latest import.")).toBeInTheDocument();
     expect(await screen.findByText("etat previsualisation : previsualisation prete")).toBeInTheDocument();
-    expect(await screen.findByText("rubriques a documenter : 1")).toBeInTheDocument();
+    await expectVisibleWorkpapersTotalCurrentAnchors(user, "1");
     expectNoOutOfScopePaths(getRequestPaths(fetchMock), 2, 2, 2, 2);
   });
 
@@ -1178,7 +1197,7 @@ describe("router manual mapping", () => {
     ).toBeInTheDocument();
     expect(within(getLineDetailCard("2000", "Affectation actuelle")).getByText("BS.ASSET")).toBeInTheDocument();
     expect(await screen.findByText("etat previsualisation : previsualisation prete")).toBeInTheDocument();
-    expect(await screen.findByText("rubriques a documenter : 1")).toBeInTheDocument();
+    await expectVisibleWorkpapersTotalCurrentAnchors(user, "1");
     expectNoOutOfScopePaths(getRequestPaths(fetchMock), 2, 2, 2, 2);
   });
 
