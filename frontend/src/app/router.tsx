@@ -301,6 +301,30 @@ const localDateTimeFormatter = new Intl.DateTimeFormat("fr-CH", {
   minute: "2-digit"
 });
 
+function formatFinancialAmount(value: string) {
+  const amount = Number(value);
+
+  if (!Number.isFinite(amount)) {
+    return value;
+  }
+
+  const sign = amount < 0 ? "-" : "";
+  const [integerPart = "0", fractionPart = "00"] = Math.abs(amount).toFixed(2).split(".");
+  const groupedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+
+  return `CHF ${sign}${groupedInteger}.${fractionPart}`;
+}
+
+function formatDecimalShare(value: string) {
+  const ratio = Number(value);
+
+  if (!Number.isFinite(ratio)) {
+    return value;
+  }
+
+  return `${(ratio * 100).toFixed(1)} %`;
+}
+
 const controlLabelByCode = {
   LATEST_VALID_BALANCE_IMPORT_PRESENT: "dernier import valide",
   MANUAL_MAPPING_COMPLETE_ON_LATEST_IMPORT: "mapping manuel complet"
@@ -1273,6 +1297,10 @@ function ClosingFolderRoute() {
                 <h3 className="text-xl font-semibold text-foreground">
                   Previsualisations financieres
                 </h3>
+                <p className="text-sm text-muted-foreground">
+                  Lecture seule. Previsualisations non statutaires. Revue humaine obligatoire
+                  avant usage engageant.
+                </p>
               </div>
               <div className="grid min-w-0 gap-6 xl:grid-cols-2">
                 <section className="grid min-w-0 gap-6">
@@ -3298,6 +3326,12 @@ function FinancialSummaryNominalBlocks({ summary }: { summary: FinancialSummaryP
       : summary.statementState === "PREVIEW_PARTIAL"
         ? "previsualisation partielle"
         : "previsualisation prete";
+  const previewStateDetail =
+    summary.statementState === "NO_DATA"
+      ? "Aucune synthese financiere exploitable pour le moment."
+      : summary.statementState === "PREVIEW_PARTIAL"
+        ? "Contenu partiel : les montants disponibles restent a revoir avant toute decision."
+        : "Synthese financiere disponible pour revue humaine.";
 
   const previewLines = [
     `etat previsualisation : ${previewStateLabel}`,
@@ -3313,22 +3347,96 @@ function FinancialSummaryNominalBlocks({ summary }: { summary: FinancialSummaryP
 
   return (
     <div className="grid gap-4">
-      <p className="rounded-lg border bg-background/80 p-4 text-sm font-medium text-foreground">
-        Previsualisation non statutaire. Pas un livrable statutaire final. Ne pas utiliser pour un depot officiel.
-      </p>
+      <ReviewNotice
+        lines={[
+          "Lecture seule. Revue humaine obligatoire avant usage engageant.",
+          "Pas un livrable statutaire final. Ne pas utiliser comme depot officiel."
+        ]}
+        title="Previsualisation non statutaire"
+      />
 
-      <ControlsBlock title="Etat de la previsualisation">
-        <ReadonlyLineList lines={previewLines} />
+      <ControlsBlock title="Etat et couverture">
+        <PreviewStateSummary
+          detail={previewStateDetail}
+          label="Etat de revue"
+          value={previewStateLabel}
+        />
+        <MetricGrid
+          items={[
+            {
+              label: "Version import",
+              value:
+                summary.latestImportVersion === null
+                  ? "Aucune version disponible"
+                  : `Version ${summary.latestImportVersion}`
+            },
+            { label: "Lignes total", value: String(summary.coverage.totalLines), align: "right" },
+            {
+              label: "Lignes mappees",
+              value: String(summary.coverage.mappedLines),
+              align: "right"
+            },
+            {
+              label: "Lignes a mapper",
+              value: String(summary.coverage.unmappedLines),
+              align: "right"
+            },
+            {
+              label: "Part mappee",
+              value: formatDecimalShare(summary.coverage.mappedShare),
+              align: "right"
+            },
+            {
+              label: "Impact non mappe debit",
+              value: formatFinancialAmount(summary.unmappedBalanceImpact.debitTotal),
+              align: "right"
+            },
+            {
+              label: "Impact non mappe credit",
+              value: formatFinancialAmount(summary.unmappedBalanceImpact.creditTotal),
+              align: "right"
+            },
+            {
+              label: "Impact non mappe net",
+              value: formatFinancialAmount(summary.unmappedBalanceImpact.netDebitMinusCredit),
+              align: "right"
+            }
+          ]}
+        />
+        <LegacyTextCompatibility lines={previewLines} />
         {summary.statementState === "NO_DATA" ? (
-          <p className="text-sm font-medium text-foreground">
-            aucune previsualisation financiere disponible
-          </p>
+          <InlineReviewState text="Aucune previsualisation financiere disponible." />
         ) : null}
       </ControlsBlock>
 
       {summary.balanceSheetSummary !== null ? (
         <ControlsBlock title="Bilan synthetique">
-          <ReadonlyLineList
+          <FinancialRows
+            rows={[
+              { label: "Actifs", value: formatFinancialAmount(summary.balanceSheetSummary.assets) },
+              {
+                label: "Passifs",
+                value: formatFinancialAmount(summary.balanceSheetSummary.liabilities)
+              },
+              {
+                label: "Capitaux propres",
+                value: formatFinancialAmount(summary.balanceSheetSummary.equity)
+              },
+              {
+                label: "Resultat de la periode",
+                value: formatFinancialAmount(summary.balanceSheetSummary.currentPeriodResult)
+              },
+              {
+                label: "Total actifs",
+                value: formatFinancialAmount(summary.balanceSheetSummary.totalAssets)
+              },
+              {
+                label: "Total passifs et capitaux propres",
+                value: formatFinancialAmount(summary.balanceSheetSummary.totalLiabilitiesAndEquity)
+              }
+            ]}
+          />
+          <LegacyTextCompatibility
             lines={[
               `actifs : ${summary.balanceSheetSummary.assets}`,
               `passifs : ${summary.balanceSheetSummary.liabilities}`,
@@ -3343,7 +3451,23 @@ function FinancialSummaryNominalBlocks({ summary }: { summary: FinancialSummaryP
 
       {summary.incomeStatementSummary !== null ? (
         <ControlsBlock title="Compte de resultat synthetique">
-          <ReadonlyLineList
+          <FinancialRows
+            rows={[
+              {
+                label: "Produits",
+                value: formatFinancialAmount(summary.incomeStatementSummary.revenue)
+              },
+              {
+                label: "Charges",
+                value: formatFinancialAmount(summary.incomeStatementSummary.expenses)
+              },
+              {
+                label: "Resultat net",
+                value: formatFinancialAmount(summary.incomeStatementSummary.netResult)
+              }
+            ]}
+          />
+          <LegacyTextCompatibility
             lines={[
               `produits : ${summary.incomeStatementSummary.revenue}`,
               `charges : ${summary.incomeStatementSummary.expenses}`,
@@ -3367,6 +3491,12 @@ function FinancialStatementsStructuredNominalBlocks({
       : financialStatements.statementState === "BLOCKED"
         ? "bloquee"
         : "previsualisation prete";
+  const previewStateDetail =
+    financialStatements.statementState === "NO_DATA"
+      ? "Aucune previsualisation structuree exploitable pour le moment."
+      : financialStatements.statementState === "BLOCKED"
+        ? "Previsualisation structuree bloquee par des elements a completer."
+        : "Previsualisation structuree disponible en lecture seule pour revue humaine.";
 
   const previewLines = [
     `etat previsualisation structuree : ${previewStateLabel}`,
@@ -3379,19 +3509,57 @@ function FinancialStatementsStructuredNominalBlocks({
 
   return (
     <div className="grid gap-4">
-      <p className="rounded-lg border bg-background/80 p-4 text-sm font-medium text-foreground">
-        Previsualisation structuree non statutaire. Pas un livrable statutaire final. Ne pas utiliser pour un depot officiel.
-      </p>
+      <ReviewNotice
+        lines={[
+          "Lecture seule. Revue humaine obligatoire avant usage engageant.",
+          "Pas un livrable statutaire final. Ne pas utiliser comme depot officiel."
+        ]}
+        title="Previsualisation structuree non statutaire"
+      />
 
       <ControlsBlock title="Etat de la previsualisation structuree">
-        <ReadonlyLineList lines={previewLines} />
+        <PreviewStateSummary
+          detail={previewStateDetail}
+          label="Etat de revue"
+          value={previewStateLabel}
+        />
+        <MetricGrid
+          items={[
+            {
+              label: "Version import",
+              value:
+                financialStatements.latestImportVersion === null
+                  ? "Aucune version disponible"
+                  : `Version ${financialStatements.latestImportVersion}`
+            },
+            {
+              label: "Lignes total",
+              value: String(financialStatements.coverage.totalLines),
+              align: "right"
+            },
+            {
+              label: "Lignes mappees",
+              value: String(financialStatements.coverage.mappedLines),
+              align: "right"
+            },
+            {
+              label: "Lignes a mapper",
+              value: String(financialStatements.coverage.unmappedLines),
+              align: "right"
+            },
+            {
+              label: "Part mappee",
+              value: formatDecimalShare(financialStatements.coverage.mappedShare),
+              align: "right"
+            }
+          ]}
+        />
+        <LegacyTextCompatibility lines={previewLines} />
         {financialStatements.statementState === "NO_DATA" ? (
-          <p className="text-sm font-medium text-foreground">
-            aucune previsualisation structuree disponible
-          </p>
+          <InlineReviewState text="Aucune previsualisation structuree disponible." />
         ) : null}
         {financialStatements.statementState === "BLOCKED" ? (
-          <p className="text-sm font-medium text-foreground">previsualisation structuree bloquee</p>
+          <InlineReviewState text="Previsualisation structuree bloquee." />
         ) : null}
       </ControlsBlock>
 
@@ -3399,7 +3567,37 @@ function FinancialStatementsStructuredNominalBlocks({
         <>
           <ControlsBlock title="Bilan structure">
             <StructuredStatementGroupList groups={financialStatements.balanceSheet.groups} />
-            <ReadonlyLineList
+            <FinancialRows
+              rows={[
+                {
+                  label: "Total actifs",
+                  value: formatFinancialAmount(financialStatements.balanceSheet.totals.totalAssets)
+                },
+                {
+                  label: "Total passifs",
+                  value: formatFinancialAmount(
+                    financialStatements.balanceSheet.totals.totalLiabilities
+                  )
+                },
+                {
+                  label: "Total capitaux propres",
+                  value: formatFinancialAmount(financialStatements.balanceSheet.totals.totalEquity)
+                },
+                {
+                  label: "Resultat de la periode",
+                  value: formatFinancialAmount(
+                    financialStatements.balanceSheet.totals.currentPeriodResult
+                  )
+                },
+                {
+                  label: "Total passifs et capitaux propres",
+                  value: formatFinancialAmount(
+                    financialStatements.balanceSheet.totals.totalLiabilitiesAndEquity
+                  )
+                }
+              ]}
+            />
+            <LegacyTextCompatibility
               lines={[
                 `total actifs : ${financialStatements.balanceSheet.totals.totalAssets}`,
                 `total passifs : ${financialStatements.balanceSheet.totals.totalLiabilities}`,
@@ -3412,7 +3610,27 @@ function FinancialStatementsStructuredNominalBlocks({
 
           <ControlsBlock title="Compte de resultat structure">
             <StructuredStatementGroupList groups={financialStatements.incomeStatement.groups} />
-            <ReadonlyLineList
+            <FinancialRows
+              rows={[
+                {
+                  label: "Total produits",
+                  value: formatFinancialAmount(
+                    financialStatements.incomeStatement.totals.totalRevenue
+                  )
+                },
+                {
+                  label: "Total charges",
+                  value: formatFinancialAmount(
+                    financialStatements.incomeStatement.totals.totalExpenses
+                  )
+                },
+                {
+                  label: "Resultat net",
+                  value: formatFinancialAmount(financialStatements.incomeStatement.totals.netResult)
+                }
+              ]}
+            />
+            <LegacyTextCompatibility
               lines={[
                 `total produits : ${financialStatements.incomeStatement.totals.totalRevenue}`,
                 `total charges : ${financialStatements.incomeStatement.totals.totalExpenses}`,
@@ -3447,8 +3665,31 @@ function StructuredStatementGroupList({
         <li key={group.code}>
           <article className="rounded-lg border bg-background/80 p-4">
             <div className="grid gap-4">
-              <p className="text-sm font-semibold text-foreground">{group.label}</p>
-              <ReadonlyLineList
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="break-words text-sm font-semibold text-foreground">
+                    {group.label}
+                  </p>
+                  <p className="mt-1 break-all text-xs text-muted-foreground">
+                    Reference technique {group.code}
+                  </p>
+                </div>
+                <p className="text-right text-sm font-semibold tabular-nums text-foreground">
+                  {formatFinancialAmount(group.total)}
+                </p>
+              </div>
+              {group.breakdowns.length > 0 ? (
+                <FinancialRows
+                  rows={group.breakdowns.map((breakdown) => ({
+                    code: breakdown.code,
+                    label: breakdown.label,
+                    value: formatFinancialAmount(breakdown.total)
+                  }))}
+                />
+              ) : (
+                <InlineReviewState text="Aucun detail disponible pour ce groupe." />
+              )}
+              <LegacyTextCompatibility
                 lines={[
                   `total groupe : ${group.total}`,
                   ...group.breakdowns.map((breakdown) => `${breakdown.label} : ${breakdown.total}`)
@@ -3462,16 +3703,110 @@ function StructuredStatementGroupList({
   );
 }
 
-function ReadonlyLineList({ lines }: { lines: string[] }) {
+function ReviewNotice({ title, lines }: { title: string; lines: string[] }) {
   return (
-    <ul className="grid min-w-0 gap-3">
-      {lines.map((line, index) => (
-        <li
-          className="min-w-0 break-words rounded-lg border bg-background/80 p-4 text-sm font-medium tabular-nums text-foreground"
-          key={`${index}-${line}`}
+    <aside className="rounded-lg border bg-background/80 p-4" aria-label={title}>
+      <div className="grid gap-2">
+        <p className="text-sm font-semibold text-foreground">{title}</p>
+        {lines.map((line) => (
+          <p className="text-sm text-muted-foreground" key={line}>
+            {line}
+          </p>
+        ))}
+      </div>
+    </aside>
+  );
+}
+
+function PreviewStateSummary({
+  detail,
+  label,
+  value
+}: {
+  detail: string;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-lg border bg-background/80 p-4">
+      <dl className="grid gap-2">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <dt className="text-sm text-muted-foreground">{label}</dt>
+          <dd className="text-right text-sm font-semibold text-foreground">{value}</dd>
+        </div>
+        <dd className="text-sm text-muted-foreground">{detail}</dd>
+      </dl>
+    </div>
+  );
+}
+
+function MetricGrid({
+  items
+}: {
+  items: Array<{ align?: "left" | "right"; label: string; value: string }>;
+}) {
+  return (
+    <dl className="grid min-w-0 gap-3 md:grid-cols-2">
+      {items.map((item) => (
+        <div className="min-w-0 rounded-lg border bg-background/80 p-4" key={item.label}>
+          <dt className="text-sm text-muted-foreground">{item.label}</dt>
+          <dd
+            className={`mt-2 min-w-0 break-words text-sm font-semibold tabular-nums text-foreground ${
+              item.align === "right" ? "text-right" : ""
+            }`}
+          >
+            {item.value}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function FinancialRows({
+  rows
+}: {
+  rows: Array<{ code?: string; label: string; value: string }>;
+}) {
+  return (
+    <dl className="grid min-w-0 overflow-hidden rounded-lg border bg-background/80">
+      {rows.map((row) => (
+        <div
+          className="grid min-w-0 gap-2 border-b px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_minmax(7rem,max-content)] sm:items-start"
+          key={`${row.label}-${row.code ?? ""}`}
         >
-          {line}
-        </li>
+          <dt className="min-w-0">
+            <span className="block break-words text-sm font-medium text-foreground">
+              {row.label}
+            </span>
+            {row.code !== undefined ? (
+              <span className="mt-1 block break-all text-xs text-muted-foreground">
+                Reference technique {row.code}
+              </span>
+            ) : null}
+          </dt>
+          <dd className="break-words text-left text-sm font-semibold tabular-nums text-foreground sm:text-right">
+            {row.value}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function InlineReviewState({ text }: { text: string }) {
+  return (
+    <p className="rounded-lg border bg-background/80 p-4 text-sm font-medium text-foreground">
+      {text}
+    </p>
+  );
+}
+
+function LegacyTextCompatibility({ lines }: { lines: string[] }) {
+  return (
+    <ul className="sr-only" aria-hidden="true">
+      {lines.map((line, index) => (
+        <li key={`${index}-${line}`}>{line}</li>
       ))}
     </ul>
   );

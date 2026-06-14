@@ -700,7 +700,7 @@ describe("router financial statements structured", () => {
     expect(screen.queryByRole("heading", { name: "Etat de la previsualisation structuree" })).not.toBeInTheDocument();
   });
 
-  it("renders the exact NO_DATA structured preview state and the non-statutory reminder", async () => {
+  it("renders the NO_DATA structured preview as a business-readable read-only state", async () => {
     const fetchMock = vi.mocked(global.fetch);
     primeNominalRoute(fetchMock, {
       financialStatementsStructured: () => jsonResponse(200, STRUCTURED_NO_DATA)
@@ -711,24 +711,24 @@ describe("router financial statements structured", () => {
     const structured = getFinancialStatementsStructuredSection();
 
     expect(
-      await structured.findByText(
-        "Previsualisation structuree non statutaire. Pas un livrable statutaire final. Ne pas utiliser pour un depot officiel."
-      )
+      await structured.findByText("Previsualisation structuree non statutaire")
     ).toBeInTheDocument();
-    expect(structured.getByText("etat previsualisation structuree : aucune donnee")).toBeInTheDocument();
-    expect(structured.getByText("version d import : aucune")).toBeInTheDocument();
-    expect(structured.getByText("lignes total : 0")).toBeInTheDocument();
-    expect(structured.getByText("lignes mappees : 0")).toBeInTheDocument();
-    expect(structured.getByText("lignes non mappees : 0")).toBeInTheDocument();
-    expect(structured.getByText("part mappee : 0")).toBeInTheDocument();
-    expect(structured.getByText("aucune previsualisation structuree disponible")).toBeInTheDocument();
+    expect(structured.getByText("Lecture seule. Revue humaine obligatoire avant usage engageant.")).toBeInTheDocument();
+    expect(structured.getByText("Pas un livrable statutaire final. Ne pas utiliser comme depot officiel.")).toBeInTheDocument();
+    expect(structured.getByText("Etat de revue")).toBeInTheDocument();
+    expect(structured.getByText("aucune donnee")).toBeInTheDocument();
+    expect(structured.getByText("Aucune previsualisation structuree exploitable pour le moment.")).toBeInTheDocument();
+    expect(structured.getByText("Aucune version disponible")).toBeInTheDocument();
+    expect(structured.getByText("Lignes total")).toBeInTheDocument();
+    expect(structured.getByText("Lignes a mapper")).toBeInTheDocument();
+    expect(structured.getByText("Aucune previsualisation structuree disponible.")).toBeInTheDocument();
     expect(structured.queryByRole("heading", { name: "Bilan structure" })).not.toBeInTheDocument();
     expect(
       structured.queryByRole("heading", { name: "Compte de resultat structure" })
     ).not.toBeInTheDocument();
   });
 
-  it("renders the exact BLOCKED structured preview state and never renders nextAction.path as text, link or button", async () => {
+  it("renders the BLOCKED structured preview state and never renders nextAction.path as text, link or button", async () => {
     const fetchMock = vi.mocked(global.fetch);
     primeNominalRoute(fetchMock, {
       financialStatementsStructured: () => jsonResponse(200, STRUCTURED_BLOCKED)
@@ -739,17 +739,18 @@ describe("router financial statements structured", () => {
     const structured = getFinancialStatementsStructuredSection();
 
     expect(
-      await structured.findByText(
-        "Previsualisation structuree non statutaire. Pas un livrable statutaire final. Ne pas utiliser pour un depot officiel."
-      )
+      await structured.findByText("Previsualisation structuree non statutaire")
     ).toBeInTheDocument();
-    expect(structured.getByText("etat previsualisation structuree : bloquee")).toBeInTheDocument();
-    expect(structured.getByText("version d import : 2")).toBeInTheDocument();
-    expect(structured.getByText("lignes total : 3")).toBeInTheDocument();
-    expect(structured.getByText("lignes mappees : 2")).toBeInTheDocument();
-    expect(structured.getByText("lignes non mappees : 1")).toBeInTheDocument();
-    expect(structured.getByText("part mappee : 0.6667")).toBeInTheDocument();
-    expect(structured.getByText("previsualisation structuree bloquee")).toBeInTheDocument();
+    expect(structured.getByText("Etat de revue")).toBeInTheDocument();
+    expect(structured.getByText("bloquee")).toBeInTheDocument();
+    expect(structured.getByText("Previsualisation structuree bloquee par des elements a completer.")).toBeInTheDocument();
+    expect(structured.getByText("Version 2")).toBeInTheDocument();
+    expect(structured.getByText("Lignes total")).toBeInTheDocument();
+    expect(structured.getByText("Lignes mappees")).toBeInTheDocument();
+    expect(structured.getByText("Lignes a mapper")).toBeInTheDocument();
+    expect(structured.getByText("Part mappee")).toBeInTheDocument();
+    expect(structured.getByText("66.7 %")).toBeInTheDocument();
+    expect(structured.getByText("Previsualisation structuree bloquee.")).toBeInTheDocument();
     expect(structured.queryByText(STRUCTURED_BLOCKED.nextAction.path)).not.toBeInTheDocument();
     expect(
       structured.queryByRole("link", { name: STRUCTURED_BLOCKED.nextAction.path })
@@ -763,7 +764,7 @@ describe("router financial statements structured", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("renders the exact PREVIEW_READY structured preview state, preserves backend order, keeps empty breakdown groups visible, and shows zero values", async () => {
+  it("renders the PREVIEW_READY structured preview as readable sections, preserves backend order, keeps empty breakdown groups visible, and shows zero values", async () => {
     const fetchMock = vi.mocked(global.fetch);
     primeNominalRoute(fetchMock, {
       financialStatementsStructured: () => jsonResponse(200, STRUCTURED_PREVIEW_READY)
@@ -774,16 +775,16 @@ describe("router financial statements structured", () => {
     const structured = getFinancialStatementsStructuredSection();
 
     expect(
-      await structured.findByText(
-        "Previsualisation structuree non statutaire. Pas un livrable statutaire final. Ne pas utiliser pour un depot officiel."
-      )
+      await structured.findByText("Previsualisation structuree non statutaire")
     ).toBeInTheDocument();
-    expect(structured.getByText("etat previsualisation structuree : previsualisation prete")).toBeInTheDocument();
-    expect(structured.getByText("version d import : 2")).toBeInTheDocument();
-    expect(structured.getByText("lignes total : 2")).toBeInTheDocument();
-    expect(structured.getByText("lignes mappees : 2")).toBeInTheDocument();
-    expect(structured.getByText("lignes non mappees : 0")).toBeInTheDocument();
-    expect(structured.getByText("part mappee : 1")).toBeInTheDocument();
+    expect(structured.getByText("previsualisation prete")).toBeInTheDocument();
+    expect(structured.getByText("Previsualisation structuree disponible en lecture seule pour revue humaine.")).toBeInTheDocument();
+    expect(structured.getByText("Version 2")).toBeInTheDocument();
+    expect(structured.getByText("Lignes total")).toBeInTheDocument();
+    expect(structured.getByText("Lignes mappees")).toBeInTheDocument();
+    expect(structured.getByText("Lignes a mapper")).toBeInTheDocument();
+    expect(structured.getByText("Part mappee")).toBeInTheDocument();
+    expect(structured.getByText("100.0 %")).toBeInTheDocument();
 
     const bilanHeading = structured.getByRole("heading", { name: "Bilan structure" });
     const assetLabel = structured.getByText("Actifs");
@@ -796,28 +797,29 @@ describe("router financial statements structured", () => {
     const expenseLabel = structured.getByText("Charges");
     expectNodeBefore(revenueLabel, expenseLabel);
     expectNodeBefore(
-      structured.getByText("Produits d exploitation : 0"),
-      structured.getByText("Autres produits : 0")
+      structured.getByText("Produits d exploitation"),
+      structured.getByText("Autres produits")
     );
 
     expect(bilanHeading).toBeInTheDocument();
     expect(
       structured.getByRole("heading", { name: "Compte de resultat structure" })
     ).toBeInTheDocument();
-    expect(structured.getAllByText("total groupe : 10")).toHaveLength(2);
-    expect(structured.getAllByText("total groupe : 0")).toHaveLength(3);
-    expect(structured.getByText("Capitaux propres de base : 0")).toBeInTheDocument();
-    expect(structured.getByText("Passifs courants : 10")).toBeInTheDocument();
-    expect(structured.getByText("Produits d exploitation : 0")).toBeInTheDocument();
-    expect(structured.getByText("Autres produits : 0")).toBeInTheDocument();
-    expect(structured.getByText("total actifs : 10")).toBeInTheDocument();
-    expect(structured.getByText("total passifs : 10")).toBeInTheDocument();
-    expect(structured.getByText("total capitaux propres : 0")).toBeInTheDocument();
-    expect(structured.getByText("resultat de la periode : 0")).toBeInTheDocument();
-    expect(structured.getByText("total passifs et capitaux propres : 10")).toBeInTheDocument();
-    expect(structured.getByText("total produits : 0")).toBeInTheDocument();
-    expect(structured.getByText("total charges : 0")).toBeInTheDocument();
-    expect(structured.getByText("resultat net : 0")).toBeInTheDocument();
+    expect(structured.getAllByText("Aucun detail disponible pour ce groupe.")).toHaveLength(2);
+    expect(structured.getByText("Capitaux propres de base")).toBeInTheDocument();
+    expect(structured.getByText("Passifs courants")).toBeInTheDocument();
+    expect(structured.getByText("Produits d exploitation")).toBeInTheDocument();
+    expect(structured.getByText("Autres produits")).toBeInTheDocument();
+    expect(structured.getByText("Total actifs")).toBeInTheDocument();
+    expect(structured.getByText("Total passifs")).toBeInTheDocument();
+    expect(structured.getByText("Total capitaux propres")).toBeInTheDocument();
+    expect(structured.getByText("Resultat de la periode")).toBeInTheDocument();
+    expect(structured.getByText("Total passifs et capitaux propres")).toBeInTheDocument();
+    expect(structured.getByText("Total produits")).toBeInTheDocument();
+    expect(structured.getByText("Total charges")).toBeInTheDocument();
+    expect(structured.getByText("Resultat net")).toBeInTheDocument();
+    expect(structured.getAllByText("CHF 10.00").length).toBeGreaterThanOrEqual(4);
+    expect(structured.getAllByText("CHF 0.00").length).toBeGreaterThanOrEqual(8);
   });
 
   it("ignores malformed taxonomyVersion and nextAction.path when the consumed subset remains valid", async () => {
@@ -839,7 +841,7 @@ describe("router financial statements structured", () => {
     await waitForNominalShell();
     const structured = getFinancialStatementsStructuredSection();
 
-    expect(await structured.findByText("etat previsualisation structuree : previsualisation prete")).toBeInTheDocument();
+    expect(await structured.findByText("previsualisation prete")).toBeInTheDocument();
     expect(structured.getByText("Bilan structure")).toBeInTheDocument();
     expect(structured.queryByText("42")).not.toBeInTheDocument();
     expect(structured.queryByRole("link", { name: "42" })).not.toBeInTheDocument();

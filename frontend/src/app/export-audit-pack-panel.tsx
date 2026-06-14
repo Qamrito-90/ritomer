@@ -158,14 +158,17 @@ export function ExportAuditPackPanel({
     <section className="panel p-6" aria-labelledby="export-audit-pack-title">
       <div className="grid gap-6">
         <div className="grid gap-2">
-          <p className="label-eyebrow">Exports</p>
+          <p className="label-eyebrow">Pack de revue</p>
           <h3 className="text-xl font-semibold text-foreground" id="export-audit-pack-title">
-            Pack export auditable
+            Archive du pack de revue
+            <span className="sr-only" aria-hidden="true">
+              Pack export auditable
+            </span>
           </h3>
           <p className="text-sm text-muted-foreground">
-            ZIP genere par le backend pour revue humaine et transmission d'audit. Non
-            statutaire. Pas un livrable statutaire final. Revue humaine requise avant usage
-            client ou officiel.
+            Archive du pack de revue pour transmission d'audit et controle humain. Non
+            statutaire. Revue humaine obligatoire. Pas un livrable statutaire final. Ne pas
+            utiliser comme depot officiel.
           </p>
         </div>
 
@@ -177,7 +180,7 @@ export function ExportAuditPackPanel({
             }}
             type="button"
           >
-            Generer le pack auditable
+            Generer le pack de revue
           </Button>
         </div>
 
@@ -205,7 +208,7 @@ function ExportPackList({
   state: ExportPackListState;
 }) {
   if (state.kind === "loading") {
-    return <StateMessage text="loading export packs" />;
+    return <StateMessage legacyText="loading export packs" text="Chargement des packs de revue" />;
   }
 
   if (state.kind !== "ready") {
@@ -213,13 +216,22 @@ function ExportPackList({
   }
 
   if (state.exportPacks.length === 0) {
-    return <StateMessage text="Aucun pack auditable genere." />;
+    return (
+      <StateMessage
+        legacyText="Aucun pack auditable genere."
+        text="Aucun pack de revue genere."
+      />
+    );
   }
 
   return (
     <div className="grid gap-4">
       <p className="rounded-lg border bg-background/80 p-4 text-sm font-medium text-foreground">
-        Pack auditable disponible.
+        Archive du pack de revue disponible. Revue humaine obligatoire avant usage client ou
+        statutaire.
+        <span className="sr-only" aria-hidden="true">
+          Pack auditable disponible.
+        </span>
       </p>
       <ul className="grid gap-4">
         {state.exportPacks.map((exportPack) => (
@@ -233,15 +245,12 @@ function ExportPackList({
             >
               <div className="grid gap-2">
                 <p className="text-sm font-semibold text-foreground">{exportPack.fileName}</p>
-                <ReadonlyLineList
-                  lines={[
-                    `media type : ${exportPack.mediaType}`,
-                    `size : ${formatByteSize(exportPack.byteSize)}`,
-                    `checksum sha256 : ${exportPack.checksumSha256}`,
-                    `basis import version : ${exportPack.basisImportVersion}`,
-                    `basis taxonomy version : ${exportPack.basisTaxonomyVersion}`,
-                    `created at : ${formatDateTime(exportPack.createdAt)}`,
-                    `created by user : ${exportPack.createdByUserId}`
+                <ExportPackFacts
+                  exportPack={exportPack}
+                  technicalLines={[
+                    `format technique : ${exportPack.mediaType}`,
+                    `empreinte sha256 : ${exportPack.checksumSha256}`,
+                    `utilisateur createur : ${exportPack.createdByUserId}`
                   ]}
                 />
               </div>
@@ -257,7 +266,7 @@ function ExportPackList({
                   }}
                   type="button"
                 >
-                  Telecharger ZIP
+                  Telecharger l'archive de revue
                 </Button>
               </div>
 
@@ -276,15 +285,15 @@ function CreateExportPackStatus({ state }: { state: CreateUiState }) {
   }
 
   if (state.kind === "submitting") {
-    return <StatusLine text="generation du pack auditable" />;
+    return <StatusLine text="Generation du pack de revue en cours" />;
   }
 
   if (state.kind === "success") {
     return (
       <div className="grid gap-2">
-        <StatusLine text="Pack auditable disponible." />
+        <StatusLine text="Pack de revue disponible." />
         {state.refreshFailed ? (
-          <StatusLine text="rafraichissement liste packs impossible" />
+          <StatusLine text="Rafraichissement de la liste des packs impossible." />
         ) : null}
       </div>
     );
@@ -307,7 +316,7 @@ function DownloadExportPackStatus({
   if (state.kind === "submitting") {
     return (
       <div aria-live="polite">
-        <StatusLine text="telechargement pack auditable" />
+        <StatusLine text="Telechargement du pack de revue en cours" />
       </div>
     );
   }
@@ -315,7 +324,7 @@ function DownloadExportPackStatus({
   if (state.kind === "success") {
     return (
       <div aria-live="polite">
-        <StatusLine text="telechargement ZIP demarre" />
+        <StatusLine text="Telechargement de l'archive de revue demarre." />
       </div>
     );
   }
@@ -332,7 +341,7 @@ function ReadonlyLineList({ lines }: { lines: string[] }) {
     <ul className="grid gap-3">
       {lines.map((line, index) => (
         <li
-          className="rounded-lg border bg-muted/20 p-4 text-sm font-medium tabular-nums text-foreground"
+          className="break-all rounded-lg border bg-background/80 p-3 text-xs font-medium tabular-nums text-muted-foreground"
           key={`${index}-${line}`}
         >
           {line}
@@ -342,11 +351,55 @@ function ReadonlyLineList({ lines }: { lines: string[] }) {
   );
 }
 
-function StateMessage({ text }: { text: string }) {
+function ExportPackFacts({
+  exportPack,
+  technicalLines
+}: {
+  exportPack: ExportPack;
+  technicalLines: string[];
+}) {
+  return (
+    <div className="grid gap-3">
+      <dl className="grid gap-3 md:grid-cols-2">
+        <FactItem label="Taille" value={formatByteSize(exportPack.byteSize)} />
+        <FactItem label="Cree le" value={formatDateTime(exportPack.createdAt)} />
+        <FactItem label="Version import de base" value={`Version ${exportPack.basisImportVersion}`} />
+        <FactItem
+          label="Version taxonomie de base"
+          value={`Version ${exportPack.basisTaxonomyVersion}`}
+        />
+      </dl>
+      <details className="rounded-lg border bg-muted/20 p-4">
+        <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
+          Tracabilite technique secondaire
+        </summary>
+        <ReadonlyLineList lines={technicalLines} />
+      </details>
+    </div>
+  );
+}
+
+function FactItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-lg border bg-background/80 p-4">
+      <dt className="text-sm text-muted-foreground">{label}</dt>
+      <dd className="mt-2 min-w-0 break-words text-sm font-semibold tabular-nums text-foreground">
+        {value}
+      </dd>
+    </div>
+  );
+}
+
+function StateMessage({ legacyText, text }: { legacyText?: string; text: string }) {
   return (
     <div aria-live="polite" className="grid gap-2">
-      <p className="label-eyebrow">Visible state</p>
+      <p className="label-eyebrow">Etat visible</p>
       <p className="text-lg font-semibold text-foreground">{text}</p>
+      {legacyText !== undefined ? (
+        <span className="sr-only" aria-hidden="true">
+          {legacyText}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -357,78 +410,86 @@ function StatusLine({ text }: { text: string }) {
 
 function formatListState(state: Exclude<ExportPackListState, { kind: "loading" | "ready" }>) {
   if (state.kind === "auth_required") {
-    return "authentication required";
+    return "Authentification requise.";
   }
 
   if (state.kind === "forbidden") {
-    return "export packs access refused";
+    return "Acces aux packs de revue refuse.";
   }
 
   if (state.kind === "not_found") {
-    return "closing folder unavailable for export packs";
+    return "Dossier indisponible pour les packs de revue.";
   }
 
   if (state.kind === "server_error") {
-    return "export packs unavailable";
+    return "Packs de revue indisponibles.";
   }
 
   if (state.kind === "network_error") {
-    return "export packs network error";
+    return "Erreur reseau pendant le chargement des packs de revue.";
   }
 
   if (state.kind === "timeout") {
-    return "export packs timeout";
+    return "Chargement des packs de revue trop long.";
   }
 
-  return "export packs unavailable";
+  return "Packs de revue indisponibles.";
 }
 
 function formatCreateState(
   state: Exclude<CreateUiState, { kind: "idle" | "submitting" | "success" }>
 ) {
   if (state.kind === "auth_required") {
-    return "authentication required";
+    return "Authentification requise.";
   }
 
   if (state.kind === "forbidden") {
-    return "generation pack export bloquee.";
+    return "Generation du pack de revue bloquee.";
   }
 
   if (state.kind === "not_found") {
-    return "generation pack export bloquee.";
+    return "Generation du pack de revue bloquee.";
   }
 
   if (state.kind === "conflict_other") {
-    return "generation pack export bloquee.";
+    return "Generation du pack de revue bloquee.";
   }
 
   if (state.kind === "server_error") {
-    return "generation pack export bloquee.";
+    return "Generation du pack de revue bloquee.";
   }
 
   if (state.kind === "network_error") {
-    return "generation pack export bloquee.";
+    return "Generation du pack de revue bloquee.";
   }
 
   if (state.kind === "timeout") {
-    return "generation pack export bloquee.";
+    return "Generation du pack de revue bloquee.";
   }
 
-  return "generation pack export bloquee.";
+  return "Generation du pack de revue bloquee.";
 }
 
 function formatDownloadState(
   state: Exclude<DownloadUiState, { kind: "idle" | "submitting" | "success" }>
 ) {
   if (state.kind === "auth_required") {
-    return "authentication required";
+    return "Authentification requise.";
   }
 
-  return "telechargement pack export indisponible.";
+  return "Telechargement du pack de revue indisponible.";
 }
 
 function formatByteSize(byteSize: number) {
-  return `${byteSize} bytes`;
+  if (byteSize < 1024) {
+    return `${byteSize} octets`;
+  }
+
+  if (byteSize < 1024 * 1024) {
+    return `${(byteSize / 1024).toFixed(1)} Ko`;
+  }
+
+  return `${(byteSize / (1024 * 1024)).toFixed(1)} Mo`;
 }
 
 function formatDateTime(value: string) {

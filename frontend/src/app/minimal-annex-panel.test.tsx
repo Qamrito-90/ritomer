@@ -10,6 +10,11 @@ const ACTIVE_TENANT = {
 };
 
 const CLOSING_FOLDER_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const MINIMAL_ANNEX_UNAVAILABLE_MESSAGE = [
+  "Previsualisation annexe minimale indisponible : les donnees de revue ne sont pas encore exploitables.",
+  "Consequence : l'annexe ne peut pas etre consultee dans ce panneau.",
+  "Action : completez les justifications, verifiez les preuves et levez les points de revue ouverts."
+].join(" ");
 
 const READY_MINIMAL_ANNEX: MinimalAnnexReadModel = {
   closingFolderId: CLOSING_FOLDER_ID,
@@ -209,7 +214,9 @@ describe("MinimalAnnexPanel", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(jsonResponse(500, {})));
 
     renderPanel();
-    expect(await screen.findByText("previsualisation annexe minimale indisponible")).toBeInTheDocument();
+    expect(await screen.findByText(MINIMAL_ANNEX_UNAVAILABLE_MESSAGE)).toBeInTheDocument();
+    expect(screen.getByText(/Consequence : l'annexe ne peut pas etre consultee/)).toBeInTheDocument();
+    expect(screen.getByText(/Action : completez les justifications/)).toBeInTheDocument();
   });
 
   it("renders BLOCKED state with blockers, basis, and non-statutory limits", async () => {
@@ -218,18 +225,28 @@ describe("MinimalAnnexPanel", () => {
 
     const { container } = renderPanel();
 
-    expect(await screen.findAllByText("BLOCKED")).toHaveLength(2);
-    expect(screen.getByText("CLOSING_NOT_READY / CONTROLS")).toBeInTheDocument();
-    expect(screen.getByText("Closing controls are not ready.")).toBeInTheDocument();
-    expect(screen.getByText("EXPORT_PACK_MISSING / EXPORT_PACK")).toBeInTheDocument();
-    expect(screen.getByText("base pack export : absente")).toBeInTheDocument();
+    expect(await screen.findByText("Bloque")).toBeInTheDocument();
+    expect(screen.getByText("Contenu manquant")).toBeInTheDocument();
     expect(
-      screen.getByText("Synthese des preuves indisponible tant que la previsualisation est bloquee.")
+      screen.getByText(
+        "Consequence : annexe indisponible pour revue tant que ces points ne sont pas leves. Action : completez les justifications, verifiez les preuves et preparez le pack de revue si necessaire."
+      )
     ).toBeInTheDocument();
-    expect(container).toHaveTextContent("Previsualisation non statutaire.");
-    expect(container).toHaveTextContent("requise.");
+    expect(screen.getByText(/Origine controles/)).toBeInTheDocument();
+    expect(screen.getByText("Code technique CLOSING_NOT_READY")).toBeInTheDocument();
+    expect(screen.getByText("Closing controls are not ready.")).toBeInTheDocument();
+    expect(screen.getByText(/Origine pack de revue/)).toBeInTheDocument();
+    expect(screen.getByText("Code technique EXPORT_PACK_MISSING")).toBeInTheDocument();
+    expect(screen.getByText("pack de revue : manquant")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Consequence : annexe indisponible pour revue. La synthese des preuves sera disponible quand les blocages seront leves."
+      )
+    ).toBeInTheDocument();
+    expect(container).toHaveTextContent("Previsualisation non statutaire et en lecture seule.");
+    expect(container).toHaveTextContent("Revue humaine obligatoire.");
     expect(container).toHaveTextContent("Pas un livrable statutaire final.");
-    expect(container).toHaveTextContent("Ne pas utiliser pour un depot officiel.");
+    expect(container).toHaveTextContent("Ne pas utiliser comme depot officiel.");
   });
 
   it("renders READY state with warnings, basis summary, and evidence summary only", async () => {
@@ -238,16 +255,26 @@ describe("MinimalAnnexPanel", () => {
 
     const { container } = renderPanel();
 
-    expect(await screen.findAllByText("READY")).toHaveLength(2);
-    expect(screen.getByText("LEGACY_MAPPING_FALLBACK_USED / FINANCIAL_STATEMENTS_STRUCTURED")).toBeInTheDocument();
+    expect(await screen.findByText("Pret pour revue")).toBeInTheDocument();
+    expect(screen.getAllByText("Contenu disponible").length).toBeGreaterThanOrEqual(2);
+    expect(
+      screen.getByText(/Origine previsualisation structuree/)
+    ).toBeInTheDocument();
+    expect(screen.getByText("Code technique LEGACY_MAPPING_FALLBACK_USED")).toBeInTheDocument();
+    expect(screen.getByText("Reference technique BS.ASSET")).toBeInTheDocument();
     expect(
       screen.getByText("Legacy mapping fallback is included as a review warning.")
     ).toBeInTheDocument();
-    expect(screen.getByText("readiness controles : READY")).toBeInTheDocument();
+    expect(screen.getByText("controles : pret")).toBeInTheDocument();
     expect(screen.getByText("derniere version import : 3")).toBeInTheDocument();
-    expect(screen.getByText("base pack export : presente")).toBeInTheDocument();
+    expect(screen.getByText("pack de revue : disponible")).toBeInTheDocument();
+    expect(screen.getByText("Montants repris de la preview")).toBeInTheDocument();
+    expect(screen.getAllByText("CHF 100.00").length).toBeGreaterThanOrEqual(4);
+    expect(screen.getAllByText("CHF 0.00").length).toBeGreaterThanOrEqual(3);
     expect(screen.getByText("justifications courantes : 1")).toBeInTheDocument();
     expect(screen.getByText("documents verifies : 1")).toBeInTheDocument();
+    expect(screen.getByText("Preuves verifiees")).toBeInTheDocument();
+    expect(screen.getByText("Contenu manquant")).toBeInTheDocument();
 
     expect(container).not.toHaveTextContent("support.pdf");
     expect(container).not.toHaveTextContent("abcdef0123456789");
@@ -262,12 +289,12 @@ describe("MinimalAnnexPanel", () => {
 
     const { rerender } = renderPanel();
 
-    expect(await screen.findAllByText("READY")).toHaveLength(2);
+    expect(await screen.findByText("Pret pour revue")).toBeInTheDocument();
 
     rerender(renderPanelElement(1));
 
-    expect(await screen.findAllByText("BLOCKED")).toHaveLength(2);
-    expect(screen.getByText("base pack export : absente")).toBeInTheDocument();
+    expect(await screen.findByText("Bloque")).toBeInTheDocument();
+    expect(screen.getByText("pack de revue : manquant")).toBeInTheDocument();
     expect(
       screen.queryByText("rafraichissement annexe minimale impossible")
     ).not.toBeInTheDocument();
@@ -300,16 +327,16 @@ describe("MinimalAnnexPanel", () => {
 
       const { rerender } = renderPanel();
 
-      expect(await screen.findAllByText("READY")).toHaveLength(2);
-      expect(screen.getByText("base pack export : presente")).toBeInTheDocument();
+      expect(await screen.findByText("Pret pour revue")).toBeInTheDocument();
+      expect(screen.getByText("pack de revue : disponible")).toBeInTheDocument();
 
       rerender(renderPanelElement(1));
 
       expect(
         await screen.findByText("rafraichissement annexe minimale impossible")
       ).toBeInTheDocument();
-      expect(screen.getAllByText("READY")).toHaveLength(2);
-      expect(screen.getByText("base pack export : presente")).toBeInTheDocument();
+      expect(screen.getByText("Pret pour revue")).toBeInTheDocument();
+      expect(screen.getByText("pack de revue : disponible")).toBeInTheDocument();
     }
   );
 
@@ -322,7 +349,7 @@ describe("MinimalAnnexPanel", () => {
 
     const { rerender } = renderPanel();
 
-    expect(await screen.findAllByText("READY")).toHaveLength(2);
+    expect(await screen.findByText("Pret pour revue")).toBeInTheDocument();
 
     rerender(renderPanelElement(1));
     expect(
@@ -331,7 +358,7 @@ describe("MinimalAnnexPanel", () => {
 
     rerender(renderPanelElement(2));
 
-    expect(await screen.findAllByText("BLOCKED")).toHaveLength(2);
+    expect(await screen.findByText("Bloque")).toBeInTheDocument();
     await waitFor(() => {
       expect(
         screen.queryByText("rafraichissement annexe minimale impossible")
@@ -346,7 +373,7 @@ describe("MinimalAnnexPanel", () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(200, READY_MINIMAL_ANNEX));
 
     const { container } = renderPanel();
-    await screen.findAllByText("READY");
+    await screen.findByText("Pret pour revue");
 
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
@@ -395,7 +422,7 @@ describe("MinimalAnnexPanel", () => {
 
     const { container } = renderPanel();
 
-    expect(await screen.findByText("previsualisation annexe minimale indisponible")).toBeInTheDocument();
+    expect(await screen.findByText(MINIMAL_ANNEX_UNAVAILABLE_MESSAGE)).toBeInTheDocument();
     expect(container).not.toHaveTextContent("storageObjectKey");
     expect(container).not.toHaveTextContent("signedUrl");
     expect(container).not.toHaveTextContent("gs://");
@@ -425,7 +452,12 @@ describe("MinimalAnnexPanel", () => {
     const block = blockers.closest("section");
 
     expect(block).not.toBeNull();
-    expect(within(block as HTMLElement).getByText("CLOSING_NOT_READY / CONTROLS")).toBeInTheDocument();
+    expect(
+      within(block as HTMLElement).getByText(/Origine controles/)
+    ).toBeInTheDocument();
+    expect(
+      within(block as HTMLElement).getByText("Code technique CLOSING_NOT_READY")
+    ).toBeInTheDocument();
     expect(
       within(block as HTMLElement).getByText("Message masque pour revue humaine.")
     ).toBeInTheDocument();
