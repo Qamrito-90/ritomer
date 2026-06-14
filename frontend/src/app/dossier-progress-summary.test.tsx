@@ -422,7 +422,7 @@ describe("DossierProgressSummary", () => {
     expect(screen.getByRole("heading", { name: "Synthese du dossier" })).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Previsualisation non statutaire. Etat indicatif, pas un export final ni un document CO."
+        "Previsualisation non statutaire. Etat indicatif, revue humaine obligatoire, pas un export final ni un document CO."
       )
     ).toBeInTheDocument();
 

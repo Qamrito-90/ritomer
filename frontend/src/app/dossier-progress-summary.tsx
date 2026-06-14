@@ -74,7 +74,8 @@ export function DossierProgressSummary({
             Synthese du dossier
           </h3>
           <p className="text-sm text-muted-foreground">
-            Previsualisation non statutaire. Etat indicatif, pas un export final ni un document CO.
+            Previsualisation non statutaire. Etat indicatif, revue humaine obligatoire, pas un
+            export final ni un document CO.
           </p>
         </div>
         <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" aria-label="progression dossier">
