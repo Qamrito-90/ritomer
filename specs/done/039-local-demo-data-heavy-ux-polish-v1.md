@@ -2,13 +2,13 @@
 
 ## Status
 
-Active.
+Done.
 
 ## Surface
 
-DOCS_GIT / FRONTEND_SPEC.
+DOCS_GIT.
 
-Cette spec cree uniquement le cadrage actif de l'increment `039`. Elle ne livre aucun code runtime, aucun frontend runtime, aucun backend, aucun endpoint, aucun contrat OpenAPI, aucune migration DB, aucune CI, aucun token, aucun secret, aucune valeur `.env`, aucune donnee demo supplementaire, aucune IA runtime et aucun GraphQL.
+Cette cloture documentaire acte la livraison des sous-livrables `039a`, `039b`, `039c`, `039d` et `039e`. Elle ne livre aucun code runtime, aucun frontend runtime, aucun backend, aucun endpoint, aucun contrat OpenAPI, aucune migration DB, aucune CI, aucun token, aucun secret, aucune valeur `.env`, aucune donnee demo supplementaire, aucune IA runtime et aucun GraphQL.
 
 ## Risk
 
@@ -28,7 +28,7 @@ Reclasser en `C` et recadrer avant implementation si une proposition touche :
 
 ## Role de cette spec
 
-Cadrer un increment frontend strict de polish data-heavy apres `038`.
+Cloturer documentairement un increment frontend strict de polish data-heavy apres `038`.
 
 `036` a livre la demo locale integree technique avec backend reel, PostgreSQL reel, auth JWT reelle, tenant demo synthetique et dossier demo visible.
 
@@ -42,7 +42,7 @@ Le verdict `038` est `PASS` comme cockpit intermediaire, mais pas encore POC pre
 - lisibilite detaillee ;
 - design premium approfondi.
 
-`039` doit cadrer cette dette sans ouvrir de capacite metier nouvelle.
+`039` traite cette dette sans ouvrir de capacite metier nouvelle.
 
 ## Sources relues
 
@@ -97,6 +97,29 @@ Objectifs concrets :
 - conserver la posture evidence-first, audit-ready et human-in-the-loop ;
 - ne creer aucune capacite metier nouvelle ;
 - ne pas promettre un livrable CO/statutaire final.
+
+## Sous-livrables livres
+
+`039a` et `039b` ont rendu les surfaces `Import` et `Mapping` plus scannables, tabulaires et lisibles. Les donnees de version, comptes, montants, cibles et actions sont mieux hierarchisees pour une revue fiduciaire rapide, sans nouvelle API, sans nouvelle mutation et sans nouveau seed.
+
+`039c` a nettoye les suggestions IA no-provider deja visibles : les suggestions restent des aides a revoir, sans IA reelle, sans provider, sans modele, sans SDK, sans prompt runtime, sans appel reseau IA, sans auto-apply et sans changement de l'autorite du mapping manuel.
+
+`039d` a rendu les surfaces `Justifications / Preuves` plus metier et actionnables. Les statuts, pieces, verifications et decisions sont presentes comme des elements de revue humaine rattaches aux rubriques, sans nouveau document/storage, sans nouvelle mutation backend et sans contournement audit.
+
+`039e` a rendu les previsualisations, l'export et l'annexe minimale plus prudents et orientes revue humaine. Les surfaces restent non statutaires, non CO-ready, non officielles, non certifiees et non pretes au depot ; elles servent au handoff et a la revue humaine, pas a une finalisation automatique.
+
+## Checks et preuves documentees
+
+- Les checks frontend sont passes dans les PR d'implementation des sous-livrables `039a` a `039e`.
+- Un smoke visuel utilisateur a ete effectue sur les surfaces UX cles : import, mapping, suggestions no-provider, justifications/preuves, previsualisations, export et annexe minimale.
+- La cloture `039` n'ajoute aucun backend, DB, migration, OpenAPI, auth, IA runtime, GraphQL, nouvelle mutation, nouveau seed, nouvelle donnee demo, CI, secret, token, credential ou valeur `.env`.
+
+## Dette residuelle apres 039
+
+- L'experience complete reste a juger globalement en smoke POC interne.
+- La taxonomie et les libelles metier restent perfectibles.
+- Le design premium final n'est pas clos par `039`.
+- `040`, si elle est ouverte plus tard, devra juger le parcours complet ; cette cloture n'ouvre pas `040`.
 
 ## Surfaces data-heavy concernees
 
@@ -338,15 +361,15 @@ La future implementation est acceptee visuellement seulement si :
 - Aucun fichier hors `docs/product/v1-plan.md` et cette spec active n'est modifie.
 - Aucun runtime backend, frontend, DB, contrat, migration, CI, IA, GraphQL, RAG, provider, secret, token, `.env` ou runbook n'est modifie.
 
-## Tests/checks attendus apres future implementation
+## Tests/checks documentes apres implementation
 
 - `pnpm test:ci`
 - `pnpm lint`
 - `pnpm build`
 - `git diff --check`
-- smoke visuel local si demande, sans secret, sans capture de token et sans valeur `.env`.
+- smoke visuel utilisateur sur les surfaces UX cles, sans secret, sans capture de token et sans valeur `.env`.
 
-Tests frontend attendus apres implementation :
+Tests frontend documentes dans les PR d'implementation :
 
 - tests de rendu des panneaux data-heavy touches ;
 - tests des etats loading/empty/error/partial quand la surface le permet ;
@@ -354,7 +377,7 @@ Tests frontend attendus apres implementation :
 - tests de non-regression des actions existantes et warnings de refresh partiel si touches ;
 - tests de prevention des libelles interdits si une convention de test existe deja.
 
-## Checks attendus pour cette mission DOCS_ONLY
+## Checks attendus pour cette cloture DOCS_ONLY
 
 Commandes attendues :
 
@@ -363,7 +386,7 @@ Commandes attendues :
 - `git diff --stat`
 - `git diff --check`
 
-Aucun test backend, frontend, DB, navigateur ou runtime ne doit etre lance pour cette creation documentaire.
+Aucun test backend, frontend, DB, navigateur ou runtime ne doit etre lance pour cette cloture documentaire.
 
 ## Fresh Evidence Pack attendu
 
@@ -398,6 +421,6 @@ Toute derive vers backend, DB, API, auth, securite, tenant, audit, contrats, pro
 
 ## Revue humaine recommandee
 
-Revue humaine recommandee : oui, legere pour cette creation documentaire.
+Revue humaine recommandee : oui, legere pour cette cloture documentaire.
 
 Motif : la spec ouvre un increment frontend UX sur des surfaces data-heavy sensibles visuellement pour une demo locale integree, notamment import, mapping, preuves, previews, export pack et minimal annex. La revue doit verifier le bornage frontend-only, l'absence de promesse CO/statutaire, l'absence de derive auth/backend/API et la coherence avec `docs/ui/ui-foundations-v1.md`.
