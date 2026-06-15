@@ -68,11 +68,12 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `specs/done/039-local-demo-data-heavy-ux-polish-v1.md`
 
 ### Active
-- AUCUNE spec active.
+- `specs/active/040-internal-poc-global-smoke-v1.md`
 
 ### Rappels
 - `030d runtime` provider reel reste reporte : aucun provider IA reel, aucun modele reel, aucun SDK, aucun prompt runtime actif, aucun cout provider, aucun appel reseau IA, aucun microservice IA, aucun GraphQL, aucun RAG/vector store et aucun auto-apply ne sont actives.
 - `036-local-integrated-demo-real-backend-seed-v1` est livre : 036a a livre une commande backend de seed demo dev-only PostgreSQL local, default off, fail-fast hors `local`/`test`/`dbtest`, sans secret commite, sans donnees client reelles, sans bypass auth, sans IA runtime, sans GraphQL et sans Docker impose ; 036b a livre un smoke backend `dbIntegrationTest` de vraie validation JWT sur `/api/me` et tenant membership ; 036c a livre un proxy Vite dev-only `/api` vers backend local avec injection bearer optionnelle strictement cote serveur Vite et shell local, sans token navigateur, sans backend runtime durable et sans auth frontend durable. Aucun endpoint de mint token, aucune commande JWT, aucun backend runtime durable supplementaire, aucun OpenAPI, aucune migration DB, aucune IA runtime et aucun GraphQL ne sont ajoutes par la cloture 036.
+- `040-internal-poc-global-smoke-v1` est active pour cadrer un smoke manuel POC interne global, sans code runtime, afin de juger le parcours complet local apres 036-039 : lancement backend/frontend, proxy JWT local, `/api/me`, dossier demo, cockpit, import, mapping, suggestions no-provider, justifications/preuves, previsualisations, export/pack de revue, annexe minimale, garde-fous non statutaires, absence de secret/token visible et ressenti UX global. Cette spec n'ouvre pas `041`.
 - Rappel de cloture `039` : aucun backend, aucune DB/migration, aucun OpenAPI, aucune auth/JWT/proxy, aucune IA runtime, aucun GraphQL, aucune nouvelle mutation, aucun nouveau seed, aucune nouvelle donnee demo, aucune CI et aucun secret/token/credential/valeur `.env` ne sont ajoutes par cette cloture documentaire. Dette residuelle : l'experience reste a juger globalement en smoke POC interne, la taxonomie/libelles metier restent perfectibles, le design premium final n'est pas clos par `039`, et `040` devra juger le parcours complet si elle est ouverte plus tard.
 
 ### Decisions figees
