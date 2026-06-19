@@ -663,7 +663,7 @@ function stubRandomUUID(...values: string[]) {
 }
 
 function getMappingHeading() {
-  return screen.getByRole("heading", { name: "Projection du dernier import" });
+  return screen.getByRole("heading", { name: "Revue du mapping" });
 }
 
 function getMappingSection() {
@@ -680,6 +680,12 @@ function getLine(accountCode: string) {
   return screen.getByLabelText(`ligne mapping ${accountCode}`);
 }
 
+function expectNodeBefore(first: HTMLElement, second: HTMLElement) {
+  expect(Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(
+    true
+  );
+}
+
 function getLineDetailCard(accountCode: string, label: string) {
   const detailCard = within(getLine(accountCode)).getByText(label).closest("div");
 
@@ -694,15 +700,35 @@ function getLineTargetSelect(accountCode: string) {
   return within(getLine(accountCode)).getByLabelText("Cible") as HTMLSelectElement;
 }
 
+function getLineAffectationCell(accountCode: string) {
+  const cell = getLineTargetSelect(accountCode).closest("td");
+
+  if (cell === null) {
+    throw new Error("mapping affectation cell not found");
+  }
+
+  return cell;
+}
+
+function getLineCellByText(accountCode: string, text: string) {
+  const cell = within(getLine(accountCode)).getByText(text).closest("td");
+
+  if (cell === null) {
+    throw new Error(`mapping cell '${text}' not found`);
+  }
+
+  return cell;
+}
+
 function getLineSaveButton(accountCode: string) {
   return within(getLine(accountCode)).getByRole("button", {
-    name: "Enregistrer le mapping"
+    name: /^(Affecter|Mettre à jour)$/
   });
 }
 
 function getLineDeleteButton(accountCode: string) {
   return within(getLine(accountCode)).getByRole("button", {
-    name: "Supprimer le mapping"
+    name: "Retirer l'affectation"
   });
 }
 
@@ -808,9 +834,31 @@ describe("router manual mapping", () => {
     await waitForNominalShell();
 
     const mappingSection = getMappingSection();
+    expect(
+      within(mappingSection).getByRole("heading", { name: "Revue des affectations" })
+    ).toBeInTheDocument();
     const mappingTable = within(mappingSection).getByRole("table", {
       name: "Table de revue du mapping manuel"
     });
+    const mappingHead = mappingTable.querySelector("thead");
+
+    expect(mappingHead).not.toBeNull();
+    expect(mappingHead as HTMLElement).toHaveClass("hidden", "2xl:table-header-group");
+    expect(mappingHead as HTMLElement).not.toHaveClass("md:table-header-group");
+
+    [
+      "Compte",
+      "Montants importés",
+      "Affectation",
+      "Action"
+    ].forEach((columnName) => {
+      expect(within(mappingTable).getByRole("columnheader", { name: columnName })).toBeInTheDocument();
+    });
+
+    expect(within(mappingTable).getByRole("columnheader", { name: "Affectation" })).toHaveClass(
+      "w-[44%]",
+      "pl-6"
+    );
 
     [
       "Compte source",
@@ -818,18 +866,70 @@ describe("router manual mapping", () => {
       "Crédit",
       "Affectation actuelle",
       "Nouvelle affectation",
-      "Action"
+      "Mapping courant",
+      "Cible a appliquer",
+      "Cible"
     ].forEach((columnName) => {
-      expect(within(mappingTable).getByRole("columnheader", { name: columnName })).toBeInTheDocument();
-    });
-
-    ["Debit", "Credit", "Mapping courant", "Cible a appliquer", "Cible"].forEach((columnName) => {
       expect(within(mappingTable).queryByRole("columnheader", { name: columnName })).not.toBeInTheDocument();
     });
 
-    expect(within(mappingTable).getByLabelText("ligne mapping 1000")).toBeInTheDocument();
-    expect(within(mappingTable).getByLabelText("ligne mapping 2000")).toBeInTheDocument();
+    expect(within(mappingSection).getByText("Résumé du mapping")).toBeInTheDocument();
+    expect(within(mappingSection).getByText("version d import")).toBeInTheDocument();
+    expect(within(mappingSection).getByText("comptes total")).toBeInTheDocument();
+    expect(within(mappingSection).getByText("comptes affectés")).toBeInTheDocument();
+    expect(within(mappingSection).getByText("à traiter")).toBeInTheDocument();
+
+    const mappedLine = within(mappingTable).getByLabelText("ligne mapping 1000");
+    const unmappedLine = within(mappingTable).getByLabelText("ligne mapping 2000");
+    expect(mappedLine).toBeInTheDocument();
+    expect(unmappedLine).toBeInTheDocument();
+    expect(mappedLine).toHaveClass("grid", "min-w-0", "gap-4", "lg:items-start", "2xl:table-row");
+    expect(mappedLine.className).toContain(
+      "lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]"
+    );
+    expect(mappedLine).not.toHaveClass("md:table-row");
+    expectNodeBefore(within(mappedLine).getByText("Cash"), within(mappedLine).getByText("1000"));
+    expectNodeBefore(within(unmappedLine).getByText("Revenue"), within(unmappedLine).getByText("2000"));
+    expect(getLineCellByText("1000", "Cash")).toHaveClass(
+      "lg:col-start-1",
+      "lg:row-start-1",
+      "2xl:table-cell"
+    );
+    expect(within(mappedLine).getByText("1000")).toHaveClass(
+      "break-all",
+      "text-xs",
+      "text-muted-foreground"
+    );
+    const amountsCell = getLineCellByText("1000", "Montants importés");
+    expect(amountsCell).toHaveClass(
+      "lg:col-start-1",
+      "lg:row-start-2",
+      "2xl:table-cell",
+      "2xl:pr-6"
+    );
+    expect(amountsCell).not.toHaveClass("md:table-cell");
+    expect(within(amountsCell).getByText("Montants importés")).toHaveClass("2xl:hidden");
+    expect(within(mappedLine).getByText("CHF 100.00")).toHaveClass(
+      "text-right",
+      "tabular-nums",
+      "whitespace-nowrap"
+    );
+    expect(within(mappedLine).getByText("CHF 0.00")).toHaveClass(
+      "text-right",
+      "tabular-nums",
+      "whitespace-nowrap"
+    );
+    const affectationCell = getLineAffectationCell("1000");
+    expect(affectationCell).toHaveClass(
+      "lg:col-start-2",
+      "lg:row-start-1",
+      "lg:row-span-2",
+      "2xl:table-cell",
+      "2xl:pl-6"
+    );
+    expect(affectationCell).not.toHaveClass("md:table-cell");
     const currentMapping = getLineDetailCard("1000", "Affectation actuelle");
+    expect(affectationCell).toContainElement(currentMapping);
     expect(within(currentMapping).getByText("Actif")).toBeInTheDocument();
     expect(within(currentMapping).getByText("BS.ASSET")).toHaveClass(
       "max-w-full",
@@ -838,8 +938,44 @@ describe("router manual mapping", () => {
       "font-mono",
       "text-muted-foreground"
     );
-    const actionCell = within(getLine("1000")).getByText("Action").closest("div");
-    expect(actionCell).toHaveClass("grid", "min-w-0", "gap-2");
+    const newMapping = getLineDetailCard("1000", "Nouvelle affectation");
+    expect(affectationCell).toContainElement(newMapping);
+    expect(affectationCell).toContainElement(getLineTargetSelect("1000"));
+    const selectedTargetLabel = within(newMapping)
+      .getAllByText("Actif")
+      .find((node) => node.tagName.toLowerCase() === "span");
+    expect(selectedTargetLabel).toHaveClass("break-words", "font-medium");
+    expect(within(newMapping).getByText("BS.ASSET")).toHaveClass(
+      "max-w-full",
+      "truncate",
+      "text-xs",
+      "font-mono",
+      "text-muted-foreground"
+    );
+    expect(within(unmappedLine).getByText("Aucune affectation")).toBeInTheDocument();
+    expect(within(unmappedLine).getByText("Aucune nouvelle cible")).toBeInTheDocument();
+    expect(getLineTargetSelect("2000")).toHaveValue("");
+    expect(within(unmappedLine).getByRole("button", { name: "Affecter" })).toBeDisabled();
+    expect(
+      within(unmappedLine).queryByRole("button", { name: "Retirer l'affectation" })
+    ).not.toBeInTheDocument();
+    expect(within(mappedLine).queryByRole("button", { name: "Mettre à jour" })).not.toBeInTheDocument();
+    expect(within(mappedLine).getByRole("button", { name: "Retirer l'affectation" })).toBeEnabled();
+    const actionCell = getLineCellByText("1000", "Action");
+    expect(actionCell).toHaveClass(
+      "lg:col-start-2",
+      "lg:row-start-3",
+      "2xl:table-cell"
+    );
+    expect(actionCell).not.toHaveClass("md:table-cell");
+    expect(within(actionCell).getByText("Action")).toHaveClass("2xl:hidden");
+    const actionContent = actionCell.firstElementChild;
+
+    if (!(actionContent instanceof HTMLElement)) {
+      throw new Error("mapping action content not found");
+    }
+
+    expect(actionContent).toHaveClass("grid", "min-w-0", "gap-2");
     expect(mappingTable.querySelector("article")).toBeNull();
     expect(within(mappingSection).queryByRole("button", { name: /appliquer tout/i })).not.toBeInTheDocument();
     expect(within(mappingSection).queryByRole("button", { name: /bulk/i })).not.toBeInTheDocument();
@@ -928,7 +1064,7 @@ describe("router manual mapping", () => {
     expect(await screen.findByText("import requis")).toBeInTheDocument();
     expect(within(getMappingSection()).getByText("version d import")).toBeInTheDocument();
     expect(within(getMappingSection()).getByText("aucune ligne a mapper")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Enregistrer le mapping" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^(Affecter|Mettre à jour)$/ })).not.toBeInTheDocument();
   });
 
   it("renders dossier archive, mapping en lecture seule on an archived dossier", async () => {
@@ -943,7 +1079,7 @@ describe("router manual mapping", () => {
 
     expect(await screen.findByText("dossier archive, mapping en lecture seule")).toBeInTheDocument();
     expect(getLineTargetSelect("1000")).toBeDisabled();
-    expect(getLineSaveButton("1000")).toBeDisabled();
+    expect(within(getLine("1000")).queryByRole("button", { name: "Mettre à jour" })).not.toBeInTheDocument();
     expect(getLineDeleteButton("1000")).toBeDisabled();
   });
 
@@ -1027,7 +1163,7 @@ describe("router manual mapping", () => {
     expect(fetchMock).toHaveBeenCalledTimes(13);
     expect(getLineTargetSelect("1000")).toBeDisabled();
     expect(getLineTargetSelect("2000")).toBeDisabled();
-    expect(getLineSaveButton("1000")).toBeDisabled();
+    expect(within(getLine("1000")).queryByRole("button", { name: "Mettre à jour" })).not.toBeInTheDocument();
     expect(getLineSaveButton("2000")).toBeDisabled();
     expect(getLineDeleteButton("1000")).toBeDisabled();
 
