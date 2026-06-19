@@ -12,8 +12,8 @@ const VERSION_4 = {
   version: 4,
   importedAt: "2026-05-14T10:30:00Z",
   rowCount: 12,
-  totalDebit: "1200.00",
-  totalCredit: "1200.00"
+  totalDebit: "12345.6",
+  totalCredit: "12345.6"
 };
 
 const VERSION_3 = {
@@ -21,13 +21,22 @@ const VERSION_3 = {
   version: 3,
   importedAt: "2026-05-13T09:00:00Z",
   rowCount: 10,
-  totalDebit: "1000.00",
-  totalCredit: "1000.00"
+  totalDebit: "-42",
+  totalCredit: "-42"
+};
+
+const VERSION_2 = {
+  ...VERSION_4,
+  version: 2,
+  importedAt: "2026-05-12T09:00:00Z",
+  rowCount: 8,
+  totalDebit: "NaN",
+  totalCredit: "Infinity"
 };
 
 const READY_STATE: BalanceImportHistoryPanelState = {
   kind: "ready",
-  versions: [VERSION_4, VERSION_3],
+  versions: [VERSION_4, VERSION_3, VERSION_2],
   diff: {
     version: 4,
     previousVersion: 3,
@@ -44,7 +53,7 @@ const READY_STATE: BalanceImportHistoryPanelState = {
         accountCode: "0999",
         accountLabel: "Old suspense",
         debit: "10",
-        credit: "0"
+        credit: ""
       }
     ],
     changed: [
@@ -108,7 +117,13 @@ describe("BalanceImportHistoryPanel", () => {
     expect(screen.getByRole("columnheader", { name: "Apres debit/credit" })).toBeInTheDocument();
     expect(screen.getAllByText("v4").length).toBeGreaterThan(0);
     expect(screen.getAllByText("v3").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("v2").length).toBeGreaterThan(0);
     expect(screen.getAllByText("oui").length).toBeGreaterThan(0);
+    expect(screen.getByText("a verifier")).toBeInTheDocument();
+    expect(screen.getAllByText("CHF 12 345.60").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("CHF -42.00").length).toBeGreaterThan(0);
+    expect(screen.getByText("NaN")).toBeInTheDocument();
+    expect(screen.getByText("Infinity")).toBeInTheDocument();
 
     expect(screen.getByText("Ajoutees 1")).toBeInTheDocument();
     expect(screen.getByText("Supprimees 1")).toBeInTheDocument();
@@ -120,6 +135,10 @@ describe("BalanceImportHistoryPanel", () => {
     expect(screen.getByText("Sales")).toBeInTheDocument();
     expect(screen.getByText("Old suspense")).toBeInTheDocument();
     expect(screen.getByText("Cash")).toBeInTheDocument();
+    expect(screen.getByText("CHF 0.00 / CHF 300.00")).toBeInTheDocument();
+    expect(screen.getByText(/^CHF 10\.00 \/$/)).toBeInTheDocument();
+    expect(screen.getByText("CHF 100.00 / CHF 0.00")).toBeInTheDocument();
+    expect(screen.getByText("CHF 125.00 / CHF 0.00")).toBeInTheDocument();
   });
 
   it("places the optional CSV import slot after the current summary and before history", () => {
@@ -155,7 +174,9 @@ describe("BalanceImportHistoryPanel", () => {
       />
     );
 
-    expect(screen.getByText("aucune version precedente a comparer")).toBeInTheDocument();
+    expect(
+      screen.getByText("La comparaison N/N-1 sera disponible apres un nouvel import.")
+    ).toBeInTheDocument();
   });
 
   it("renders diff error states while keeping the version summary visible", () => {

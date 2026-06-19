@@ -167,6 +167,25 @@ const DEFAULT_MANUAL_MAPPING = {
   ]
 };
 
+const COMPLETE_MANUAL_MAPPING = {
+  ...DEFAULT_MANUAL_MAPPING,
+  summary: {
+    total: 2,
+    mapped: 2,
+    unmapped: 0
+  },
+  mappings: [
+    {
+      accountCode: "1000",
+      targetCode: "BS.ASSET"
+    },
+    {
+      accountCode: "2000",
+      targetCode: "PL.REVENUE"
+    }
+  ]
+};
+
 const DEFAULT_FINANCIAL_SUMMARY = {
   closingFolderId: CLOSING_FOLDER.id,
   statementState: "PREVIEW_PARTIAL",
@@ -197,6 +216,22 @@ const DEFAULT_FINANCIAL_SUMMARY = {
   }
 };
 
+const READY_FINANCIAL_SUMMARY = {
+  ...DEFAULT_FINANCIAL_SUMMARY,
+  statementState: "PREVIEW_READY",
+  coverage: {
+    totalLines: 2,
+    mappedLines: 2,
+    unmappedLines: 0,
+    mappedShare: "1"
+  },
+  unmappedBalanceImpact: {
+    debitTotal: "0",
+    creditTotal: "0",
+    netDebitMinusCredit: "0"
+  }
+};
+
 const DEFAULT_FINANCIAL_STATEMENTS_STRUCTURED = {
   closingFolderId: CLOSING_FOLDER.id,
   statementState: "BLOCKED",
@@ -213,6 +248,67 @@ const DEFAULT_FINANCIAL_STATEMENTS_STRUCTURED = {
   incomeStatement: null
 };
 
+const READY_FINANCIAL_STATEMENTS_STRUCTURED = {
+  ...DEFAULT_FINANCIAL_STATEMENTS_STRUCTURED,
+  statementState: "PREVIEW_READY",
+  coverage: {
+    totalLines: 2,
+    mappedLines: 2,
+    unmappedLines: 0,
+    mappedShare: "1"
+  },
+  balanceSheet: {
+    groups: [
+      {
+        code: "BS.ASSET",
+        label: "Actifs",
+        total: "100",
+        breakdowns: []
+      },
+      {
+        code: "BS.LIABILITY",
+        label: "Passifs",
+        total: "0",
+        breakdowns: []
+      },
+      {
+        code: "BS.EQUITY",
+        label: "Capitaux propres",
+        total: "0",
+        breakdowns: []
+      }
+    ],
+    totals: {
+      totalAssets: "100",
+      totalLiabilities: "0",
+      totalEquity: "0",
+      currentPeriodResult: "0",
+      totalLiabilitiesAndEquity: "100"
+    }
+  },
+  incomeStatement: {
+    groups: [
+      {
+        code: "PL.REVENUE",
+        label: "Produits",
+        total: "100",
+        breakdowns: []
+      },
+      {
+        code: "PL.EXPENSE",
+        label: "Charges",
+        total: "0",
+        breakdowns: []
+      }
+    ],
+    totals: {
+      totalRevenue: "100",
+      totalExpenses: "0",
+      netResult: "100"
+    }
+  }
+};
+
 const DEFAULT_WORKPAPERS = {
   closingFolderId: CLOSING_FOLDER.id,
   summaryCounts: {
@@ -225,6 +321,12 @@ const DEFAULT_WORKPAPERS = {
   },
   items: [],
   staleWorkpapers: []
+};
+
+const READY_EMPTY_WORKPAPERS = {
+  ...DEFAULT_WORKPAPERS,
+  closingFolderStatus: "DRAFT",
+  readiness: "READY"
 };
 
 const EMPTY_EXPORT_PACKS = {
@@ -408,7 +510,11 @@ function expectNoPrototypeMicrocopy(container: HTMLElement = document.body) {
     "Zone d action",
     "Liste read-only",
     "Entree produit V1",
-    "Shell lecture seule du frontend V1"
+    "Shell lecture seule du frontend V1",
+    "read-models",
+    "blocker principal",
+    "Blockers principaux",
+    "anchor courant"
   ].forEach((text) => {
     expect(container).not.toHaveTextContent(text);
   });
@@ -909,22 +1015,23 @@ describe("router", () => {
       const cockpit = await screen.findByRole("region", { name: "Closing FY26" });
 
       expect(within(cockpit).getByText("Dossier courant")).toBeInTheDocument();
-      expect(within(cockpit).getByText("Dossier bloque")).toBeInTheDocument();
+      expect(within(cockpit).getByText("Action requise avant revue")).toBeInTheDocument();
       expect(within(cockpit).getByText("Revue humaine requise")).toBeInTheDocument();
-      expect(within(cockpit).getByText("Statut")).toBeInTheDocument();
+      expect(within(cockpit).getByText("Statut du dossier")).toBeInTheDocument();
+      expect(within(cockpit).getByText("Dossier en preparation")).toBeInTheDocument();
       expect(within(cockpit).getByText("Reference dossier")).toBeInTheDocument();
       expect(within(cockpit).getByText("Debut periode")).toBeInTheDocument();
       expect(within(cockpit).getByText("Fin periode")).toBeInTheDocument();
       expect(within(cockpit).getByText("Prochaine action")).toBeInTheDocument();
       expect(within(cockpit).getByText("Reprendre le mapping")).toBeInTheDocument();
-      expect(within(cockpit).getByText("Blockers principaux")).toBeInTheDocument();
+      expect(within(cockpit).getByText("Points a traiter avant revue")).toBeInTheDocument();
       expect(within(cockpit).getByText("Mapping manuel incomplet")).toBeInTheDocument();
-      expect(within(cockpit).getByText("Ce qui est pret")).toBeInTheDocument();
+      expect(within(cockpit).getAllByText("Progression du closing").length).toBeGreaterThan(0);
       expect(within(cockpit).getByText("Preuves et revue")).toBeInTheDocument();
       expect(
         within(cockpit).getByText("0/0 justification(s), 0 piece(s), 0 pret(s) pour revue, 0 revu(s).")
       ).toBeInTheDocument();
-      expect(within(cockpit).getByText("Previsualisations et export")).toBeInTheDocument();
+      expect(within(cockpit).getByText("Disponibilite des previsualisations")).toBeInTheDocument();
       expect(
         within(cockpit).getByText(
           "Synthese financiere partielle - Previsualisation structuree bloquee. Previsualisation non statutaire. Revue humaine requise."
@@ -932,7 +1039,8 @@ describe("router", () => {
       ).toBeInTheDocument();
 
       const progression = within(cockpit).getByLabelText("progression closing");
-      expect(progression).toHaveTextContent("Closing");
+      expect(progression).toHaveTextContent("Dossier");
+      expect(progression).toHaveTextContent("en preparation");
       expect(progression).toHaveTextContent("Import");
       expect(progression).toHaveTextContent("Mapping");
       expect(progression).toHaveTextContent("Controles");
@@ -953,6 +1061,69 @@ describe("router", () => {
       expect(cockpit).not.toHaveTextContent("Human review required");
       expect(cockpit).not.toHaveTextContent("ready for review");
       expect(cockpit).not.toHaveTextContent("reviewed");
+      expect(cockpit).not.toHaveTextContent("DRAFT");
+      expect(fetchMock).toHaveBeenCalledTimes(12);
+    });
+
+    it("renders controls-ready cockpit as review to complete without statutory promise", async () => {
+      const fetchMock = vi.mocked(global.fetch);
+      primeClosingRoute(
+        fetchMock,
+        Promise.resolve(jsonResponse(200, READY_CONTROLS)),
+        Promise.resolve(jsonResponse(200, COMPLETE_MANUAL_MAPPING)),
+        Promise.resolve(jsonResponse(200, DEFAULT_FINANCIAL_SUMMARY)),
+        Promise.resolve(jsonResponse(200, DEFAULT_FINANCIAL_STATEMENTS_STRUCTURED)),
+        Promise.resolve(jsonResponse(200, READY_EMPTY_WORKPAPERS))
+      );
+
+      renderRoute(CLOSING_ROUTE);
+
+      const cockpit = await screen.findByRole("region", { name: "Closing FY26" });
+
+      expect(within(cockpit).getByText("Revue a completer")).toBeInTheDocument();
+      expect(within(cockpit).getByText("Dossier en preparation")).toBeInTheDocument();
+      expect(within(cockpit).getByText("Points a traiter avant revue")).toBeInTheDocument();
+      expect(within(cockpit).getByText("Previsualisations a revoir")).toBeInTheDocument();
+      expect(within(cockpit).getByLabelText("progression closing")).toHaveTextContent(
+        "Previsualisations"
+      );
+      expect(cockpit).not.toHaveTextContent("Dossier bloque");
+      expect(cockpit).not.toHaveTextContent("DRAFT");
+      expect(cockpit).not.toHaveTextContent(/CO-ready|statutory-ready|ready to file/i);
+      expectNoPrototypeMicrocopy(cockpit);
+      expect(fetchMock).toHaveBeenCalledTimes(12);
+    });
+
+    it("renders preview-ready cockpit as human review ready with no priority point", async () => {
+      const fetchMock = vi.mocked(global.fetch);
+      primeClosingRoute(
+        fetchMock,
+        Promise.resolve(jsonResponse(200, READY_CONTROLS)),
+        Promise.resolve(jsonResponse(200, COMPLETE_MANUAL_MAPPING)),
+        Promise.resolve(jsonResponse(200, READY_FINANCIAL_SUMMARY)),
+        Promise.resolve(jsonResponse(200, READY_FINANCIAL_STATEMENTS_STRUCTURED)),
+        Promise.resolve(jsonResponse(200, READY_EMPTY_WORKPAPERS))
+      );
+
+      renderRoute(CLOSING_ROUTE);
+
+      const cockpit = await screen.findByRole("region", { name: "Closing FY26" });
+
+      expect(within(cockpit).getByText("Revue humaine a poursuivre")).toBeInTheDocument();
+      expect(within(cockpit).getByText("Dossier en preparation")).toBeInTheDocument();
+      expect(within(cockpit).getByText("Disponibilite des previsualisations")).toBeInTheDocument();
+      expect(within(cockpit).getAllByText("Aucun point prioritaire signale").length).toBeGreaterThan(
+        0
+      );
+      expect(
+        within(cockpit).getAllByText("Aucun point prioritaire signale. Poursuivez la revue du dossier.").length
+      ).toBeGreaterThan(0);
+      expect(within(cockpit).getByText("Revue humaine requise")).toBeInTheDocument();
+      expect(cockpit).toHaveTextContent("Previsualisation non statutaire");
+      expect(cockpit).not.toHaveTextContent("Dossier bloque");
+      expect(cockpit).not.toHaveTextContent("DRAFT");
+      expect(cockpit).not.toHaveTextContent(/CO-ready|statutory-ready|ready to file/i);
+      expectNoPrototypeMicrocopy(cockpit);
       expect(fetchMock).toHaveBeenCalledTimes(12);
     });
 
@@ -989,7 +1160,7 @@ describe("router", () => {
       expect(screen.queryByRole("heading", { name: "Projection du dernier import" })).not.toBeInTheDocument();
 
       expect(within(cockpit).getByText("Tenant actif : Tenant Alpha - Periode :")).toBeInTheDocument();
-      expect(within(cockpit).getByText("Dossier bloque")).toBeInTheDocument();
+      expect(within(cockpit).getByText("Action requise avant revue")).toBeInTheDocument();
       expect(within(cockpit).getByText("Prochaine action")).toBeInTheDocument();
       expect(within(cockpit).getByText("Mapping manuel incomplet")).toBeInTheDocument();
       expect(within(cockpit).getByLabelText("progression closing")).toHaveTextContent("Mapping");
@@ -1162,7 +1333,8 @@ describe("router", () => {
       expect(screen.getByText("EXT-26")).toBeInTheDocument();
       expect(screen.getByText("01.01.2026")).toBeInTheDocument();
       expect(screen.getByText("31.12.2026")).toBeInTheDocument();
-      expect(screen.getByText("DRAFT")).toBeInTheDocument();
+      expect(screen.getByText("Dossier en preparation")).toBeInTheDocument();
+      expect(screen.queryByText("DRAFT")).not.toBeInTheDocument();
 
       await openWorkbenchPanel("Controles");
 

@@ -4,7 +4,6 @@ import { Link, createBrowserRouter, createMemoryRouter, useParams } from "react-
 import { AppShell } from "../components/workbench/app-shell";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { WorkflowBadge } from "../components/ui/workflow-badge";
 import {
   AiMappingSuggestionsPanel,
   type ManualMappingRefreshWarnings
@@ -1218,7 +1217,7 @@ function ClosingFolderRoute() {
                 <p className="label-eyebrow">Import balance</p>
                 <h3 className="text-xl font-semibold text-foreground">Revue des imports balance</h3>
                 <p className="text-sm text-muted-foreground">
-                  Import courant, historique et comparaison N/N-1 visibles pour une revue rapide.
+                  {formatImportBalanceIntro(state.balanceImportHistoryState)}
                 </p>
               </div>
               <BalanceImportHistoryPanel
@@ -1486,9 +1485,9 @@ function OverviewWorkbenchPanel({
       <section className="min-w-0 rounded-lg border bg-background/80 p-4">
         <div className="grid gap-3">
           <div className="grid gap-1">
-            <p className="label-eyebrow">Blockers principaux</p>
+            <p className="label-eyebrow">Points a traiter avant revue</p>
             <h4 className="text-lg font-semibold text-foreground">
-              {model.blockers.length === 0 ? "Aucun blocker principal" : "Points a traiter"}
+              {model.blockers.length === 0 ? "Aucun point prioritaire signale" : "Points a traiter"}
             </h4>
           </div>
           <CockpitBlockerList blockers={model.blockers} onPanelChange={onPanelChange} />
@@ -1496,9 +1495,12 @@ function OverviewWorkbenchPanel({
       </section>
 
         <dl className="grid min-w-0 gap-3 lg:grid-cols-3">
-          <CockpitFactCard label="Ce qui est pret" value={model.readySummary} />
+          <CockpitFactCard label="Progression du closing" value={model.readySummary} />
           <CockpitFactCard label="Preuves et revue" value={model.evidenceReview} />
-          <CockpitFactCard label="Previsualisations et export" value={model.previewExport} />
+          <CockpitFactCard
+            label="Disponibilite des previsualisations"
+            value={model.previewExport}
+          />
         </dl>
     </div>
   );
@@ -1581,8 +1583,8 @@ function ClosingCockpit({
         </div>
 
         <dl className="flex flex-wrap gap-2">
-          <CockpitMetaChip label="Statut">
-            <WorkflowBadge status={model.closingFolder.status} />
+          <CockpitMetaChip label="Statut du dossier">
+            <ClosingFolderStatusPill status={model.closingFolder.status} />
           </CockpitMetaChip>
           <CockpitMetaChip label="Reference dossier">
             <span>{formatOptionalText(model.closingFolder.externalRef)}</span>
@@ -1599,7 +1601,7 @@ function ClosingCockpit({
           <div className="grid gap-1">
             <p className="label-eyebrow">Progression dossier</p>
             <h4 className="text-lg font-semibold text-foreground">
-              Closing - Import - Mapping - Controles - Previsualisations - Preuves - Export
+              Dossier - Import - Mapping - Controles - Previsualisations - Preuves - Export
             </h4>
           </div>
           <ol
@@ -1640,10 +1642,10 @@ function ClosingCockpit({
           <div className="rounded-lg border bg-muted/20 p-3">
             <div className="grid gap-2">
               <div className="grid gap-1">
-                <p className="label-eyebrow">Blockers principaux</p>
+                <p className="label-eyebrow">Points a traiter avant revue</p>
                 <p className="text-sm font-semibold text-foreground">
                   {model.blockers.length === 0
-                    ? "Aucun blocker principal"
+                    ? "Aucun point prioritaire signale"
                     : `${model.blockers.length} point(s) a traiter`}
                 </p>
               </div>
@@ -1653,9 +1655,12 @@ function ClosingCockpit({
         </div>
 
         <dl className="grid gap-3 lg:grid-cols-3">
-          <CockpitFactCard label="Ce qui est pret" value={model.readySummary} />
+          <CockpitFactCard label="Progression du closing" value={model.readySummary} />
           <CockpitFactCard label="Preuves et revue" value={model.evidenceReview} />
-          <CockpitFactCard label="Previsualisations et export" value={model.previewExport} />
+          <CockpitFactCard
+            label="Disponibilite des previsualisations"
+            value={model.previewExport}
+          />
         </dl>
 
         <nav aria-label="Sections du dossier">
@@ -1712,7 +1717,7 @@ function CockpitBlockerList({
   if (blockers.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        Les read-models charges ne remontent pas de blocage prioritaire.
+        Aucun point prioritaire signale. Poursuivez la revue du dossier.
       </p>
     );
   }
@@ -1777,6 +1782,16 @@ function StatusPill({ label, tone }: { label: string; tone: CockpitTone }) {
   );
 }
 
+type ClosingFolderWorkflowStatus = ClosingFolderSummary["status"] | ClosingFolderListItem["status"];
+
+function ClosingFolderStatusPill({ status }: { status: ClosingFolderWorkflowStatus }) {
+  if (status === "ARCHIVED") {
+    return <StatusPill label="Dossier archive" tone="info" />;
+  }
+
+  return <StatusPill label="Dossier en preparation" tone="warning" />;
+}
+
 function createCockpitModel(state: ClosingReadyState): CockpitModel {
   const blockers = createCockpitBlockers(state).slice(0, 3);
   const status = createCockpitStatus(state, blockers);
@@ -1812,15 +1827,15 @@ function createCockpitStatus(
   if (blockers.some((blocker) => blocker.tone === "error")) {
     return {
       detail: "Un point bloquant doit etre traite avant de conclure la revue humaine.",
-      label: "Dossier bloque",
+      label: "Action requise avant revue",
       tone: "error"
     };
   }
 
   if (hasLoadingCockpitSurface(state)) {
     return {
-      detail: "Les read-models du dossier sont en cours de chargement.",
-      label: "Chargement du dossier",
+      detail: "Les informations du dossier sont en cours de chargement.",
+      label: "Chargement des informations du dossier",
       tone: "neutral"
     };
   }
@@ -1833,16 +1848,17 @@ function createCockpitStatus(
       state.financialStatementsStructuredState.financialStatements.statementState === "PREVIEW_READY"
     ) {
       return {
-        detail: "Les previsualisations sont disponibles pour revue humaine et restent non statutaires.",
-        label: "Previsualisations disponibles pour revue",
-        tone: "success"
+        detail:
+          "Les previsualisations sont disponibles pour revue humaine, mais le dossier reste en preparation et non statutaire.",
+        label: "Revue humaine a poursuivre",
+        tone: "info"
       };
     }
 
     return {
       detail: "Les controles sont prets ; verifier les preuves et previsualisations avant tout handoff.",
-      label: "Controles prets",
-      tone: "success"
+      label: "Revue a completer",
+      tone: "info"
     };
   }
 
@@ -1887,7 +1903,7 @@ function createCockpitNextAction(
   }
 
   return {
-    detail: "Aucun blocker principal n'est remonte ; consulter le pack et la previsualisation annexe minimale pour la revue humaine.",
+    detail: "Aucun point prioritaire signale. Poursuivez la revue du dossier.",
     href: "#export-review",
     label: "Voir export de revue"
   };
@@ -2080,8 +2096,8 @@ function createCockpitSteps(state: ClosingReadyState): CockpitStep[] {
         state.closingFolder.periodEndOn
       ),
       href: "#vue-closing",
-      label: "Closing",
-      stateLabel: state.closingFolder.status === "ARCHIVED" ? "archive" : "en cours",
+      label: "Dossier",
+      stateLabel: state.closingFolder.status === "ARCHIVED" ? "archive" : "en preparation",
       tone: state.closingFolder.status === "ARCHIVED" ? "info" : "warning"
     },
     createImportStep(state.controlsState),
@@ -2214,7 +2230,7 @@ function createControlsStep(controlsState: ControlsShellState): CockpitStep {
 
   if (controlsState.controls.readiness === "READY") {
     return {
-      detail: "Controles prets pour revue.",
+      detail: "Controles prets, revue a completer.",
       href: "#controls",
       label: "Controles",
       stateLabel: "pret",
@@ -2330,7 +2346,7 @@ function createEvidenceStep(workpapersState: WorkpapersShellState): CockpitStep 
 
   if (summaryCounts.totalCurrentAnchors === 0) {
     return {
-      detail: "Aucun anchor courant.",
+      detail: "Aucune rubrique courante a documenter.",
       href: "#evidence",
       label: "Preuves",
       stateLabel: "vide",
@@ -2522,8 +2538,8 @@ function ClosingFolderListCard({ closingFolder }: { closingFolder: ClosingFolder
             <p className="text-lg font-semibold text-foreground">{closingFolder.name}</p>
           </div>
           <dl className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <DetailItem label="Statut">
-              <WorkflowBadge status={closingFolder.status} />
+            <DetailItem label="Statut du dossier">
+              <ClosingFolderStatusPill status={closingFolder.status} />
             </DetailItem>
             <DetailItem label="Periode">
               <span>{formatClosingPeriod(closingFolder.periodStartOn, closingFolder.periodEndOn)}</span>
@@ -3918,6 +3934,26 @@ function canImportBalance(state: Extract<ClosingRouteState, { kind: "closing_rea
   }
 
   return hasCsvFileExtension(state.selectedImportFile.name);
+}
+
+function formatImportBalanceIntro(state: BalanceImportHistoryPanelState) {
+  if (state.kind === "ready") {
+    if (state.diff.previousVersion === null) {
+      return "Import courant et historique disponibles. La comparaison N/N-1 apparaitra apres un nouvel import.";
+    }
+
+    return "Import courant, historique et comparaison N/N-1 disponibles pour une revue rapide.";
+  }
+
+  if (state.kind === "empty") {
+    return "Aucun import balance historise. La comparaison N/N-1 apparaitra apres un nouvel import.";
+  }
+
+  if (state.kind === "diff_error" || state.kind === "diff_invalid_payload") {
+    return "Import courant et historique disponibles. La comparaison N/N-1 doit etre verifiee avant revue.";
+  }
+
+  return "Import courant et historique en cours de verification.";
 }
 
 function getSingleSelectedFile(files: FileList | null) {
