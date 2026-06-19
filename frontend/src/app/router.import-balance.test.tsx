@@ -553,6 +553,13 @@ function getRequestPaths(fetchMock: ReturnType<typeof vi.fn>) {
   return fetchMock.mock.calls.map((call) => String(call[0]));
 }
 
+function getRequestHeaders(fetchMock: ReturnType<typeof vi.fn>, index: number) {
+  return ((fetchMock.mock.calls[index]?.[1] as RequestInit | undefined)?.headers ?? {}) as Record<
+    string,
+    string
+  >;
+}
+
 function expectNoForbiddenImportCalls(
   paths: string[],
   expectedFinancialSummaryCalls = 1,
@@ -629,6 +636,11 @@ describe("router import balance", () => {
     await waitForClosingRouteReady();
 
     expect(await screen.findByText("Balance courante et historique")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Import courant, historique et comparaison N/N-1 disponibles pour une revue rapide."
+      )
+    ).toBeInTheDocument();
     expect(screen.getByText("Resume courant")).toBeInTheDocument();
     expect(screen.getByText("Versions importees")).toBeInTheDocument();
     expect(screen.getAllByRole("columnheader", { name: "Version" }).length).toBeGreaterThan(0);
@@ -641,6 +653,11 @@ describe("router import balance", () => {
     expect(screen.getByRole("columnheader", { name: "Apres debit/credit" })).toBeInTheDocument();
     expect(screen.getAllByText("v2").length).toBeGreaterThan(0);
     expect(screen.getAllByText("v1").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("CHF 200.00").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("CHF 100.00").length).toBeGreaterThan(0);
+    expect(screen.getByText("CHF 0.00 / CHF 100.00")).toBeInTheDocument();
+    expect(screen.getByText("CHF 50.00 / CHF 0.00")).toBeInTheDocument();
+    expect(screen.getByText("CHF 100.00 / CHF 0.00")).toBeInTheDocument();
     expect(screen.getByText("Ajoutees 1")).toBeInTheDocument();
     expect(screen.getByText("Supprimees 0")).toBeInTheDocument();
     expect(screen.getByText("Modifiees 1")).toBeInTheDocument();
@@ -649,6 +666,8 @@ describe("router import balance", () => {
     const paths = getRequestPaths(fetchMock);
     expect(paths.filter((path) => path.endsWith("/imports/balance/versions"))).toHaveLength(1);
     expect(paths.filter((path) => path.endsWith("/versions/2/diff-previous"))).toHaveLength(1);
+    expect(getRequestHeaders(fetchMock, 7)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
+    expect(getRequestHeaders(fetchMock, 11)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
     expectNoForbiddenImportCalls(paths);
   });
 
@@ -721,7 +740,25 @@ describe("router import balance", () => {
     renderClosingRoute();
     await waitForClosingRouteReady();
 
-    expect(await screen.findByText("aucune version precedente a comparer")).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "Import courant et historique disponibles. La comparaison N/N-1 apparaitra apres un nouvel import."
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "Import courant, historique et comparaison N/N-1 disponibles pour une revue rapide."
+      )
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "Import courant, historique et comparaison N/N-1 visibles pour une revue rapide."
+      )
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/comparaison N\/N-1 (visibles|disponibles)/i)).not.toBeInTheDocument();
+    expect(
+      await screen.findByText("La comparaison N/N-1 sera disponible apres un nouvel import.")
+    ).toBeInTheDocument();
     expectNoForbiddenImportCalls(getRequestPaths(fetchMock));
   });
 

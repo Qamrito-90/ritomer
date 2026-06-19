@@ -42,6 +42,24 @@ const localDateTimeFormatter = new Intl.DateTimeFormat("fr-CH", {
 const compactVersionsLimit = 5;
 const diffDetailsLimit = 3;
 
+function formatChfAmount(value: string) {
+  if (value.trim() === "") {
+    return value;
+  }
+
+  const amount = Number(value);
+
+  if (!Number.isFinite(amount)) {
+    return value;
+  }
+
+  const sign = amount < 0 ? "-" : "";
+  const [integerPart = "0", fractionPart = "00"] = Math.abs(amount).toFixed(2).split(".");
+  const groupedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+
+  return `CHF ${sign}${groupedInteger}.${fractionPart}`;
+}
+
 export function BalanceImportHistoryPanel({ state, uploadSlot }: BalanceImportHistoryPanelProps) {
   return (
     <section
@@ -55,7 +73,8 @@ export function BalanceImportHistoryPanel({ state, uploadSlot }: BalanceImportHi
             Balance courante et historique
           </h4>
           <p className="text-sm text-muted-foreground">
-            Versions importees, volumes et ecarts N/N-1 deja disponibles pour revue.
+            Versions importees et volumes. La comparaison N/N-1 apparait lorsqu'une version
+            precedente existe.
           </p>
         </div>
         <BalanceImportHistoryStateSlot state={state} uploadSlot={uploadSlot} />
@@ -149,7 +168,7 @@ function BalanceImportHistoryStateSlot({
       {uploadSlot}
       <VersionHistoryTable versions={versions} />
       {diff.previousVersion === null ? (
-        <StateMessage text="aucune version precedente a comparer" />
+        <StateMessage text="La comparaison N/N-1 sera disponible apres un nouvel import." />
       ) : (
         <DiffReviewTable diff={diff} />
       )}
@@ -233,10 +252,10 @@ function ImportVersionsTable({
                 {version.rowCount}
               </td>
               <td className="break-words px-3 py-2 text-right tabular-nums text-foreground">
-                {version.totalDebit}
+                {formatChfAmount(version.totalDebit)}
               </td>
               <td className="break-words px-3 py-2 text-right tabular-nums text-foreground">
-                {version.totalCredit}
+                {formatChfAmount(version.totalCredit)}
               </td>
               <td className="px-3 py-2 text-foreground">
                 {version.totalDebit === version.totalCredit ? "oui" : "a verifier"}
@@ -357,5 +376,5 @@ function createDiffRows(diff: BalanceImportDiff) {
 }
 
 function formatDebitCredit(line: BalanceImportDiffLine) {
-  return `${line.debit} / ${line.credit}`;
+  return `${formatChfAmount(line.debit)} / ${formatChfAmount(line.credit)}`;
 }
