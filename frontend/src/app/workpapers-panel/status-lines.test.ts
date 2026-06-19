@@ -188,7 +188,7 @@ describe("workpapers-panel status line helpers", () => {
           refreshFailed: true
         }
       )
-    ).toEqual(["decision de revue enregistree", "rafraichissement justifications impossible"]);
+    ).toEqual(["Revue de la justification enregistree", "rafraichissement justifications impossible"]);
     expect(
       getWorkpaperDecisionStatusLines(
         "BS.ASSET.CURRENT_SECTION",
@@ -204,7 +204,7 @@ describe("workpapers-panel status line helpers", () => {
         { decision: "REVIEWED", comment: "" },
         { kind: "conflict_other", anchorCode: "BS.ASSET.CURRENT_SECTION" }
       )
-    ).toEqual(["decision de revue bloquee par les controles de preuve"]);
+    ).toEqual(["Revue de la justification bloquee par les controles de preuve"]);
   });
 
   it("keeps API result mappers pure and scoped to local UI states", () => {

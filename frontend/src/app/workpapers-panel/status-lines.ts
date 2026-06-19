@@ -265,13 +265,13 @@ export function getWorkpaperDecisionStatusLines(
 ) {
   if (state.kind !== "idle" && state.anchorCode === anchorCode) {
     if (state.kind === "submitting") {
-      return ["Decision de revue en cours"];
+      return ["Revue de la justification en cours"];
     }
 
     if (state.kind === "success") {
       return state.refreshFailed
-        ? ["decision de revue enregistree", "rafraichissement justifications impossible"]
-        : ["decision de revue enregistree"];
+        ? ["Revue de la justification enregistree", "rafraichissement justifications impossible"]
+        : ["Revue de la justification enregistree"];
     }
 
     if (state.kind === "comment_required") {
@@ -283,7 +283,7 @@ export function getWorkpaperDecisionStatusLines(
       state.kind === "read_only_not_ready" ||
       state.kind === "unavailable_status"
     ) {
-      return ["decision de revue indisponible pour ce statut"];
+      return ["Revue de la justification indisponible pour ce statut"];
     }
 
     if (state.kind === "read_only_role" || state.kind === "bad_request" || state.kind === "forbidden") {
@@ -291,11 +291,11 @@ export function getWorkpaperDecisionStatusLines(
     }
 
     if (state.kind === "not_found") {
-      return ["justification introuvable pour decision"];
+      return ["justification introuvable pour revue"];
     }
 
     if (state.kind === "conflict_other" || state.kind === "mark_reviewed_blocked") {
-      return ["decision de revue bloquee par les controles de preuve"];
+      return ["Revue de la justification bloquee par les controles de preuve"];
     }
 
     return ["Revue indisponible pour cette rubrique."];
@@ -422,7 +422,7 @@ export function formatWorkpaperMutationState(
   }
 
   if (state.kind === "stale_read_only") {
-    return "Justification rattachée à une ancienne structure";
+    return "Ancienne rubrique en lecture seule : justification rattachée à une structure précédente.";
   }
 
   if (state.kind === "item_read_only") {

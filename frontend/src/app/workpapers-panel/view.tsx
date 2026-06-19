@@ -54,6 +54,55 @@ type FactItem = {
   value: ReactNode;
 };
 
+type WorkpaperRubricDisplay = {
+  breakdownLabel: string;
+  sourceLabel: string | null;
+  statementLabel: string;
+  title: string;
+};
+
+const workpaperRubricLabelsByCode: Record<string, string> = {
+  "BS.ASSET": "Actifs",
+  "BS.ASSET.CASH_AND_EQUIVALENTS": "Liquidités et équivalents de trésorerie",
+  "BS.ASSET.CURRENT_SECTION": "Actifs circulants",
+  "BS.ASSET.FINANCIAL_FIXED_ASSETS": "Immobilisations financières",
+  "BS.ASSET.INTANGIBLE_FIXED_ASSETS": "Immobilisations incorporelles",
+  "BS.ASSET.INVENTORIES_AND_WIP": "Stocks et travaux en cours",
+  "BS.ASSET.NON_CURRENT_SECTION": "Actifs immobilises",
+  "BS.ASSET.OTHER_RECEIVABLES": "Autres créances",
+  "BS.ASSET.PREPAIDS_AND_OTHER_CURRENT": "Actifs de régularisation et autres actifs circulants",
+  "BS.ASSET.TANGIBLE_FIXED_ASSETS": "Immobilisations corporelles",
+  "BS.ASSET.TRADE_RECEIVABLES": "Créances clients",
+  "BS.EQUITY": "Capitaux propres",
+  "BS.EQUITY.CAPITAL_RESERVES": "Reserves de capital",
+  "BS.EQUITY.CORE_SECTION": "Capitaux propres",
+  "BS.EQUITY.RETAINED_EARNINGS": "Résultats reportés",
+  "BS.EQUITY.SHARE_CAPITAL": "Capital social",
+  "BS.LIABILITY": "Passifs",
+  "BS.LIABILITY.ACCRUALS_AND_DEFERRED_INCOME": "Passifs de régularisation",
+  "BS.LIABILITY.CURRENT_SECTION": "Dettes à court terme",
+  "BS.LIABILITY.LONG_TERM_FINANCIAL_DEBT": "Dettes financières à long terme",
+  "BS.LIABILITY.NON_CURRENT_SECTION": "Dettes à long terme",
+  "BS.LIABILITY.OTHER_CURRENT_LIABILITIES": "Autres dettes à court terme",
+  "BS.LIABILITY.SHORT_TERM_FINANCIAL_DEBT": "Dettes financières à court terme",
+  "BS.LIABILITY.TRADE_PAYABLES": "Dettes fournisseurs",
+  "PL.EXPENSE": "Charges",
+  "PL.EXPENSE.COST_OF_MATERIALS_AND_SERVICES": "Charges de matériel et prestations",
+  "PL.EXPENSE.DEPRECIATION_AND_AMORTISATION": "Amortissements et dépréciations",
+  "PL.EXPENSE.FINANCIAL_EXPENSES": "Charges financières",
+  "PL.EXPENSE.FINANCIAL_SECTION": "Charges financières",
+  "PL.EXPENSE.INCOME_TAX": "Impôts sur le résultat",
+  "PL.EXPENSE.OPERATING_SECTION": "Charges d'exploitation",
+  "PL.EXPENSE.OTHER_OPERATING_EXPENSES": "Autres charges d'exploitation",
+  "PL.EXPENSE.PERSONNEL_EXPENSES": "Charges de personnel",
+  "PL.EXPENSE.TAX_SECTION": "Impôts sur le résultat",
+  "PL.REVENUE": "Produits",
+  "PL.REVENUE.OPERATING_REVENUE": "Produits d'exploitation",
+  "PL.REVENUE.OPERATING_SECTION": "Produits d'exploitation",
+  "PL.REVENUE.OTHER_REVENUE": "Autres produits",
+  "PL.REVENUE.OTHER_SECTION": "Autres produits"
+};
+
 export function WorkpapersSlot({
   documentDecisionDrafts,
   documentDecisionState,
@@ -246,7 +295,7 @@ function WorkpapersNominalBlocks({
       value: workpapers.summaryCounts.reviewedCount
     },
     {
-      label: "Pieces attachees",
+      label: "Pièces jointes",
       value: documentCounts.total
     },
     {
@@ -296,12 +345,12 @@ function WorkpapersNominalBlocks({
       ) : null}
 
       {workpapers.items.length === 0 && workpapers.staleWorkpapers.length === 0 ? (
-        <p className="text-sm font-medium text-foreground">aucune justification disponible</p>
+        <p className="text-sm font-medium text-foreground">Aucune rubrique à documenter</p>
       ) : null}
 
       <ControlsBlock id="justifications-preuves-current" title="Rubriques a documenter">
         {workpapers.items.length === 0 ? (
-          <p className="text-sm font-medium text-foreground">aucune justification courante</p>
+          <p className="text-sm font-medium text-foreground">Aucune rubrique à documenter</p>
         ) : (
           <ul className="grid gap-4">
             {workpapers.items.map((item) => {
@@ -393,9 +442,10 @@ function WorkpapersNominalBlocks({
       </ControlsBlock>
 
       {workpapers.staleWorkpapers.length > 0 ? (
-        <ControlsBlock title="Ancienne version">
+        <ControlsBlock title="Anciennes rubriques">
           <p className="text-sm font-medium text-foreground">
-            Justification rattachée à une ancienne structure
+            Ancienne rubrique en lecture seule : justification rattachée à une structure
+            précédente.
           </p>
           <ul className="grid gap-4">
             {workpapers.staleWorkpapers.map((item) => (
@@ -487,13 +537,14 @@ function WorkpaperCard({
   workpaperDecisionDrafts?: Record<string, WorkpaperDecisionDraft>;
   workpaperDecisionState?: WorkpaperDecisionState;
 }) {
+  const rubricDisplay = getWorkpaperRubricDisplay(item);
   const facts: FactItem[] = [
     {
       label: "Justification",
       value: formatWorkpaperStatus(item.workpaper?.status ?? null)
     },
     {
-      label: "Pieces attachees",
+      label: "Pièces jointes",
       value: item.documents.length
     },
     {
@@ -577,13 +628,29 @@ function WorkpaperCard({
 
   return (
     <article
-      aria-label={`justification ${item.anchorCode}`}
+      aria-label={formatWorkpaperCardAriaLabel(rubricDisplay, item)}
       className="rounded-lg border bg-background/80 p-4"
     >
       <div className="grid gap-4">
         <div className="grid gap-2">
           <p className="label-eyebrow">Rubrique</p>
-          <p className="text-base font-semibold text-foreground">{item.anchorLabel}</p>
+          <p className="text-base font-semibold text-foreground">{rubricDisplay.title}</p>
+          <div className="grid gap-1 text-xs text-muted-foreground">
+            <p>
+              Code canonique :{" "}
+              <span className="break-all font-mono">{item.anchorCode}</span>
+            </p>
+            {rubricDisplay.sourceLabel !== null &&
+            rubricDisplay.sourceLabel !== rubricDisplay.title ? (
+              <p>Libellé source : {rubricDisplay.sourceLabel}</p>
+            ) : null}
+            <p>
+              {rubricDisplay.statementLabel} - {rubricDisplay.breakdownLabel}
+            </p>
+            {!item.isCurrentStructure ? (
+              <p className="font-medium text-foreground">Ancienne rubrique - lecture seule</p>
+            ) : null}
+          </div>
         </div>
         <ReadonlyFactList facts={facts} />
 
@@ -598,7 +665,8 @@ function WorkpaperCard({
 
         {!item.isCurrentStructure ? (
           <p className="text-sm font-medium text-foreground">
-            Justification rattachée à une ancienne structure
+            Ancienne rubrique en lecture seule : justification rattachée à une structure
+            précédente.
           </p>
         ) : null}
 
@@ -641,7 +709,7 @@ function WorkpaperCard({
                   className="text-sm font-medium text-foreground"
                   htmlFor={`workpaper-status-${item.anchorCode}`}
                 >
-                  Statut de preparation
+                  Statut de justification
                 </label>
                 <select
                   className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground disabled:cursor-not-allowed disabled:bg-muted"
@@ -769,7 +837,7 @@ function WorkpaperCard({
         ) : null}
 
         {workpapersForWorkpaperDecision !== null ? (
-          <ControlsBlock title="Decision de revue justification">
+          <ControlsBlock title="Revue de la justification">
             {canRenderWorkpaperDecision && workpaperDecisionDraft !== null ? (
               <div
                 aria-busy={
@@ -783,7 +851,7 @@ function WorkpaperCard({
                     className="text-sm font-medium text-foreground"
                     htmlFor={`workpaper-decision-${item.anchorCode}`}
                   >
-                    Decision de revue justification
+                    Revue de la justification
                   </label>
                   <select
                     className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground disabled:cursor-not-allowed disabled:bg-muted"
@@ -797,7 +865,7 @@ function WorkpaperCard({
                     <option disabled={!canMarkWorkpaperReviewed(item)} value="REVIEWED">
                       Revue terminée
                     </option>
-                    <option value="CHANGES_REQUESTED">À corriger</option>
+                    <option value="CHANGES_REQUESTED">À reprendre</option>
                   </select>
                 </div>
 
@@ -846,7 +914,7 @@ function WorkpaperCard({
                     }}
                     type="button"
                   >
-                    Enregistrer la decision de revue
+                    Enregistrer la revue
                   </Button>
                   {workpaperDecisionDisabledReason !== null ? (
                     <p
@@ -863,7 +931,7 @@ function WorkpaperCard({
                 <p className="text-sm font-medium text-foreground">
                   {formatAvailabilityMessage(
                     workpaperDecisionAvailabilityMessage ??
-                      "decision de revue indisponible pour ce statut"
+                      "Revue de la justification indisponible pour ce statut"
                   )}
                 </p>
                 {workpaperDecisionStatusLines.length > 0 ? (
@@ -880,9 +948,11 @@ function WorkpaperCard({
           </ControlsBlock>
         ) : null}
 
-        <ControlsBlock title="Pieces / preuves attachees">
+        <ControlsBlock title="Pièces justificatives">
           {item.documents.length === 0 ? (
-            <p className="text-sm font-medium text-foreground">Aucune piece attachee</p>
+            <p className="text-sm font-medium text-foreground">
+              Aucune pièce justificative jointe
+            </p>
           ) : (
             <ul className="grid gap-3">
               {item.documents.map((document, index) => {
@@ -1085,7 +1155,7 @@ function WorkpaperCard({
             <ReadonlyFactList
               facts={[
                 {
-                  label: "Pieces total",
+                  label: "Pièces jointes",
                   value: item.documentVerificationSummary.documentsCount
                 },
                 {
@@ -1169,7 +1239,7 @@ function formatAvailabilityMessage(message: string) {
   }
 
   if (message === "decision de revue indisponible pour ce statut") {
-    return "revue de justification indisponible pour ce statut";
+    return "Revue de la justification indisponible pour ce statut";
   }
 
   return message;
@@ -1251,14 +1321,14 @@ function formatWorkpaperStatus(status: string | null | undefined) {
   }
 
   if (status === "CHANGES_REQUESTED") {
-    return "À corriger";
+    return "À reprendre";
   }
 
   if (status === "REVIEWED") {
     return "Revue terminée";
   }
 
-  return "À compléter";
+  return "À documenter";
 }
 
 function formatDocumentVerificationStatus(status: WorkpaperDocument["verificationStatus"]) {
@@ -1277,7 +1347,7 @@ function formatVerificationSummary(item: WorkpaperReadModelItem) {
   const summary = item.documentVerificationSummary;
 
   if (summary === null || summary.documentsCount === 0) {
-    return "Aucune piece attachee";
+    return "Aucune pièce justificative jointe";
   }
 
   if (summary.rejectedCount > 0) {
@@ -1288,7 +1358,42 @@ function formatVerificationSummary(item: WorkpaperReadModelItem) {
     return `${summary.unverifiedCount} a verifier`;
   }
 
-  return "Pieces verifiees";
+  return "Pièces vérifiées";
+}
+
+function getWorkpaperRubricDisplay(item: WorkpaperReadModelItem): WorkpaperRubricDisplay {
+  const sourceLabel = item.anchorLabel.trim().length > 0 ? item.anchorLabel.trim() : null;
+
+  return {
+    breakdownLabel: formatBreakdownType(item.breakdownType),
+    sourceLabel,
+    statementLabel: formatStatementKind(item.statementKind),
+    title: workpaperRubricLabelsByCode[item.anchorCode] ?? "Rubrique non reconnue"
+  };
+}
+
+function formatWorkpaperCardAriaLabel(
+  rubricDisplay: WorkpaperRubricDisplay,
+  item: WorkpaperReadModelItem
+) {
+  const readOnlySuffix = item.isCurrentStructure ? "" : ", ancienne rubrique en lecture seule";
+  return `${rubricDisplay.title}${readOnlySuffix}, code canonique ${item.anchorCode}`;
+}
+
+function formatStatementKind(statementKind: WorkpaperReadModelItem["statementKind"]) {
+  if (statementKind === "BALANCE_SHEET") {
+    return "Bilan";
+  }
+
+  return "Compte de résultat";
+}
+
+function formatBreakdownType(breakdownType: WorkpaperReadModelItem["breakdownType"]) {
+  if (breakdownType === "SECTION") {
+    return "Section";
+  }
+
+  return "Rubrique historique";
 }
 
 function formatDocumentDate(documentDate: WorkpaperDocument["documentDate"]) {
