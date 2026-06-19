@@ -1243,7 +1243,7 @@ function ClosingFolderRoute() {
             <div className="grid gap-6">
               <div className="grid gap-2">
                 <p className="label-eyebrow">Mapping manuel</p>
-                <h3 className="text-xl font-semibold text-foreground">Projection du dernier import</h3>
+                <h3 className="text-xl font-semibold text-foreground">Revue du mapping</h3>
               </div>
               <ManualMappingSlot
                 closingFolder={state.closingFolder}
@@ -2965,7 +2965,7 @@ function ManualMappingSlot({
 
   return (
     <div className="grid gap-4">
-      <ControlsBlock title="Resume mapping">
+      <ControlsBlock title="Résumé du mapping">
         <dl className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <MetricItem
             label="version d import"
@@ -2976,11 +2976,8 @@ function ManualMappingSlot({
             }
           />
           <MetricItem label="comptes total" value={String(state.projection.summary.total)} />
-          <MetricItem label="comptes mappes" value={String(state.projection.summary.mapped)} />
-          <MetricItem
-            label="comptes non mappes"
-            value={String(state.projection.summary.unmapped)}
-          />
+          <MetricItem label="comptes affectés" value={String(state.projection.summary.mapped)} />
+          <MetricItem label="à traiter" value={String(state.projection.summary.unmapped)} />
         </dl>
       </ControlsBlock>
 
@@ -2996,7 +2993,7 @@ function ManualMappingSlot({
       >
         <div className="grid min-w-0 gap-3">
           <h4 className="text-lg font-semibold text-foreground" id="manual-mapping-table-title">
-            Table mapping
+            Revue des affectations
           </h4>
           {state.projection.lines.length === 0 ? (
             <p className="text-sm font-medium text-foreground">aucune ligne a mapper</p>
@@ -3004,24 +3001,18 @@ function ManualMappingSlot({
             <div className="min-w-0 overflow-hidden rounded-lg border bg-background/80">
               <table className="w-full table-fixed text-sm">
                 <caption className="sr-only">Table de revue du mapping manuel</caption>
-                <thead className="hidden bg-muted/40 text-muted-foreground md:table-header-group">
+                <thead className="hidden bg-muted/40 text-muted-foreground 2xl:table-header-group">
                   <tr>
-                    <th className="w-[27%] px-3 py-2 text-left font-medium" scope="col">
-                      Compte source
+                    <th className="w-[24%] px-3 py-2 text-left font-medium" scope="col">
+                      Compte
                     </th>
-                    <th className="w-[9%] px-3 py-2 text-right font-medium" scope="col">
-                      Débit
+                    <th className="w-[18%] px-3 py-2 pr-6 text-right font-medium" scope="col">
+                      Montants importés
                     </th>
-                    <th className="w-[9%] px-3 py-2 text-right font-medium" scope="col">
-                      Crédit
+                    <th className="w-[44%] px-3 py-2 pl-6 text-left font-medium" scope="col">
+                      Affectation
                     </th>
-                    <th className="w-[20%] px-3 py-2 text-left font-medium" scope="col">
-                      Affectation actuelle
-                    </th>
-                    <th className="w-[23%] px-3 py-2 text-left font-medium" scope="col">
-                      Nouvelle affectation
-                    </th>
-                    <th className="w-[12%] px-3 py-2 text-left font-medium" scope="col">
+                    <th className="w-[14%] px-3 py-2 text-left font-medium" scope="col">
                       Action
                     </th>
                   </tr>
@@ -3045,139 +3036,173 @@ function ManualMappingSlot({
                     const selectedTargetDisplay =
                       selectedTargetCode === ""
                         ? null
-                        : { code: selectedTargetCode };
+                        : {
+                            code: selectedTargetCode,
+                            label: targetByCode.get(selectedTargetCode)?.label ?? selectedTargetCode
+                          };
+                    const targetChanged =
+                      currentMapping !== undefined &&
+                      selectedTargetCode !== "" &&
+                      currentMapping.targetCode !== selectedTargetCode;
+                    const showPrimaryAction = currentMapping === undefined || targetChanged;
+                    const primaryActionLabel =
+                      currentMapping === undefined ? "Affecter" : "Mettre à jour";
                     const saveDisabled =
                       controlsDisabled ||
                       selectedTargetCode === "" ||
                       currentMapping?.targetCode === selectedTargetCode;
-                    const deleteDisabled = controlsDisabled || currentMapping === undefined;
 
                     return (
                       <tr
                         aria-label={`ligne mapping ${line.accountCode}`}
-                        className="grid min-w-0 gap-3 p-3 md:table-row md:p-0"
+                        className="grid min-w-0 gap-4 p-3 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-start lg:gap-x-6 lg:gap-y-4 2xl:table-row 2xl:p-0"
                         key={line.accountCode}
                       >
-                        <td className="block min-w-0 md:table-cell md:px-3 md:py-3 md:align-top">
+                        <td className="block min-w-0 overflow-hidden lg:col-start-1 lg:row-start-1 2xl:col-auto 2xl:row-auto 2xl:table-cell 2xl:px-3 2xl:py-3 2xl:align-top">
                           <div className="grid min-w-0 gap-1">
-                            <span className="text-xs font-medium text-muted-foreground md:hidden">
-                              Compte source
+                            <span className="text-xs font-medium text-muted-foreground 2xl:hidden">
+                              Compte
                             </span>
-                            <span className="block max-w-full break-all text-sm font-semibold leading-5 tabular-nums text-foreground">
-                              {line.accountCode}
-                            </span>
-                            <span className="block max-w-full break-words text-sm leading-5 text-foreground">
+                            <span className="block max-w-full break-words text-sm font-semibold leading-5 text-foreground">
                               {line.accountLabel}
                             </span>
-                          </div>
-                        </td>
-                        <td className="block min-w-0 md:table-cell md:px-3 md:py-3 md:align-top">
-                          <div className="grid min-w-0 gap-1 md:text-right">
-                            <span className="text-xs font-medium text-muted-foreground md:hidden">
-                              Débit
-                            </span>
-                            <span className="block break-words text-right tabular-nums text-foreground">
-                              {line.debit}
+                            <span className="block max-w-full break-all text-xs font-medium leading-5 tabular-nums text-muted-foreground">
+                              {line.accountCode}
                             </span>
                           </div>
                         </td>
-                        <td className="block min-w-0 md:table-cell md:px-3 md:py-3 md:align-top">
-                          <div className="grid min-w-0 gap-1 md:text-right">
-                            <span className="text-xs font-medium text-muted-foreground md:hidden">
-                              Crédit
+                        <td className="block min-w-0 overflow-hidden lg:col-start-1 lg:row-start-2 2xl:col-auto 2xl:row-auto 2xl:table-cell 2xl:px-3 2xl:py-3 2xl:pr-6 2xl:align-top">
+                          <div className="grid min-w-0 gap-1 2xl:text-right">
+                            <span className="text-xs font-medium text-muted-foreground 2xl:hidden">
+                              Montants importés
                             </span>
-                            <span className="block break-words text-right tabular-nums text-foreground">
-                              {line.credit}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="block min-w-0 md:table-cell md:px-3 md:py-3 md:align-top">
-                          <div className="grid min-w-0 gap-1">
-                            <span className="text-xs font-medium text-muted-foreground md:hidden">
-                              Affectation actuelle
-                            </span>
-                            <span className="break-words font-medium text-foreground">
-                              {currentMappingDisplay.label}
-                            </span>
-                            {currentMappingDisplay.code === null ? null : (
-                              <span
-                                className="block max-w-full truncate text-xs font-mono text-muted-foreground"
-                                title={currentMappingDisplay.code}
-                              >
-                                {currentMappingDisplay.code}
+                            <div className="grid min-w-0 gap-1">
+                              <span className="flex min-w-0 items-baseline justify-between gap-3">
+                                <span className="text-xs text-muted-foreground">Débit</span>
+                                <span className="shrink-0 whitespace-nowrap text-right tabular-nums text-foreground">
+                                  {formatFinancialAmount(line.debit)}
+                                </span>
                               </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="block min-w-0 md:table-cell md:px-3 md:py-3 md:align-top">
-                          <div className="grid min-w-0 gap-2">
-                            <span className="text-xs font-medium text-muted-foreground md:hidden">
-                              Nouvelle affectation
-                            </span>
-                            <label
-                              className="sr-only"
-                              htmlFor={`mapping-target-${line.accountCode}`}
-                            >
-                              Cible
-                            </label>
-                            <select
-                              className="h-10 w-full min-w-0 max-w-full truncate rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground disabled:cursor-not-allowed disabled:bg-muted"
-                              disabled={controlsDisabled}
-                              id={`mapping-target-${line.accountCode}`}
-                              onChange={(event) => {
-                                onTargetChange(line.accountCode, event.currentTarget.value);
-                              }}
-                              value={selectedTargetCode}
-                            >
-                              <option value="">Choisir une rubrique</option>
-                              {selectableTargets.map((target) => (
-                                <option key={target.code} value={target.code}>
-                                  {target.label}
-                                </option>
-                              ))}
-                            </select>
-                            {selectedTargetDisplay === null ? null : (
-                              <span
-                                className="block max-w-full truncate text-xs font-mono text-muted-foreground"
-                                title={selectedTargetDisplay.code}
-                              >
-                                {selectedTargetDisplay.code}
+                              <span className="flex min-w-0 items-baseline justify-between gap-3">
+                                <span className="text-xs text-muted-foreground">Crédit</span>
+                                <span className="shrink-0 whitespace-nowrap text-right tabular-nums text-foreground">
+                                  {formatFinancialAmount(line.credit)}
+                                </span>
                               </span>
-                            )}
+                            </div>
                           </div>
                         </td>
-                        <td className="block min-w-0 md:table-cell md:px-3 md:py-3 md:align-top">
+                        <td className="block min-w-0 overflow-hidden lg:col-start-2 lg:row-span-2 lg:row-start-1 2xl:col-auto 2xl:row-auto 2xl:row-span-1 2xl:table-cell 2xl:px-3 2xl:py-3 2xl:pl-6 2xl:align-top">
+                          <div
+                            aria-label={`affectation mapping ${line.accountCode}`}
+                            className="grid min-w-0 gap-3"
+                          >
+                            <span className="text-xs font-medium text-muted-foreground 2xl:hidden">
+                              Affectation
+                            </span>
+                            <div className="grid min-w-0 gap-1">
+                              <span className="text-xs font-medium text-muted-foreground">
+                                Affectation actuelle
+                              </span>
+                              <span className="break-words font-medium text-foreground">
+                                {currentMappingDisplay.label}
+                              </span>
+                              {currentMappingDisplay.code === null ? null : (
+                                <span
+                                  className="block max-w-full truncate text-xs font-mono text-muted-foreground"
+                                  title={currentMappingDisplay.code}
+                                >
+                                  {currentMappingDisplay.code}
+                                </span>
+                              )}
+                            </div>
+                            <div className="grid min-w-0 gap-2">
+                              <span className="text-xs font-medium text-muted-foreground">
+                                Nouvelle affectation
+                              </span>
+                              <label
+                                className="sr-only"
+                                htmlFor={`mapping-target-${line.accountCode}`}
+                              >
+                                Cible
+                              </label>
+                              <select
+                                className="h-10 w-full min-w-0 max-w-full truncate rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground disabled:cursor-not-allowed disabled:bg-muted"
+                                disabled={controlsDisabled}
+                                id={`mapping-target-${line.accountCode}`}
+                                onChange={(event) => {
+                                  onTargetChange(line.accountCode, event.currentTarget.value);
+                                }}
+                                value={selectedTargetCode}
+                              >
+                                <option value="">Choisir une rubrique</option>
+                                {selectableTargets.map((target) => (
+                                  <option key={target.code} value={target.code}>
+                                    {target.label}
+                                  </option>
+                                ))}
+                              </select>
+                              {selectedTargetDisplay === null ? (
+                                <span className="break-words text-sm font-medium text-muted-foreground">
+                                  Aucune nouvelle cible
+                                </span>
+                              ) : (
+                                <span className="grid min-w-0 gap-1">
+                                  <span className="break-words font-medium text-foreground">
+                                    {selectedTargetDisplay.label}
+                                  </span>
+                                  <span
+                                    className="block max-w-full truncate text-xs font-mono text-muted-foreground"
+                                    title={selectedTargetDisplay.code}
+                                  >
+                                    {selectedTargetDisplay.code}
+                                  </span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="block min-w-0 overflow-hidden lg:col-start-2 lg:row-start-3 2xl:col-auto 2xl:row-auto 2xl:table-cell 2xl:px-3 2xl:py-3 2xl:align-top">
                           <div className="grid min-w-0 gap-2">
-                            <span className="text-xs font-medium text-muted-foreground md:hidden">
+                            <span className="text-xs font-medium text-muted-foreground 2xl:hidden">
                               Action
                             </span>
-                            <Button
-                              aria-label="Enregistrer le mapping"
-                              className="w-full"
-                              disabled={saveDisabled}
-                              onClick={() => {
-                                void onSave(line.accountCode);
-                              }}
-                              size="sm"
-                              type="button"
-                              variant="secondary"
-                            >
-                              Enregistrer
-                            </Button>
+                            {showPrimaryAction ? (
+                              <Button
+                                className="w-full"
+                                disabled={saveDisabled}
+                                onClick={() => {
+                                  void onSave(line.accountCode);
+                                }}
+                                size="sm"
+                                type="button"
+                                variant="secondary"
+                              >
+                                {primaryActionLabel}
+                              </Button>
+                            ) : (
+                              <span
+                                className="rounded-md border border-dashed bg-muted/20 px-3 py-2 text-center text-xs font-medium text-muted-foreground"
+                                role="status"
+                              >
+                                Aucun changement
+                              </span>
+                            )}
 
-                            <Button
-                              aria-label="Supprimer le mapping"
-                              className="w-full"
-                              disabled={deleteDisabled}
-                              onClick={() => {
-                                void onDelete(line.accountCode);
-                              }}
-                              size="sm"
-                              type="button"
-                              variant="ghost"
-                            >
-                              Supprimer
-                            </Button>
+                            {currentMapping === undefined ? null : (
+                              <Button
+                                className="w-full text-muted-foreground"
+                                disabled={controlsDisabled}
+                                onClick={() => {
+                                  void onDelete(line.accountCode);
+                                }}
+                                size="sm"
+                                type="button"
+                                variant="ghost"
+                              >
+                                Retirer l'affectation
+                              </Button>
+                            )}
                           </div>
                         </td>
                       </tr>

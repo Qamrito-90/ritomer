@@ -1157,7 +1157,7 @@ describe("router", () => {
       expect(screen.queryByRole("tabpanel", { name: "Import" })).not.toBeInTheDocument();
       expect(screen.queryByRole("tabpanel", { name: "Mapping" })).not.toBeInTheDocument();
       expect(screen.queryByRole("heading", { name: "Revue des imports balance" })).not.toBeInTheDocument();
-      expect(screen.queryByRole("heading", { name: "Projection du dernier import" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Revue du mapping" })).not.toBeInTheDocument();
 
       expect(within(cockpit).getByText("Tenant actif : Tenant Alpha - Periode :")).toBeInTheDocument();
       expect(within(cockpit).getByText("Action requise avant revue")).toBeInTheDocument();
@@ -1183,8 +1183,8 @@ describe("router", () => {
         ...DEFAULT_MANUAL_MAPPING,
         summary: {
           total: 1,
-          mapped: 0,
-          unmapped: 1
+          mapped: 1,
+          unmapped: 0
         },
         lines: [
           {
@@ -1194,7 +1194,12 @@ describe("router", () => {
             credit: "0"
           }
         ],
-        mappings: [],
+        mappings: [
+          {
+            accountCode: longAccountCode,
+            targetCode: "PL.REVENUE.EXTRA.LONG.TARGET.CODE"
+          }
+        ],
         targets: [
           {
             code: "PL.REVENUE.EXTRA.LONG.TARGET.CODE",
@@ -1220,25 +1225,102 @@ describe("router", () => {
         name: "Table de revue du mapping manuel"
       });
       const mappingLine = await within(mappingPanel).findByLabelText(`ligne mapping ${longAccountCode}`);
+      const mappingHead = mappingTable.querySelector("thead");
+
+      if (!(mappingHead instanceof HTMLElement)) {
+        throw new Error("mapping table head not found");
+      }
 
       expect(mappingPanel).toHaveClass("overflow-x-hidden");
       expect(mappingTable.parentElement).toHaveClass("min-w-0", "overflow-hidden");
+      expect(mappingHead).toHaveClass("hidden", "2xl:table-header-group");
+      expect(mappingHead).not.toHaveClass("md:table-header-group");
       expect(mappingTable.querySelector("article")).toBeNull();
-      expect(mappingLine).toHaveClass("min-w-0");
-      expect(within(mappingLine).getByText(longAccountCode)).toHaveClass("break-all");
+      expect(mappingLine).toHaveClass("grid", "min-w-0", "gap-4", "lg:items-start", "2xl:table-row");
+      expect(mappingLine.className).toContain(
+        "lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]"
+      );
+      expect(mappingLine).not.toHaveClass("md:table-row");
       expect(within(mappingLine).getByText(longAccountLabel)).toHaveClass("break-words");
-      expect(within(mappingLine).getByLabelText("Cible")).toHaveClass(
+      expect(within(mappingLine).getByText(longAccountCode)).toHaveClass("break-all");
+      const amountCell = within(mappingLine).getByText("Montants importés").closest("td");
+
+      if (!(amountCell instanceof HTMLElement)) {
+        throw new Error("mapping amount cell not found");
+      }
+
+      expect(amountCell).toHaveClass(
+        "lg:col-start-1",
+        "lg:row-start-2",
+        "2xl:table-cell",
+        "2xl:pr-6"
+      );
+      expect(amountCell).not.toHaveClass("md:table-cell");
+      expect(within(mappingLine).getByText("CHF 1 234 567 890.00")).toHaveClass(
+        "text-right",
+        "tabular-nums",
+        "whitespace-nowrap"
+      );
+      expect(within(mappingTable).getByRole("columnheader", { name: "Affectation" })).toHaveClass(
+        "w-[44%]",
+        "pl-6"
+      );
+      const targetSelect = within(mappingLine).getByLabelText("Cible");
+      const affectationCell = targetSelect.closest("td");
+
+      if (!(affectationCell instanceof HTMLElement)) {
+        throw new Error("mapping affectation cell not found");
+      }
+
+      expect(affectationCell).toHaveClass(
+        "lg:col-start-2",
+        "lg:row-start-1",
+        "lg:row-span-2",
+        "2xl:table-cell",
+        "2xl:pl-6"
+      );
+      expect(affectationCell).not.toHaveClass("md:table-cell");
+      expect(targetSelect).toHaveClass(
         "w-full",
         "min-w-0",
         "max-w-full",
         "truncate"
       );
-      expect(within(mappingLine).getByRole("button", { name: "Enregistrer le mapping" })).toHaveClass(
+      expect(targetSelect).toHaveValue(
+        "PL.REVENUE.EXTRA.LONG.TARGET.CODE"
+      );
+      const selectedLongTargetCode = within(mappingLine).getAllByTitle(
+        "PL.REVENUE.EXTRA.LONG.TARGET.CODE"
+      )[0];
+      const selectedLongTargetDisplay = selectedLongTargetCode?.parentElement;
+
+      if (!(selectedLongTargetDisplay instanceof HTMLElement)) {
+        throw new Error("selected long target display not found");
+      }
+
+      expect(within(selectedLongTargetDisplay).getByText("Produit avec libelle long")).toHaveClass(
+        "break-words",
+        "font-medium"
+      );
+      expect(selectedLongTargetCode).toHaveClass(
+        "max-w-full",
+        "truncate"
+      );
+      expect(within(mappingLine).getByText("Aucun changement")).toHaveClass(
+        "text-center"
+      );
+      const actionCell = within(mappingLine).getByText("Action").closest("td");
+
+      if (!(actionCell instanceof HTMLElement)) {
+        throw new Error("mapping action cell not found");
+      }
+
+      expect(actionCell).toHaveClass("lg:col-start-2", "lg:row-start-3", "2xl:table-cell");
+      expect(actionCell).not.toHaveClass("md:table-cell");
+      expect(within(mappingLine).getByRole("button", { name: "Retirer l'affectation" })).toHaveClass(
         "w-full"
       );
-      expect(within(mappingLine).getByRole("button", { name: "Supprimer le mapping" })).toHaveClass(
-        "w-full"
-      );
+      expect(within(mappingLine).queryByRole("button", { name: "Affecter" })).not.toBeInTheDocument();
       expect(mappingPanel).not.toHaveTextContent("/api/");
       expect(mappingPanel).not.toHaveTextContent(CLOSING_FOLDER.id);
       expect(fetchMock).toHaveBeenCalledTimes(12);
