@@ -14,11 +14,15 @@ Elle ne livre aucun runtime, aucun provider, aucun backend, aucun frontend, aucu
 
 `042a1` ajoute uniquement un gate pack draft de gouvernance/readiness avant tout code provider `042b`. Les records restent `DRAFT` ou `PENDING_EVIDENCE`, sans signature humaine, sans approbation et sans date de gate inventee.
 
+`042a2a1` ajoute uniquement un semantic readiness pack draft avant tout contrat `mapping-suggestion-v2`. Les records restent `DRAFT` ou `PENDING_EVIDENCE`, sans signature humaine, sans approbation, sans contrat, sans provider, sans prompt runtime, sans golden set et sans validator.
+
 ## Surface
 
 DOCS_GIT / AI_RUNTIME_SPEC.
 
 Surface `042a1` : DOCS_GIT / AI_GOVERNANCE.
+
+Surface `042a2a1` : DOCS_GIT / AI_GOVERNANCE / FIDUCIARY_GOVERNANCE.
 
 ## Risk
 
@@ -31,6 +35,8 @@ Risque lie a l'ouverture d'une future capacite provider reelle, meme strictement
 - `docs/product/documentation-governance.md`
 - `docs/present/README.md`
 - `docs/present/ai-cadrage-v1.md`
+- `docs/present/architecture-cadrage-v1.md`
+- `docs/present/ux-cadrage-v1.md`
 - `docs/adr/0001-monolithe-modulaire.md`
 - `docs/adr/0002-rest-first-graphql-later.md`
 - `docs/adr/0003-ai-gateway-evidence-first.md`
@@ -43,13 +49,23 @@ Risque lie a l'ouverture d'une future capacite provider reelle, meme strictement
 - `contracts/ai/mapping-suggestion.schema.json`
 - `contracts/openapi/mapping-suggestions-api.yaml`
 - `contracts/db/mapping-suggestion-decision-v1.md`
+- `contracts/reference/manual-mapping-targets-v2.yaml`
 - `evals/mapping/README.md`
 - `runbooks/ai-incident-response.md`
 - `policies/ai-provider-readiness.md`
 - `policies/ai-provider-readiness-record-030d1.md`
 - `policies/dependency-security-review-030d1.md`
+- `policies/ai-runtime-gates-record-042a.md`
+- `policies/ai-provider-readiness-record-042a.md`
+- `policies/dependency-security-review-042a.md`
+- `policies/ai-payload-whitelist-mapping-runtime-042a.md`
+- `policies/ai-mapping-semantic-readiness-record-042a2.md`
+- `policies/ai-mapping-annotation-guide-042a2.md`
+- `policies/ai-mapping-taxonomy-pilot-record-042a2.md`
+- `policies/ai-mapping-business-evaluation-protocol-042a2.md`
 - `prompts/guardrails/system-fr.md`
 - `knowledge/retrieval-policy.md`
+- `docs/ui/ui-foundations-v1.md`
 - `README.md`
 - `docs/vision/ai-native.md`
 - `docs/vision/architecture.md`
@@ -81,6 +97,15 @@ Contract readiness `042a1` :
 - `mapping-suggestion-v1` ne represente pas explicitement `uncertainty`.
 - `042b` est BLOQUE jusqu'a decision contractuelle explicite : ajouter ces semantics a `mapping-suggestion-v1`, creer une nouvelle version de schema, ou les garder hors output/read-model provider.
 - Aucun contrat n'est modifie par `042a1`.
+
+Semantic readiness `042a2a1` :
+
+- `policies/ai-mapping-semantic-readiness-record-042a2.md` definit les etats `SUGGESTION`, `ABSTENTION` et degradation technique avant contrat.
+- `policies/ai-mapping-annotation-guide-042a2.md` definit l'annotation, la double annotation et l'adjudication.
+- `policies/ai-mapping-taxonomy-pilot-record-042a2.md` definit les exigences de taxonomie pilote sans creer de taxonomie.
+- `policies/ai-mapping-business-evaluation-protocol-042a2.md` definit les objectifs d'evaluation metier sans creer de golden set ni validator.
+- `042a2a1` ne modifie aucun contrat et ne redacte pas le contrat `mapping-suggestion-v2`.
+- `042b` reste BLOQUE tant que la semantic readiness, la decision contractuelle, le golden set, le validator, les gates provider et les signatures humaines requises ne sont pas termines.
 
 Runbooks impactes par cette mission documentaire :
 
@@ -160,12 +185,23 @@ Aucune spec `043` ne doit etre creee par `042a`.
 
 `042a1` ne choisit pas de provider, ne choisit pas de modele, ne cree pas de prompt runtime, ne modifie pas le golden set, ne cree pas de validator et ne definit pas de metriques runtime. Provider, modele, region, retention, training/non-training, cout, latence et quotas restent `NON_DÉTERMINÉ` tant qu'une preuve externe et une signature humaine ne les remplacent pas.
 
-`042a2` devra traiter, dans une mission separee, les livrables qui ne sont pas crees par `042a1` :
+`042a2a1` est le semantic readiness pack draft courant. Il livre uniquement :
+
+- `policies/ai-mapping-semantic-readiness-record-042a2.md` ;
+- `policies/ai-mapping-annotation-guide-042a2.md` ;
+- `policies/ai-mapping-taxonomy-pilot-record-042a2.md` ;
+- `policies/ai-mapping-business-evaluation-protocol-042a2.md` ;
+- clarification de cette spec et de `docs/product/v1-plan.md`.
+
+`042a2a1` ne redige pas le contrat `mapping-suggestion-v2`, ne cree pas le prompt runtime, ne cree pas le golden set, ne cree pas le validator, ne choisit pas de provider, ne choisit pas de modele et n'active aucun runtime.
+
+`042a2` devra encore traiter, dans une ou plusieurs missions separees, les livrables qui ne sont pas crees par `042a1` ni `042a2a1` :
 
 - definition exacte du provider logique candidat, du modele exact, du prompt versionne et du schema hash ;
 - schema de sortie runtime strict, compatible ou explicitement aligne avec `mapping-suggestion-v1` ;
 - prompt file versionne pour le mapping runtime, sans prompt libre non trace ;
 - golden set synthetique actualise pour le dossier demo ;
+- validator local de la future sortie contractuelle ;
 - criteres d'activation/arret et seuils de cout/latence figes avant runtime.
 
 ### 042b - Adapter provider backend derriere gateway
@@ -329,6 +365,25 @@ Si le contrat public doit evoluer pour exposer `uncertainty` ou `abstention`, l'
 
 Readiness `042a1` : le check lecture seule conclut que le contrat actuel ne porte pas explicitement `abstention` et `uncertainty`. `042b` reste donc BLOQUE tant qu'une decision contractuelle explicite n'est pas prise et documentee avant code consommateur.
 
+Semantic readiness `042a2a1` : avant contrat `mapping-suggestion-v2`, les semantics draft imposent :
+
+- `SUGGESTION` visible comme `Proposition à vérifier` ;
+- degradation technique visible comme `Proposition momentanément indisponible` ;
+- `ABSTENTION` visible avec le titre `Aucune proposition` et un message deterministe par `reasonCode` ;
+- le mot `affectation` dans l'interface, `mapping` restant interne ;
+- aucune cible et aucune confiance sur `ABSTENTION` ;
+- aucun texte libre provider visible ;
+- aucune confiance numerique visible ;
+- actions `SUGGESTION` : `Valider la proposition`, `Choisir une autre cible`, `Rejeter` ;
+- aucun `Rejeter` sur `ABSTENTION` ;
+- reason codes autorises uniquement : `OUT_OF_SCOPE`, `CONFLICTING_SIGNALS`, `INSUFFICIENT_EVIDENCE`, `TAXONOMY_GAP`, `AMBIGUOUS_TARGET` ;
+- `POLICY_BLOCK` n'est pas une abstention metier : requete non synthetique, cross-tenant, hors allowlist, hors provenance ou gate invalide implique zero appel provider ;
+- `OUT_OF_SCOPE` est reserve a un compte d'une requete autorisee mais hors perimetre metier de l'assistance IA ;
+- `TAXONOMY_GAP` est reserve a un concept metier valide absent de la taxonomie pilote gelee ;
+- une cible provider inconnue, depreciee ou non selectionnable est `INVALID_MODEL_OUTPUT` ou degradation technique, jamais `TAXONOMY_GAP`.
+
+Ces semantics ne sont pas encore un contrat. Elles bloquent le contrat et le runtime tant qu'elles ne sont pas approuvees et encodees dans une version contractuelle explicite.
+
 ## 6. Feature flags et mode no-provider
 
 Flags cibles :
@@ -361,8 +416,10 @@ Il doit couvrir au minimum :
 - immobilisation ou actif non courant si present dans la taxonomie selectable ;
 - compte de clearing ambigu ;
 - compte avec evidence insuffisante ;
-- cible non selectable ou deprecated ;
-- cas cross-tenant interdit ;
+- compte autorise mais hors perimetre metier de l'assistance IA, attendu en `ABSTENTION / OUT_OF_SCOPE` ;
+- concept metier valide absent de la taxonomie pilote gelee, attendu en `ABSTENTION / TAXONOMY_GAP` ;
+- sortie provider avec cible inconnue, non selectable ou deprecated, attendue en `INVALID_MODEL_OUTPUT` ou degradation technique ;
+- cas `POLICY_BLOCK` distincts : requete non synthetique, cross-tenant, hors allowlist, hors provenance ou gate invalide, avec zero appel provider ;
 - libelle contenant email, telephone, IBAN, URL ou reference longue a sanitiser ;
 - cas deja mappe ou non eligible ;
 - cas ou l'abstention est attendue.
@@ -372,6 +429,9 @@ Le golden set doit verifier :
 - JSON strict et schema valide ;
 - exact match cible sur cas clairs ;
 - abstention sur cas ambigus/insuffisants ;
+- distinction explicite entre `OUT_OF_SCOPE`, `POLICY_BLOCK`, `TAXONOMY_GAP` et `INVALID_MODEL_OUTPUT` ;
+- zero appel provider sur `POLICY_BLOCK` ;
+- invalid output, et non abstention metier, quand une cible provider est inconnue, non selectable ou deprecated ;
 - evidence non vide et non sensible ;
 - absence de secret, token, credential, cookie, DSN, `.env`, storage key, signed URL ;
 - absence de donnees client reelles ;
@@ -394,6 +454,9 @@ Les metriques suivantes sont obligatoires pour l'activation pilote.
 ### Taux d'abstention
 
 - 100 % d'abstention sur les cas du golden set marques ambigus ou insuffisamment prouves.
+- 100 % de routage `OUT_OF_SCOPE` sur les comptes de requetes autorisees mais hors perimetre metier de l'assistance IA.
+- 100 % de routage `TAXONOMY_GAP` sur les concepts metier valides absents de la taxonomie pilote gelee.
+- Les `POLICY_BLOCK` et `INVALID_MODEL_OUTPUT` sont exclus du taux d'abstention metier et mesures separement.
 - Taux d'abstention sur cas clairs mesure et reporte ; seuil pilote indicatif : maximum 20 %.
 - Toute absence d'abstention sur un cas de donnees insuffisantes bloque l'activation.
 
@@ -461,13 +524,13 @@ L'arret se fait par kill switch feature flag et retour immediat au mapping manue
 
 - flag off : zero appel adapter/provider ;
 - provider runtime off : no-provider conserve ;
-- synthetic-demo-only : refus hors dossier demo synthetique ;
+- synthetic-demo-only : `POLICY_BLOCK` hors requete synthetique autorisee et zero appel provider ;
 - minimisation : aucun tenant/client/actor id, aucun montant brut, aucun prompt/provider/secret dans la request ;
 - sanitizer : emails, URLs, IBAN, telephones, UUIDs, references longues retires ;
 - prompt builder : versions et schema hash pinnes, aucun champ hors whitelist ;
 - validator : JSON strict, `additionalProperties=false`, enums stricts, `requiresHumanReview=true` ;
 - validator : rejet markdown/prose/code fence/texte libre ;
-- validator : rejet evidence vide, cible non selectable, confidence hors borne, versions vides ;
+- validator : rejet evidence vide, cible inconnue, cible non selectable, cible deprecated, confidence hors borne, versions vides, avec `INVALID_MODEL_OUTPUT` ou degradation technique ;
 - timeout/unavailable : etats `TIMEOUT` et `UNAVAILABLE` fail-closed ;
 - metrics/logs : agregats seulement, aucun payload/prompt/output.
 
@@ -608,7 +671,8 @@ Avant tout code provider reel, les gates suivants doivent etre signes et merges 
 - dependency/security review signee, ou `N/A` explicitement justifie si aucune nouvelle dependance n'est introduite ;
 - payload whitelist synthetique signee ;
 - runbook incident pret ;
-- golden set synthetique vert.
+- semantic readiness signee ;
+- golden set synthetique vert ;
 - decision contractuelle explicite sur `abstention` et `uncertainty`.
 
 Aucun code `042b` ne peut commencer avant le merge des records de gates `042a` pre-code signes. Aucune spec `043` ne doit etre creee.
@@ -621,6 +685,15 @@ Records drafts `042a1` :
 - `policies/ai-payload-whitelist-mapping-runtime-042a.md`.
 
 Ces records ne portent aucune signature et ne valent pas autorisation de code provider.
+
+Records drafts `042a2a1` :
+
+- `policies/ai-mapping-semantic-readiness-record-042a2.md` ;
+- `policies/ai-mapping-annotation-guide-042a2.md` ;
+- `policies/ai-mapping-taxonomy-pilot-record-042a2.md` ;
+- `policies/ai-mapping-business-evaluation-protocol-042a2.md`.
+
+Ces records ne portent aucune signature, ne valent pas autorisation de contrat `mapping-suggestion-v2` et ne valent pas autorisation de code provider.
 
 ### Gate avant activation reseau provider
 
