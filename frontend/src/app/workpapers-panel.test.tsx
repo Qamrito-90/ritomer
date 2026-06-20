@@ -225,7 +225,11 @@ function renderPanel({
 }
 
 function getWorkpaperCard(anchorCode: string) {
-  return screen.getByLabelText(`justification ${anchorCode}`);
+  return screen.getByLabelText(new RegExp(`code canonique ${escapeRegExp(anchorCode)}`));
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 describe("workpapers panel", () => {
@@ -247,6 +251,98 @@ describe("workpapers panel", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it("renders business rubric labels before canonical codes and uses a safe unknown-code fallback", () => {
+    renderPanel({
+      initialState: createReadyState(
+        createWorkpapersModel({
+          items: [
+            createCurrentItem({
+              anchorCode: "BS.ASSET.CURRENT_SECTION",
+              anchorLabel: "Current assets",
+              workpaper: createWorkpaperDetails({
+                status: "READY_FOR_REVIEW",
+                noteText: "Ready note"
+              }),
+              documents: [
+                createDocument({
+                  verificationStatus: "REJECTED"
+                })
+              ]
+            }),
+            createCurrentItem({
+              anchorCode: "PL.REVENUE.OPERATING_SECTION",
+              anchorLabel: "Operating revenue",
+              statementKind: "INCOME_STATEMENT",
+              workpaper: null
+            }),
+            createCurrentItem({
+              anchorCode: "BS.ASSET.UNKNOWN",
+              anchorLabel: "Do not translate me",
+              workpaper: null
+            })
+          ]
+        })
+      )
+    });
+
+    const currentAssetsCard = getWorkpaperCard("BS.ASSET.CURRENT_SECTION");
+    expect(currentAssetsCard).toHaveAccessibleName(
+      "Actifs circulants, code canonique BS.ASSET.CURRENT_SECTION"
+    );
+    expect(currentAssetsCard).toHaveTextContent("Actifs circulants");
+    expect(currentAssetsCard).toHaveTextContent("Code canonique : BS.ASSET.CURRENT_SECTION");
+    expect(currentAssetsCard).toHaveTextContent("Libellé source : Current assets");
+    expect(currentAssetsCard).toHaveTextContent("Prête pour revue");
+    expect(currentAssetsCard).toHaveTextContent("Rejetée");
+    expect(currentAssetsCard).not.toHaveTextContent("READY_FOR_REVIEW");
+    expect(currentAssetsCard).not.toHaveTextContent("BALANCE_SHEET");
+    expect(currentAssetsCard).not.toHaveTextContent("LEGACY_BUCKET_FALLBACK");
+
+    const operatingRevenueCard = getWorkpaperCard("PL.REVENUE.OPERATING_SECTION");
+    expect(operatingRevenueCard).toHaveTextContent("Produits d'exploitation");
+    expect(operatingRevenueCard).toHaveTextContent(
+      "Code canonique : PL.REVENUE.OPERATING_SECTION"
+    );
+
+    const unknownCard = getWorkpaperCard("BS.ASSET.UNKNOWN");
+    expect(unknownCard).toHaveAccessibleName(
+      "Rubrique non reconnue, code canonique BS.ASSET.UNKNOWN"
+    );
+    expect(unknownCard).toHaveTextContent("Rubrique non reconnue");
+    expect(unknownCard).toHaveTextContent("Libellé source : Do not translate me");
+    expect(unknownCard).toHaveTextContent("Code canonique : BS.ASSET.UNKNOWN");
+    expect(unknownCard).not.toHaveTextContent("Actifs circulants");
+  });
+
+  it("renders useful empty states for current rubrics and attached evidence", () => {
+    renderPanel({
+      initialState: createReadyState(
+        createWorkpapersModel({
+          items: [
+            createCurrentItem({
+              anchorCode: "BS.ASSET.CURRENT_SECTION",
+              anchorLabel: "Current assets",
+              workpaper: createWorkpaperDetails({
+                status: "DRAFT",
+                noteText: "Draft note"
+              }),
+              documents: []
+            })
+          ]
+        })
+      )
+    });
+
+    expect(screen.queryByText("Aucune rubrique à documenter")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Aucune pièce justificative jointe")).toHaveLength(2);
+
+    renderPanel({
+      initialState: createReadyState(createWorkpapersModel())
+    });
+
+    expect(screen.getAllByText("Aucune rubrique à documenter")).toHaveLength(2);
   });
 
   it("renders the nominal maker and upload blocks, keeps stale items read-only, and preserves download visibility on stale documents", () => {
@@ -327,12 +423,12 @@ describe("workpapers panel", () => {
         "Prochaine action : completer les rubriques sans justification, joindre les pieces utiles, puis envoyer les preuves pretes en revue."
       )
     ).toBeInTheDocument();
-    expect(screen.getAllByText("Justification rattachée à une ancienne structure")).toHaveLength(
-      2
-    );
+    expect(
+      screen.getAllByText(/Ancienne rubrique en lecture seule : justification/)
+    ).toHaveLength(2);
 
     expect(within(newCard).getByLabelText("Note de justification")).toHaveValue("");
-    expect(within(newCard).getByLabelText("Statut de preparation")).toHaveValue("DRAFT");
+    expect(within(newCard).getByLabelText("Statut de justification")).toHaveValue("DRAFT");
     expect(
       within(newCard).getByText("ajout de piece disponible apres creation de la justification")
     ).toBeInTheDocument();
@@ -350,7 +446,7 @@ describe("workpapers panel", () => {
     ).toBeInTheDocument();
 
     expect(within(draftCard).getByLabelText("Note de justification")).toHaveValue("Draft note");
-    expect(within(draftCard).getByLabelText("Statut de preparation")).toHaveValue("DRAFT");
+    expect(within(draftCard).getByLabelText("Statut de justification")).toHaveValue("DRAFT");
     expect(within(draftCard).getByText("Ajouter une piece")).toBeInTheDocument();
     expect(within(draftCard).getByText("selectionner un fichier")).toBeInTheDocument();
     expect(
@@ -367,7 +463,7 @@ describe("workpapers panel", () => {
     expect(within(draftCard).getByText("Aucune modification a enregistrer.")).toBeInTheDocument();
 
     expect(within(changesCard).getByLabelText("Note de justification")).toHaveValue("Needs update");
-    expect(within(changesCard).getByLabelText("Statut de preparation")).toHaveValue("DRAFT");
+    expect(within(changesCard).getByLabelText("Statut de justification")).toHaveValue("DRAFT");
     expect(within(changesCard).getByText("Ajouter une piece")).toBeInTheDocument();
     expect(
       within(changesCard).getByRole("button", { name: "Enregistrer la justification" })
@@ -489,7 +585,7 @@ describe("workpapers panel", () => {
 
     expect(screen.getByText(message)).toBeInTheDocument();
     expect(screen.queryByLabelText("Note de justification")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Statut de preparation")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Statut de justification")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Fichier justificatif")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Enregistrer la justification" })
@@ -1090,12 +1186,12 @@ describe("workpapers panel", () => {
     });
 
     const card = getWorkpaperCard("BS.ASSET.READY");
-    expect(within(card).getAllByText("Decision de revue justification")).toHaveLength(2);
-    expect(within(card).getByLabelText("Decision de revue justification")).toHaveValue("REVIEWED");
+    expect(within(card).getAllByText("Revue de la justification")).toHaveLength(2);
+    expect(within(card).getByLabelText("Revue de la justification")).toHaveValue("REVIEWED");
 
-    await user.click(within(card).getByRole("button", { name: "Enregistrer la decision de revue" }));
+    await user.click(within(card).getByRole("button", { name: "Enregistrer la revue" }));
 
-    expect(await screen.findByText("decision de revue enregistree")).toBeInTheDocument();
+    expect(await screen.findByText("Revue de la justification enregistree")).toBeInTheDocument();
     expect(screen.getByText("Revue terminée")).toBeInTheDocument();
     expect(mockedReviewWorkpaperDecision).toHaveBeenCalledWith(
       CLOSING_FOLDER.id,
@@ -1260,15 +1356,15 @@ describe("workpapers panel", () => {
 
     const card = getWorkpaperCard("BS.ASSET.READY");
     await user.selectOptions(
-      within(card).getByLabelText("Decision de revue justification"),
+      within(card).getByLabelText("Revue de la justification"),
       "CHANGES_REQUESTED"
     );
     expect(mockedReviewWorkpaperDecision).not.toHaveBeenCalled();
 
     await user.type(within(card).getByLabelText("Commentaire de revue"), "  Evidence incomplete  ");
-    await user.click(within(card).getByRole("button", { name: "Enregistrer la decision de revue" }));
+    await user.click(within(card).getByRole("button", { name: "Enregistrer la revue" }));
 
-    expect(await screen.findByText("decision de revue enregistree")).toBeInTheDocument();
+    expect(await screen.findByText("Revue de la justification enregistree")).toBeInTheDocument();
     expect(mockedReviewWorkpaperDecision).toHaveBeenCalledWith(
       CLOSING_FOLDER.id,
       ACTIVE_TENANT,
@@ -1304,14 +1400,14 @@ describe("workpapers panel", () => {
 
     const card = getWorkpaperCard("BS.ASSET.READY");
     await user.selectOptions(
-      within(card).getByLabelText("Decision de revue justification"),
+      within(card).getByLabelText("Revue de la justification"),
       "CHANGES_REQUESTED"
     );
     await user.type(within(card).getByLabelText("Commentaire de revue"), "   ");
 
     expect(within(card).getByText("Commentaire de revue")).toBeInTheDocument();
     expect(within(card).getByText("commentaire de revue requis")).toBeInTheDocument();
-    expect(within(card).getByRole("button", { name: "Enregistrer la decision de revue" })).toBeDisabled();
+    expect(within(card).getByRole("button", { name: "Enregistrer la revue" })).toBeDisabled();
     expect(mockedReviewWorkpaperDecision).not.toHaveBeenCalled();
     expect(mockedLoadWorkpapers).not.toHaveBeenCalled();
   });
@@ -1349,20 +1445,20 @@ describe("workpapers panel", () => {
     const firstCard = getWorkpaperCard("BS.ASSET.ONE");
     const secondCard = getWorkpaperCard("BS.ASSET.TWO");
 
-    await user.click(within(firstCard).getByRole("button", { name: "Enregistrer la decision de revue" }));
+    await user.click(within(firstCard).getByRole("button", { name: "Enregistrer la revue" }));
 
     expect(mockedReviewWorkpaperDecision).toHaveBeenCalledTimes(1);
     expect(
-      within(firstCard).getByRole("button", { name: "Enregistrer la decision de revue" })
+      within(firstCard).getByRole("button", { name: "Enregistrer la revue" })
     ).toBeDisabled();
     expect(
-      within(secondCard).getByRole("button", { name: "Enregistrer la decision de revue" })
+      within(secondCard).getByRole("button", { name: "Enregistrer la revue" })
     ).toBeDisabled();
     expect(
       within(secondCard).getByText("Action indisponible pendant la revue en cours.")
     ).toBeInTheDocument();
 
-    await user.click(within(secondCard).getByRole("button", { name: "Enregistrer la decision de revue" }));
+    await user.click(within(secondCard).getByRole("button", { name: "Enregistrer la revue" }));
 
     expect(mockedReviewWorkpaperDecision).toHaveBeenCalledTimes(1);
   });
@@ -1376,12 +1472,12 @@ describe("workpapers panel", () => {
     {
       label: "404",
       result: { kind: "not_found" },
-      text: "justification introuvable pour decision"
+      text: "justification introuvable pour revue"
     },
     {
       label: "409 generic",
       result: { kind: "conflict_other" },
-      text: "decision de revue bloquee par les controles de preuve"
+      text: "Revue de la justification bloquee par les controles de preuve"
     }
   ])("renders the exact workpaper decision error '$text' on $label without refreshing", async ({ result, text }) => {
     const user = userEvent.setup();
@@ -1406,7 +1502,7 @@ describe("workpapers panel", () => {
     });
 
     const card = getWorkpaperCard("BS.ASSET.READY");
-    await user.click(within(card).getByRole("button", { name: "Enregistrer la decision de revue" }));
+    await user.click(within(card).getByRole("button", { name: "Enregistrer la revue" }));
 
     expect(await screen.findByText(text)).toBeInTheDocument();
     expect(mockedLoadWorkpapers).not.toHaveBeenCalled();
@@ -1436,9 +1532,9 @@ describe("workpapers panel", () => {
     });
 
     const card = getWorkpaperCard("BS.ASSET.READY");
-    await user.click(within(card).getByRole("button", { name: "Enregistrer la decision de revue" }));
+    await user.click(within(card).getByRole("button", { name: "Enregistrer la revue" }));
 
-    expect(await screen.findByText("decision de revue enregistree")).toBeInTheDocument();
+    expect(await screen.findByText("Revue de la justification enregistree")).toBeInTheDocument();
     expect(
       await screen.findByText("rafraichissement justifications impossible")
     ).toBeInTheDocument();
@@ -1683,7 +1779,7 @@ describe("workpapers panel", () => {
 
     const card = getWorkpaperCard("PL.REVENUE.NEW");
     const noteField = within(card).getByLabelText("Note de justification");
-    const statusSelect = within(card).getByLabelText("Statut de preparation");
+    const statusSelect = within(card).getByLabelText("Statut de justification");
 
     await user.type(noteField, "  Revenue support  ");
     expect(mockedUpsert).not.toHaveBeenCalled();
@@ -1773,7 +1869,7 @@ describe("workpapers panel", () => {
     const card = getWorkpaperCard("BS.ASSET.DRAFT");
     await user.clear(within(card).getByLabelText("Note de justification"));
     await user.type(within(card).getByLabelText("Note de justification"), "Updated note");
-    await user.selectOptions(within(card).getByLabelText("Statut de preparation"), "READY_FOR_REVIEW");
+    await user.selectOptions(within(card).getByLabelText("Statut de justification"), "READY_FOR_REVIEW");
     await user.click(within(card).getByRole("button", { name: "Enregistrer la justification" }));
 
     expect(mockedUpsert.mock.calls[0]?.[2]).toEqual({
