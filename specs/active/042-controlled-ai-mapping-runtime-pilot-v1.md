@@ -12,9 +12,13 @@ Cette spec active cadre le premier pilote IA runtime reel de Ritomer, limite aux
 
 Elle ne livre aucun runtime, aucun provider, aucun backend, aucun frontend, aucune DB ou migration, aucun OpenAPI, aucune CI, aucune dependance, aucun secret, aucune valeur `.env`, aucun appel reseau IA et aucune spec `043`.
 
+`042a1` ajoute uniquement un gate pack draft de gouvernance/readiness avant tout code provider `042b`. Les records restent `DRAFT` ou `PENDING_EVIDENCE`, sans signature humaine, sans approbation et sans date de gate inventee.
+
 ## Surface
 
 DOCS_GIT / AI_RUNTIME_SPEC.
+
+Surface `042a1` : DOCS_GIT / AI_GOVERNANCE.
 
 ## Risk
 
@@ -70,7 +74,17 @@ Risque lie a l'ouverture d'une future capacite provider reelle, meme strictement
 
 Contrats impactes par cette mission documentaire : AUCUN.
 
-Runbooks impactes par cette mission documentaire : AUCUN.
+Contract readiness `042a1` :
+
+- `contracts/ai/mapping-suggestion.schema.json` et `contracts/openapi/mapping-suggestions-api.yaml` ont ete verifies en lecture seule.
+- `mapping-suggestion-v1` ne represente pas explicitement `abstention`.
+- `mapping-suggestion-v1` ne represente pas explicitement `uncertainty`.
+- `042b` est BLOQUE jusqu'a decision contractuelle explicite : ajouter ces semantics a `mapping-suggestion-v1`, creer une nouvelle version de schema, ou les garder hors output/read-model provider.
+- Aucun contrat n'est modifie par `042a1`.
+
+Runbooks impactes par cette mission documentaire :
+
+- `runbooks/ai-incident-response.md`
 
 ## 1. Probleme et resultat utilisateur
 
@@ -120,7 +134,7 @@ Le mapping manuel reste toujours disponible et reste l'autorite metier durable.
 - Tout code runtime.
 - Tout appel provider.
 - Toute lecture de secret, `.env`, token, cookie, DSN ou credential.
-- Toute modification backend, frontend, DB, migration, OpenAPI, contrat, runbook, CI ou dependance.
+- Toute modification backend, frontend, DB, migration, OpenAPI, contrat, CI ou dependance.
 - Toute creation de spec `043`.
 
 ## 3. Decoupage 042a / 042b / 042c / 042d
@@ -135,7 +149,18 @@ Les gates `042a` sont ceux de la section 15. Ils sont cumulatifs avec les exigen
 
 Aucune spec `043` ne doit etre creee par `042a`.
 
-Livrables attendus pour une implementation future :
+`042a1` est le gate pack draft courant. Il livre uniquement :
+
+- `policies/ai-runtime-gates-record-042a.md` ;
+- `policies/ai-provider-readiness-record-042a.md` ;
+- `policies/dependency-security-review-042a.md` ;
+- `policies/ai-payload-whitelist-mapping-runtime-042a.md` ;
+- mise a jour ciblee de `runbooks/ai-incident-response.md` ;
+- clarification de cette spec et de `docs/product/v1-plan.md`.
+
+`042a1` ne choisit pas de provider, ne choisit pas de modele, ne cree pas de prompt runtime, ne modifie pas le golden set, ne cree pas de validator et ne definit pas de metriques runtime. Provider, modele, region, retention, training/non-training, cout, latence et quotas restent `NON_DÉTERMINÉ` tant qu'une preuve externe et une signature humaine ne les remplacent pas.
+
+`042a2` devra traiter, dans une mission separee, les livrables qui ne sont pas crees par `042a1` :
 
 - definition exacte du provider logique candidat, du modele exact, du prompt versionne et du schema hash ;
 - schema de sortie runtime strict, compatible ou explicitement aligne avec `mapping-suggestion-v1` ;
@@ -212,24 +237,32 @@ Flux cible :
 
 ### Payload provider autorisable
 
-Seulement apres gates, et seulement pour le dossier demo synthetique :
+Seulement apres gates, seulement pour le dossier demo synthetique, et seulement selon la whitelist draft `policies/ai-payload-whitelist-mapping-runtime-042a.md` :
 
-- `accountCode` borne ;
-- `sanitizedAccountLabel` uniquement, jamais le libelle brut si la whitelist ne l'autorise pas ;
-- signal debit/credit derive et non reversible ;
 - `latestImportVersion` ;
 - `taxonomyVersion` ;
-- cibles selectable et non deprecated ;
-- metadata de cible strictement necessaire ;
-- refs de preuves courtes et non sensibles ;
-- `schemaVersion`, `promptVersion`, schema hash, provider logical name et model exact ID.
+- `accountCode` synthetique, borne et non identifiant ;
+- `sanitizedAccountLabel` uniquement, jamais le libelle brut ;
+- `balanceSignal` borne, non reversible et limite aux valeurs documentees ;
+- cibles avec `code`, `label`, `selectable`, `deprecated`, filtrees pour n'envoyer que les cibles selectionnables et non depreciees ;
+- `schemaVersion` ;
+- `schemaHash` ;
+- `promptVersion`.
+
+Metadonnees locales non envoyees au provider :
+
+- `providerLogicalName` ;
+- `modelExactId` ;
+- cout ;
+- latence ;
+- request id ou trace id.
 
 Interdit dans le payload provider :
 
 - donnees clientes reelles ;
 - tenant/client/actor identifiers en clair ;
+- montants bruts ;
 - emails, noms, IBAN, telephones, URLs privees et references longues ;
-- montants bruts par defaut ;
 - CSV brut ;
 - documents, workpapers complets ou audit brut ;
 - secrets, tokens, credentials, cookies, DSN, valeurs `.env` ;
@@ -294,6 +327,8 @@ Regles obligatoires :
 
 Si le contrat public doit evoluer pour exposer `uncertainty` ou `abstention`, l'implementation future devra mettre a jour les contrats impactes avant code consommateur. Cette mission documentaire ne modifie aucun contrat.
 
+Readiness `042a1` : le check lecture seule conclut que le contrat actuel ne porte pas explicitement `abstention` et `uncertainty`. `042b` reste donc BLOQUE tant qu'une decision contractuelle explicite n'est pas prise et documentee avant code consommateur.
+
 ## 6. Feature flags et mode no-provider
 
 Flags cibles :
@@ -301,6 +336,8 @@ Flags cibles :
 - `ritomer.ai.mapping-suggestions.enabled=false` reste default off.
 - Un flag runtime provider dedie doit rester default off, par exemple `ritomer.ai.mapping-suggestions.provider-runtime.enabled=false`.
 - Un garde-fou demo synthetique doit rester actif pour le pilote, par exemple `ritomer.ai.mapping-suggestions.synthetic-demo-only=true`.
+
+Etat actuel verifie en lecture seule : seul `ritomer.ai.mapping-suggestions.enabled` existe dans le backend. Les flags provider-runtime et synthetic-demo-only sont des cibles `042b`; ils ne sont pas declares verifies par `042a1`.
 
 Comportements obligatoires :
 
@@ -572,8 +609,34 @@ Avant tout code provider reel, les gates suivants doivent etre signes et merges 
 - payload whitelist synthetique signee ;
 - runbook incident pret ;
 - golden set synthetique vert.
+- decision contractuelle explicite sur `abstention` et `uncertainty`.
 
-Aucun code `042b` ne peut commencer avant le merge des records de gates `042a`. Aucune spec `043` ne doit etre creee.
+Aucun code `042b` ne peut commencer avant le merge des records de gates `042a` pre-code signes. Aucune spec `043` ne doit etre creee.
+
+Records drafts `042a1` :
+
+- `policies/ai-runtime-gates-record-042a.md` ;
+- `policies/ai-provider-readiness-record-042a.md` ;
+- `policies/dependency-security-review-042a.md` ;
+- `policies/ai-payload-whitelist-mapping-runtime-042a.md`.
+
+Ces records ne portent aucune signature et ne valent pas autorisation de code provider.
+
+### Gate avant activation reseau provider
+
+Le gate d'activation reseau est distinct du gate pre-code. Meme si `042b` est implemente plus tard, aucun appel provider n'est autorise avant un gate d'activation signe.
+
+Avant tout appel reseau provider :
+
+- tous les gates pre-code doivent rester satisfaits ;
+- provider, modele exact, region, retention, training/non-training, logging, cout, latence et quotas doivent etre documentes avec preuve ;
+- le secret management runtime doit etre approuve sans secret repo ni dependance `.env` ;
+- le flag provider-runtime doit etre prouve default off ;
+- flag off doit prouver zero prompt, zero request provider, zero reseau provider, zero cout provider et zero log provider ;
+- no-provider puis mapping manuel doivent etre prouves comme fallback ;
+- logs et metrics doivent etre agreges/minimises, sans payload, prompt, output, label sensible, montant brut, identifiant tenant/client/acteur, secret, storage key ou signed URL ;
+- golden set synthetique et validation de schema doivent etre verts ;
+- aucun appel provider depuis le navigateur ne doit exister.
 
 ### CTO Gate
 
