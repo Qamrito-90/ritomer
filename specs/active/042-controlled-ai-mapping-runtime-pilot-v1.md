@@ -200,13 +200,21 @@ Aucune spec `043` ne doit etre creee par `042a`.
 
 `042a2a1` et `042a2a1b` ne redigent pas le contrat `mapping-suggestion-v2`, ne creent pas le prompt runtime, ne creent pas le golden set, ne creent pas le validator, ne choisissent pas de provider, ne choisissent pas de modele et n'activent aucun runtime.
 
-`042a2` devra encore traiter, dans une ou plusieurs missions separees, les livrables qui ne sont pas crees par `042a1` ni `042a2a1` :
+`042a2a2a` ajoute uniquement des artefacts executables candidats pour preparer le futur moteur offline :
+
+- `evals/mapping/fixtures/042a2/taxonomy-snapshot-candidate-v1.json` ;
+- `evals/mapping/fixtures/042a2/demo-input-unmapped-v1.json` ;
+- `evals/mapping/validate-042a2-candidate.ps1`.
+
+Ces artefacts restent `CANDIDATE / PENDING_EVIDENCE / NOT_AUTHORITATIVE`. Ils ne creent pas de golden set approuve, ne gelent pas une taxonomie, ne signent pas le perimetre pilote, ne redigent pas `mapping-suggestion-v2`, ne creent pas de prompt runtime, ne choisissent pas de provider ou de modele et n'activent aucun backend/frontend runtime, DB, migration, OpenAPI, CI, secret, `.env`, appel reseau IA, production ou spec `043`.
+
+`042a2` devra encore traiter, dans une ou plusieurs missions separees, les livrables qui ne sont pas clos par `042a1`, `042a2a1`, `042a2a1b` ou les artefacts candidats `042a2a2a` :
 
 - definition exacte du provider logique candidat, du modele exact, du prompt versionne et du schema hash ;
 - schema de sortie runtime strict, compatible ou explicitement aligne avec `mapping-suggestion-v1` ;
 - prompt file versionne pour le mapping runtime, sans prompt libre non trace ;
-- golden set synthetique actualise pour le dossier demo ;
-- validator local de la future sortie contractuelle ;
+- golden set synthetique approuve pour le dossier demo ;
+- validator local de la future sortie contractuelle, distinct du validator candidat `042a2a2a` ;
 - criteres d'activation/arret et seuils de cout/latence figes avant runtime.
 
 ### 042b - Adapter provider backend derriere gateway

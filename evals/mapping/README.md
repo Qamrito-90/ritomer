@@ -11,6 +11,37 @@ Cette surface reste docs/evals only :
 - check PowerShell sans nouvelle dependance ;
 - aucune capacite IA runtime, aucun modele, aucun prompt runtime et aucun appel reseau.
 
+## Artefacts candidats 042a2a2a
+
+`042a2a2a` ajoute des artefacts executables candidats pour preparer le futur moteur offline. Ils restent `CANDIDATE`, `PENDING_EVIDENCE` et `NOT_AUTHORITATIVE`.
+
+Fichiers :
+
+- `evals/mapping/fixtures/042a2/taxonomy-snapshot-candidate-v1.json`
+- `evals/mapping/fixtures/042a2/demo-input-unmapped-v1.json`
+- `evals/mapping/validate-042a2-candidate.ps1`
+
+Ces artefacts ne creent pas de golden set approuve, de contrat `mapping-suggestion-v2`, de prompt runtime, de provider, de backend/frontend runtime, de DB/migration, d'appel IA ou de capacite de production.
+
+Canonicalisation candidate :
+
+- UTF-8 sans BOM ;
+- fins de ligne LF ;
+- ordre des proprietes et des entrees stable dans les fichiers commites ;
+- SHA-256 calcule depuis les octets canoniques des deux JSON ;
+- commande de validation et de hash : `.\evals\mapping\validate-042a2-candidate.ps1`.
+
+Hashes candidats actuels :
+
+| Artefact | SHA-256 |
+| --- | --- |
+| `taxonomy-snapshot-candidate-v1.json` | `9E5E303EC10B6713C7A0A0AD33D031069407C6A862030BEF98D69F4786681BA7` |
+| `demo-input-unmapped-v1.json` | `B3C616B729014E6A87BB2124C10970EDF954D9F98FBD1F5C08E42B7ACAAA6D3F` |
+
+Le hash prouve seulement la reproductibilite technique de l'artefact candidat. Il ne vaut ni approbation metier, ni gel de taxonomie, ni signature de perimetre pilote.
+
+Le snapshot candidat est derive de `contracts/reference/manual-mapping-targets-v2.yaml`, version 2. La projection demo est derivee du seed synthetique `036a-local-demo-synthetic`, version d'import balance `1`, sans montant brut, identifiant tenant/client/acteur, affectation courante, cible attendue ou mapping historique.
+
 ## Format du golden set
 
 Le fichier canonique est `evals/mapping/golden-set-v1.json`.

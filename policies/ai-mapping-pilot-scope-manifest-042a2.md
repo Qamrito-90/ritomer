@@ -49,6 +49,8 @@ The pilot does not approve automated affectation, bulk apply, final accounting v
 
 No target may be exposed by the future pilot only because it is known, selectable and non-deprecated. It must also satisfy the contextual admissibility predicate.
 
+For the future pilot, `known` is derived by resolving the target id in the exact taxonomy snapshot version/hash. `selectable` and `deprecated` remain static serialized taxonomy properties, while `admissible` is a contextual predicate calculated from the resolved target, static properties and approved scope rules; it is never a stored flag.
+
 ## Included and excluded business families
 
 No exact included or excluded accounting family is approved by this draft.
@@ -141,3 +143,21 @@ Non-synthetic, cross-tenant, outside allowlist, outside provenance or invalid-ga
 - `specs/active/042-controlled-ai-mapping-runtime-pilot-v1.md` remains the active spec context.
 
 This manifest does not override any approved contract, current manual mapping authority or existing backend behavior.
+
+## Candidate projection note after 042a2a2a
+
+A synthetic de-mapped input projection candidate now exists at `evals/mapping/fixtures/042a2/demo-input-unmapped-v1.json`.
+
+Candidate projection status:
+
+- status remains `CANDIDATE / PENDING_EVIDENCE / NOT_AUTHORITATIVE`;
+- source dataset is `036a-local-demo-synthetic`;
+- balance import version is `1`;
+- account labels are English-only synthetic labels from the existing seed;
+- account codes are exactly `1000`, `1100`, `2000`, `2800`, `3000` and `4000`;
+- account `4000` keeps the label `Synthetic operating expenses`;
+- no raw amount, tenant/client/actor identifier, current affectation target, expected target or historical mapping target is stored;
+- SHA-256 over canonical UTF-8-no-BOM LF bytes is `B3C616B729014E6A87BB2124C10970EDF954D9F98FBD1F5C08E42B7ACAAA6D3F`;
+- command is `.\evals\mapping\validate-042a2-candidate.ps1`.
+
+This projection is a candidate fixture only. It does not approve the pilot scope, a golden set, a provider payload, a runtime path or production/customer-data use.

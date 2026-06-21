@@ -1,0 +1,61 @@
+{
+  "schemaVersion": "042a2-demo-input-unmapped-v1",
+  "status": [
+    "CANDIDATE",
+    "PENDING_EVIDENCE",
+    "NOT_AUTHORITATIVE"
+  ],
+  "dataset": "036a-local-demo-synthetic",
+  "balanceImportVersion": 1,
+  "language": "en",
+  "source": {
+    "artifact": "backend/src/main/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalService.kt",
+    "projectionPolicy": "Only account code, account label and bounded balance signal are copied from the synthetic seed. Raw amounts, identifiers and historical affectations are omitted."
+  },
+  "canonicalization": {
+    "encoding": "UTF-8 without BOM",
+    "lineEndings": "LF",
+    "propertyOrder": "stable as committed",
+    "entryOrder": "accountCode ascending",
+    "hashAlgorithm": "SHA-256",
+    "hashCommand": ".\\evals\\mapping\\validate-042a2-candidate.ps1"
+  },
+  "accounts": [
+    {
+      "accountCode": "1000",
+      "accountLabel": "Synthetic cash account",
+      "balanceSignal": "DEBIT_DOMINANT",
+      "currentAffectationStatus": "NONE"
+    },
+    {
+      "accountCode": "1100",
+      "accountLabel": "Synthetic trade receivables",
+      "balanceSignal": "DEBIT_DOMINANT",
+      "currentAffectationStatus": "NONE"
+    },
+    {
+      "accountCode": "2000",
+      "accountLabel": "Synthetic trade payables",
+      "balanceSignal": "CREDIT_DOMINANT",
+      "currentAffectationStatus": "NONE"
+    },
+    {
+      "accountCode": "2800",
+      "accountLabel": "Synthetic retained earnings",
+      "balanceSignal": "CREDIT_DOMINANT",
+      "currentAffectationStatus": "NONE"
+    },
+    {
+      "accountCode": "3000",
+      "accountLabel": "Synthetic operating revenue",
+      "balanceSignal": "CREDIT_DOMINANT",
+      "currentAffectationStatus": "NONE"
+    },
+    {
+      "accountCode": "4000",
+      "accountLabel": "Synthetic operating expenses",
+      "balanceSignal": "DEBIT_DOMINANT",
+      "currentAffectationStatus": "NONE"
+    }
+  ]
+}
