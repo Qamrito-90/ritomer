@@ -31,11 +31,13 @@ A case is a `SUGGESTION` only when all conditions are true:
 
 - the request has passed policy gates;
 - the account is in the approved synthetic pilot business scope;
-- exactly one known, selectable and non-deprecated target is supported;
+- exactly one admissible target is supported;
 - evidence is sufficient, non-sensitive and tenant-scoped;
 - no critical conflict remains;
 - human review remains mandatory;
-- the user can validate, choose another target or reject the proposition.
+- the user can validate, choose another rubric or reject the proposition.
+
+An admissible target is not a copied flag. It is a contextual predicate: the target is known in the exact taxonomy version/hash, selectable as a static property, not deprecated by lifecycle status, and allowed by the pilot scope, account context and cohort rules.
 
 ### `ABSTENTION`
 
@@ -65,7 +67,7 @@ It is not a business abstention. It must be routed to governance or incident han
 
 A technical failure happens when runtime is disabled, unavailable, timed out, invalid, malformed or otherwise unable to provide a validated output.
 
-It includes `INVALID_MODEL_OUTPUT`. A provider output that names an unknown, deprecated or non-selectable target is a technical failure, not `TAXONOMY_GAP`.
+It includes `INVALID_MODEL_OUTPUT`. A provider output that names an unknown, deprecated, non-selectable or contextually inadmissible target is a technical failure, not `TAXONOMY_GAP`.
 
 It is not a business abstention. The visible state is `Proposition momentanément indisponible`, with manual affectation still available.
 
@@ -73,25 +75,25 @@ It is not a business abstention. The visible state is `Proposition momentanémen
 
 | Reason code | Positive definition | Negative boundary |
 | --- | --- | --- |
-| `OUT_OF_SCOPE` | An account inside an otherwise authorized request is outside the approved business perimeter of AI-assisted affectation. | Do not use for non-synthetic, cross-tenant, outside allowlist, outside provenance or invalid-gate requests; those are policy blocks. Do not use when the case is in scope but ambiguous. |
-| `CONFLICTING_SIGNALS` | Available signals point to materially different target families or statements. | Do not use for simple lack of evidence. |
-| `INSUFFICIENT_EVIDENCE` | Evidence is missing, stale, non-verifiable or too weak to support a target. | Do not use when evidence is sufficient but taxonomy is missing. |
-| `TAXONOMY_GAP` | The frozen pilot taxonomy contains no admissible target for a valid business concept. | Do not use for provider output that names an unknown, deprecated or non-selectable target; annotate technical failure / `INVALID_MODEL_OUTPUT`. Do not use to hide low confidence on an existing target. |
-| `AMBIGUOUS_TARGET` | Multiple admissible targets remain plausible after evidence review. | Do not use when one target is clearly better supported. |
+| `OUT_OF_SCOPE` | The business concept is established and the request is otherwise authorized, but the account is explicitly outside the approved pilot business perimeter. | Do not use for non-synthetic, cross-tenant, outside allowlist, outside provenance, invalid-gate, already affected or non-eligible cases; those are policy/precondition outcomes. Do not use when the case is in scope but ambiguous. |
+| `CONFLICTING_SIGNALS` | Approved signals point to materially different target families, statements, normal sides, contra treatment or business concepts. | Do not use for simple lack of evidence, stale runtime state or broad but compatible candidates. |
+| `INSUFFICIENT_EVIDENCE` | The business concept or candidate set cannot be established from approved, current and reviewable evidence. | Do not use for stale imports, expired runtime state, disabled runtime, timeout or output validation failure; those are technical or precondition states. Do not use when evidence is sufficient but taxonomy is missing. |
+| `TAXONOMY_GAP` | The business concept is established and the frozen pilot taxonomy contains zero admissible targets for that valid concept. | Do not use for provider output that names an unknown, deprecated, non-selectable or contextually inadmissible target; annotate technical failure / `INVALID_MODEL_OUTPUT`. Do not use to hide weak support for an existing target. |
+| `AMBIGUOUS_TARGET` | The business concept is established and multiple admissible targets remain plausible after evidence review. | Do not use when one admissible target is clearly better supported or when evidence is insufficient to establish candidates. |
 
 ## Positive and negative examples
 
 | Scenario | Correct annotation | Incorrect annotation |
 | --- | --- | --- |
-| Synthetic bank/cash label with clear cash evidence and selectable cash target. | `SUGGESTION` with the cash target. | `ABSTENTION / AMBIGUOUS_TARGET` without documenting the ambiguity. |
+| Synthetic bank/cash label with clear cash evidence and one admissible cash target. | `SUGGESTION` with the cash target. | `ABSTENTION / AMBIGUOUS_TARGET` without documenting the ambiguity. |
 | Synthetic clearing label with both receivable and payable signals. | `ABSTENTION / CONFLICTING_SIGNALS`. | Forced receivable or payable suggestion. |
-| Synthetic label is generic and evidence is absent. | `ABSTENTION / INSUFFICIENT_EVIDENCE`. | Low-confidence suggestion. |
+| Synthetic label is generic and evidence is absent. | `ABSTENTION / INSUFFICIENT_EVIDENCE`. | Weak suggestion forced without evidence. |
 | Valid business concept exists but the pilot taxonomy has no admissible target. | `ABSTENTION / TAXONOMY_GAP`. | Suggesting a nearby but wrong target. |
-| Two selectable expense targets remain equally plausible. | `ABSTENTION / AMBIGUOUS_TARGET`. | Selecting the first listed target. |
+| Two admissible expense targets remain equally plausible. | `ABSTENTION / AMBIGUOUS_TARGET`. | Selecting the first listed target. |
 | Account in an authorized synthetic request belongs to a business workflow outside AI-assisted affectation. | `ABSTENTION / OUT_OF_SCOPE`. | Policy block or forced suggestion. |
 | Request is non-synthetic, cross-tenant, outside allowlist, outside approved provenance or blocked by an invalid gate. | Policy block, with no provider call. | `ABSTENTION / OUT_OF_SCOPE`. |
 | Provider output is malformed or timeout occurs. | Technical failure. | `ABSTENTION / INSUFFICIENT_EVIDENCE`. |
-| Provider output names an unknown, deprecated or non-selectable target. | Technical failure / `INVALID_MODEL_OUTPUT`. | `ABSTENTION / TAXONOMY_GAP`. |
+| Provider output names an unknown, deprecated, non-selectable or contextually inadmissible target. | Technical failure / `INVALID_MODEL_OUTPUT`. | `ABSTENTION / TAXONOMY_GAP`. |
 | Tenant boundary or privacy gate blocks context use. | Policy block. | Any business abstention or suggestion. |
 
 ## Required annotation fields
@@ -100,14 +102,28 @@ Each annotated case must record:
 
 - case id;
 - synthetic dataset version;
-- taxonomy version candidate;
+- scope manifest version;
+- scope manifest hash, or `PENDING_EVIDENCE` until a canonical manifest hash exists;
+- taxonomy version;
+- taxonomy hash, or `PENDING_EVIDENCE` until a frozen taxonomy hash exists;
 - primary outcome: `SUGGESTION`, `ABSTENTION`, policy block or technical failure;
 - reason code only when outcome is `ABSTENTION`;
 - policy or technical code when outcome is policy block or technical failure;
 - proposed target only when outcome is `SUGGESTION`;
-- evidence adequacy: sufficient or insufficient;
+- decision tree step;
+- evidence state: sufficient, insufficient, missing, conflicting, stale/precondition or technical;
+- business concept established: true or false;
+- admissible candidate count;
+- missing signals;
+- conflicting signals;
+- expected human action;
+- legal form;
+- contra-account indicator;
+- maturity or closing context when relevant to admissibility;
 - critical flags: active/passive, balance sheet/income statement, revenue/expense, contra account, target validity, taxonomy gap, policy incident, technical incident;
-- annotator id or pseudonymous reviewer id;
+- first annotator pseudonymous id;
+- second annotator pseudonymous id;
+- adjudicator pseudonymous id when adjudication is needed;
 - timestamp;
 - adjudication status.
 
@@ -115,22 +131,26 @@ No annotation field may contain secrets, `.env` values, tokens, credentials, DSN
 
 ## Double annotation rules
 
-Independent double annotation is mandatory for:
+Independent blind double annotation is mandatory for 100% of the future golden set.
 
-- 100% of abstentions;
+The future golden set must include, and therefore double annotate, at minimum:
+
+- all abstentions;
 - all critical cases;
 - contra-account cases;
 - multilingual labels;
 - ambiguous labels;
 - sensitive-looking labels after sanitization;
 - taxonomy-gap candidates;
-- active/passive, balance/result and revenue/expense boundary cases.
+- active/passive, balance/result and revenue/expense boundary cases;
+- `POLICY_BLOCK` candidates;
+- `INVALID_MODEL_OUTPUT` candidates.
 
 Annotators must work independently before adjudication. They must not see each other's preliminary labels.
 
 ## Adjudication
 
-Disagreements must be adjudicated by a senior expert.
+Disagreements must be adjudicated by a senior expert who is different from both annotators.
 
 The adjudicator must record:
 
@@ -144,6 +164,8 @@ Adjudication must prefer abstention over an approximate target when evidence rem
 
 Adjudication must not convert a policy block or invalid provider output into business abstention.
 
+`POLICY_BLOCK` and `INVALID_MODEL_OUTPUT` cases require cross-review by business expertise and governance or technical expertise before they can support promotion.
+
 ## Critical error policy
 
 Any confirmed critical error blocks promotion:
@@ -153,7 +175,7 @@ Any confirmed critical error blocks promotion:
 - revenue/expense confusion;
 - contra account misclassification;
 - unknown, deprecated or non-selectable target exposed as suggestion;
-- unknown, deprecated or non-selectable provider target classified as `TAXONOMY_GAP` or another business abstention;
+- unknown, deprecated, non-selectable or contextually inadmissible provider target classified as `TAXONOMY_GAP` or another business abstention;
 - taxonomy gap hidden by an approximate target;
 - policy block classified as `OUT_OF_SCOPE` or another business abstention;
 - policy or technical incident classified as business abstention;

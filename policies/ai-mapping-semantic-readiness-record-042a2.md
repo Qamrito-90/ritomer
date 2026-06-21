@@ -33,11 +33,14 @@ The product language must talk about `affectation` in the interface. `mapping` r
 
 | Semantic outcome | User-facing title or label | Target visible | Confidence visible | Provider free text visible | Human actions |
 | --- | --- | --- | --- | --- | --- |
-| `SUGGESTION` | `Proposition à vérifier` | Yes, only when known, selectable and non-deprecated. | No numeric confidence. | No. Only approved deterministic or reviewed rationale fields may be visible. | `Valider la proposition`, `Choisir une autre cible`, `Rejeter`. |
+| `SUGGESTION` | `Proposition à vérifier` | Yes, only when exactly one admissible target exists. | No numeric confidence. | No. Only deterministic backend wording from approved codes may be visible. | `Valider la proposition`, `Choisir une autre rubrique`, `Rejeter`. |
 | `ABSTENTION` | `Aucune proposition` | No. | No. | No. Deterministic message by `reasonCode` only. | No `Rejeter`. Allowed next actions depend on the reason code. |
 | Technical degradation | `Proposition momentanément indisponible` | No. | No. | No. Deterministic technical message only. | Use manual affectation or retry later according to runbook and UI context. |
+| `POLICY_BLOCK` | `Cette demande n'est pas éligible à l'affectation assistée` | No. | No. | No. Deterministic policy message only. | Use manual affectation only if the normal product workflow allows it, or resolve the policy/precondition issue. |
 
 `ABSTENTION` is not a weak suggestion. It must not expose a target, a confidence value, a hidden ranking or a provider-generated explanation as decisionable product content.
+
+`requiresHumanReview=true` is a backend-imposed invariant for exposed suggestions. It must not be trusted as a provider-selected business decision.
 
 ## Policy and invalid-output boundaries
 
@@ -45,7 +48,9 @@ The product language must talk about `affectation` in the interface. `mapping` r
 
 `OUT_OF_SCOPE` is allowed only for an account inside an otherwise authorized request when that account is outside the business perimeter of AI-assisted affectation.
 
-`TAXONOMY_GAP` is allowed only when the frozen pilot taxonomy contains no admissible target for a valid business concept. A provider output that names an unknown, deprecated or non-selectable target is `INVALID_MODEL_OUTPUT` or another technical degradation state according to the future contract. It must never be counted as business abstention.
+`TAXONOMY_GAP` is allowed only when the frozen pilot taxonomy contains no admissible target for a valid business concept. A provider output that names an unknown, deprecated, non-selectable or contextually inadmissible target is `INVALID_MODEL_OUTPUT` or another technical degradation state according to the future contract. It must never be counted as business abstention.
+
+Already affected accounts, non-eligible accounts, stale imports, stale runtime context and expired runtime state are precondition or policy outcomes according to the future contract. They are not business abstentions.
 
 ## Allowed abstention reason codes
 
@@ -58,6 +63,16 @@ Only these product reason codes are allowed for `ABSTENTION`:
 - `AMBIGUOUS_TARGET`
 
 No catch-all output reason code is allowed. If a case cannot be classified into one of these reason codes, the semantic set must be revised before contract work continues.
+
+## Reason-code boundaries
+
+| Reason code | Positive definition | Negative boundary |
+| --- | --- | --- |
+| `OUT_OF_SCOPE` | The business concept is established and the request is otherwise authorized, but the account is explicitly outside the approved pilot business perimeter. | Do not use for non-synthetic, cross-tenant, outside allowlist, outside provenance, invalid-gate, already affected or non-eligible cases. |
+| `CONFLICTING_SIGNALS` | Approved evidence contains material contradictions between label, balance direction, account behavior or taxonomy signals that cannot be resolved deterministically. | Do not use for missing evidence, stale runtime state or a merely broad target set. |
+| `INSUFFICIENT_EVIDENCE` | The business concept or candidate set cannot be established from approved, current and reviewable evidence. | Do not use for stale imports, expired runtime state, disabled runtime or output validation failure; those are technical or precondition states. |
+| `TAXONOMY_GAP` | A valid business concept is established and the frozen pilot taxonomy has zero admissible targets. | Do not use for provider targets that are unknown, deprecated, non-selectable or contextually inadmissible. |
+| `AMBIGUOUS_TARGET` | The business concept is established and two or more admissible targets remain plausibly supported after evidence review. | Do not use when one admissible target is clearly better supported or when evidence is insufficient to establish candidates. |
 
 ## Deterministic messages and actions
 
@@ -75,15 +90,16 @@ No catch-all output reason code is allowed. If a case cannot be classified into 
 
 The future runtime contract must preserve this order unless a signed semantic review changes it.
 
-1. If the request is non-synthetic, cross-tenant, outside the approved allowlist, outside approved provenance or blocked by an invalid gate, classify `POLICY_BLOCK`; make no provider call and do not classify business abstention.
-2. If provider runtime is disabled, unavailable, timed out, malformed or invalid, return a technical degradation state, not a business abstention. A provider output that names an unknown, deprecated or non-selectable target is `INVALID_MODEL_OUTPUT` or another technical degradation state according to the future contract.
-3. If an account inside an otherwise authorized request is outside the business perimeter of AI-assisted affectation, classify `ABSTENTION / OUT_OF_SCOPE`.
-4. If the frozen pilot taxonomy contains no admissible target for a valid business concept, classify `ABSTENTION / TAXONOMY_GAP`.
-5. If available evidence is missing, stale, not tenant-scoped or insufficient for review, classify `ABSTENTION / INSUFFICIENT_EVIDENCE`.
-6. If evidence, balance direction, label or taxonomy signals materially conflict, classify `ABSTENTION / CONFLICTING_SIGNALS`.
-7. If several admissible targets remain plausible after evidence review, classify `ABSTENTION / AMBIGUOUS_TARGET`.
-8. If one admissible target remains supported by sufficient non-sensitive evidence, classify `SUGGESTION`.
-9. If none of the rules can be applied deterministically, block contract promotion and revise this semantic record. Do not invent a fallback product reason code.
+1. Authorization and eligibility gate: if the request is non-synthetic, cross-tenant, outside the approved allowlist, outside approved provenance, blocked by an invalid gate, already affected, non-eligible or otherwise fails a precondition, classify `POLICY_BLOCK` or the future precondition state; make no provider call when policy blocks and do not classify business abstention.
+2. Runtime and output gate: if provider runtime is disabled, unavailable, timed out, malformed, invalid or returns an unknown, deprecated, non-selectable or contextually inadmissible target, return a technical degradation state such as `INVALID_MODEL_OUTPUT`, not a business abstention.
+3. If the business concept is established but the account is explicitly outside the approved business perimeter of AI-assisted affectation, classify `ABSTENTION / OUT_OF_SCOPE`.
+4. If material signals contradict each other and cannot be resolved deterministically, classify `ABSTENTION / CONFLICTING_SIGNALS`.
+5. If the business concept or candidate set is insufficiently established from approved evidence, classify `ABSTENTION / INSUFFICIENT_EVIDENCE`.
+6. Calculate admissible targets in the frozen pilot taxonomy:
+   - `0` admissible targets for an established valid business concept: classify `ABSTENTION / TAXONOMY_GAP`;
+   - `2+` admissible targets remaining plausible: classify `ABSTENTION / AMBIGUOUS_TARGET`;
+   - `1` admissible target supported by sufficient non-sensitive evidence: classify `SUGGESTION`.
+7. If none of the rules can be applied deterministically, block contract promotion and revise this semantic record. Do not invent a fallback product reason code.
 
 Approximate targets are forbidden. The system must prefer abstention over forcing a weak target.
 
@@ -93,15 +109,15 @@ These examples are synthetic and illustrative. They do not create a golden set.
 
 | Case | Expected semantic outcome | Reason |
 | --- | --- | --- |
-| A synthetic bank account label clearly points to a selectable cash target and evidence is non-sensitive. | `SUGGESTION` | One known selectable target is supported. |
+| A synthetic bank account label clearly points to one admissible cash target and evidence is non-sensitive. | `SUGGESTION` | One admissible target is supported. |
 | A synthetic clearing account has debit and credit signals that point to different families. | `ABSTENTION / CONFLICTING_SIGNALS` | The system must not force an approximate target. |
 | A synthetic account label is too generic and no usable evidence exists. | `ABSTENTION / INSUFFICIENT_EVIDENCE` | The user must complete analysis or decide manually. |
 | A non-synthetic request, cross-tenant request, request outside allowlist, request outside approved provenance or invalid gate reaches the AI path. | `POLICY_BLOCK` | It must be blocked before any provider call and must not count as business abstention. |
 | An account in an authorized synthetic request belongs to a business workflow not approved for AI-assisted affectation. | `ABSTENTION / OUT_OF_SCOPE` | It must route outside the AI-assisted affectation business scope. |
 | A valid business category is absent from the frozen pilot taxonomy. | `ABSTENTION / TAXONOMY_GAP` | The taxonomy gap must be visible and deferred. |
-| Two selectable targets remain equally plausible after evidence review. | `ABSTENTION / AMBIGUOUS_TARGET` | Human affectation or deferral is required. |
+| Two admissible targets remain equally plausible after evidence review. | `ABSTENTION / AMBIGUOUS_TARGET` | Human affectation or deferral is required. |
 | Provider returns prose with a plausible target. | Technical degradation / `INVALID_MODEL_OUTPUT`, not `SUGGESTION`. | Provider free text is not product evidence. |
-| Provider returns an unknown, deprecated or non-selectable target. | Technical degradation / `INVALID_MODEL_OUTPUT`, not `ABSTENTION / TAXONOMY_GAP`. | Invalid provider targets must not be exposed as suggestions or counted as business abstentions. |
+| Provider returns an unknown, deprecated, non-selectable or contextually inadmissible target. | Technical degradation / `INVALID_MODEL_OUTPUT`, not `ABSTENTION / TAXONOMY_GAP`. | Invalid provider targets must not be exposed as suggestions or counted as business abstentions. |
 
 ## Critical semantic errors
 
@@ -112,7 +128,7 @@ Any critical error below blocks promotion to contract/runtime work:
 - revenue/expense confusion;
 - contra account misclassification;
 - unknown, deprecated or non-selectable target exposed as a suggestion;
-- unknown, deprecated or non-selectable provider target classified as `TAXONOMY_GAP` or another business abstention;
+- unknown, deprecated, non-selectable or contextually inadmissible provider target classified as `TAXONOMY_GAP` or another business abstention;
 - `TAXONOMY_GAP` hidden behind an approximate target;
 - `POLICY_BLOCK` classified as `OUT_OF_SCOPE` or another business abstention;
 - policy or technical incident classified as business abstention;
@@ -128,9 +144,10 @@ Before a future `mapping-suggestion-v2` contract is drafted or approved:
 - the contract must encode that `SUGGESTION` remains human-review-only;
 - the contract must prevent provider free text from becoming visible product wording;
 - the contract must define stable fields for deterministic messages or message keys;
-- the contract must preserve the allowed reason-code set without a catch-all product output.
+- the contract must preserve the allowed reason-code set without a catch-all product output;
 - the contract must distinguish `POLICY_BLOCK`, technical degradation and business `ABSTENTION`;
-- the contract must prevent unknown, deprecated or non-selectable provider targets from being represented as `TAXONOMY_GAP`.
+- the contract must prevent unknown, deprecated, non-selectable or contextually inadmissible provider targets from being represented as `TAXONOMY_GAP`;
+- the contract must encode the approved semantic union with absent fields omitted instead of placeholder values.
 
 ## Approval placeholders
 

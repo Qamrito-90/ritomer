@@ -45,16 +45,18 @@ Before the proposed pilot taxonomy can be used by a contract, golden set or runt
 
 ## Status definitions
 
-The future taxonomy must define these flags consistently:
+The future taxonomy must define these concepts consistently:
 
-- `known`: the target id exists in the frozen taxonomy version.
-- `selectable`: a human user or validated suggestion may choose the target as a final affectation target.
-- `deprecated`: the target remains known for historical compatibility but must not be newly suggested or selected unless an explicit migration rule allows it.
-- `admissible`: the target is known, selectable, non-deprecated and allowed for the current pilot scope, account context and cohort.
+- `known`: the target id resolves in the exact frozen taxonomy version and hash used by the pilot cohort.
+- `selectable`: a static taxonomy property stating whether the target can be chosen as a final affectation target when other rules allow it.
+- `deprecated`: a lifecycle status. A deprecated target remains known for historical compatibility but must not be newly suggested or selected unless an explicit migration rule allows it.
+- `admissible`: a contextual predicate, not a copied flag: `known AND selectable AND NOT deprecated AND context rules satisfied`.
 
-`selectable=true` is not sufficient by itself. A runtime suggestion requires an admissible target.
+Context rules include, at minimum, the approved pilot scope, account context, legal form, cohort, taxonomy family rules and any contra-account or statement-boundary constraints approved by Expert Board.
 
-A provider output that names an unknown, deprecated or non-selectable target is an output validation failure, not a taxonomy gap. It must be routed as `INVALID_MODEL_OUTPUT` or another technical degradation state according to the future contract.
+`selectable=true` is not sufficient by itself. A runtime suggestion requires exactly one admissible target.
+
+A provider output that names an unknown, deprecated, non-selectable or contextually inadmissible target is an output validation failure, not a taxonomy gap. It must be routed as `INVALID_MODEL_OUTPUT` or another technical degradation state according to the future contract.
 
 ## Cohort freeze rules
 
@@ -64,7 +66,7 @@ A provider output that names an unknown, deprecated or non-selectable target is 
 - Any new, removed, renamed, reparented, deprecated or de-deprecated target requires a new version and new hash.
 - Historical results must remain interpretable against the original taxonomy version.
 - A taxonomy gap observed during a cohort means the frozen pilot taxonomy contains no admissible target for a valid business concept; it must be routed as `TAXONOMY_GAP` and cannot be hidden by changing the taxonomy in place.
-- Unknown, deprecated or non-selectable targets emitted by a provider must not be counted as `TAXONOMY_GAP`.
+- Unknown, deprecated, non-selectable or contextually inadmissible targets emitted by a provider must not be counted as `TAXONOMY_GAP`.
 
 ## Required target fields
 
@@ -80,7 +82,7 @@ Each future target must provide at minimum:
 - `known`;
 - `selectable`;
 - `deprecated`;
-- admissibility rule;
+- contextual admissibility rule;
 - provenance;
 - rights-of-use evidence pointer;
 - owner approval pointer.
@@ -98,7 +100,8 @@ Any confirmed critical taxonomy error blocks promotion:
 - unknown target exposed as admissible;
 - deprecated target exposed as newly selectable;
 - non-selectable target exposed as suggestion target;
-- unknown, deprecated or non-selectable provider target classified as `TAXONOMY_GAP`;
+- contextually inadmissible target exposed as suggestion target;
+- unknown, deprecated, non-selectable or contextually inadmissible provider target classified as `TAXONOMY_GAP`;
 - missing target hidden behind approximate classification;
 - target definition copied from third-party content without rights evidence;
 - silent taxonomy update during a cohort.
