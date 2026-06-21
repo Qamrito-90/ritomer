@@ -16,6 +16,8 @@ Elle ne livre aucun runtime, aucun provider, aucun backend, aucun frontend, aucu
 
 `042a2a1` ajoute uniquement un semantic readiness pack draft avant tout contrat `mapping-suggestion-v2`. Les records restent `DRAFT` ou `PENDING_EVIDENCE`, sans signature humaine, sans approbation, sans contrat, sans provider, sans prompt runtime, sans golden set et sans validator.
 
+Le pack de cas candidats `042a2` ajoute uniquement des fixtures synthetiques et un validator local. Les artefacts restent `CANDIDATE / PENDING_DOUBLE_REVIEW / NOT_GOLDEN / NOT_AUTHORITATIVE`, sans signature humaine, sans contrat, sans provider, sans prompt runtime, sans backend/frontend runtime, sans DB/migration, sans OpenAPI, sans secret, sans `.env`, sans appel reseau IA et sans spec `043`.
+
 ## Surface
 
 DOCS_GIT / AI_RUNTIME_SPEC.
@@ -23,6 +25,8 @@ DOCS_GIT / AI_RUNTIME_SPEC.
 Surface `042a1` : DOCS_GIT / AI_GOVERNANCE.
 
 Surface `042a2a1` : DOCS_GIT / AI_GOVERNANCE / FIDUCIARY_GOVERNANCE.
+
+Surface pack de cas candidats `042a2` : EVALS / CONTRACTS_DATA / DOCS_GIT.
 
 ## Risk
 
@@ -208,13 +212,21 @@ Aucune spec `043` ne doit etre creee par `042a`.
 
 Ces artefacts restent `CANDIDATE / PENDING_EVIDENCE / NOT_AUTHORITATIVE`. Ils ne creent pas de golden set approuve, ne gelent pas une taxonomie, ne signent pas le perimetre pilote, ne redigent pas `mapping-suggestion-v2`, ne creent pas de prompt runtime, ne choisissent pas de provider ou de modele et n'activent aucun backend/frontend runtime, DB, migration, OpenAPI, CI, secret, `.env`, appel reseau IA, production ou spec `043`.
 
-`042a2` devra encore traiter, dans une ou plusieurs missions separees, les livrables qui ne sont pas clos par `042a1`, `042a2a1`, `042a2a1b` ou les artefacts candidats `042a2a2a` :
+Le pack de cas candidats `042a2` ajoute ensuite :
+
+- `evals/mapping/fixtures/042a2/candidate-semantic-cases-v1.json` ;
+- `evals/mapping/fixtures/042a2/candidate-policy-fault-cases-v1.json` ;
+- `evals/mapping/validate-042a2-candidate-cases.ps1`.
+
+Ces artefacts restent `CANDIDATE / PENDING_DOUBLE_REVIEW / NOT_GOLDEN / NOT_AUTHORITATIVE`. Ils separent les cas metier `BUSINESS_SEMANTIC`, les policy/preconditions et les sorties techniques invalides. Les policy/preconditions ne comptent pas comme abstentions metier. Les sorties avec cible inconnue, depreciee, non selectionnable, section ou racine proposee sont attendues en `INVALID_MODEL_OUTPUT`, jamais en `TAXONOMY_GAP`. Les gaps `TAXONOMY_GAP`, `AMBIGUOUS_TARGET`, `OUT_OF_SCOPE` et `CONFLICTING_SIGNALS` restent documentes sans cas artificiel.
+
+`042a2` devra encore traiter, dans une ou plusieurs missions separees, les livrables qui ne sont pas clos par `042a1`, `042a2a1`, `042a2a1b`, les artefacts candidats `042a2a2a` ou le pack de cas candidats `042a2` :
 
 - definition exacte du provider logique candidat, du modele exact, du prompt versionne et du schema hash ;
 - schema de sortie runtime strict, compatible ou explicitement aligne avec `mapping-suggestion-v1` ;
 - prompt file versionne pour le mapping runtime, sans prompt libre non trace ;
 - golden set synthetique approuve pour le dossier demo ;
-- validator local de la future sortie contractuelle, distinct du validator candidat `042a2a2a` ;
+- validator local de la future sortie contractuelle, distinct des validators candidats `042a2a2a` et `042a2` ;
 - criteres d'activation/arret et seuils de cout/latence figes avant runtime.
 
 ### 042b - Adapter provider backend derriere gateway

@@ -1,0 +1,275 @@
+{
+  "schemaVersion": "042a2-candidate-policy-fault-cases-v1",
+  "status": [
+    "CANDIDATE",
+    "PENDING_DOUBLE_REVIEW",
+    "NOT_GOLDEN",
+    "NOT_AUTHORITATIVE"
+  ],
+  "sourceArtifacts": {
+    "taxonomySnapshot": {
+      "path": "evals/mapping/fixtures/042a2/taxonomy-snapshot-candidate-v1.json",
+      "sha256": "9E5E303EC10B6713C7A0A0AD33D031069407C6A862030BEF98D69F4786681BA7"
+    },
+    "demoInputProjection": {
+      "path": "evals/mapping/fixtures/042a2/demo-input-unmapped-v1.json",
+      "sha256": "B3C616B729014E6A87BB2124C10970EDF954D9F98FBD1F5C08E42B7ACAAA6D3F"
+    }
+  },
+  "scope": {
+    "dataset": "036a-local-demo-synthetic",
+    "taxonomySnapshotId": "RITOMER-MAPPING-PILOT-MINIMAL-2026.06-v1",
+    "taxonomyVersion": 2,
+    "languageCohort": [
+      "en"
+    ],
+    "caseTypes": [
+      "POLICY_OR_PRECONDITION",
+      "TECHNICAL_INVALID_OUTPUT"
+    ]
+  },
+  "classificationRules": {
+    "policyMetricBucket": "EXCLUDED_FROM_BUSINESS_ABSTENTION",
+    "preconditionMetricBucket": "EXCLUDED_FROM_BUSINESS_ABSTENTION",
+    "invalidOutputMetricBucket": "TECHNICAL_INVALID_OUTPUT",
+    "invalidOutputExpectedOutcome": "INVALID_MODEL_OUTPUT",
+    "invalidOutputForbiddenReasonCode": "TAXONOMY_GAP"
+  },
+  "guardrails": [
+    "SYNTHETIC_ONLY",
+    "NO_RAW_AMOUNTS",
+    "NO_TENANT_OR_CLIENT_IDS",
+    "NO_PRIOR_AFFECTATION_TARGET_IN_INPUT",
+    "NO_PROVIDER_FREE_TEXT",
+    "POLICY_AND_PRECONDITION_ARE_NOT_BUSINESS_ABSTENTIONS",
+    "INVALID_TARGET_OUTPUTS_ARE_NOT_TAXONOMY_GAPS"
+  ],
+  "policyCases": [
+    {
+      "id": "policy-non-synthetic-request",
+      "category": "POLICY_OR_PRECONDITION",
+      "trigger": "NON_SYNTHETIC_REQUEST",
+      "input": {
+        "datasetPolicy": "DECLARED_NON_SYNTHETIC",
+        "requestSynthetic": false,
+        "accountCode": "1000",
+        "accountLabel": "Synthetic cash account",
+        "balanceSignal": "DEBIT_DOMINANT"
+      },
+      "expected": {
+        "outcome": "POLICY_BLOCK",
+        "blockCode": "NON_SYNTHETIC_REQUEST",
+        "providerCallExpected": false,
+        "businessAbstentionCounted": false
+      },
+      "tags": [
+        "policy",
+        "non-synthetic-request"
+      ]
+    },
+    {
+      "id": "policy-cross-tenant-request",
+      "category": "POLICY_OR_PRECONDITION",
+      "trigger": "CROSS_TENANT_REQUEST",
+      "input": {
+        "datasetPolicy": "SYNTHETIC_DEMO_ONLY",
+        "crossTenantSignal": "REQUEST_SCOPE_MISMATCH",
+        "accountCode": "1100",
+        "accountLabel": "Synthetic trade receivables",
+        "balanceSignal": "DEBIT_DOMINANT"
+      },
+      "expected": {
+        "outcome": "POLICY_BLOCK",
+        "blockCode": "CROSS_TENANT_REQUEST",
+        "providerCallExpected": false,
+        "businessAbstentionCounted": false
+      },
+      "tags": [
+        "policy",
+        "cross-tenant"
+      ]
+    },
+    {
+      "id": "policy-outside-allowlist-provenance",
+      "category": "POLICY_OR_PRECONDITION",
+      "trigger": "OUTSIDE_ALLOWLIST_OR_PROVENANCE",
+      "input": {
+        "datasetPolicy": "SYNTHETIC_DEMO_ONLY",
+        "provenanceStatus": "OUTSIDE_ALLOWLIST",
+        "accountCode": "2000",
+        "accountLabel": "Synthetic trade payables",
+        "balanceSignal": "CREDIT_DOMINANT"
+      },
+      "expected": {
+        "outcome": "POLICY_BLOCK",
+        "blockCode": "OUTSIDE_ALLOWLIST_OR_PROVENANCE",
+        "providerCallExpected": false,
+        "businessAbstentionCounted": false
+      },
+      "tags": [
+        "policy",
+        "allowlist",
+        "provenance"
+      ]
+    },
+    {
+      "id": "policy-language-out-of-cohort",
+      "category": "POLICY_OR_PRECONDITION",
+      "trigger": "LANGUAGE_OUT_OF_COHORT",
+      "input": {
+        "datasetPolicy": "SYNTHETIC_DEMO_ONLY",
+        "language": "de",
+        "accountCode": "3000",
+        "accountLabel": "Synthetic operating revenue",
+        "balanceSignal": "CREDIT_DOMINANT"
+      },
+      "expected": {
+        "outcome": "POLICY_BLOCK",
+        "blockCode": "LANGUAGE_OUT_OF_COHORT",
+        "providerCallExpected": false,
+        "businessAbstentionCounted": false
+      },
+      "tags": [
+        "policy",
+        "language"
+      ]
+    },
+    {
+      "id": "precondition-account-already-affected",
+      "category": "POLICY_OR_PRECONDITION",
+      "trigger": "ACCOUNT_ALREADY_AFFECTED",
+      "input": {
+        "datasetPolicy": "SYNTHETIC_DEMO_ONLY",
+        "accountCode": "2800",
+        "accountLabel": "Synthetic retained earnings",
+        "balanceSignal": "CREDIT_DOMINANT",
+        "currentAffectationStatus": "PRESENT_WITHOUT_TARGET"
+      },
+      "expected": {
+        "outcome": "PRECONDITION_BLOCK",
+        "blockCode": "ACCOUNT_ALREADY_AFFECTED",
+        "providerCallExpected": false,
+        "businessAbstentionCounted": false
+      },
+      "tags": [
+        "precondition",
+        "already-affected"
+      ]
+    }
+  ],
+  "invalidOutputCases": [
+    {
+      "id": "invalid-output-unknown-target",
+      "category": "TECHNICAL_INVALID_OUTPUT",
+      "simulatedStructuredOutput": {
+        "outcome": "SUGGESTION",
+        "accountCode": "1000",
+        "suggestedTargetCode": "BS.ASSET.UNKNOWN_CASH"
+      },
+      "expected": {
+        "outcome": "INVALID_MODEL_OUTPUT",
+        "invalidReason": "TARGET_UNKNOWN",
+        "mustNotBeReasonCode": "TAXONOMY_GAP",
+        "businessAbstentionCounted": false
+      },
+      "tags": [
+        "invalid-output",
+        "unknown-target"
+      ]
+    },
+    {
+      "id": "invalid-output-deprecated-target",
+      "category": "TECHNICAL_INVALID_OUTPUT",
+      "simulatedStructuredOutput": {
+        "outcome": "SUGGESTION",
+        "accountCode": "3000",
+        "suggestedTargetCode": "PL.REVENUE"
+      },
+      "expected": {
+        "outcome": "INVALID_MODEL_OUTPUT",
+        "invalidReason": "TARGET_DEPRECATED",
+        "mustNotBeReasonCode": "TAXONOMY_GAP",
+        "businessAbstentionCounted": false
+      },
+      "tags": [
+        "invalid-output",
+        "deprecated-target"
+      ]
+    },
+    {
+      "id": "invalid-output-non-selectable-target",
+      "category": "TECHNICAL_INVALID_OUTPUT",
+      "simulatedStructuredOutput": {
+        "outcome": "SUGGESTION",
+        "accountCode": "4000",
+        "suggestedTargetCode": "PL.EXPENSE.OPERATING_SECTION"
+      },
+      "expected": {
+        "outcome": "INVALID_MODEL_OUTPUT",
+        "invalidReason": "TARGET_NOT_SELECTABLE",
+        "mustNotBeReasonCode": "TAXONOMY_GAP",
+        "businessAbstentionCounted": false
+      },
+      "tags": [
+        "invalid-output",
+        "non-selectable-target"
+      ]
+    },
+    {
+      "id": "invalid-output-section-proposed",
+      "category": "TECHNICAL_INVALID_OUTPUT",
+      "simulatedStructuredOutput": {
+        "outcome": "SUGGESTION",
+        "accountCode": "1100",
+        "suggestedTargetCode": "BS.ASSET.CURRENT_SECTION"
+      },
+      "expected": {
+        "outcome": "INVALID_MODEL_OUTPUT",
+        "invalidReason": "SECTION_OR_ROOT_PROPOSED",
+        "mustNotBeReasonCode": "TAXONOMY_GAP",
+        "businessAbstentionCounted": false
+      },
+      "tags": [
+        "invalid-output",
+        "section-proposed"
+      ]
+    },
+    {
+      "id": "invalid-output-root-proposed",
+      "category": "TECHNICAL_INVALID_OUTPUT",
+      "simulatedStructuredOutput": {
+        "outcome": "SUGGESTION",
+        "accountCode": "2000",
+        "suggestedTargetCode": "BS.LIABILITY"
+      },
+      "expected": {
+        "outcome": "INVALID_MODEL_OUTPUT",
+        "invalidReason": "SECTION_OR_ROOT_PROPOSED",
+        "mustNotBeReasonCode": "TAXONOMY_GAP",
+        "businessAbstentionCounted": false
+      },
+      "tags": [
+        "invalid-output",
+        "root-proposed"
+      ]
+    }
+  ],
+  "coverageGaps": [
+    {
+      "gapCode": "TAXONOMY_GAP",
+      "documentationCode": "NOT_ANNOTATED_WITHOUT_SIGNED_TAXONOMY_GAP_REVIEW"
+    },
+    {
+      "gapCode": "AMBIGUOUS_TARGET",
+      "documentationCode": "NOT_ANNOTATED_WITHOUT_DOUBLE_REVIEW_ADJUDICATION"
+    },
+    {
+      "gapCode": "OUT_OF_SCOPE",
+      "documentationCode": "NOT_ANNOTATED_WITHOUT_SIGNED_PILOT_SCOPE_BOUNDARY"
+    },
+    {
+      "gapCode": "CONFLICTING_SIGNALS",
+      "documentationCode": "NOT_ANNOTATED_WITHOUT_MATERIAL_CONFLICT_EVIDENCE"
+    }
+  ]
+}

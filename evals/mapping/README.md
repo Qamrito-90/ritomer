@@ -42,6 +42,45 @@ Le hash prouve seulement la reproductibilite technique de l'artefact candidat. I
 
 Le snapshot candidat est derive de `contracts/reference/manual-mapping-targets-v2.yaml`, version 2. La projection demo est derivee du seed synthetique `036a-local-demo-synthetic`, version d'import balance `1`, sans montant brut, identifiant tenant/client/acteur, affectation courante, cible attendue ou mapping historique.
 
+## Pack de cas candidats 042a2
+
+`042a2` ajoute un pack executable de cas candidats separe du jeu `030c`.
+
+Fichiers :
+
+- `evals/mapping/fixtures/042a2/candidate-semantic-cases-v1.json`
+- `evals/mapping/fixtures/042a2/candidate-policy-fault-cases-v1.json`
+- `evals/mapping/validate-042a2-candidate-cases.ps1`
+
+Ces artefacts restent `CANDIDATE`, `PENDING_DOUBLE_REVIEW`, `NOT_GOLDEN` et `NOT_AUTHORITATIVE`.
+
+Ils ne creent pas de contrat `mapping-suggestion-v2`, de prompt runtime, de provider, de backend/frontend runtime, de DB/migration, d'OpenAPI, de secret, d'appel IA ou de capacite de production.
+
+Separation des cas :
+
+- `candidate-semantic-cases-v1.json` contient uniquement des cas metier `BUSINESS_SEMANTIC` attendus en `SUGGESTION` ou `ABSTENTION`.
+- `candidate-policy-fault-cases-v1.json` contient les policy/preconditions attendues en `POLICY_BLOCK` ou `PRECONDITION_BLOCK`, et les sorties techniques invalides attendues en `INVALID_MODEL_OUTPUT`.
+- Les policy/preconditions et les sorties invalides sont exclues du comptage d'abstention metier.
+- Les sorties avec cible inconnue, depreciee, non selectionnable, section ou racine proposee sont `INVALID_MODEL_OUTPUT`, jamais `TAXONOMY_GAP`.
+
+Hashes candidats actuels :
+
+| Artefact | SHA-256 |
+| --- | --- |
+| `candidate-semantic-cases-v1.json` | `63AADB379DA47C3909D9391646923EA173978E16BA256EFF8BD903D1901D9F91` |
+| `candidate-policy-fault-cases-v1.json` | `65B334A26F3054156421127BC20C1E8948C4E95BFC5A298A26D8B84D5B729D3C` |
+
+Le validator `validate-042a2-candidate-cases.ps1` verifie aussi les hashes du snapshot candidat et de la projection demo candidate, afin de lier les cas au perimetre candidat deja materialise.
+
+Gaps documentes sans cas artificiel :
+
+- `TAXONOMY_GAP`
+- `AMBIGUOUS_TARGET`
+- `OUT_OF_SCOPE`
+- `CONFLICTING_SIGNALS`
+
+Ces gaps restent documentes tant qu'une revue humaine double et une adjudication explicite ne permettent pas de les annoter honnetement dans ce perimetre candidat.
+
 ## Format du golden set
 
 Le fichier canonique est `evals/mapping/golden-set-v1.json`.
@@ -138,6 +177,8 @@ Depuis la racine du repo :
 
 ```powershell
 .\evals\mapping\validate-golden-set.ps1
+.\evals\mapping\validate-042a2-candidate.ps1
+.\evals\mapping\validate-042a2-candidate-cases.ps1
 ```
 
 Le script verifie :
