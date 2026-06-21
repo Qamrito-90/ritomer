@@ -37,7 +37,7 @@ Before the proposed pilot taxonomy can be used by a contract, golden set or runt
 | Definitions | `NON_DÉTERMINÉ` | `PENDING_EVIDENCE` | Business definitions for every target and family. |
 | Families | `NON_DÉTERMINÉ` | `PENDING_EVIDENCE` | Grouping by business family and statement. |
 | Hierarchy | `NON_DÉTERMINÉ` | `PENDING_EVIDENCE` | Parent/child hierarchy and selectable leaves. |
-| Status model | `NON_DÉTERMINÉ` | `PENDING_EVIDENCE` | Known/selectable/deprecated/admissible flags defined below. |
+| Status model | `NON_DÉTERMINÉ` | `PENDING_EVIDENCE` | Resolution/selectability/deprecation/admissibility model defined below: `known` is derived, `selectable` and `deprecated` are serialized static properties, and `admissible` is computed contextually. |
 | Freeze date | `NON_DÉTERMINÉ` | `PENDING_EVIDENCE` | Date after which the cohort taxonomy cannot change silently. |
 | Number of targets | `NON_DÉTERMINÉ` | `PENDING_EVIDENCE` | Exact count by family, selectable status and deprecated status. |
 | Hash | `NON_DÉTERMINÉ` | `PENDING_EVIDENCE` | SHA-256 or approved equivalent over the canonical taxonomy artifact. |
@@ -47,10 +47,10 @@ Before the proposed pilot taxonomy can be used by a contract, golden set or runt
 
 The future taxonomy must define these concepts consistently:
 
-- `known`: the target id resolves in the exact frozen taxonomy version and hash used by the pilot cohort.
-- `selectable`: a static taxonomy property stating whether the target can be chosen as a final affectation target when other rules allow it.
-- `deprecated`: a lifecycle status. A deprecated target remains known for historical compatibility but must not be newly suggested or selected unless an explicit migration rule allows it.
-- `admissible`: a contextual predicate, not a copied flag: `known AND selectable AND NOT deprecated AND context rules satisfied`.
+- `known`: a derived resolution result, not a serialized target property. It is true only when the target id resolves in the exact frozen taxonomy version and hash used by the pilot cohort.
+- `selectable`: a serialized static taxonomy property stating whether the target can be chosen as a final affectation target when other rules allow it.
+- `deprecated`: a serialized static lifecycle property. A deprecated target remains resolvable for historical compatibility but must not be newly suggested or selected unless an explicit migration rule allows it.
+- `admissible`: a contextual predicate calculated by the evaluator, never a stored or copied flag: `known AND selectable AND NOT deprecated AND context rules satisfied`.
 
 Context rules include, at minimum, the approved pilot scope, account context, legal form, cohort, taxonomy family rules and any contra-account or statement-boundary constraints approved by Expert Board.
 
@@ -68,9 +68,9 @@ A provider output that names an unknown, deprecated, non-selectable or contextua
 - A taxonomy gap observed during a cohort means the frozen pilot taxonomy contains no admissible target for a valid business concept; it must be routed as `TAXONOMY_GAP` and cannot be hidden by changing the taxonomy in place.
 - Unknown, deprecated, non-selectable or contextually inadmissible targets emitted by a provider must not be counted as `TAXONOMY_GAP`.
 
-## Required target fields
+## Required serialized target fields
 
-Each future target must provide at minimum:
+Each future serialized target entry must provide at minimum:
 
 - immutable `targetId`;
 - human-readable label;
@@ -79,10 +79,9 @@ Each future target must provide at minimum:
 - parent id or root marker;
 - statement or equivalent accounting domain;
 - normal side when applicable;
-- `known`;
 - `selectable`;
 - `deprecated`;
-- contextual admissibility rule;
+- contextual admissibility rule reference or policy pointer, not an `admissible` boolean;
 - provenance;
 - rights-of-use evidence pointer;
 - owner approval pointer.
@@ -117,6 +116,25 @@ This record does not:
 - authorize provider payload fields;
 - authorize a contract v2;
 - authorize mapping decisions outside current backend authority.
+
+## Candidate fixture note after 042a2a2a
+
+A minimal taxonomy snapshot candidate now exists at `evals/mapping/fixtures/042a2/taxonomy-snapshot-candidate-v1.json`.
+
+Candidate fixture status:
+
+- status remains `CANDIDATE / PENDING_EVIDENCE / NOT_AUTHORITATIVE`;
+- source is `contracts/reference/manual-mapping-targets-v2.yaml`, version `2`;
+- SHA-256 over canonical UTF-8-no-BOM LF bytes is `9E5E303EC10B6713C7A0A0AD33D031069407C6A862030BEF98D69F4786681BA7`;
+- command is `.\evals\mapping\validate-042a2-candidate.ps1`;
+- it contains 16 entries needed for the candidate resolution surface: 5 roots, 5 sections and 6 candidate leaves;
+- the 6 candidate leaves are limited to `BS.ASSET.CASH_AND_EQUIVALENTS`, `BS.ASSET.TRADE_RECEIVABLES`, `BS.LIABILITY.TRADE_PAYABLES`, `BS.EQUITY.RETAINED_EARNINGS`, `PL.REVENUE.OPERATING_REVENUE` and `PL.EXPENSE.OTHER_OPERATING_EXPENSES`;
+- roots and sections are not candidates;
+- `selectable` and `deprecated` are retained as static serialized properties copied from the source reference;
+- no `known` property and no `admissible` property are stored in the candidate snapshot;
+- for this candidate, `known` is derived by resolving the target id (`code`) against the exact snapshot version/hash, and `admissible` remains a future contextual calculation.
+
+This candidate fixture does not replace the required taxonomy evidence above. Source provenance, rights of use and owner approval remain `NON_DETERMINE` / `PENDING_EVIDENCE`, and the hash is technical reproducibility evidence only.
 
 ## Approval placeholders
 
