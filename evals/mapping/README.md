@@ -81,6 +81,61 @@ Gaps documentes sans cas artificiel :
 
 Ces gaps restent documentes tant qu'une revue humaine double et une adjudication explicite ne permettent pas de les annoter honnetement dans ce perimetre candidat.
 
+## Pack de double revue aveugle 042a2
+
+Le pack de double revue aveugle transforme les 17 cas candidats `042a2` en deux paquets independants pour revue humaine. Il reste `BLIND_REVIEW_INPUT`, `PENDING_INDEPENDENT_REVIEW`, `NOT_GOLDEN` et `NOT_AUTHORITATIVE`.
+
+Fichiers :
+
+- `evals/mapping/reviews/042a2/reviewer-a-blind-v1.json`
+- `evals/mapping/reviews/042a2/reviewer-b-blind-v1.json`
+- `evals/mapping/reviews/042a2/reviewer-response-schema-v1.json`
+- `evals/mapping/build-042a2-blind-review-pack.ps1`
+- `evals/mapping/validate-042a2-blind-review-pack.ps1`
+- `evals/mapping/validate-042a2-human-review-responses.ps1`
+
+Les deux paquets :
+
+- couvrent exactement les 17 cas candidats ;
+- utilisent les ids neutres `BR-001` a `BR-017` ;
+- ont le meme ensemble de cas dans deux ordres deterministes differents ;
+- exposent uniquement des inputs synthetiques minimises et le catalogue candidat des cibles selectionnables ;
+- n'exposent pas les chemins ou hashes des fixtures candidates contenant les reponses ;
+- n'exposent pas `sourceKind`, `sourceCaseId`, `caseInputHash` ou autre indice vers les cas sources ;
+- n'exposent pas les champs de solution source, tags, categories, commentaires de correction, montant brut, identifiant tenant/client/acteur ou mapping historique.
+
+Distribution aveugle :
+
+- le reviewer A recoit uniquement `reviewer-a-blind-v1.json`, le schema de reponse et les instructions / guide d'annotation sans reponses ;
+- le reviewer B recoit uniquement `reviewer-b-blind-v1.json`, le schema de reponse et les instructions / guide d'annotation sans reponses ;
+- aucun reviewer ne recoit les fixtures candidates, les cas sources, le builder, les validators internes ou le paquet de l'autre reviewer pendant la revue independante ;
+- les reponses humaines futures doivent etre validees avec `validate-042a2-human-review-responses.ps1` contre le paquet effectivement distribue.
+
+Le schema de reponse est une union stricte `SUGGESTION`, `ABSTENTION`, `POLICY_BLOCK`, `PRECONDITION_BLOCK`, `INVALID_MODEL_OUTPUT`, avec `additionalProperties=false`, sans valeur `null`.
+Il limite `targetCode` exactement aux 6 cibles candidates, rend `NONE` exclusif dans `criticalFlags` et contraint `expectedHumanAction` par `outcome`.
+
+Hashes du pack aveugle actuel :
+
+| Artefact | SHA-256 |
+| --- | --- |
+| `reviewer-a-blind-v1.json` | `19D654092FA6324D2E5EB80200FF1430E94A47CBBF671BE62EA3EA668513FA59` |
+| `reviewer-b-blind-v1.json` | `BAD54B421CBDEE7357F6C618B3FA87F2F3E3A8A6E12D167DEDE09D84F5F8897F` |
+| `reviewer-response-schema-v1.json` | `2076AD96BCE752E3689981A9B699ADBB410EB7A635B35A0A02FFCFB1BE23861C` |
+
+Commande :
+
+```powershell
+.\evals\mapping\validate-042a2-blind-review-pack.ps1
+```
+
+Exemple de validation d'une reponse humaine future :
+
+```powershell
+.\evals\mapping\validate-042a2-human-review-responses.ps1 -ResponsePath <response-json> -ReviewerPackPath .\evals\mapping\reviews\042a2\reviewer-a-blind-v1.json
+```
+
+Ce pack ne remplit aucune reponse humaine, ne realise aucune adjudication et ne promeut aucun golden set.
+
 ## Format du golden set
 
 Le fichier canonique est `evals/mapping/golden-set-v1.json`.
@@ -179,6 +234,7 @@ Depuis la racine du repo :
 .\evals\mapping\validate-golden-set.ps1
 .\evals\mapping\validate-042a2-candidate.ps1
 .\evals\mapping\validate-042a2-candidate-cases.ps1
+.\evals\mapping\validate-042a2-blind-review-pack.ps1
 ```
 
 Le script verifie :
