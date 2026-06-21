@@ -1,0 +1,323 @@
+{
+  "schemaVersion": "042a2-candidate-semantic-cases-v1",
+  "status": [
+    "CANDIDATE",
+    "PENDING_DOUBLE_REVIEW",
+    "NOT_GOLDEN",
+    "NOT_AUTHORITATIVE"
+  ],
+  "sourceArtifacts": {
+    "taxonomySnapshot": {
+      "path": "evals/mapping/fixtures/042a2/taxonomy-snapshot-candidate-v1.json",
+      "sha256": "9E5E303EC10B6713C7A0A0AD33D031069407C6A862030BEF98D69F4786681BA7"
+    },
+    "demoInputProjection": {
+      "path": "evals/mapping/fixtures/042a2/demo-input-unmapped-v1.json",
+      "sha256": "B3C616B729014E6A87BB2124C10970EDF954D9F98FBD1F5C08E42B7ACAAA6D3F"
+    }
+  },
+  "scope": {
+    "dataset": "036a-local-demo-synthetic",
+    "taxonomySnapshotId": "RITOMER-MAPPING-PILOT-MINIMAL-2026.06-v1",
+    "taxonomyVersion": 2,
+    "language": "en",
+    "caseType": "BUSINESS_SEMANTIC"
+  },
+  "guardrails": [
+    "SYNTHETIC_ONLY",
+    "NO_RAW_AMOUNTS",
+    "NO_TENANT_OR_CLIENT_IDS",
+    "NO_PRIOR_AFFECTATION_TARGET_IN_INPUT",
+    "NO_PROVIDER_FREE_TEXT",
+    "ABSTENTION_HAS_NO_TARGET",
+    "ABSTENTION_HAS_NO_CONFIDENCE"
+  ],
+  "cases": [
+    {
+      "id": "semantic-1000-cash",
+      "category": "BUSINESS_SEMANTIC",
+      "input": {
+        "accountCode": "1000",
+        "accountLabel": "Synthetic cash account",
+        "balanceSignal": "DEBIT_DOMINANT",
+        "currentAffectationStatus": "NONE"
+      },
+      "expected": {
+        "outcome": "SUGGESTION",
+        "suggestedTargetCode": "BS.ASSET.CASH_AND_EQUIVALENTS",
+        "explanationCode": "TARGET_SUPPORTED_BY_CANDIDATE_EVIDENCE",
+        "evidenceConstraints": {
+          "minItems": 2,
+          "requiredTypes": [
+            "ACCOUNT_LABEL",
+            "TARGET_TAXONOMY"
+          ]
+        }
+      },
+      "evidence": [
+        {
+          "type": "ACCOUNT_LABEL",
+          "ref": "candidate-demo-input:1000:accountLabel",
+          "snippet": "Synthetic cash account"
+        },
+        {
+          "type": "TARGET_TAXONOMY",
+          "ref": "taxonomy-snapshot-candidate-v1:BS.ASSET.CASH_AND_EQUIVALENTS",
+          "snippet": "Cash and cash equivalents"
+        }
+      ],
+      "tags": [
+        "semantic",
+        "suggestion",
+        "cash"
+      ]
+    },
+    {
+      "id": "semantic-1100-receivables",
+      "category": "BUSINESS_SEMANTIC",
+      "input": {
+        "accountCode": "1100",
+        "accountLabel": "Synthetic trade receivables",
+        "balanceSignal": "DEBIT_DOMINANT",
+        "currentAffectationStatus": "NONE"
+      },
+      "expected": {
+        "outcome": "SUGGESTION",
+        "suggestedTargetCode": "BS.ASSET.TRADE_RECEIVABLES",
+        "explanationCode": "TARGET_SUPPORTED_BY_CANDIDATE_EVIDENCE",
+        "evidenceConstraints": {
+          "minItems": 2,
+          "requiredTypes": [
+            "ACCOUNT_LABEL",
+            "TARGET_TAXONOMY"
+          ]
+        }
+      },
+      "evidence": [
+        {
+          "type": "ACCOUNT_LABEL",
+          "ref": "candidate-demo-input:1100:accountLabel",
+          "snippet": "Synthetic trade receivables"
+        },
+        {
+          "type": "TARGET_TAXONOMY",
+          "ref": "taxonomy-snapshot-candidate-v1:BS.ASSET.TRADE_RECEIVABLES",
+          "snippet": "Trade receivables"
+        }
+      ],
+      "tags": [
+        "semantic",
+        "suggestion",
+        "receivables"
+      ]
+    },
+    {
+      "id": "semantic-2000-payables",
+      "category": "BUSINESS_SEMANTIC",
+      "input": {
+        "accountCode": "2000",
+        "accountLabel": "Synthetic trade payables",
+        "balanceSignal": "CREDIT_DOMINANT",
+        "currentAffectationStatus": "NONE"
+      },
+      "expected": {
+        "outcome": "SUGGESTION",
+        "suggestedTargetCode": "BS.LIABILITY.TRADE_PAYABLES",
+        "explanationCode": "TARGET_SUPPORTED_BY_CANDIDATE_EVIDENCE",
+        "evidenceConstraints": {
+          "minItems": 2,
+          "requiredTypes": [
+            "ACCOUNT_LABEL",
+            "TARGET_TAXONOMY"
+          ]
+        }
+      },
+      "evidence": [
+        {
+          "type": "ACCOUNT_LABEL",
+          "ref": "candidate-demo-input:2000:accountLabel",
+          "snippet": "Synthetic trade payables"
+        },
+        {
+          "type": "TARGET_TAXONOMY",
+          "ref": "taxonomy-snapshot-candidate-v1:BS.LIABILITY.TRADE_PAYABLES",
+          "snippet": "Trade payables"
+        }
+      ],
+      "tags": [
+        "semantic",
+        "suggestion",
+        "payables"
+      ]
+    },
+    {
+      "id": "semantic-2800-retained-earnings",
+      "category": "BUSINESS_SEMANTIC",
+      "input": {
+        "accountCode": "2800",
+        "accountLabel": "Synthetic retained earnings",
+        "balanceSignal": "CREDIT_DOMINANT",
+        "currentAffectationStatus": "NONE"
+      },
+      "expected": {
+        "outcome": "SUGGESTION",
+        "suggestedTargetCode": "BS.EQUITY.RETAINED_EARNINGS",
+        "explanationCode": "TARGET_SUPPORTED_BY_CANDIDATE_EVIDENCE",
+        "evidenceConstraints": {
+          "minItems": 2,
+          "requiredTypes": [
+            "ACCOUNT_LABEL",
+            "TARGET_TAXONOMY"
+          ]
+        }
+      },
+      "evidence": [
+        {
+          "type": "ACCOUNT_LABEL",
+          "ref": "candidate-demo-input:2800:accountLabel",
+          "snippet": "Synthetic retained earnings"
+        },
+        {
+          "type": "TARGET_TAXONOMY",
+          "ref": "taxonomy-snapshot-candidate-v1:BS.EQUITY.RETAINED_EARNINGS",
+          "snippet": "Retained earnings"
+        }
+      ],
+      "tags": [
+        "semantic",
+        "suggestion",
+        "retained-earnings"
+      ]
+    },
+    {
+      "id": "semantic-3000-operating-revenue",
+      "category": "BUSINESS_SEMANTIC",
+      "input": {
+        "accountCode": "3000",
+        "accountLabel": "Synthetic operating revenue",
+        "balanceSignal": "CREDIT_DOMINANT",
+        "currentAffectationStatus": "NONE"
+      },
+      "expected": {
+        "outcome": "SUGGESTION",
+        "suggestedTargetCode": "PL.REVENUE.OPERATING_REVENUE",
+        "explanationCode": "TARGET_SUPPORTED_BY_CANDIDATE_EVIDENCE",
+        "evidenceConstraints": {
+          "minItems": 2,
+          "requiredTypes": [
+            "ACCOUNT_LABEL",
+            "TARGET_TAXONOMY"
+          ]
+        }
+      },
+      "evidence": [
+        {
+          "type": "ACCOUNT_LABEL",
+          "ref": "candidate-demo-input:3000:accountLabel",
+          "snippet": "Synthetic operating revenue"
+        },
+        {
+          "type": "TARGET_TAXONOMY",
+          "ref": "taxonomy-snapshot-candidate-v1:PL.REVENUE.OPERATING_REVENUE",
+          "snippet": "Operating revenue"
+        }
+      ],
+      "tags": [
+        "semantic",
+        "suggestion",
+        "operating-revenue"
+      ]
+    },
+    {
+      "id": "semantic-4000-operating-expenses-insufficient",
+      "category": "BUSINESS_SEMANTIC",
+      "input": {
+        "accountCode": "4000",
+        "accountLabel": "Synthetic operating expenses",
+        "balanceSignal": "DEBIT_DOMINANT",
+        "currentAffectationStatus": "NONE"
+      },
+      "expected": {
+        "outcome": "ABSTENTION",
+        "reasonCode": "INSUFFICIENT_EVIDENCE",
+        "explanationCode": "EVIDENCE_NOT_SUFFICIENT_FOR_AFFECTATION",
+        "evidenceConstraints": {
+          "minItems": 1,
+          "requiredTypes": [
+            "ACCOUNT_LABEL"
+          ]
+        }
+      },
+      "evidence": [
+        {
+          "type": "ACCOUNT_LABEL",
+          "ref": "candidate-demo-input:4000:accountLabel",
+          "snippet": "Synthetic operating expenses"
+        }
+      ],
+      "tags": [
+        "semantic",
+        "abstention",
+        "insufficient-evidence",
+        "operating-expenses"
+      ]
+    },
+    {
+      "id": "semantic-4010-other-operating-expenses",
+      "category": "BUSINESS_SEMANTIC",
+      "input": {
+        "accountCode": "4010",
+        "accountLabel": "Synthetic other operating expenses",
+        "balanceSignal": "DEBIT_DOMINANT",
+        "currentAffectationStatus": "NONE"
+      },
+      "expected": {
+        "outcome": "SUGGESTION",
+        "suggestedTargetCode": "PL.EXPENSE.OTHER_OPERATING_EXPENSES",
+        "explanationCode": "TARGET_SUPPORTED_BY_CANDIDATE_EVIDENCE",
+        "evidenceConstraints": {
+          "minItems": 2,
+          "requiredTypes": [
+            "ACCOUNT_LABEL",
+            "TARGET_TAXONOMY"
+          ]
+        }
+      },
+      "evidence": [
+        {
+          "type": "ACCOUNT_LABEL",
+          "ref": "candidate-case-input:4010:accountLabel",
+          "snippet": "Synthetic other operating expenses"
+        },
+        {
+          "type": "TARGET_TAXONOMY",
+          "ref": "taxonomy-snapshot-candidate-v1:PL.EXPENSE.OTHER_OPERATING_EXPENSES",
+          "snippet": "Other operating expenses"
+        }
+      ],
+      "tags": [
+        "semantic",
+        "suggestion",
+        "other-operating-expenses"
+      ]
+    }
+  ],
+  "coverageGaps": [
+    {
+      "gapCode": "TAXONOMY_GAP",
+      "documentationCode": "NOT_ANNOTATED_WITHOUT_SIGNED_TAXONOMY_GAP_REVIEW"
+    },
+    {
+      "gapCode": "AMBIGUOUS_TARGET",
+      "documentationCode": "NOT_ANNOTATED_WITHOUT_DOUBLE_REVIEW_ADJUDICATION"
+    },
+    {
+      "gapCode": "OUT_OF_SCOPE",
+      "documentationCode": "NOT_ANNOTATED_WITHOUT_SIGNED_PILOT_SCOPE_BOUNDARY"
+    },
+    {
+      "gapCode": "CONFLICTING_SIGNALS",
+      "documentationCode": "NOT_ANNOTATED_WITHOUT_MATERIAL_CONFLICT_EVIDENCE"
+    }
+  ]
+}
