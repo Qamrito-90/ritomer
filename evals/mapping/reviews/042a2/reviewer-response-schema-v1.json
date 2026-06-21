@@ -1,0 +1,327 @@
+{
+    "$schema":  "https://json-schema.org/draft/2020-12/schema",
+    "$id":  "https://ritomer.local/evals/mapping/reviews/042a2/reviewer-response-schema-v1.json",
+    "title":  "042a2 blind review response schema v1",
+    "type":  "object",
+    "additionalProperties":  false,
+    "required":  [
+                     "schemaVersion",
+                     "status",
+                     "reviewerId",
+                     "responses"
+                 ],
+    "properties":  {
+                       "schemaVersion":  {
+                                             "type":  "string",
+                                             "const":  "042a2-blind-review-response-v1"
+                                         },
+                       "status":  {
+                                      "type":  "array",
+                                      "minItems":  1,
+                                      "maxItems":  1,
+                                      "items":  {
+                                                    "type":  "string",
+                                                    "const":  "DRAFT_HUMAN_REVIEW"
+                                                }
+                                  },
+                       "reviewerId":  {
+                                          "type":  "string",
+                                          "pattern":  "^reviewer-[a-z0-9-]{1,40}$"
+                                      },
+                       "responses":  {
+                                         "type":  "array",
+                                         "minItems":  17,
+                                         "maxItems":  17,
+                                         "items":  {
+                                                       "$ref":  "#/$defs/reviewResponse"
+                                                   }
+                                     }
+                   },
+    "$defs":  {
+                  "blindCaseId":  {
+                                      "type":  "string",
+                                      "pattern":  "^BR-(00[1-9]|01[0-7])$"
+                                  },
+                  "targetCode":  {
+                                     "type":  "string",
+                                     "enum":  [
+                                                  "BS.ASSET.CASH_AND_EQUIVALENTS",
+                                                  "BS.ASSET.TRADE_RECEIVABLES",
+                                                  "BS.LIABILITY.TRADE_PAYABLES",
+                                                  "BS.EQUITY.RETAINED_EARNINGS",
+                                                  "PL.REVENUE.OPERATING_REVENUE",
+                                                  "PL.EXPENSE.OTHER_OPERATING_EXPENSES"
+                                              ]
+                                 },
+                  "abstentionReasonCode":  {
+                                               "type":  "string",
+                                               "enum":  [
+                                                            "OUT_OF_SCOPE",
+                                                            "CONFLICTING_SIGNALS",
+                                                            "INSUFFICIENT_EVIDENCE",
+                                                            "TAXONOMY_GAP",
+                                                            "AMBIGUOUS_TARGET"
+                                                        ]
+                                           },
+                  "policyReasonCode":  {
+                                           "type":  "string",
+                                           "enum":  [
+                                                        "NON_SYNTHETIC_REQUEST",
+                                                        "CROSS_TENANT_REQUEST",
+                                                        "OUTSIDE_ALLOWLIST_OR_PROVENANCE",
+                                                        "LANGUAGE_OUT_OF_COHORT",
+                                                        "GATE_INVALID",
+                                                        "PRIVACY_OR_TENANT_BOUNDARY"
+                                                    ]
+                                       },
+                  "preconditionReasonCode":  {
+                                                 "type":  "string",
+                                                 "enum":  [
+                                                              "ACCOUNT_ALREADY_AFFECTED",
+                                                              "ACCOUNT_NOT_IN_LATEST_IMPORT",
+                                                              "STALE_IMPORT",
+                                                              "NOT_ELIGIBLE"
+                                                          ]
+                                             },
+                  "invalidOutputReasonCode":  {
+                                                  "type":  "string",
+                                                  "enum":  [
+                                                               "TARGET_UNKNOWN",
+                                                               "TARGET_DEPRECATED",
+                                                               "TARGET_NOT_SELECTABLE",
+                                                               "SECTION_OR_ROOT_PROPOSED",
+                                                               "MALFORMED_OUTPUT",
+                                                               "SCHEMA_INVALID",
+                                                               "CONTEXTUALLY_INADMISSIBLE_TARGET"
+                                                           ]
+                                              },
+                  "evidenceState":  {
+                                        "type":  "string",
+                                        "enum":  [
+                                                     "SUFFICIENT",
+                                                     "INSUFFICIENT",
+                                                     "MISSING",
+                                                     "CONFLICTING",
+                                                     "STALE_PRECONDITION",
+                                                     "POLICY_BLOCKED",
+                                                     "TECHNICAL_INVALID"
+                                                 ]
+                                    },
+                  "criticalFlags":  {
+                                        "oneOf":  [
+                                                      {
+                                                          "type":  "array",
+                                                          "minItems":  1,
+                                                          "maxItems":  1,
+                                                          "uniqueItems":  true,
+                                                          "items":  {
+                                                                        "type":  "string",
+                                                                        "const":  "NONE"
+                                                                    }
+                                                      },
+                                                      {
+                                                          "type":  "array",
+                                                          "minItems":  1,
+                                                          "uniqueItems":  true,
+                                                          "items":  {
+                                                                        "type":  "string",
+                                                                        "enum":  [
+                                                                                     "ACTIVE_PASSIVE_BOUNDARY",
+                                                                                     "BALANCE_SHEET_INCOME_STATEMENT_BOUNDARY",
+                                                                                     "REVENUE_EXPENSE_BOUNDARY",
+                                                                                     "CONTRA_ACCOUNT",
+                                                                                     "TARGET_VALIDITY",
+                                                                                     "TAXONOMY_GAP",
+                                                                                     "POLICY_INCIDENT",
+                                                                                     "TECHNICAL_INCIDENT"
+                                                                                 ]
+                                                                    }
+                                                      }
+                                                  ]
+                                    },
+                  "expectedHumanAction":  {
+                                              "type":  "string",
+                                              "enum":  [
+                                                           "REVIEW_TARGET",
+                                                           "REVIEW_ABSTENTION_REASON",
+                                                           "ROUTE_TO_GOVERNANCE",
+                                                           "CHECK_PRECONDITION",
+                                                           "ROUTE_TO_TECHNICAL_REVIEW"
+                                                       ]
+                                          },
+                  "reviewResponse":  {
+                                         "oneOf":  [
+                                                       {
+                                                           "type":  "object",
+                                                           "additionalProperties":  false,
+                                                           "required":  [
+                                                                            "blindCaseId",
+                                                                            "outcome",
+                                                                            "targetCode",
+                                                                            "evidenceState",
+                                                                            "criticalFlags",
+                                                                            "expectedHumanAction"
+                                                                        ],
+                                                           "properties":  {
+                                                                              "blindCaseId":  {
+                                                                                                  "$ref":  "#/$defs/blindCaseId"
+                                                                                              },
+                                                                              "outcome":  {
+                                                                                              "type":  "string",
+                                                                                              "const":  "SUGGESTION"
+                                                                                          },
+                                                                              "evidenceState":  {
+                                                                                                    "$ref":  "#/$defs/evidenceState"
+                                                                                                },
+                                                                              "criticalFlags":  {
+                                                                                                    "$ref":  "#/$defs/criticalFlags"
+                                                                                                },
+                                                                              "expectedHumanAction":  {
+                                                                                                          "type":  "string",
+                                                                                                          "const":  "REVIEW_TARGET"
+                                                                                                      },
+                                                                              "targetCode":  {
+                                                                                                 "$ref":  "#/$defs/targetCode"
+                                                                                             }
+                                                                          }
+                                                       },
+                                                       {
+                                                           "type":  "object",
+                                                           "additionalProperties":  false,
+                                                           "required":  [
+                                                                            "blindCaseId",
+                                                                            "outcome",
+                                                                            "reasonCode",
+                                                                            "evidenceState",
+                                                                            "criticalFlags",
+                                                                            "expectedHumanAction"
+                                                                        ],
+                                                           "properties":  {
+                                                                              "blindCaseId":  {
+                                                                                                  "$ref":  "#/$defs/blindCaseId"
+                                                                                              },
+                                                                              "outcome":  {
+                                                                                              "type":  "string",
+                                                                                              "const":  "ABSTENTION"
+                                                                                          },
+                                                                              "evidenceState":  {
+                                                                                                    "$ref":  "#/$defs/evidenceState"
+                                                                                                },
+                                                                              "criticalFlags":  {
+                                                                                                    "$ref":  "#/$defs/criticalFlags"
+                                                                                                },
+                                                                              "expectedHumanAction":  {
+                                                                                                          "type":  "string",
+                                                                                                          "const":  "REVIEW_ABSTENTION_REASON"
+                                                                                                      },
+                                                                              "reasonCode":  {
+                                                                                                 "$ref":  "#/$defs/abstentionReasonCode"
+                                                                                             }
+                                                                          }
+                                                       },
+                                                       {
+                                                           "type":  "object",
+                                                           "additionalProperties":  false,
+                                                           "required":  [
+                                                                            "blindCaseId",
+                                                                            "outcome",
+                                                                            "reasonCode",
+                                                                            "evidenceState",
+                                                                            "criticalFlags",
+                                                                            "expectedHumanAction"
+                                                                        ],
+                                                           "properties":  {
+                                                                              "blindCaseId":  {
+                                                                                                  "$ref":  "#/$defs/blindCaseId"
+                                                                                              },
+                                                                              "outcome":  {
+                                                                                              "type":  "string",
+                                                                                              "const":  "POLICY_BLOCK"
+                                                                                          },
+                                                                              "evidenceState":  {
+                                                                                                    "$ref":  "#/$defs/evidenceState"
+                                                                                                },
+                                                                              "criticalFlags":  {
+                                                                                                    "$ref":  "#/$defs/criticalFlags"
+                                                                                                },
+                                                                              "expectedHumanAction":  {
+                                                                                                          "type":  "string",
+                                                                                                          "const":  "ROUTE_TO_GOVERNANCE"
+                                                                                                      },
+                                                                              "reasonCode":  {
+                                                                                                 "$ref":  "#/$defs/policyReasonCode"
+                                                                                             }
+                                                                          }
+                                                       },
+                                                       {
+                                                           "type":  "object",
+                                                           "additionalProperties":  false,
+                                                           "required":  [
+                                                                            "blindCaseId",
+                                                                            "outcome",
+                                                                            "reasonCode",
+                                                                            "evidenceState",
+                                                                            "criticalFlags",
+                                                                            "expectedHumanAction"
+                                                                        ],
+                                                           "properties":  {
+                                                                              "blindCaseId":  {
+                                                                                                  "$ref":  "#/$defs/blindCaseId"
+                                                                                              },
+                                                                              "outcome":  {
+                                                                                              "type":  "string",
+                                                                                              "const":  "PRECONDITION_BLOCK"
+                                                                                          },
+                                                                              "evidenceState":  {
+                                                                                                    "$ref":  "#/$defs/evidenceState"
+                                                                                                },
+                                                                              "criticalFlags":  {
+                                                                                                    "$ref":  "#/$defs/criticalFlags"
+                                                                                                },
+                                                                              "expectedHumanAction":  {
+                                                                                                          "type":  "string",
+                                                                                                          "const":  "CHECK_PRECONDITION"
+                                                                                                      },
+                                                                              "reasonCode":  {
+                                                                                                 "$ref":  "#/$defs/preconditionReasonCode"
+                                                                                             }
+                                                                          }
+                                                       },
+                                                       {
+                                                           "type":  "object",
+                                                           "additionalProperties":  false,
+                                                           "required":  [
+                                                                            "blindCaseId",
+                                                                            "outcome",
+                                                                            "reasonCode",
+                                                                            "evidenceState",
+                                                                            "criticalFlags",
+                                                                            "expectedHumanAction"
+                                                                        ],
+                                                           "properties":  {
+                                                                              "blindCaseId":  {
+                                                                                                  "$ref":  "#/$defs/blindCaseId"
+                                                                                              },
+                                                                              "outcome":  {
+                                                                                              "type":  "string",
+                                                                                              "const":  "INVALID_MODEL_OUTPUT"
+                                                                                          },
+                                                                              "evidenceState":  {
+                                                                                                    "$ref":  "#/$defs/evidenceState"
+                                                                                                },
+                                                                              "criticalFlags":  {
+                                                                                                    "$ref":  "#/$defs/criticalFlags"
+                                                                                                },
+                                                                              "expectedHumanAction":  {
+                                                                                                          "type":  "string",
+                                                                                                          "const":  "ROUTE_TO_TECHNICAL_REVIEW"
+                                                                                                      },
+                                                                              "reasonCode":  {
+                                                                                                 "$ref":  "#/$defs/invalidOutputReasonCode"
+                                                                                             }
+                                                                          }
+                                                       }
+                                                   ]
+                                     }
+              }
+}

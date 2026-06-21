@@ -18,6 +18,8 @@ Elle ne livre aucun runtime, aucun provider, aucun backend, aucun frontend, aucu
 
 Le pack de cas candidats `042a2` ajoute uniquement des fixtures synthetiques et un validator local. Les artefacts restent `CANDIDATE / PENDING_DOUBLE_REVIEW / NOT_GOLDEN / NOT_AUTHORITATIVE`, sans signature humaine, sans contrat, sans provider, sans prompt runtime, sans backend/frontend runtime, sans DB/migration, sans OpenAPI, sans secret, sans `.env`, sans appel reseau IA et sans spec `043`.
 
+Le pack de double revue aveugle `042a2` transforme les 17 cas candidats en deux paquets de revue humaine independants. Les artefacts restent `BLIND_REVIEW_INPUT / PENDING_INDEPENDENT_REVIEW / NOT_GOLDEN / NOT_AUTHORITATIVE`, sans reponses humaines, sans adjudication, sans promotion golden set, sans contrat, sans provider, sans prompt runtime, sans backend/frontend runtime, sans DB/migration, sans OpenAPI, sans secret, sans `.env`, sans appel reseau IA et sans spec `043`.
+
 ## Surface
 
 DOCS_GIT / AI_RUNTIME_SPEC.
@@ -27,6 +29,8 @@ Surface `042a1` : DOCS_GIT / AI_GOVERNANCE.
 Surface `042a2a1` : DOCS_GIT / AI_GOVERNANCE / FIDUCIARY_GOVERNANCE.
 
 Surface pack de cas candidats `042a2` : EVALS / CONTRACTS_DATA / DOCS_GIT.
+
+Surface pack de double revue aveugle `042a2` : EVALS / DOCS_GIT.
 
 ## Risk
 
@@ -220,8 +224,22 @@ Le pack de cas candidats `042a2` ajoute ensuite :
 
 Ces artefacts restent `CANDIDATE / PENDING_DOUBLE_REVIEW / NOT_GOLDEN / NOT_AUTHORITATIVE`. Ils separent les cas metier `BUSINESS_SEMANTIC`, les policy/preconditions et les sorties techniques invalides. Les policy/preconditions ne comptent pas comme abstentions metier. Les sorties avec cible inconnue, depreciee, non selectionnable, section ou racine proposee sont attendues en `INVALID_MODEL_OUTPUT`, jamais en `TAXONOMY_GAP`. Les gaps `TAXONOMY_GAP`, `AMBIGUOUS_TARGET`, `OUT_OF_SCOPE` et `CONFLICTING_SIGNALS` restent documentes sans cas artificiel.
 
-`042a2` devra encore traiter, dans une ou plusieurs missions separees, les livrables qui ne sont pas clos par `042a1`, `042a2a1`, `042a2a1b`, les artefacts candidats `042a2a2a` ou le pack de cas candidats `042a2` :
+Le pack de double revue aveugle `042a2` ajoute uniquement :
 
+- `evals/mapping/reviews/042a2/reviewer-a-blind-v1.json` ;
+- `evals/mapping/reviews/042a2/reviewer-b-blind-v1.json` ;
+- `evals/mapping/reviews/042a2/reviewer-response-schema-v1.json` ;
+- `evals/mapping/build-042a2-blind-review-pack.ps1` ;
+- `evals/mapping/validate-042a2-blind-review-pack.ps1` ;
+- `evals/mapping/validate-042a2-human-review-responses.ps1`.
+
+Ces artefacts restent `BLIND_REVIEW_INPUT / PENDING_INDEPENDENT_REVIEW / NOT_GOLDEN / NOT_AUTHORITATIVE`. Ils couvrent exactement les 17 cas candidats avec des ids neutres `BR-001` a `BR-017`, deux ordres deterministes differents, les inputs synthetiques necessaires et le catalogue candidat des cibles selectionnables. Ils n'exposent pas les chemins ou hashes des fixtures candidates contenant les reponses, `sourceKind`, `sourceCaseId`, `caseInputHash`, les champs de solution source, categories, tags, commentaire de correction, montant brut, identifiant tenant/client/acteur ou mapping historique.
+
+`042a2` devra encore traiter, dans une ou plusieurs missions separees, les livrables qui ne sont pas clos par `042a1`, `042a2a1`, `042a2a1b`, les artefacts candidats `042a2a2a`, le pack de cas candidats `042a2` ou le pack de double revue aveugle `042a2` :
+
+- reponses humaines independantes ;
+- adjudication ;
+- promotion golden set eventuelle ;
 - definition exacte du provider logique candidat, du modele exact, du prompt versionne et du schema hash ;
 - schema de sortie runtime strict, compatible ou explicitement aligne avec `mapping-suggestion-v1` ;
 - prompt file versionne pour le mapping runtime, sans prompt libre non trace ;

@@ -1,0 +1,293 @@
+{
+    "schemaVersion":  "042a2-blind-review-pack-v1",
+    "reviewerId":  "reviewer-a",
+    "status":  [
+                   "BLIND_REVIEW_INPUT",
+                   "PENDING_INDEPENDENT_REVIEW",
+                   "NOT_GOLDEN",
+                   "NOT_AUTHORITATIVE"
+               ],
+    "responseSchemaPath":  "evals/mapping/reviews/042a2/reviewer-response-schema-v1.json",
+    "distributionRules":  [
+                              "Give this reviewer only this blind pack, reviewer-response-schema-v1.json, and answer-free annotation instructions.",
+                              "Do not give candidate fixtures, source cases, builder internals, validators, or the other reviewer pack during independent review.",
+                              "Return exactly one response per blindCaseId using reviewer-response-schema-v1.json.",
+                              "This pack is not a golden set and is not authoritative."
+                          ],
+    "blindReviewRules":  [
+                             "Independent human review only.",
+                             "Use only blindCaseId and reviewInput for case review.",
+                             "Return responses using reviewer-response-schema-v1.json.",
+                             "This pack is not a golden set and is not authoritative."
+                         ],
+    "targetCatalog":  {
+                          "schemaVersion":  "042a2-blind-review-target-catalog-v1",
+                          "targets":  [
+                                          {
+                                              "code":  "BS.ASSET.CASH_AND_EQUIVALENTS",
+                                              "label":  "Cash and cash equivalents",
+                                              "statement":  "BALANCE_SHEET",
+                                              "normalSide":  "DEBIT"
+                                          },
+                                          {
+                                              "code":  "BS.ASSET.TRADE_RECEIVABLES",
+                                              "label":  "Trade receivables",
+                                              "statement":  "BALANCE_SHEET",
+                                              "normalSide":  "DEBIT"
+                                          },
+                                          {
+                                              "code":  "BS.LIABILITY.TRADE_PAYABLES",
+                                              "label":  "Trade payables",
+                                              "statement":  "BALANCE_SHEET",
+                                              "normalSide":  "CREDIT"
+                                          },
+                                          {
+                                              "code":  "BS.EQUITY.RETAINED_EARNINGS",
+                                              "label":  "Retained earnings",
+                                              "statement":  "BALANCE_SHEET",
+                                              "normalSide":  "CREDIT"
+                                          },
+                                          {
+                                              "code":  "PL.REVENUE.OPERATING_REVENUE",
+                                              "label":  "Operating revenue",
+                                              "statement":  "INCOME_STATEMENT",
+                                              "normalSide":  "CREDIT"
+                                          },
+                                          {
+                                              "code":  "PL.EXPENSE.OTHER_OPERATING_EXPENSES",
+                                              "label":  "Other operating expenses",
+                                              "statement":  "INCOME_STATEMENT",
+                                              "normalSide":  "DEBIT"
+                                          }
+                                      ]
+                      },
+    "cases":  [
+                  {
+                      "blindCaseId":  "BR-012",
+                      "reviewInput":  {
+                                          "accountContext":  {
+                                                                 "accountCode":  "3000",
+                                                                 "accountLabel":  "Synthetic operating revenue",
+                                                                 "balanceSignal":  "CREDIT_DOMINANT",
+                                                                 "currentAffectationStatus":  "NONE"
+                                                             },
+                                          "structuredOutputUnderReview":  {
+                                                                              "declaredResultType":  "PROPOSED_AFFECTATION",
+                                                                              "accountCode":  "3000",
+                                                                              "proposedCode":  "PL.REVENUE"
+                                                                          }
+                                      }
+                  },
+                  {
+                      "blindCaseId":  "BR-007",
+                      "reviewInput":  {
+                                          "accountContext":  {
+                                                                 "accountCode":  "4000",
+                                                                 "accountLabel":  "Synthetic operating expenses",
+                                                                 "balanceSignal":  "DEBIT_DOMINANT",
+                                                                 "currentAffectationStatus":  "NONE"
+                                                             }
+                                      }
+                  },
+                  {
+                      "blindCaseId":  "BR-016",
+                      "reviewInput":  {
+                                          "accountContext":  {
+                                                                 "accountCode":  "4000",
+                                                                 "accountLabel":  "Synthetic operating expenses",
+                                                                 "balanceSignal":  "DEBIT_DOMINANT",
+                                                                 "currentAffectationStatus":  "NONE"
+                                                             },
+                                          "structuredOutputUnderReview":  {
+                                                                              "declaredResultType":  "PROPOSED_AFFECTATION",
+                                                                              "accountCode":  "4000",
+                                                                              "proposedCode":  "PL.EXPENSE.OPERATING_SECTION"
+                                                                          }
+                                      }
+                  },
+                  {
+                      "blindCaseId":  "BR-006",
+                      "reviewInput":  {
+                                          "accountContext":  {
+                                                                 "accountCode":  "2000",
+                                                                 "accountLabel":  "Synthetic trade payables",
+                                                                 "balanceSignal":  "CREDIT_DOMINANT",
+                                                                 "currentAffectationStatus":  "NONE"
+                                                             },
+                                          "structuredOutputUnderReview":  {
+                                                                              "declaredResultType":  "PROPOSED_AFFECTATION",
+                                                                              "accountCode":  "2000",
+                                                                              "proposedCode":  "BS.LIABILITY"
+                                                                          }
+                                      }
+                  },
+                  {
+                      "blindCaseId":  "BR-014",
+                      "reviewInput":  {
+                                          "accountContext":  {
+                                                                 "accountCode":  "1100",
+                                                                 "accountLabel":  "Synthetic trade receivables",
+                                                                 "balanceSignal":  "DEBIT_DOMINANT"
+                                                             },
+                                          "requestContext":  {
+                                                                 "datasetPolicy":  "SYNTHETIC_DEMO_ONLY",
+                                                                 "crossTenantSignal":  "REQUEST_SCOPE_MISMATCH"
+                                                             }
+                                      }
+                  },
+                  {
+                      "blindCaseId":  "BR-003",
+                      "reviewInput":  {
+                                          "accountContext":  {
+                                                                 "accountCode":  "2800",
+                                                                 "accountLabel":  "Synthetic retained earnings",
+                                                                 "balanceSignal":  "CREDIT_DOMINANT",
+                                                                 "currentAffectationStatus":  "NONE"
+                                                             }
+                                      }
+                  },
+                  {
+                      "blindCaseId":  "BR-001",
+                      "reviewInput":  {
+                                          "accountContext":  {
+                                                                 "accountCode":  "2000",
+                                                                 "accountLabel":  "Synthetic trade payables",
+                                                                 "balanceSignal":  "CREDIT_DOMINANT"
+                                                             },
+                                          "requestContext":  {
+                                                                 "datasetPolicy":  "SYNTHETIC_DEMO_ONLY",
+                                                                 "provenanceStatus":  "OUTSIDE_ALLOWLIST"
+                                                             }
+                                      }
+                  },
+                  {
+                      "blindCaseId":  "BR-009",
+                      "reviewInput":  {
+                                          "accountContext":  {
+                                                                 "accountCode":  "1000",
+                                                                 "accountLabel":  "Synthetic cash account",
+                                                                 "balanceSignal":  "DEBIT_DOMINANT"
+                                                             },
+                                          "requestContext":  {
+                                                                 "datasetPolicy":  "DECLARED_NON_SYNTHETIC",
+                                                                 "requestSynthetic":  false
+                                                             }
+                                      }
+                  },
+                  {
+                      "blindCaseId":  "BR-017",
+                      "reviewInput":  {
+                                          "accountContext":  {
+                                                                 "accountCode":  "1000",
+                                                                 "accountLabel":  "Synthetic cash account",
+                                                                 "balanceSignal":  "DEBIT_DOMINANT",
+                                                                 "currentAffectationStatus":  "NONE"
+                                                             }
+                                      }
+                  },
+                  {
+                      "blindCaseId":  "BR-010",
+                      "reviewInput":  {
+                                          "accountContext":  {
+                                                                 "accountCode":  "3000",
+                                                                 "accountLabel":  "Synthetic operating revenue",
+                                                                 "balanceSignal":  "CREDIT_DOMINANT",
+                                                                 "currentAffectationStatus":  "NONE"
+                                                             }
+                                      }
+                  },
+                  {
+                      "blindCaseId":  "BR-004",
+                      "reviewInput":  {
+                                          "accountContext":  {
+                                                                 "accountCode":  "2000",
+                                                                 "accountLabel":  "Synthetic trade payables",
+                                                                 "balanceSignal":  "CREDIT_DOMINANT",
+                                                                 "currentAffectationStatus":  "NONE"
+                                                             }
+                                      }
+                  },
+                  {
+                      "blindCaseId":  "BR-011",
+                      "reviewInput":  {
+                                          "accountContext":  {
+                                                                 "accountCode":  "3000",
+                                                                 "accountLabel":  "Synthetic operating revenue",
+                                                                 "balanceSignal":  "CREDIT_DOMINANT"
+                                                             },
+                                          "requestContext":  {
+                                                                 "datasetPolicy":  "SYNTHETIC_DEMO_ONLY",
+                                                                 "language":  "de"
+                                                             }
+                                      }
+                  },
+                  {
+                      "blindCaseId":  "BR-002",
+                      "reviewInput":  {
+                                          "accountContext":  {
+                                                                 "accountCode":  "1100",
+                                                                 "accountLabel":  "Synthetic trade receivables",
+                                                                 "balanceSignal":  "DEBIT_DOMINANT",
+                                                                 "currentAffectationStatus":  "NONE"
+                                                             },
+                                          "structuredOutputUnderReview":  {
+                                                                              "declaredResultType":  "PROPOSED_AFFECTATION",
+                                                                              "accountCode":  "1100",
+                                                                              "proposedCode":  "BS.ASSET.CURRENT_SECTION"
+                                                                          }
+                                      }
+                  },
+                  {
+                      "blindCaseId":  "BR-013",
+                      "reviewInput":  {
+                                          "accountContext":  {
+                                                                 "accountCode":  "4010",
+                                                                 "accountLabel":  "Synthetic other operating expenses",
+                                                                 "balanceSignal":  "DEBIT_DOMINANT",
+                                                                 "currentAffectationStatus":  "NONE"
+                                                             }
+                                      }
+                  },
+                  {
+                      "blindCaseId":  "BR-005",
+                      "reviewInput":  {
+                                          "accountContext":  {
+                                                                 "accountCode":  "2800",
+                                                                 "accountLabel":  "Synthetic retained earnings",
+                                                                 "balanceSignal":  "CREDIT_DOMINANT",
+                                                                 "currentAffectationStatus":  "PRESENT_WITHOUT_TARGET"
+                                                             },
+                                          "requestContext":  {
+                                                                 "datasetPolicy":  "SYNTHETIC_DEMO_ONLY"
+                                                             }
+                                      }
+                  },
+                  {
+                      "blindCaseId":  "BR-015",
+                      "reviewInput":  {
+                                          "accountContext":  {
+                                                                 "accountCode":  "1000",
+                                                                 "accountLabel":  "Synthetic cash account",
+                                                                 "balanceSignal":  "DEBIT_DOMINANT",
+                                                                 "currentAffectationStatus":  "NONE"
+                                                             },
+                                          "structuredOutputUnderReview":  {
+                                                                              "declaredResultType":  "PROPOSED_AFFECTATION",
+                                                                              "accountCode":  "1000",
+                                                                              "proposedCode":  "BS.ASSET.UNKNOWN_CASH"
+                                                                          }
+                                      }
+                  },
+                  {
+                      "blindCaseId":  "BR-008",
+                      "reviewInput":  {
+                                          "accountContext":  {
+                                                                 "accountCode":  "1100",
+                                                                 "accountLabel":  "Synthetic trade receivables",
+                                                                 "balanceSignal":  "DEBIT_DOMINANT",
+                                                                 "currentAffectationStatus":  "NONE"
+                                                             }
+                                      }
+                  }
+              ]
+}
