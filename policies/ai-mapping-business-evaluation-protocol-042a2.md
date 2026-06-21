@@ -32,17 +32,18 @@ Forbidden in the evaluation dataset, logs, notes and reports:
 | Median complete mapping time | At least 20% improvement versus manual baseline. | Miss blocks business promotion unless explicitly waived by CPO and Expert Board. |
 | Manual searches | At least 30% reduction versus manual baseline. | Miss blocks business promotion unless root cause and remediation are documented. |
 | Final critical errors | Zero. | Any final critical error blocks promotion. |
-| Final quality | No more than 1 point below manual baseline on the approved review scale. | Larger gap blocks promotion. |
+| Final quality | No more than 1 percentage point below adjudicated gold on the approved review scale. | Larger gap blocks promotion. |
 | Autonomous comprehension/correction | At least 90%, then at least 95% after five reviewed cases. | Miss blocks broader pilot. |
 | Critical error detection | 100% of injected critical errors detected. | Miss blocks promotion. |
 | Other error detection | At least 95% detected. | Miss blocks promotion unless risk is accepted by Expert Board. |
+| Overhead on manually resolvable abstentions | Less than 10% extra time versus manual baseline for abstentions a reviewer can resolve manually. | Miss blocks broader pilot unless root cause and remediation are documented. |
 | `OUT_OF_SCOPE`, `POLICY_BLOCK`, `TAXONOMY_GAP` and `INVALID_MODEL_OUTPUT` boundaries | Measured by correct routing, not by treating the case as normal manual mapping or business abstention when it is not one. | Incorrect routing blocks promotion. |
 
 ## Definitions
 
-- Complete mapping time: elapsed time from opening the account for review to a final human decision or explicit deferral.
-- Manual search: a human lookup, navigation or external reference action needed to decide an affectation.
-- Final quality: senior expert score after adjudication, using the approved evaluation rubric.
+- Complete mapping time: elapsed time from the first unresolved account entering review until the last account is correctly resolved or correctly routed to explicit deferral, policy block or technical degradation.
+- Manual search: a deliberate human lookup, navigation, document/reference opening, taxonomy browsing action, external reference consultation or manual comparison performed to decide or route an affectation. Passive screen reading of the current case, automated suggestions and system-provided evidence already visible in the review surface are not counted.
+- Final quality: senior expert score against adjudicated gold, using the approved evaluation rubric.
 - Autonomous comprehension/correction: reviewer can understand the proposed semantic state and choose the correct next action without external explanation.
 - Correct routing: business abstention, policy block and technical failure cases are directed to the documented action path instead of forcing a target or conflating categories.
 
@@ -52,6 +53,7 @@ The future evaluation must include:
 
 - a manual baseline run;
 - an assisted run using the approved semantics;
+- randomized case order or a counterbalanced crossover design to reduce learning and ordering bias;
 - independent review by fiduciary experts;
 - adjudication for disagreements;
 - synthetic cases covering clear positives, abstentions, contra accounts, multilingual labels, ambiguous labels and sensitive-looking sanitized labels;
@@ -87,7 +89,7 @@ The following errors have zero tolerance:
 - revenue/expense confusion;
 - contra account misclassification;
 - unknown, deprecated or non-selectable target exposed as suggestion;
-- unknown, deprecated or non-selectable provider target counted as `TAXONOMY_GAP` or another business abstention;
+- unknown, deprecated, non-selectable or contextually inadmissible provider target counted as `TAXONOMY_GAP` or another business abstention;
 - `TAXONOMY_GAP` hidden by an approximate target;
 - `POLICY_BLOCK` counted as `OUT_OF_SCOPE` or another business abstention;
 - policy or technical incident classified as business abstention;
@@ -99,13 +101,13 @@ Any critical error blocks promotion until root cause, remediation and re-evaluat
 
 `OUT_OF_SCOPE`, `POLICY_BLOCK`, `TAXONOMY_GAP` and `INVALID_MODEL_OUTPUT` boundaries are not scored as normal manual mapping misses.
 
-`OUT_OF_SCOPE` is scored only for an account inside an otherwise authorized request that is outside the approved business perimeter of AI-assisted affectation.
+`OUT_OF_SCOPE` is scored only for an account inside an otherwise authorized request that is outside the approved business perimeter of AI-assisted affectation. It is measured by correct routing, not by manual mapping accuracy.
 
 `POLICY_BLOCK` is scored for non-synthetic, cross-tenant, outside allowlist, outside approved provenance or invalid-gate requests. It must prove correct policy routing, no provider call and exclusion from business abstention metrics.
 
-`TAXONOMY_GAP` is scored only when the frozen pilot taxonomy contains no admissible target for a valid business concept.
+`TAXONOMY_GAP` is scored only when the frozen pilot taxonomy contains no admissible target for a valid business concept. It is measured by correct routing and gap capture, not by forcing a target.
 
-`INVALID_MODEL_OUTPUT` or the future technical degradation state is scored when provider output is malformed or names an unknown, deprecated or non-selectable target. It must be excluded from business abstention metrics.
+`INVALID_MODEL_OUTPUT` or the future technical degradation state is scored when provider output is malformed or names an unknown, deprecated, non-selectable or contextually inadmissible target. It must be excluded from business abstention metrics.
 
 They are scored by:
 
@@ -122,7 +124,7 @@ The future golden set must distinguish at least these cases explicitly:
 - authorized account outside the business perimeter: `ABSTENTION / OUT_OF_SCOPE`;
 - non-synthetic, cross-tenant, outside allowlist, outside provenance or invalid gate: `POLICY_BLOCK`;
 - valid business concept absent from the frozen pilot taxonomy: `ABSTENTION / TAXONOMY_GAP`;
-- provider returns an unknown, deprecated or non-selectable target: `INVALID_MODEL_OUTPUT` or the future technical degradation state.
+- provider returns an unknown, deprecated, non-selectable or contextually inadmissible target: `INVALID_MODEL_OUTPUT` or the future technical degradation state.
 
 ## Promotion gate
 

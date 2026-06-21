@@ -63,6 +63,7 @@ Risque lie a l'ouverture d'une future capacite provider reelle, meme strictement
 - `policies/ai-mapping-annotation-guide-042a2.md`
 - `policies/ai-mapping-taxonomy-pilot-record-042a2.md`
 - `policies/ai-mapping-business-evaluation-protocol-042a2.md`
+- `policies/ai-mapping-pilot-scope-manifest-042a2.md`
 - `prompts/guardrails/system-fr.md`
 - `knowledge/retrieval-policy.md`
 - `docs/ui/ui-foundations-v1.md`
@@ -94,7 +95,7 @@ Contract readiness `042a1` :
 
 - `contracts/ai/mapping-suggestion.schema.json` et `contracts/openapi/mapping-suggestions-api.yaml` ont ete verifies en lecture seule.
 - `mapping-suggestion-v1` ne represente pas explicitement `abstention`.
-- `mapping-suggestion-v1` ne represente pas explicitement `uncertainty`.
+- `mapping-suggestion-v1` ne represente pas explicitement les reason codes ni les etats de degradation semantiques requis par `042a2a1b`.
 - `042b` est BLOQUE jusqu'a decision contractuelle explicite : ajouter ces semantics a `mapping-suggestion-v1`, creer une nouvelle version de schema, ou les garder hors output/read-model provider.
 - Aucun contrat n'est modifie par `042a1`.
 
@@ -104,10 +105,11 @@ Semantic readiness `042a2a1` :
 - `policies/ai-mapping-annotation-guide-042a2.md` definit l'annotation, la double annotation et l'adjudication.
 - `policies/ai-mapping-taxonomy-pilot-record-042a2.md` definit les exigences de taxonomie pilote sans creer de taxonomie.
 - `policies/ai-mapping-business-evaluation-protocol-042a2.md` definit les objectifs d'evaluation metier sans creer de golden set ni validator.
-- `042a2a1` ne modifie aucun contrat et ne redacte pas le contrat `mapping-suggestion-v2`.
-- `042b` reste BLOQUE tant que la semantic readiness, la decision contractuelle, le golden set, le validator, les gates provider et les signatures humaines requises ne sont pas termines.
+- `policies/ai-mapping-pilot-scope-manifest-042a2.md` definit le perimetre metier pilote draft sans approuver de taxonomy snapshot.
+- `042a2a1` et `042a2a1b` ne modifient aucun contrat et ne redigent pas le contrat `mapping-suggestion-v2`.
+- `042b` reste BLOQUE tant que la semantic readiness, le manifeste de perimetre pilote, la decision contractuelle, le golden set, le validator, les gates provider et les signatures humaines requises ne sont pas termines.
 
-Runbooks impactes par cette mission documentaire :
+Runbooks impactes par `042a1`, sans modification supplementaire par `042a2a1b` :
 
 - `runbooks/ai-incident-response.md`
 
@@ -123,11 +125,9 @@ Pour poursuivre vers un gain IA mesurable sans exposer de donnees clientes, Rito
 
 Sur le dossier demo synthetique, pour chaque compte eligible de la derniere balance importee, le systeme peut proposer :
 
-- une rubrique cible selectable ;
-- une confiance calibree entre `0` et `1` ;
-- une justification courte et lisible ;
+- une rubrique cible admissible ;
 - des preuves structurees, tenant-scopees et non sensibles ;
-- une incertitude explicite si le cas est ambigu ou insuffisamment prouve.
+- un outcome semantique explicite avec reason code ou etat de degradation quand aucune proposition ne peut etre exposee.
 
 Chaque compte eligible doit aboutir soit a une suggestion valide, soit a une abstention explicite, soit a un etat de degradation explicite. Aucun compte ne doit etre ignore silencieusement par le runtime.
 
@@ -193,7 +193,12 @@ Aucune spec `043` ne doit etre creee par `042a`.
 - `policies/ai-mapping-business-evaluation-protocol-042a2.md` ;
 - clarification de cette spec et de `docs/product/v1-plan.md`.
 
-`042a2a1` ne redige pas le contrat `mapping-suggestion-v2`, ne cree pas le prompt runtime, ne cree pas le golden set, ne cree pas le validator, ne choisit pas de provider, ne choisit pas de modele et n'active aucun runtime.
+`042a2a1b` durcit ce pack sans changer de statut et ajoute uniquement :
+
+- `policies/ai-mapping-pilot-scope-manifest-042a2.md` ;
+- alignement des semantics draft sur cible admissible, outcomes, reason codes, etats de degradation et policy/precondition boundaries.
+
+`042a2a1` et `042a2a1b` ne redigent pas le contrat `mapping-suggestion-v2`, ne creent pas le prompt runtime, ne creent pas le golden set, ne creent pas le validator, ne choisissent pas de provider, ne choisissent pas de modele et n'activent aucun runtime.
 
 `042a2` devra encore traiter, dans une ou plusieurs missions separees, les livrables qui ne sont pas crees par `042a1` ni `042a2a1` :
 
@@ -255,7 +260,7 @@ Flux cible :
 3. `mapping.application` construit une demande minimisee via la frontiere IA.
 4. L'AI Gateway selectionne soit le no-provider, soit l'adapter provider runtime si les flags et gates sont actifs.
 5. Le provider retourne un JSON strict.
-6. Le backend valide schema, versions, preuves, cible selectable, compte eligible et coherence d'import.
+6. Le backend valide schema, versions, preuves, cible admissible, compte eligible et coherence d'import.
 7. Seules les suggestions valides sont exposees au read-model.
 8. Toute decision engageante repasse par la decision humaine existante.
 
@@ -309,15 +314,15 @@ Interdit dans le payload provider :
 
 Le provider runtime doit produire un JSON strict, jamais du texte libre, du markdown ou une reponse a reparer.
 
-Contrat logique attendu par compte :
+L'ancien exemple logique `042a1` de sortie par compte est obsolete pour `042a2a1b`. Il ne doit plus servir de forme cible pour un futur contrat `mapping-suggestion-v2`, car il melangeait suggestion, abstention, score visible et texte explicatif libre.
+
+Forme logique future attendue avant contrat, sans modifier les contrats actuels :
 
 ```json
 {
+  "outcome": "SUGGESTION",
   "accountCode": "1000",
   "suggestedTargetCode": "BS.ASSET.CASH_AND_EQUIVALENTS",
-  "confidence": 0.82,
-  "riskLevel": "MEDIUM",
-  "rationale": "Libelle et taxonomie coherents avec une rubrique tresorerie.",
   "evidence": [
     {
       "type": "ACCOUNT_LABEL",
@@ -330,17 +335,27 @@ Contrat logique attendu par compte :
       "snippet": "Cash and cash equivalents"
     }
   ],
-  "uncertainty": {
-    "present": false,
-    "reasonCode": null,
-    "explanation": null
-  },
-  "abstention": {
-    "abstain": false,
-    "reasonCode": null
-  },
-  "requiresHumanReview": true,
-  "schemaVersion": "mapping-suggestion-v1",
+  "explanationCode": "TARGET_SUPPORTED_BY_APPROVED_EVIDENCE",
+  "schemaVersion": "mapping-suggestion-v2",
+  "promptVersion": "mapping-suggestion-runtime-v1",
+  "modelVersion": "provider-model-exact-id"
+}
+```
+
+```json
+{
+  "outcome": "ABSTENTION",
+  "accountCode": "4700",
+  "reasonCode": "INSUFFICIENT_EVIDENCE",
+  "evidence": [
+    {
+      "type": "ACCOUNT_LABEL",
+      "ref": "balance_import_line:4700",
+      "snippet": "Sanitized synthetic label"
+    }
+  ],
+  "explanationCode": "EVIDENCE_NOT_SUFFICIENT_FOR_AFFECTATION",
+  "schemaVersion": "mapping-suggestion-v2",
   "promptVersion": "mapping-suggestion-runtime-v1",
   "modelVersion": "provider-model-exact-id"
 }
@@ -349,38 +364,56 @@ Contrat logique attendu par compte :
 Regles obligatoires :
 
 - `additionalProperties=false`.
-- `requiresHumanReview=true` obligatoire.
-- `suggestedTargetCode` obligatoire seulement si `abstention.abstain=false`.
-- si `abstention.abstain=true`, aucune suggestion fiable n'est exposee comme decisionable ;
-- `confidence` est borne entre `0` et `1`.
-- `riskLevel` est strictement `LOW`, `MEDIUM` ou `HIGH`.
+- la forme future est une union stricte `SUGGESTION | ABSTENTION`.
+- les champs propres a une branche sont omis quand ils ne s'appliquent pas ; aucun placeholder vide ne doit etre encode pour simuler leur absence.
+- `suggestedTargetCode` existe uniquement sur `SUGGESTION`.
+- `reasonCode` existe uniquement sur `ABSTENTION`.
+- `requiresHumanReview=true` est impose par le backend pour toute suggestion exposee ; il ne doit pas etre traite comme une decision fournisseur.
+- `SUGGESTION` exige exactement une cible admissible, pas seulement connue, selectable et non depreciee.
+- `admissible` signifie : cible connue dans la version/hash de taxonomie exacts, selectable comme propriete statique, non depreciee, et autorisee par les regles de contexte du pilote.
+- aucun score de confiance numerique n'est visible dans l'interface.
+- aucun texte libre provider n'est visible dans l'interface.
+- les explications visibles viennent de messages backend deterministes issus de codes approuves.
 - `evidence[]` est non vide pour toute suggestion exposee.
 - toute evidence est typee, courte, tenant-scopee, non sensible et verifiable.
-- `uncertainty.present=true` si le cas est ambigu, si les signaux sont contradictoires ou si la confiance est sous le seuil d'exposition.
-- les cibles doivent etre connues, selectable et non deprecated avant exposition.
 - le compte doit exister dans la derniere balance importee du dossier demo synthetique.
 - le backend calcule ou conserve un fingerprint sans labels, snippets, montants, prompts, outputs bruts ni identifiants sensibles.
+- une cible fournisseur inconnue, depreciee, non selectionnable ou contextuellement inadmissible est `INVALID_MODEL_OUTPUT` ou degradation technique, jamais `TAXONOMY_GAP`.
+- les comptes deja affectes ou non eligibles sont traites comme precondition ou policy outcome, pas comme abstention metier.
 
-Si le contrat public doit evoluer pour exposer `uncertainty` ou `abstention`, l'implementation future devra mettre a jour les contrats impactes avant code consommateur. Cette mission documentaire ne modifie aucun contrat.
+Si le contrat public doit evoluer pour exposer ces outcomes, reason codes et etats de degradation, l'implementation future devra mettre a jour les contrats impactes avant code consommateur. Cette mission documentaire ne modifie aucun contrat.
 
-Readiness `042a1` : le check lecture seule conclut que le contrat actuel ne porte pas explicitement `abstention` et `uncertainty`. `042b` reste donc BLOQUE tant qu'une decision contractuelle explicite n'est pas prise et documentee avant code consommateur.
+Readiness `042a1` : le check lecture seule conclut que le contrat actuel ne porte pas explicitement ces outcomes, reason codes et etats de degradation. `042b` reste donc BLOQUE tant qu'une decision contractuelle explicite n'est pas prise et documentee avant code consommateur.
 
 Semantic readiness `042a2a1` : avant contrat `mapping-suggestion-v2`, les semantics draft imposent :
 
 - `SUGGESTION` visible comme `Proposition à vérifier` ;
 - degradation technique visible comme `Proposition momentanément indisponible` ;
+- `POLICY_BLOCK` visible comme `Cette demande n'est pas eligible a l'affectation assistee` ;
 - `ABSTENTION` visible avec le titre `Aucune proposition` et un message deterministe par `reasonCode` ;
 - le mot `affectation` dans l'interface, `mapping` restant interne ;
 - aucune cible et aucune confiance sur `ABSTENTION` ;
 - aucun texte libre provider visible ;
 - aucune confiance numerique visible ;
-- actions `SUGGESTION` : `Valider la proposition`, `Choisir une autre cible`, `Rejeter` ;
+- actions `SUGGESTION` : `Valider la proposition`, `Choisir une autre rubrique`, `Rejeter` ;
 - aucun `Rejeter` sur `ABSTENTION` ;
 - reason codes autorises uniquement : `OUT_OF_SCOPE`, `CONFLICTING_SIGNALS`, `INSUFFICIENT_EVIDENCE`, `TAXONOMY_GAP`, `AMBIGUOUS_TARGET` ;
 - `POLICY_BLOCK` n'est pas une abstention metier : requete non synthetique, cross-tenant, hors allowlist, hors provenance ou gate invalide implique zero appel provider ;
 - `OUT_OF_SCOPE` est reserve a un compte d'une requete autorisee mais hors perimetre metier de l'assistance IA ;
 - `TAXONOMY_GAP` est reserve a un concept metier valide absent de la taxonomie pilote gelee ;
-- une cible provider inconnue, depreciee ou non selectionnable est `INVALID_MODEL_OUTPUT` ou degradation technique, jamais `TAXONOMY_GAP`.
+- une cible provider inconnue, depreciee, non selectionnable ou contextuellement inadmissible est `INVALID_MODEL_OUTPUT` ou degradation technique, jamais `TAXONOMY_GAP`.
+
+Arbre normatif obligatoire :
+
+1. Autorisation et eligibilite : sinon `POLICY_BLOCK` ou futur etat de precondition, sans appel provider quand la policy bloque.
+2. Incident runtime ou sortie invalide : sinon degradation technique, dont `INVALID_MODEL_OUTPUT`.
+3. Concept metier etabli mais explicitement hors scope : `ABSTENTION / OUT_OF_SCOPE`.
+4. Elements materiels contradictoires : `ABSTENTION / CONFLICTING_SIGNALS`.
+5. Concept ou candidats insuffisamment etablis : `ABSTENTION / INSUFFICIENT_EVIDENCE`.
+6. Calcul des cibles admissibles :
+   - `0` = `ABSTENTION / TAXONOMY_GAP` ;
+   - `2+` = `ABSTENTION / AMBIGUOUS_TARGET` ;
+   - `1` = `SUGGESTION`.
 
 Ces semantics ne sont pas encore un contrat. Elles bloquent le contrat et le runtime tant qu'elles ne sont pas approuvees et encodees dans une version contractuelle explicite.
 
@@ -418,10 +451,10 @@ Il doit couvrir au minimum :
 - compte avec evidence insuffisante ;
 - compte autorise mais hors perimetre metier de l'assistance IA, attendu en `ABSTENTION / OUT_OF_SCOPE` ;
 - concept metier valide absent de la taxonomie pilote gelee, attendu en `ABSTENTION / TAXONOMY_GAP` ;
-- sortie provider avec cible inconnue, non selectable ou deprecated, attendue en `INVALID_MODEL_OUTPUT` ou degradation technique ;
+- sortie provider avec cible inconnue, non selectable, deprecated ou contextuellement inadmissible, attendue en `INVALID_MODEL_OUTPUT` ou degradation technique ;
 - cas `POLICY_BLOCK` distincts : requete non synthetique, cross-tenant, hors allowlist, hors provenance ou gate invalide, avec zero appel provider ;
 - libelle contenant email, telephone, IBAN, URL ou reference longue a sanitiser ;
-- cas deja mappe ou non eligible ;
+- cas deja mappe ou non eligible, attendu en precondition ou policy outcome, pas en abstention metier ;
 - cas ou l'abstention est attendue.
 
 Le golden set doit verifier :
@@ -431,11 +464,11 @@ Le golden set doit verifier :
 - abstention sur cas ambigus/insuffisants ;
 - distinction explicite entre `OUT_OF_SCOPE`, `POLICY_BLOCK`, `TAXONOMY_GAP` et `INVALID_MODEL_OUTPUT` ;
 - zero appel provider sur `POLICY_BLOCK` ;
-- invalid output, et non abstention metier, quand une cible provider est inconnue, non selectable ou deprecated ;
+- invalid output, et non abstention metier, quand une cible provider est inconnue, non selectable, deprecated ou contextuellement inadmissible ;
 - evidence non vide et non sensible ;
 - absence de secret, token, credential, cookie, DSN, `.env`, storage key, signed URL ;
 - absence de donnees client reelles ;
-- cibles selectable et non deprecated uniquement ;
+- exactement une cible admissible pour toute suggestion exposee ;
 - `requiresHumanReview=true` partout ;
 - prompt/model/schema versions non vides et pinnes.
 
@@ -446,7 +479,7 @@ Les metriques suivantes sont obligatoires pour l'activation pilote.
 ### Exactitude cible
 
 - 100 % schema validity.
-- 100 % cibles connues, selectable et non deprecated.
+- 100 % cibles admissibles pour les suggestions exposees.
 - 100 % `requiresHumanReview=true`.
 - Objectif initial : au moins 85 % d'exact match sur les cas synthetiques clairs et positifs.
 - Aucun faux positif expose sur les cas attendus en abstention, rejet ou non eligible.
@@ -530,7 +563,7 @@ L'arret se fait par kill switch feature flag et retour immediat au mapping manue
 - prompt builder : versions et schema hash pinnes, aucun champ hors whitelist ;
 - validator : JSON strict, `additionalProperties=false`, enums stricts, `requiresHumanReview=true` ;
 - validator : rejet markdown/prose/code fence/texte libre ;
-- validator : rejet evidence vide, cible inconnue, cible non selectable, cible deprecated, confidence hors borne, versions vides, avec `INVALID_MODEL_OUTPUT` ou degradation technique ;
+- validator : rejet evidence vide, cible inconnue, cible non selectable, cible deprecated, cible contextuellement inadmissible, score visible interdit, versions vides, avec `INVALID_MODEL_OUTPUT` ou degradation technique ;
 - timeout/unavailable : etats `TIMEOUT` et `UNAVAILABLE` fail-closed ;
 - metrics/logs : agregats seulement, aucun payload/prompt/output.
 
@@ -673,7 +706,7 @@ Avant tout code provider reel, les gates suivants doivent etre signes et merges 
 - runbook incident pret ;
 - semantic readiness signee ;
 - golden set synthetique vert ;
-- decision contractuelle explicite sur `abstention` et `uncertainty`.
+- decision contractuelle explicite sur outcomes, reason codes et etats de degradation.
 
 Aucun code `042b` ne peut commencer avant le merge des records de gates `042a` pre-code signes. Aucune spec `043` ne doit etre creee.
 
@@ -691,7 +724,8 @@ Records drafts `042a2a1` :
 - `policies/ai-mapping-semantic-readiness-record-042a2.md` ;
 - `policies/ai-mapping-annotation-guide-042a2.md` ;
 - `policies/ai-mapping-taxonomy-pilot-record-042a2.md` ;
-- `policies/ai-mapping-business-evaluation-protocol-042a2.md`.
+- `policies/ai-mapping-business-evaluation-protocol-042a2.md` ;
+- `policies/ai-mapping-pilot-scope-manifest-042a2.md`.
 
 Ces records ne portent aucune signature, ne valent pas autorisation de contrat `mapping-suggestion-v2` et ne valent pas autorisation de code provider.
 
@@ -728,7 +762,7 @@ Le CTO Gate doit valider :
 L'Expert Review Board doit valider :
 
 - pertinence metier du pilote sur donnees synthetiques ;
-- schema de sortie et incertitude explicite ;
+- schema de sortie, outcomes et reason codes explicites ;
 - golden set et seuils ;
 - payload whitelist ;
 - prompt/model/schema pinning ;
