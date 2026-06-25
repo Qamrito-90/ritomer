@@ -1,0 +1,484 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ritomer.local/contracts/ai/mapping-suggestion-v2.schema.json",
+  "title": "MappingSuggestionV2",
+  "description": "Normalized Ritomer application read-model for one mapping suggestion outcome. This is not a raw provider output contract and does not activate a runtime provider.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/Suggestion"
+    },
+    {
+      "$ref": "#/$defs/Abstention"
+    },
+    {
+      "$ref": "#/$defs/PolicyBlock"
+    },
+    {
+      "$ref": "#/$defs/AccountPreconditionBlock"
+    },
+    {
+      "$ref": "#/$defs/RequestPreconditionBlock"
+    },
+    {
+      "$ref": "#/$defs/InvalidModelOutput"
+    },
+    {
+      "$ref": "#/$defs/LocalInputInvalid"
+    },
+    {
+      "$ref": "#/$defs/RequestTimeout"
+    },
+    {
+      "$ref": "#/$defs/BatchUnavailable"
+    }
+  ],
+  "$defs": {
+    "SchemaVersion": {
+      "type": "string",
+      "const": "mapping-suggestion-v2"
+    },
+    "Scope": {
+      "type": "string",
+      "enum": [
+        "ACCOUNT",
+        "REQUEST",
+        "BATCH"
+      ]
+    },
+    "AccountCode": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[0-9A-Z._-]+$"
+    },
+    "AccountLabel": {
+      "description": "Local account label from the tenant-scoped balance line. It is never accepted from provider output.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "TargetCode": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "SuggestionFingerprint": {
+      "description": "Backend-calculated SHA-256 fingerprint generated locally only for SUGGESTION over schema version, closing folder, import version, taxonomy version/hash, outcome, account code, target code and canonical evidence codes. It detects changed or stale suggestions, but is not an authorization, signature, idempotency key, or sufficient tenant-scoped proof for a future decision.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "SuggestionEvidenceCodes": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/EvidenceCode"
+      },
+      "allOf": [
+        {
+          "contains": {
+            "const": "ACCOUNT_LABEL"
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "const": "TARGET_TAXONOMY"
+          },
+          "minContains": 1,
+          "maxContains": 1
+        }
+      ]
+    },
+    "AbstentionEvidenceCodes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "const": "ACCOUNT_LABEL"
+      }
+    },
+    "EvidenceCode": {
+      "type": "string",
+      "enum": [
+        "ACCOUNT_LABEL",
+        "TARGET_TAXONOMY"
+      ]
+    },
+    "ExplanationCode": {
+      "type": "string",
+      "enum": [
+        "TARGET_SUPPORTED_BY_CANDIDATE_EVIDENCE"
+      ]
+    },
+    "AbstentionReasonCode": {
+      "type": "string",
+      "enum": [
+        "OUT_OF_SCOPE",
+        "CONFLICTING_SIGNALS",
+        "INSUFFICIENT_EVIDENCE",
+        "TAXONOMY_GAP",
+        "AMBIGUOUS_TARGET"
+      ]
+    },
+    "PolicyBlockCode": {
+      "type": "string",
+      "enum": [
+        "NON_SYNTHETIC_REQUEST",
+        "CROSS_TENANT_REQUEST",
+        "OUTSIDE_ALLOWLIST_OR_PROVENANCE",
+        "LANGUAGE_OUT_OF_COHORT",
+        "GATE_INVALID",
+        "PRIVACY_OR_TENANT_BOUNDARY"
+      ]
+    },
+    "AccountPreconditionBlockCode": {
+      "type": "string",
+      "enum": [
+        "ACCOUNT_ALREADY_AFFECTED",
+        "ACCOUNT_NOT_IN_LATEST_IMPORT",
+        "NOT_ELIGIBLE"
+      ]
+    },
+    "RequestPreconditionBlockCode": {
+      "type": "string",
+      "const": "STALE_IMPORT"
+    },
+    "DegradationCode": {
+      "type": "string",
+      "enum": [
+        "INVALID_MODEL_OUTPUT",
+        "UNAVAILABLE",
+        "TIMEOUT",
+        "LOCAL_INPUT_INVALID"
+      ]
+    },
+    "InvalidReasonCode": {
+      "type": "string",
+      "enum": [
+        "TARGET_UNKNOWN",
+        "TARGET_DEPRECATED",
+        "TARGET_NOT_SELECTABLE",
+        "SECTION_OR_ROOT_PROPOSED",
+        "MALFORMED_OUTPUT",
+        "SCHEMA_INVALID",
+        "CONTEXTUALLY_INADMISSIBLE_TARGET",
+        "VERSION_PIN_MISMATCH"
+      ]
+    },
+    "InvalidReasonCodes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/InvalidReasonCode"
+      }
+    },
+    "Suggestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "outcome",
+        "scope",
+        "accountCode",
+        "accountLabel",
+        "targetCode",
+        "explanationCode",
+        "evidenceCodes",
+        "requiresHumanReview",
+        "suggestionFingerprint"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/SchemaVersion"
+        },
+        "outcome": {
+          "type": "string",
+          "const": "SUGGESTION"
+        },
+        "scope": {
+          "type": "string",
+          "const": "ACCOUNT"
+        },
+        "accountCode": {
+          "$ref": "#/$defs/AccountCode"
+        },
+        "accountLabel": {
+          "$ref": "#/$defs/AccountLabel"
+        },
+        "targetCode": {
+          "$ref": "#/$defs/TargetCode"
+        },
+        "explanationCode": {
+          "$ref": "#/$defs/ExplanationCode"
+        },
+        "evidenceCodes": {
+          "$ref": "#/$defs/SuggestionEvidenceCodes"
+        },
+        "requiresHumanReview": {
+          "const": true
+        },
+        "suggestionFingerprint": {
+          "$ref": "#/$defs/SuggestionFingerprint"
+        }
+      }
+    },
+    "Abstention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "outcome",
+        "scope",
+        "accountCode",
+        "accountLabel",
+        "abstentionReasonCode",
+        "evidenceCodes"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/SchemaVersion"
+        },
+        "outcome": {
+          "type": "string",
+          "const": "ABSTENTION"
+        },
+        "scope": {
+          "type": "string",
+          "const": "ACCOUNT"
+        },
+        "accountCode": {
+          "$ref": "#/$defs/AccountCode"
+        },
+        "accountLabel": {
+          "$ref": "#/$defs/AccountLabel"
+        },
+        "abstentionReasonCode": {
+          "$ref": "#/$defs/AbstentionReasonCode"
+        },
+        "evidenceCodes": {
+          "$ref": "#/$defs/AbstentionEvidenceCodes"
+        }
+      }
+    },
+    "PolicyBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "outcome",
+        "scope",
+        "policyBlockCode"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/SchemaVersion"
+        },
+        "outcome": {
+          "type": "string",
+          "const": "POLICY_BLOCK"
+        },
+        "scope": {
+          "type": "string",
+          "const": "REQUEST"
+        },
+        "policyBlockCode": {
+          "$ref": "#/$defs/PolicyBlockCode"
+        }
+      }
+    },
+    "AccountPreconditionBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "outcome",
+        "scope",
+        "accountCode",
+        "accountLabel",
+        "preconditionBlockCode"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/SchemaVersion"
+        },
+        "outcome": {
+          "type": "string",
+          "const": "PRECONDITION_BLOCK"
+        },
+        "scope": {
+          "type": "string",
+          "const": "ACCOUNT"
+        },
+        "accountCode": {
+          "$ref": "#/$defs/AccountCode"
+        },
+        "accountLabel": {
+          "$ref": "#/$defs/AccountLabel"
+        },
+        "preconditionBlockCode": {
+          "$ref": "#/$defs/AccountPreconditionBlockCode"
+        }
+      }
+    },
+    "RequestPreconditionBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "outcome",
+        "scope",
+        "preconditionBlockCode"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/SchemaVersion"
+        },
+        "outcome": {
+          "type": "string",
+          "const": "PRECONDITION_BLOCK"
+        },
+        "scope": {
+          "type": "string",
+          "const": "REQUEST"
+        },
+        "preconditionBlockCode": {
+          "$ref": "#/$defs/RequestPreconditionBlockCode"
+        }
+      }
+    },
+    "InvalidModelOutput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "outcome",
+        "scope",
+        "accountCode",
+        "accountLabel",
+        "degradationCode",
+        "invalidReasonCodes"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/SchemaVersion"
+        },
+        "outcome": {
+          "type": "string",
+          "const": "TECHNICAL_DEGRADATION"
+        },
+        "scope": {
+          "type": "string",
+          "const": "ACCOUNT"
+        },
+        "accountCode": {
+          "$ref": "#/$defs/AccountCode"
+        },
+        "accountLabel": {
+          "$ref": "#/$defs/AccountLabel"
+        },
+        "degradationCode": {
+          "type": "string",
+          "const": "INVALID_MODEL_OUTPUT"
+        },
+        "invalidReasonCodes": {
+          "$ref": "#/$defs/InvalidReasonCodes"
+        }
+      }
+    },
+    "LocalInputInvalid": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "outcome",
+        "scope",
+        "accountCode",
+        "accountLabel",
+        "degradationCode"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/SchemaVersion"
+        },
+        "outcome": {
+          "type": "string",
+          "const": "TECHNICAL_DEGRADATION"
+        },
+        "scope": {
+          "type": "string",
+          "const": "ACCOUNT"
+        },
+        "accountCode": {
+          "$ref": "#/$defs/AccountCode"
+        },
+        "accountLabel": {
+          "$ref": "#/$defs/AccountLabel"
+        },
+        "degradationCode": {
+          "type": "string",
+          "const": "LOCAL_INPUT_INVALID"
+        }
+      }
+    },
+    "RequestTimeout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "outcome",
+        "scope",
+        "degradationCode"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/SchemaVersion"
+        },
+        "outcome": {
+          "type": "string",
+          "const": "TECHNICAL_DEGRADATION"
+        },
+        "scope": {
+          "type": "string",
+          "const": "REQUEST"
+        },
+        "degradationCode": {
+          "type": "string",
+          "const": "TIMEOUT"
+        }
+      }
+    },
+    "BatchUnavailable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "outcome",
+        "scope",
+        "degradationCode"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/SchemaVersion"
+        },
+        "outcome": {
+          "type": "string",
+          "const": "TECHNICAL_DEGRADATION"
+        },
+        "scope": {
+          "type": "string",
+          "const": "BATCH"
+        },
+        "degradationCode": {
+          "type": "string",
+          "const": "UNAVAILABLE"
+        }
+      }
+    }
+  }
+}

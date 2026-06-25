@@ -1,0 +1,318 @@
+{
+  "schemaVersion": "mapping-suggestion-v2-corpus-v1",
+  "description": "Shared valid and invalid fixtures for mapping-suggestion-v2 contract alignment. Synthetic data only.",
+  "readModelContext": {
+    "schemaVersion": "mapping-suggestion-v2",
+    "closingFolderId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    "latestImportVersion": 3,
+    "taxonomyVersion": 2,
+    "taxonomyHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "valid": [
+    {
+      "id": "valid-suggestion-account-scope",
+      "payload": {
+        "schemaVersion": "mapping-suggestion-v2",
+        "outcome": "SUGGESTION",
+        "scope": "ACCOUNT",
+        "accountCode": "1000",
+        "accountLabel": "Local Bank CHF",
+        "targetCode": "BS.ASSET.CASH_AND_EQUIVALENTS",
+        "explanationCode": "TARGET_SUPPORTED_BY_CANDIDATE_EVIDENCE",
+        "evidenceCodes": [
+          "TARGET_TAXONOMY",
+          "ACCOUNT_LABEL"
+        ],
+        "requiresHumanReview": true,
+        "suggestionFingerprint": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      }
+    },
+    {
+      "id": "valid-abstention-account-scope",
+      "payload": {
+        "schemaVersion": "mapping-suggestion-v2",
+        "outcome": "ABSTENTION",
+        "scope": "ACCOUNT",
+        "accountCode": "4700",
+        "accountLabel": "Synthetic operating expenses",
+        "abstentionReasonCode": "INSUFFICIENT_EVIDENCE",
+        "evidenceCodes": [
+          "ACCOUNT_LABEL"
+        ]
+      }
+    },
+    {
+      "id": "valid-policy-block-request-scope",
+      "payload": {
+        "schemaVersion": "mapping-suggestion-v2",
+        "outcome": "POLICY_BLOCK",
+        "scope": "REQUEST",
+        "policyBlockCode": "CROSS_TENANT_REQUEST"
+      }
+    },
+    {
+      "id": "valid-precondition-account-scope",
+      "payload": {
+        "schemaVersion": "mapping-suggestion-v2",
+        "outcome": "PRECONDITION_BLOCK",
+        "scope": "ACCOUNT",
+        "accountCode": "2800",
+        "accountLabel": "Synthetic retained earnings",
+        "preconditionBlockCode": "ACCOUNT_ALREADY_AFFECTED"
+      }
+    },
+    {
+      "id": "valid-precondition-request-scope",
+      "payload": {
+        "schemaVersion": "mapping-suggestion-v2",
+        "outcome": "PRECONDITION_BLOCK",
+        "scope": "REQUEST",
+        "preconditionBlockCode": "STALE_IMPORT"
+      }
+    },
+    {
+      "id": "valid-invalid-model-output-account-scope",
+      "payload": {
+        "schemaVersion": "mapping-suggestion-v2",
+        "outcome": "TECHNICAL_DEGRADATION",
+        "scope": "ACCOUNT",
+        "accountCode": "1000",
+        "accountLabel": "Synthetic cash account",
+        "degradationCode": "INVALID_MODEL_OUTPUT",
+        "invalidReasonCodes": [
+          "SCHEMA_INVALID",
+          "TARGET_UNKNOWN"
+        ]
+      }
+    },
+    {
+      "id": "valid-local-input-invalid-account-scope",
+      "payload": {
+        "schemaVersion": "mapping-suggestion-v2",
+        "outcome": "TECHNICAL_DEGRADATION",
+        "scope": "ACCOUNT",
+        "accountCode": "INVALID_INPUT",
+        "accountLabel": "Synthetic input",
+        "degradationCode": "LOCAL_INPUT_INVALID"
+      }
+    },
+    {
+      "id": "valid-timeout-request-scope",
+      "payload": {
+        "schemaVersion": "mapping-suggestion-v2",
+        "outcome": "TECHNICAL_DEGRADATION",
+        "scope": "REQUEST",
+        "degradationCode": "TIMEOUT"
+      }
+    },
+    {
+      "id": "valid-unavailable-batch-scope",
+      "payload": {
+        "schemaVersion": "mapping-suggestion-v2",
+        "outcome": "TECHNICAL_DEGRADATION",
+        "scope": "BATCH",
+        "degradationCode": "UNAVAILABLE"
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "id": "policy-block-with-account-context",
+      "payload": {
+        "schemaVersion": "mapping-suggestion-v2",
+        "outcome": "POLICY_BLOCK",
+        "scope": "REQUEST",
+        "accountCode": "1000",
+        "accountLabel": "Synthetic cash account",
+        "policyBlockCode": "CROSS_TENANT_REQUEST"
+      }
+    },
+    {
+      "id": "policy-block-account-scope",
+      "payload": {
+        "schemaVersion": "mapping-suggestion-v2",
+        "outcome": "POLICY_BLOCK",
+        "scope": "ACCOUNT",
+        "policyBlockCode": "CROSS_TENANT_REQUEST"
+      }
+    },
+    {
+      "id": "precondition-stale-import-account-scope",
+      "payload": {
+        "schemaVersion": "mapping-suggestion-v2",
+        "outcome": "PRECONDITION_BLOCK",
+        "scope": "ACCOUNT",
+        "accountCode": "1000",
+        "accountLabel": "Synthetic cash account",
+        "preconditionBlockCode": "STALE_IMPORT"
+      }
+    },
+    {
+      "id": "precondition-account-code-request-scope",
+      "payload": {
+        "schemaVersion": "mapping-suggestion-v2",
+        "outcome": "PRECONDITION_BLOCK",
+        "scope": "REQUEST",
+        "preconditionBlockCode": "NOT_ELIGIBLE"
+      }
+    },
+    {
+      "id": "technical-unavailable-with-account-context",
+      "payload": {
+        "schemaVersion": "mapping-suggestion-v2",
+        "outcome": "TECHNICAL_DEGRADATION",
+        "scope": "BATCH",
+        "accountCode": "1000",
+        "accountLabel": "Synthetic cash account",
+        "degradationCode": "UNAVAILABLE"
+      }
+    },
+    {
+      "id": "technical-timeout-account-scope",
+      "payload": {
+        "schemaVersion": "mapping-suggestion-v2",
+        "outcome": "TECHNICAL_DEGRADATION",
+        "scope": "ACCOUNT",
+        "accountCode": "1000",
+        "accountLabel": "Synthetic cash account",
+        "degradationCode": "TIMEOUT"
+      }
+    },
+    {
+      "id": "suggestion-missing-target-taxonomy-evidence",
+      "payload": {
+        "schemaVersion": "mapping-suggestion-v2",
+        "outcome": "SUGGESTION",
+        "scope": "ACCOUNT",
+        "accountCode": "1000",
+        "accountLabel": "Local Bank CHF",
+        "targetCode": "BS.ASSET.CASH_AND_EQUIVALENTS",
+        "explanationCode": "TARGET_SUPPORTED_BY_CANDIDATE_EVIDENCE",
+        "evidenceCodes": [
+          "ACCOUNT_LABEL"
+        ],
+        "requiresHumanReview": true,
+        "suggestionFingerprint": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      }
+    },
+    {
+      "id": "suggestion-duplicate-evidence",
+      "payload": {
+        "schemaVersion": "mapping-suggestion-v2",
+        "outcome": "SUGGESTION",
+        "scope": "ACCOUNT",
+        "accountCode": "1000",
+        "accountLabel": "Local Bank CHF",
+        "targetCode": "BS.ASSET.CASH_AND_EQUIVALENTS",
+        "explanationCode": "TARGET_SUPPORTED_BY_CANDIDATE_EVIDENCE",
+        "evidenceCodes": [
+          "ACCOUNT_LABEL",
+          "ACCOUNT_LABEL"
+        ],
+        "requiresHumanReview": true,
+        "suggestionFingerprint": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      }
+    },
+    {
+      "id": "abstention-target-taxonomy-evidence",
+      "payload": {
+        "schemaVersion": "mapping-suggestion-v2",
+        "outcome": "ABSTENTION",
+        "scope": "ACCOUNT",
+        "accountCode": "4700",
+        "accountLabel": "Synthetic operating expenses",
+        "abstentionReasonCode": "INSUFFICIENT_EVIDENCE",
+        "evidenceCodes": [
+          "TARGET_TAXONOMY"
+        ]
+      }
+    },
+    {
+      "id": "abstention-with-target",
+      "payload": {
+        "schemaVersion": "mapping-suggestion-v2",
+        "outcome": "ABSTENTION",
+        "scope": "ACCOUNT",
+        "accountCode": "4700",
+        "accountLabel": "Synthetic operating expenses",
+        "abstentionReasonCode": "INSUFFICIENT_EVIDENCE",
+        "evidenceCodes": [
+          "ACCOUNT_LABEL"
+        ],
+        "targetCode": "BS.ASSET.CASH_AND_EQUIVALENTS"
+      }
+    },
+    {
+      "id": "invalid-model-output-missing-invalid-reasons",
+      "payload": {
+        "schemaVersion": "mapping-suggestion-v2",
+        "outcome": "TECHNICAL_DEGRADATION",
+        "scope": "ACCOUNT",
+        "accountCode": "1000",
+        "accountLabel": "Synthetic cash account",
+        "degradationCode": "INVALID_MODEL_OUTPUT"
+      }
+    },
+    {
+      "id": "invalid-reasons-on-timeout",
+      "payload": {
+        "schemaVersion": "mapping-suggestion-v2",
+        "outcome": "TECHNICAL_DEGRADATION",
+        "scope": "REQUEST",
+        "degradationCode": "TIMEOUT",
+        "invalidReasonCodes": [
+          "SCHEMA_INVALID"
+        ]
+      }
+    },
+    {
+      "id": "fingerprint-on-non-suggestion",
+      "payload": {
+        "schemaVersion": "mapping-suggestion-v2",
+        "outcome": "PRECONDITION_BLOCK",
+        "scope": "ACCOUNT",
+        "accountCode": "2800",
+        "accountLabel": "Synthetic retained earnings",
+        "preconditionBlockCode": "ACCOUNT_ALREADY_AFFECTED",
+        "suggestionFingerprint": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      }
+    },
+    {
+      "id": "null-account-label",
+      "payload": {
+        "schemaVersion": "mapping-suggestion-v2",
+        "outcome": "SUGGESTION",
+        "scope": "ACCOUNT",
+        "accountCode": "1000",
+        "accountLabel": null,
+        "targetCode": "BS.ASSET.CASH_AND_EQUIVALENTS",
+        "explanationCode": "TARGET_SUPPORTED_BY_CANDIDATE_EVIDENCE",
+        "evidenceCodes": [
+          "ACCOUNT_LABEL",
+          "TARGET_TAXONOMY"
+        ],
+        "requiresHumanReview": true,
+        "suggestionFingerprint": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      }
+    },
+    {
+      "id": "unknown-property",
+      "payload": {
+        "schemaVersion": "mapping-suggestion-v2",
+        "outcome": "SUGGESTION",
+        "scope": "ACCOUNT",
+        "accountCode": "1000",
+        "accountLabel": "Local Bank CHF",
+        "targetCode": "BS.ASSET.CASH_AND_EQUIVALENTS",
+        "explanationCode": "TARGET_SUPPORTED_BY_CANDIDATE_EVIDENCE",
+        "evidenceCodes": [
+          "ACCOUNT_LABEL",
+          "TARGET_TAXONOMY"
+        ],
+        "requiresHumanReview": true,
+        "suggestionFingerprint": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        "unexpected": "value"
+      }
+    }
+  ]
+}

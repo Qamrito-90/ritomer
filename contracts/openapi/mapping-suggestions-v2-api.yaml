@@ -1,0 +1,391 @@
+openapi: 3.1.1
+info:
+  title: Mapping Suggestions V2 API Contract
+  version: 0.1.0
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+  description: >
+    Contract-only OpenAPI components for the normalized Ritomer mapping-suggestion-v2
+    application read-model. This file does not declare an active runtime endpoint and does not
+    approve or activate an external AI provider, network call, runtime prompt, auto-apply flow or
+    Spring controller.
+jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
+servers:
+  - url: /
+    description: Deployment-relative API server
+x-ritomer-runtime-status: CONTRACT_ONLY_NO_ACTIVE_ENDPOINT
+paths: {}
+components:
+  schemas:
+    MappingSuggestionsV2ReadModel:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - closingFolderId
+        - latestImportVersion
+        - taxonomyVersion
+        - taxonomyHash
+        - items
+      properties:
+        schemaVersion:
+          $ref: "#/components/schemas/MappingSuggestionV2SchemaVersion"
+        closingFolderId:
+          type: string
+          format: uuid
+        latestImportVersion:
+          type: integer
+          minimum: 1
+        taxonomyVersion:
+          type: integer
+          minimum: 1
+        taxonomyHash:
+          $ref: "#/components/schemas/MappingSuggestionV2TaxonomyHash"
+        items:
+          type: array
+          description: >
+            Normalized outcomes. Items may be scoped to an account, the request, or the batch,
+            depending on the closed outcome code to scope compatibility table encoded below.
+          items:
+            $ref: "#/components/schemas/MappingSuggestionV2"
+    MappingSuggestionV2:
+      oneOf:
+        - $ref: "#/components/schemas/MappingSuggestionV2Suggestion"
+        - $ref: "#/components/schemas/MappingSuggestionV2Abstention"
+        - $ref: "#/components/schemas/MappingSuggestionV2PolicyBlock"
+        - $ref: "#/components/schemas/MappingSuggestionV2AccountPreconditionBlock"
+        - $ref: "#/components/schemas/MappingSuggestionV2RequestPreconditionBlock"
+        - $ref: "#/components/schemas/MappingSuggestionV2InvalidModelOutput"
+        - $ref: "#/components/schemas/MappingSuggestionV2LocalInputInvalid"
+        - $ref: "#/components/schemas/MappingSuggestionV2RequestTimeout"
+        - $ref: "#/components/schemas/MappingSuggestionV2BatchUnavailable"
+    MappingSuggestionV2SchemaVersion:
+      type: string
+      const: mapping-suggestion-v2
+    MappingSuggestionV2AccountCode:
+      type: string
+      minLength: 1
+      maxLength: 64
+      pattern: "^[0-9A-Z._-]+$"
+    MappingSuggestionV2AccountLabel:
+      type: string
+      minLength: 1
+      maxLength: 300
+      description: >
+        Local account label from the tenant-scoped balance line. It is never accepted from provider
+        output.
+    MappingSuggestionV2TargetCode:
+      type: string
+      minLength: 1
+      maxLength: 120
+    MappingSuggestionV2TaxonomyHash:
+      type: string
+      pattern: "^[0-9a-f]{64}$"
+      description: SHA-256 hash of the exact taxonomy snapshot used for the normalized read-model.
+    MappingSuggestionV2SuggestionFingerprint:
+      type: string
+      pattern: "^[0-9a-f]{64}$"
+      description: >
+        Backend-calculated SHA-256 fingerprint generated locally only for SUGGESTION over schema
+        version, closing folder, import version, taxonomy version/hash, outcome, account code,
+        target code and canonical evidence codes. It detects changed or stale suggestions, but is
+        not an authorization, signature, idempotency key, or sufficient tenant-scoped proof for a
+        future decision.
+    MappingSuggestionV2EvidenceCode:
+      type: string
+      enum:
+        - ACCOUNT_LABEL
+        - TARGET_TAXONOMY
+    MappingSuggestionV2SuggestionEvidenceCodes:
+      type: array
+      minItems: 2
+      maxItems: 2
+      uniqueItems: true
+      items:
+        $ref: "#/components/schemas/MappingSuggestionV2EvidenceCode"
+      allOf:
+        - contains:
+            const: ACCOUNT_LABEL
+          minContains: 1
+          maxContains: 1
+        - contains:
+            const: TARGET_TAXONOMY
+          minContains: 1
+          maxContains: 1
+    MappingSuggestionV2AbstentionEvidenceCodes:
+      type: array
+      minItems: 1
+      maxItems: 1
+      uniqueItems: true
+      items:
+        const: ACCOUNT_LABEL
+    MappingSuggestionV2ExplanationCode:
+      type: string
+      enum:
+        - TARGET_SUPPORTED_BY_CANDIDATE_EVIDENCE
+    MappingSuggestionV2AbstentionReasonCode:
+      type: string
+      enum:
+        - OUT_OF_SCOPE
+        - CONFLICTING_SIGNALS
+        - INSUFFICIENT_EVIDENCE
+        - TAXONOMY_GAP
+        - AMBIGUOUS_TARGET
+    MappingSuggestionV2PolicyBlockCode:
+      type: string
+      enum:
+        - NON_SYNTHETIC_REQUEST
+        - CROSS_TENANT_REQUEST
+        - OUTSIDE_ALLOWLIST_OR_PROVENANCE
+        - LANGUAGE_OUT_OF_COHORT
+        - GATE_INVALID
+        - PRIVACY_OR_TENANT_BOUNDARY
+    MappingSuggestionV2AccountPreconditionBlockCode:
+      type: string
+      enum:
+        - ACCOUNT_ALREADY_AFFECTED
+        - ACCOUNT_NOT_IN_LATEST_IMPORT
+        - NOT_ELIGIBLE
+    MappingSuggestionV2RequestPreconditionBlockCode:
+      type: string
+      const: STALE_IMPORT
+    MappingSuggestionV2InvalidReasonCodes:
+      type: array
+      minItems: 1
+      maxItems: 8
+      uniqueItems: true
+      items:
+        type: string
+        enum:
+          - TARGET_UNKNOWN
+          - TARGET_DEPRECATED
+          - TARGET_NOT_SELECTABLE
+          - SECTION_OR_ROOT_PROPOSED
+          - MALFORMED_OUTPUT
+          - SCHEMA_INVALID
+          - CONTEXTUALLY_INADMISSIBLE_TARGET
+          - VERSION_PIN_MISMATCH
+    MappingSuggestionV2Suggestion:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - outcome
+        - scope
+        - accountCode
+        - accountLabel
+        - targetCode
+        - explanationCode
+        - evidenceCodes
+        - requiresHumanReview
+        - suggestionFingerprint
+      properties:
+        schemaVersion:
+          $ref: "#/components/schemas/MappingSuggestionV2SchemaVersion"
+        outcome:
+          type: string
+          const: SUGGESTION
+        scope:
+          type: string
+          const: ACCOUNT
+        accountCode:
+          $ref: "#/components/schemas/MappingSuggestionV2AccountCode"
+        accountLabel:
+          $ref: "#/components/schemas/MappingSuggestionV2AccountLabel"
+        targetCode:
+          $ref: "#/components/schemas/MappingSuggestionV2TargetCode"
+        explanationCode:
+          $ref: "#/components/schemas/MappingSuggestionV2ExplanationCode"
+        evidenceCodes:
+          $ref: "#/components/schemas/MappingSuggestionV2SuggestionEvidenceCodes"
+        requiresHumanReview:
+          const: true
+        suggestionFingerprint:
+          $ref: "#/components/schemas/MappingSuggestionV2SuggestionFingerprint"
+    MappingSuggestionV2Abstention:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - outcome
+        - scope
+        - accountCode
+        - accountLabel
+        - abstentionReasonCode
+        - evidenceCodes
+      properties:
+        schemaVersion:
+          $ref: "#/components/schemas/MappingSuggestionV2SchemaVersion"
+        outcome:
+          type: string
+          const: ABSTENTION
+        scope:
+          type: string
+          const: ACCOUNT
+        accountCode:
+          $ref: "#/components/schemas/MappingSuggestionV2AccountCode"
+        accountLabel:
+          $ref: "#/components/schemas/MappingSuggestionV2AccountLabel"
+        abstentionReasonCode:
+          $ref: "#/components/schemas/MappingSuggestionV2AbstentionReasonCode"
+        evidenceCodes:
+          $ref: "#/components/schemas/MappingSuggestionV2AbstentionEvidenceCodes"
+    MappingSuggestionV2PolicyBlock:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - outcome
+        - scope
+        - policyBlockCode
+      properties:
+        schemaVersion:
+          $ref: "#/components/schemas/MappingSuggestionV2SchemaVersion"
+        outcome:
+          type: string
+          const: POLICY_BLOCK
+        scope:
+          type: string
+          const: REQUEST
+        policyBlockCode:
+          $ref: "#/components/schemas/MappingSuggestionV2PolicyBlockCode"
+    MappingSuggestionV2AccountPreconditionBlock:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - outcome
+        - scope
+        - accountCode
+        - accountLabel
+        - preconditionBlockCode
+      properties:
+        schemaVersion:
+          $ref: "#/components/schemas/MappingSuggestionV2SchemaVersion"
+        outcome:
+          type: string
+          const: PRECONDITION_BLOCK
+        scope:
+          type: string
+          const: ACCOUNT
+        accountCode:
+          $ref: "#/components/schemas/MappingSuggestionV2AccountCode"
+        accountLabel:
+          $ref: "#/components/schemas/MappingSuggestionV2AccountLabel"
+        preconditionBlockCode:
+          $ref: "#/components/schemas/MappingSuggestionV2AccountPreconditionBlockCode"
+    MappingSuggestionV2RequestPreconditionBlock:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - outcome
+        - scope
+        - preconditionBlockCode
+      properties:
+        schemaVersion:
+          $ref: "#/components/schemas/MappingSuggestionV2SchemaVersion"
+        outcome:
+          type: string
+          const: PRECONDITION_BLOCK
+        scope:
+          type: string
+          const: REQUEST
+        preconditionBlockCode:
+          $ref: "#/components/schemas/MappingSuggestionV2RequestPreconditionBlockCode"
+    MappingSuggestionV2InvalidModelOutput:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - outcome
+        - scope
+        - accountCode
+        - accountLabel
+        - degradationCode
+        - invalidReasonCodes
+      properties:
+        schemaVersion:
+          $ref: "#/components/schemas/MappingSuggestionV2SchemaVersion"
+        outcome:
+          type: string
+          const: TECHNICAL_DEGRADATION
+        scope:
+          type: string
+          const: ACCOUNT
+        accountCode:
+          $ref: "#/components/schemas/MappingSuggestionV2AccountCode"
+        accountLabel:
+          $ref: "#/components/schemas/MappingSuggestionV2AccountLabel"
+        degradationCode:
+          type: string
+          const: INVALID_MODEL_OUTPUT
+        invalidReasonCodes:
+          $ref: "#/components/schemas/MappingSuggestionV2InvalidReasonCodes"
+    MappingSuggestionV2LocalInputInvalid:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - outcome
+        - scope
+        - accountCode
+        - accountLabel
+        - degradationCode
+      properties:
+        schemaVersion:
+          $ref: "#/components/schemas/MappingSuggestionV2SchemaVersion"
+        outcome:
+          type: string
+          const: TECHNICAL_DEGRADATION
+        scope:
+          type: string
+          const: ACCOUNT
+        accountCode:
+          $ref: "#/components/schemas/MappingSuggestionV2AccountCode"
+        accountLabel:
+          $ref: "#/components/schemas/MappingSuggestionV2AccountLabel"
+        degradationCode:
+          type: string
+          const: LOCAL_INPUT_INVALID
+    MappingSuggestionV2RequestTimeout:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - outcome
+        - scope
+        - degradationCode
+      properties:
+        schemaVersion:
+          $ref: "#/components/schemas/MappingSuggestionV2SchemaVersion"
+        outcome:
+          type: string
+          const: TECHNICAL_DEGRADATION
+        scope:
+          type: string
+          const: REQUEST
+        degradationCode:
+          type: string
+          const: TIMEOUT
+    MappingSuggestionV2BatchUnavailable:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - outcome
+        - scope
+        - degradationCode
+      properties:
+        schemaVersion:
+          $ref: "#/components/schemas/MappingSuggestionV2SchemaVersion"
+        outcome:
+          type: string
+          const: TECHNICAL_DEGRADATION
+        scope:
+          type: string
+          const: BATCH
+        degradationCode:
+          type: string
+          const: UNAVAILABLE
