@@ -22,6 +22,8 @@ Le pack de double revue aveugle `042a2` transforme les 17 cas candidats en deux 
 
 `042a2a3` ajoute un premier moteur offline backend interne et une task Gradle d'evaluation des 17 cas candidats. Ce livrable reste `CANDIDATE_EVAL / NOT_GOLDEN / NOT_AUTHORITATIVE / NOT_MODEL_QUALITY`, sans provider reel, modele reel, prompt runtime, endpoint, DB/migration, OpenAPI, contrat public, secret, `.env`, appel reseau IA, production ou spec `043`.
 
+`042a2a4` ajoute uniquement le contrat normalise `mapping-suggestion-v2` comme read-model applicatif Ritomer, un transformer offline backend depuis le moteur `042a2a3` et un parser frontend strict. Ce livrable ne cree aucun provider reel, modele reel, prompt runtime actif, endpoint actif, controller, wiring Spring, DB/migration, ecran frontend, auto-apply, bulk apply, secret, `.env`, appel reseau IA, production ou spec `043`.
+
 ## Surface
 
 DOCS_GIT / AI_RUNTIME_SPEC.
@@ -35,6 +37,8 @@ Surface pack de cas candidats `042a2` : EVALS / CONTRACTS_DATA / DOCS_GIT.
 Surface pack de double revue aveugle `042a2` : EVALS / DOCS_GIT.
 
 Surface moteur offline `042a2a3` : BACKEND_RUNTIME_INTERNE / EVALS.
+
+Surface contrat normalise `042a2a4` : CONTRACTS / BACKEND_RUNTIME_INTERNE / FRONTEND_CONSUMER.
 
 ## Risk
 
@@ -120,6 +124,15 @@ Semantic readiness `042a2a1` :
 - `policies/ai-mapping-pilot-scope-manifest-042a2.md` definit le perimetre metier pilote draft sans approuver de taxonomy snapshot.
 - `042a2a1` et `042a2a1b` ne modifient aucun contrat et ne redigent pas le contrat `mapping-suggestion-v2`.
 - `042b` reste BLOQUE tant que la semantic readiness, le manifeste de perimetre pilote, la decision contractuelle, le golden set, le validator, les gates provider et les signatures humaines requises ne sont pas termines.
+
+Contract implementation `042a2a4` :
+
+- `contracts/ai/mapping-suggestion-v2.schema.json` encode maintenant une union stricte `SUGGESTION | ABSTENTION | POLICY_BLOCK | PRECONDITION_BLOCK | TECHNICAL_DEGRADATION` avec `scope` ferme `ACCOUNT | REQUEST | BATCH` selon le code.
+- `contracts/openapi/mapping-suggestions-v2-api.yaml` porte uniquement des composants OpenAPI v2 contract-only avec `paths: {}`, `taxonomyHash` dans le read-model et aucun endpoint actif declare.
+- `contracts/ai/mapping-suggestion-v2.corpus.json` porte le corpus contractuel partage valide/invalide utilise par les tests backend, frontend et les validations de schema/OpenAPI.
+- Le backend ajoute seulement un transformer offline depuis les resultats `042a2a3`, avec fingerprint reserve aux `SUGGESTION` et calcule localement sur schema, dossier, import, version/hash taxonomie, outcome, compte, cible et preuves canonisees, sans controller, wiring Spring, provider runtime, reseau, DB ou migration.
+- Le frontend ajoute seulement un parser Zod v2 strict aligne sur le corpus partage, sans ecran ni basculement du consumer v1 existant.
+- Les contrats v1 `contracts/ai/mapping-suggestion.schema.json` et `contracts/openapi/mapping-suggestions-api.yaml` restent inchanges ; il n'y a aucun basculement implicite v1 -> v2.
 
 Runbooks impactes par `042a1`, sans modification supplementaire par `042a2a1b` :
 
@@ -240,6 +253,15 @@ Le pack de double revue aveugle `042a2` ajoute uniquement :
 Ces artefacts restent `BLIND_REVIEW_INPUT / PENDING_INDEPENDENT_REVIEW / NOT_GOLDEN / NOT_AUTHORITATIVE`. Ils couvrent exactement les 17 cas candidats avec des ids neutres `BR-001` a `BR-017`, deux ordres deterministes differents, les inputs synthetiques necessaires et le catalogue candidat des cibles selectionnables. Ils n'exposent pas les chemins ou hashes des fixtures candidates contenant les reponses, `sourceKind`, `sourceCaseId`, `caseInputHash`, les champs de solution source, categories, tags, commentaire de correction, montant brut, identifiant tenant/client/acteur ou mapping historique.
 
 `042a2a3` ajoute un moteur offline Kotlin interne dans `mapping.application` et un runner de test Gradle `offlineMappingEval042a2`. Le moteur execute les 17 cas candidats sans reseau et sans provider reel selon le pipeline policy/precondition -> minimisation -> provider local deterministe ou fault provider -> JSON brut non fiable -> validation stricte -> controle cible/taxonomie candidate -> normalisation -> resultat -> metriques. Le fake provider, le fault provider et le runner restent dans `src/test` et ne constituent pas un provider production. Le rapport JSON est produit sous `backend/build/reports/042a2/` et doit rester marque `CANDIDATE_EVAL / NOT_GOLDEN / NOT_AUTHORITATIVE / NOT_MODEL_QUALITY`.
+
+`042a2a4` ajoute le contrat normalise `mapping-suggestion-v2` et ses consommateurs offline stricts :
+
+- schema JSON v2 normalise, avec `scope` ferme par code, sans confidence, sans texte libre provider, sans valeur null et avec `additionalProperties=false` partout ;
+- OpenAPI v2 contract-only avec composants, `taxonomyHash` dans le read-model et `paths: {}`, sans endpoint actif ;
+- corpus contractuel partage valide/invalide pour validation JSON Schema, tests Kotlin, tests Zod et controle d'alignement OpenAPI ;
+- transformer backend offline de `OfflineMappingEvalResult` vers le read-model v2, avec fingerprint de suggestion genere localement sur schema, dossier, import, version/hash taxonomie, outcome, compte, cible et preuves canonisees, sans exposition de `providerCallCount` ;
+- parser frontend Zod v2 strict et messages utilisateur derives localement des codes, sans `messageCode` redondant ;
+- aucune modification du controller v1, du service runtime v1, des contrats v1, de la DB, des migrations ou du wiring Spring.
 
 `042a2` devra encore traiter, dans une ou plusieurs missions separees, les livrables qui ne sont pas clos par `042a1`, `042a2a1`, `042a2a1b`, les artefacts candidats `042a2a2a`, le pack de cas candidats `042a2` ou le pack de double revue aveugle `042a2` :
 
