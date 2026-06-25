@@ -6,17 +6,119 @@ info:
     name: Proprietary
     identifier: LicenseRef-Proprietary
   description: >
-    Contract-only OpenAPI components for the normalized Ritomer mapping-suggestion-v2
-    application read-model. This file does not declare an active runtime endpoint and does not
-    approve or activate an external AI provider, network call, runtime prompt, auto-apply flow or
-    Spring controller.
+    REST contract for the local-only normalized Ritomer mapping-suggestion-v2 read-model.
+    The exposed runtime is restricted to the Spring profile `local`, requires
+    `ritomer.ai.mapping-suggestions-v2.offline.enabled=true`, is disabled by default, and is limited
+    to the synthetic demo allowlist. This contract does not approve or activate an external AI
+    provider, real model invocation, network call, runtime prompt, auto-apply flow, bulk flow,
+    decision endpoint, production endpoint or frontend switch.
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 servers:
   - url: /
     description: Deployment-relative API server
-x-ritomer-runtime-status: CONTRACT_ONLY_NO_ACTIVE_ENDPOINT
-paths: {}
+x-ritomer-runtime-status: LOCAL_ONLY_DEFAULT_OFF_SYNTHETIC_DEMO
+paths:
+  /api/closing-folders/{closingFolderId}/mappings/suggestions-v2:
+    get:
+      operationId: getMappingSuggestionsV2Offline
+      summary: Return local offline mapping suggestions v2 for the synthetic demo folder
+      security:
+        - bearerAuth: []
+      description: >
+        Tenant-scoped read-only endpoint for the local synthetic demo runtime only. The endpoint is
+        registered only when the backend runs with Spring profile `local` and
+        `ritomer.ai.mapping-suggestions-v2.offline.enabled=true`; otherwise no v2 controller/service
+        is exposed. It uses the offline engine 042a2a3 and a deterministic local demo adapter, never
+        a real provider, provider SDK, provider network call, secret, `.env` value or browser call.
+        It never creates manual mappings, suggestion decisions, audit decision events, workpapers,
+        documents or any other business state. Request authorization, tenant resolution and
+        tenant-scoped closing folder existence are evaluated before the synthetic-demo allowlist and
+        before any offline engine invocation.
+      parameters:
+        - in: header
+          name: X-Tenant-Id
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: path
+          name: closingFolderId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Normalized mapping-suggestion-v2 read-model returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MappingSuggestionsV2ReadModel"
+              examples:
+                suggestionAndAbstention:
+                  value:
+                    schemaVersion: mapping-suggestion-v2
+                    closingFolderId: "036a0000-0000-4000-8000-000000000004"
+                    latestImportVersion: 1
+                    taxonomyVersion: 2
+                    taxonomyHash: "2f9679c9b7b9d6f0e1a3c4b5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f809"
+                    items:
+                      - schemaVersion: mapping-suggestion-v2
+                        outcome: SUGGESTION
+                        scope: ACCOUNT
+                        accountCode: "4000"
+                        accountLabel: Other operating expenses
+                        targetCode: PL.EXPENSE.OTHER_OPERATING_EXPENSES
+                        explanationCode: TARGET_SUPPORTED_BY_CANDIDATE_EVIDENCE
+                        evidenceCodes:
+                          - ACCOUNT_LABEL
+                          - TARGET_TAXONOMY
+                        requiresHumanReview: true
+                        suggestionFingerprint: "3f9679c9b7b9d6f0e1a3c4b5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f809"
+                      - schemaVersion: mapping-suggestion-v2
+                        outcome: ABSTENTION
+                        scope: ACCOUNT
+                        accountCode: "4010"
+                        accountLabel: Synthetic operating expenses
+                        abstentionReasonCode: INSUFFICIENT_EVIDENCE
+                        evidenceCodes:
+                          - ACCOUNT_LABEL
+                outsideAllowlist:
+                  value:
+                    schemaVersion: mapping-suggestion-v2
+                    closingFolderId: "00000000-0000-4000-8000-000000000000"
+                    taxonomyVersion: 2
+                    taxonomyHash: "2f9679c9b7b9d6f0e1a3c4b5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f809"
+                    items:
+                      - schemaVersion: mapping-suggestion-v2
+                        outcome: POLICY_BLOCK
+                        scope: REQUEST
+                        policyBlockCode: OUTSIDE_ALLOWLIST_OR_PROVENANCE
+                noEligibleImport:
+                  value:
+                    schemaVersion: mapping-suggestion-v2
+                    closingFolderId: "036a0000-0000-4000-8000-000000000004"
+                    taxonomyVersion: 2
+                    taxonomyHash: "2f9679c9b7b9d6f0e1a3c4b5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f809"
+                    items:
+                      - schemaVersion: mapping-suggestion-v2
+                        outcome: PRECONDITION_BLOCK
+                        scope: REQUEST
+                        preconditionBlockCode: STALE_IMPORT
+        "400":
+          description: Missing, blank or malformed X-Tenant-Id
+        "401":
+          description: Authentication required
+        "403":
+          description: Tenant inaccessible or role insufficient
+        "404":
+          description: Closing folder absent or outside tenant, or endpoint absent when local flag/profile is inactive
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
     MappingSuggestionsV2ReadModel:
       type: object
@@ -24,7 +126,6 @@ components:
       required:
         - schemaVersion
         - closingFolderId
-        - latestImportVersion
         - taxonomyVersion
         - taxonomyHash
         - items
@@ -37,6 +138,9 @@ components:
         latestImportVersion:
           type: integer
           minimum: 1
+          description: >
+            Latest imported balance version used by the read-model. Omitted when no eligible
+            import can be selected before account-scoped evaluation; null is never serialized.
         taxonomyVersion:
           type: integer
           minimum: 1

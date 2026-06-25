@@ -303,6 +303,30 @@ private fun requireInvalidReasonCodes(invalidReasonCodes: List<MappingSuggestion
 }
 
 object MappingSuggestionV2Transformer {
+  fun policyBlock(
+    code: MappingSuggestionV2PolicyBlockCode
+  ): MappingSuggestionV2PolicyBlock =
+    MappingSuggestionV2PolicyBlock(policyBlockCode = code)
+
+  fun requestPreconditionBlock(
+    code: MappingSuggestionV2PreconditionBlockCode
+  ): MappingSuggestionV2RequestPreconditionBlock =
+    MappingSuggestionV2RequestPreconditionBlock(preconditionBlockCode = code)
+
+  fun accountPreconditionBlock(
+    accountCode: String,
+    localAccountLabel: String,
+    code: MappingSuggestionV2PreconditionBlockCode
+  ): MappingSuggestionV2AccountPreconditionBlock =
+    MappingSuggestionV2AccountPreconditionBlock(
+      accountCode = accountCode,
+      accountLabel = normalizeLocalAccountLabel(localAccountLabel),
+      preconditionBlockCode = code
+    )
+
+  fun batchUnavailable(): MappingSuggestionV2BatchUnavailable =
+    MappingSuggestionV2BatchUnavailable
+
   fun fromOfflineResult(
     result: OfflineMappingEvalResult,
     closingFolderId: UUID,
@@ -315,33 +339,31 @@ object MappingSuggestionV2Transformer {
     require(taxonomyVersion > 0) { "taxonomyVersion must be positive." }
     requireTaxonomyHash(taxonomyHash)
 
-    val accountLabel = normalizeLocalAccountLabel(localAccountLabel)
-
     return when (result) {
       is OfflineMappingEvalSuggestion -> result.toV2Suggestion(
         closingFolderId,
-        accountLabel,
+        normalizeLocalAccountLabel(localAccountLabel),
         latestImportVersion,
         taxonomyVersion,
         taxonomyHash
       )
       is OfflineMappingEvalAbstention -> MappingSuggestionV2Abstention(
         accountCode = result.accountCode,
-        accountLabel = accountLabel,
+        accountLabel = normalizeLocalAccountLabel(localAccountLabel),
         abstentionReasonCode = result.reasonCode.toV2(),
         evidenceCodes = result.evidence.toV2EvidenceCodes()
       )
       is OfflineMappingEvalPolicyBlock -> MappingSuggestionV2PolicyBlock(
         policyBlockCode = result.blockCode.toV2()
       )
-      is OfflineMappingEvalPreconditionBlock -> result.toV2PreconditionBlock(accountLabel)
+      is OfflineMappingEvalPreconditionBlock -> result.toV2PreconditionBlock(localAccountLabel)
       is OfflineMappingEvalInvalidInput -> MappingSuggestionV2LocalInputInvalid(
         accountCode = result.accountCode,
-        accountLabel = accountLabel
+        accountLabel = normalizeLocalAccountLabel(localAccountLabel)
       )
       is OfflineMappingEvalInvalidModelOutput -> MappingSuggestionV2InvalidModelOutput(
         accountCode = result.accountCode,
-        accountLabel = accountLabel,
+        accountLabel = normalizeLocalAccountLabel(localAccountLabel),
         invalidReasonCodes = result.invalidReasons
           .map { it.toV2() }
           .sortedBy { it.name }
@@ -380,13 +402,13 @@ object MappingSuggestionV2Transformer {
   }
 
   private fun OfflineMappingEvalPreconditionBlock.toV2PreconditionBlock(
-    accountLabel: String
+    localAccountLabel: String
   ): MappingSuggestionV2PreconditionBlock {
     val code = blockCode.toV2()
     return when (code.scope) {
       MappingSuggestionV2Scope.ACCOUNT -> MappingSuggestionV2AccountPreconditionBlock(
         accountCode = accountCode,
-        accountLabel = accountLabel,
+        accountLabel = normalizeLocalAccountLabel(localAccountLabel),
         preconditionBlockCode = code
       )
       MappingSuggestionV2Scope.REQUEST -> MappingSuggestionV2RequestPreconditionBlock(

@@ -32,6 +32,9 @@ ritomer:
   ai:
     mapping-suggestions:
       enabled: ${RITOMER_AI_MAPPING_SUGGESTIONS_ENABLED:false}
+    mapping-suggestions-v2:
+      offline:
+        enabled: false
   workpapers:
     documents:
       storage:

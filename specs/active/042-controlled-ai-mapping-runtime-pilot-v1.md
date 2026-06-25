@@ -6,7 +6,7 @@ Active.
 
 ## Mode
 
-SPEC_CREATION DOCS_ONLY, avec surface `BACKEND_RUNTIME_INTERNE / EVALS` limitee a `042a2a3`.
+SPEC_CREATION avec increment runtime local controle `042a2a5a`.
 
 Cette spec active cadre le premier pilote IA runtime reel de Ritomer, limite aux suggestions de mapping sur le dossier demo synthetique.
 
@@ -24,6 +24,8 @@ Le pack de double revue aveugle `042a2` transforme les 17 cas candidats en deux 
 
 `042a2a4` ajoute uniquement le contrat normalise `mapping-suggestion-v2` comme read-model applicatif Ritomer, un transformer offline backend depuis le moteur `042a2a3` et un parser frontend strict. Ce livrable ne cree aucun provider reel, modele reel, prompt runtime actif, endpoint actif, controller, wiring Spring, DB/migration, ecran frontend, auto-apply, bulk apply, secret, `.env`, appel reseau IA, production ou spec `043`.
 
+`042a2a5a` expose ce moteur offline derriere un endpoint backend local v2 strictement read-only et default-off : `GET /api/closing-folders/{closingFolderId}/mappings/suggestions-v2`. Le controller, le service et l'adapter local n'existent qu'en profil `local` avec `ritomer.ai.mapping-suggestions-v2.offline.enabled=true`, restent limites a l'allowlist demo synthetique backend immutable, n'utilisent aucun provider reel, aucun SDK provider, aucun appel reseau IA, aucun secret, aucune valeur `.env`, aucune ecriture DB, aucune decision humaine, aucun audit de decision, aucun frontend, aucune bascule v1 et aucune production.
+
 ## Surface
 
 DOCS_GIT / AI_RUNTIME_SPEC.
@@ -40,11 +42,13 @@ Surface moteur offline `042a2a3` : BACKEND_RUNTIME_INTERNE / EVALS.
 
 Surface contrat normalise `042a2a4` : CONTRACTS / BACKEND_RUNTIME_INTERNE / FRONTEND_CONSUMER.
 
+Surface endpoint local offline `042a2a5a` : BACKEND_RUNTIME_LOCAL / CONTRACTS / DOCS_GIT.
+
 ## Risk
 
 C.
 
-Risque lie a l'ouverture d'une future capacite provider reelle, meme strictement bornee aux donnees synthetiques. Le risque est documentaire dans cette mission, car aucun code runtime n'est modifie.
+Risque lie a l'ouverture d'une future capacite provider reelle, meme strictement bornee aux donnees synthetiques. Pour `042a2a5a`, le risque C est borne par l'activation locale default-off, l'allowlist synthetique immutable, l'absence de provider reel/reseau/secret et l'absence de mutation.
 
 ## Sources relues
 
@@ -105,7 +109,9 @@ Risque lie a l'ouverture d'une future capacite provider reelle, meme strictement
   - `frontend/src/lib/api/mapping-suggestions.test.ts`
   - `frontend/src/app/ai-mapping-suggestions-panel.test.tsx`
 
-Contrats impactes par cette mission documentaire : AUCUN.
+Contrats impactes par `042a2a5a` :
+
+- `contracts/openapi/mapping-suggestions-v2-api.yaml`.
 
 Contract readiness `042a1` :
 
@@ -128,15 +134,31 @@ Semantic readiness `042a2a1` :
 Contract implementation `042a2a4` :
 
 - `contracts/ai/mapping-suggestion-v2.schema.json` encode maintenant une union stricte `SUGGESTION | ABSTENTION | POLICY_BLOCK | PRECONDITION_BLOCK | TECHNICAL_DEGRADATION` avec `scope` ferme `ACCOUNT | REQUEST | BATCH` selon le code.
-- `contracts/openapi/mapping-suggestions-v2-api.yaml` porte uniquement des composants OpenAPI v2 contract-only avec `paths: {}`, `taxonomyHash` dans le read-model et aucun endpoint actif declare.
+- `contracts/openapi/mapping-suggestions-v2-api.yaml` portait en `042a2a4` les composants OpenAPI v2 contract-only avec `paths: {}` ; `042a2a5a` y ajoute le chemin GET local default-off `suggestions-v2`, avec `taxonomyHash` dans le read-model et sans endpoint de decision.
 - `contracts/ai/mapping-suggestion-v2.corpus.json` porte le corpus contractuel partage valide/invalide utilise par les tests backend, frontend et les validations de schema/OpenAPI.
 - Le backend ajoute seulement un transformer offline depuis les resultats `042a2a3`, avec fingerprint reserve aux `SUGGESTION` et calcule localement sur schema, dossier, import, version/hash taxonomie, outcome, compte, cible et preuves canonisees, sans controller, wiring Spring, provider runtime, reseau, DB ou migration.
 - Le frontend ajoute seulement un parser Zod v2 strict aligne sur le corpus partage, sans ecran ni basculement du consumer v1 existant.
 - Les contrats v1 `contracts/ai/mapping-suggestion.schema.json` et `contracts/openapi/mapping-suggestions-api.yaml` restent inchanges ; il n'y a aucun basculement implicite v1 -> v2.
 
+Endpoint local offline `042a2a5a` :
+
+- `GET /api/closing-folders/{closingFolderId}/mappings/suggestions-v2` est ajoute uniquement comme endpoint local read-only, sans `POST`, sans decision, sans accept/correct/reject, sans bulk et sans auto-apply.
+- L'activation exige le profil Spring `local` et `ritomer.ai.mapping-suggestions-v2.offline.enabled=true`; le defaut reste `false` et le controller/service/adapter sont absents hors profil/flag.
+- Les gates d'execution sont : auth existante, resolver tenant existant, existence tenant-scopee du closing folder, allowlist tenant/folder, import/provenance synthetique, preconditions comptes, puis moteur offline.
+- L'allowlist backend immutable est limitee au tenant `036a0000-0000-4000-8000-000000000001`, au dossier `036a0000-0000-4000-8000-000000000004`, a l'import version `1` et a la source `demo-synthetic-balance.csv`.
+- Le moteur appele est `OfflineMappingEvalEngine042a2` via un port provider-agnostic interne et un adapter local deterministe ; aucun provider reel, SDK provider, appel reseau IA, secret, `.env`, prompt runtime actif ou cout provider n'est introduit.
+- Les reponses restent des items `mapping-suggestion-v2` normalises via `MappingSuggestionV2Transformer`, sans `state`, sans `providerCallCount`, sans payload provider et sans label/payload brut en logs.
+- Les comptes deja mappes exposent `PRECONDITION_BLOCK / ACCOUNT`; les comptes eligibles exposent `SUGGESTION`, `ABSTENTION` ou degradation technique explicite ; aucun compte n'est ignore silencieusement.
+- Les policy/preconditions request-scope ne portent pas `accountCode`, `accountLabel` ou evidence.
+- Les lectures `GET` n'ecrivent aucun mapping manuel, aucune decision de suggestion et aucun audit de decision.
+
 Runbooks impactes par `042a1`, sans modification supplementaire par `042a2a1b` :
 
 - `runbooks/ai-incident-response.md`
+
+Runbooks impactes par `042a2a5a` :
+
+- `runbooks/local-dev.md`
 
 ## 1. Probleme et resultat utilisateur
 
@@ -179,12 +201,13 @@ Le mapping manuel reste toujours disponible et reste l'autorite metier durable.
 - Mesure de qualite, abstention, preuves, corrections humaines, latence et cout sans journaliser les donnees.
 - Audit durable des decisions humaines.
 
-### Exclu hors moteur offline interne `042a2a3`
+### Exclu hors moteur offline interne `042a2a3` et endpoint local `042a2a5a`
 
 - Tout runtime produit expose, provider reel ou appel reseau IA.
 - Tout appel provider.
 - Toute lecture de secret, `.env`, token, cookie, DSN ou credential.
-- Toute modification frontend, DB, migration, OpenAPI, contrat public, CI ou dependance.
+- Toute modification frontend, DB, migration, CI ou dependance.
+- Toute activation non locale, production, provider, decision, mutation ou endpoint v2 non read-only.
 - Toute creation de spec `043`.
 
 ## 3. Decoupage 042a / 042b / 042c / 042d
@@ -257,11 +280,21 @@ Ces artefacts restent `BLIND_REVIEW_INPUT / PENDING_INDEPENDENT_REVIEW / NOT_GOL
 `042a2a4` ajoute le contrat normalise `mapping-suggestion-v2` et ses consommateurs offline stricts :
 
 - schema JSON v2 normalise, avec `scope` ferme par code, sans confidence, sans texte libre provider, sans valeur null et avec `additionalProperties=false` partout ;
-- OpenAPI v2 contract-only avec composants, `taxonomyHash` dans le read-model et `paths: {}`, sans endpoint actif ;
+- OpenAPI v2 contract-only avec composants, `taxonomyHash` dans le read-model et `paths: {}`, sans endpoint actif avant `042a2a5a` ;
 - corpus contractuel partage valide/invalide pour validation JSON Schema, tests Kotlin, tests Zod et controle d'alignement OpenAPI ;
 - transformer backend offline de `OfflineMappingEvalResult` vers le read-model v2, avec fingerprint de suggestion genere localement sur schema, dossier, import, version/hash taxonomie, outcome, compte, cible et preuves canonisees, sans exposition de `providerCallCount` ;
 - parser frontend Zod v2 strict et messages utilisateur derives localement des codes, sans `messageCode` redondant ;
 - aucune modification du controller v1, du service runtime v1, des contrats v1, de la DB, des migrations ou du wiring Spring.
+
+`042a2a5a` ajoute uniquement le wiring backend local du read-model v2 :
+
+- controller `GET` v2 distinct du controller v1, sans `POST` ni route decision ;
+- service v2 distinct, read-only, tenant-scoped, sans appel au service/API v1 ;
+- adapter local deterministe dans la couche infrastructure locale, via le port provider-agnostic interne, sans provider reel ni reseau ;
+- activation profile `local` + flag `ritomer.ai.mapping-suggestions-v2.offline.enabled=true`, default `false` ;
+- allowlist backend immutable demo synthetique ;
+- OpenAPI v2 avec le chemin GET local et runbook local-dev ;
+- tests d'activation, gates, provenance, comportements v2, non-ecriture, non-reseau et non-regression v1.
 
 `042a2` devra encore traiter, dans une ou plusieurs missions separees, les livrables qui ne sont pas clos par `042a1`, `042a2a1`, `042a2a1b`, les artefacts candidats `042a2a2a`, le pack de cas candidats `042a2` ou le pack de double revue aveugle `042a2` :
 

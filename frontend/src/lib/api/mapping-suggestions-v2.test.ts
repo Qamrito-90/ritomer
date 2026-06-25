@@ -249,8 +249,18 @@ describe("mapping suggestions v2 parser", () => {
       ...corpus.readModelContext,
       items: [SUGGESTION, ABSTENTION, POLICY_BLOCK, REQUEST_TIMEOUT]
     };
+    const readModelWithoutImportVersion = {
+      schemaVersion: readModel.schemaVersion,
+      closingFolderId: readModel.closingFolderId,
+      taxonomyVersion: readModel.taxonomyVersion,
+      taxonomyHash: readModel.taxonomyHash,
+      items: readModel.items
+    };
 
     expect(parseMappingSuggestionsV2ReadModelPayload(readModel)).toEqual(readModel);
+    expect(parseMappingSuggestionsV2ReadModelPayload(readModelWithoutImportVersion)).toEqual(
+      readModelWithoutImportVersion
+    );
     expect(parseMappingSuggestionsV2ReadModelPayload({
       ...readModel,
       latestImportVersion: null
@@ -265,9 +275,14 @@ describe("mapping suggestions v2 parser", () => {
     })).toBeNull();
   });
 
-  it("aligns shared corpus scope branches with OpenAPI contract-only components", () => {
-    expect(openApiText).toContain("paths: {}");
+  it("aligns shared corpus scope branches with OpenAPI components", () => {
+    expect(openApiText).toContain("/api/closing-folders/{closingFolderId}/mappings/suggestions-v2:");
     expect(openApiText).toContain("taxonomyHash");
+    expect(openApiText).toContain("latestImportVersion:");
+    expect(openApiText).toContain("Omitted when no eligible");
+    expect(openApiReadModelRequiredBlock()).not.toContain("- latestImportVersion");
+    expect(openApiReadModelLatestImportVersionBlock()).not.toContain('"null"');
+    expect(openApiReadModelLatestImportVersionBlock()).not.toContain("nullable");
 
     for (const { payload } of corpus.valid) {
       expect(openApiText).toContain(String(payload.outcome));
@@ -289,7 +304,21 @@ function validPayload(id: string): Record<string, unknown> {
 }
 
 function openApiComponent(name: string): string {
-  const match = openApiText.match(new RegExp(`    ${name}:\\n([\\s\\S]*?)(?=\\n    MappingSuggestionV2|\\n$)`));
+  const match = openApiText.match(new RegExp(`[ ]{4}${name}:\\n([\\s\\S]*?)(?=\\n[ ]{4}MappingSuggestionV2|\\n$)`));
   if (!match) throw new Error(`Missing OpenAPI component ${name}`);
+  return match[1];
+}
+
+function openApiReadModelRequiredBlock(): string {
+  const component = openApiComponent("MappingSuggestionsV2ReadModel");
+  const match = component.match(/required:\n([\s\S]*?)\n[ ]{6}properties:/);
+  if (!match) throw new Error("Missing MappingSuggestionsV2ReadModel required block");
+  return match[1];
+}
+
+function openApiReadModelLatestImportVersionBlock(): string {
+  const component = openApiComponent("MappingSuggestionsV2ReadModel");
+  const match = component.match(/[ ]{8}latestImportVersion:\n([\s\S]*?)\n[ ]{8}taxonomyVersion:/);
+  if (!match) throw new Error("Missing MappingSuggestionsV2ReadModel latestImportVersion block");
   return match[1];
 }

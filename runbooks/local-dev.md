@@ -59,6 +59,59 @@ try {
 }
 ```
 
+## Endpoint local suggestions v2 offline 042a2a3
+
+Le endpoint local `GET /api/closing-folders/{closingFolderId}/mappings/suggestions-v2` expose le moteur offline 042a2a3 uniquement pour la demo synthetique locale.
+
+Garde-fous :
+
+- endpoint absent par defaut ;
+- profil Spring `local` obligatoire ;
+- activation explicite obligatoire avec `ritomer.ai.mapping-suggestions-v2.offline.enabled=true` ;
+- simulation locale, aucune IA externe active ;
+- aucune lecture de secret, `.env`, token, DSN ou credential par le moteur offline ;
+- aucun provider reel, SDK provider, appel reseau IA, prompt runtime actif ou cout provider ;
+- aucun `POST`, aucune decision `ACCEPT`, `CORRECT`, `REJECT`, aucun bulk et aucun auto-apply ;
+- aucune ecriture metier, aucun mapping manuel cree ou modifie et aucun audit de decision emis par ce `GET` ;
+- allowlist backend immutable limitee au tenant `036a0000-0000-4000-8000-000000000001`, au dossier `036a0000-0000-4000-8000-000000000004`, a l'import version `1` et a la source `demo-synthetic-balance.csv`.
+
+PowerShell pour demarrer le backend local avec le endpoint v2 offline :
+
+```powershell
+Push-Location backend
+try {
+  $env:SPRING_DATASOURCE_URL='jdbc:postgresql://localhost:5432/ritomer'
+  .\gradlew.bat bootRun --args="--spring.profiles.active=local --ritomer.ai.mapping-suggestions-v2.offline.enabled=true"
+} finally {
+  Pop-Location
+}
+```
+
+PowerShell de lecture. Remplacer le placeholder par un JWT local signe obtenu hors repo ; ne pas le committer, ne pas le placer dans `.env`, ne pas le coller dans le navigateur :
+
+```powershell
+$headers = @{
+  Authorization = 'Bearer <JWT_LOCAL_SIGNE_NON_COMMITTE>'
+  'X-Tenant-Id' = '036a0000-0000-4000-8000-000000000001'
+}
+
+Invoke-RestMethod `
+  -Method Get `
+  -Uri 'http://localhost:8080/api/closing-folders/036a0000-0000-4000-8000-000000000004/mappings/suggestions-v2' `
+  -Headers $headers
+```
+
+Resultats attendus :
+
+- sans profil `local` ou sans flag explicite, le endpoint n'est pas expose ;
+- sans authentification, le endpoint retourne le comportement de securite existant ;
+- sans `X-Tenant-Id` valide, le resolver tenant existant rejette la requete ;
+- hors allowlist demo synthetique, la reponse est un `POLICY_BLOCK` request-scope avant tout appel moteur ;
+- demo allowlistee sans import eligible, la reponse est un `PRECONDITION_BLOCK` request-scope ;
+- compte deja affecte, la reponse est un `PRECONDITION_BLOCK` account-scope ;
+- compte eligible, la reponse contient une `SUGGESTION`, une `ABSTENTION` ou une degradation technique v2 explicite ;
+- aucun compte n'est ignore silencieusement.
+
 PowerShell pour un démarrage local complet :
 
 ```powershell
