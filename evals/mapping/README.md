@@ -136,6 +136,33 @@ Exemple de validation d'une reponse humaine future :
 
 Ce pack ne remplit aucune reponse humaine, ne realise aucune adjudication et ne promeut aucun golden set.
 
+## Moteur offline interne 042a2a3
+
+`042a2a3` ajoute un moteur backend interne et une task Gradle pour executer les 17 cas candidats sans reseau et sans provider reel.
+
+Artefacts runtime internes :
+
+- moteur Kotlin non expose dans `backend/src/main/kotlin/ch/qamwaq/ritomer/mapping/application/OfflineMappingEvalEngine042a2.kt` ;
+- fake provider, fault provider et runner dans `backend/src/test/kotlin/ch/qamwaq/ritomer/mapping/application/*OfflineMapping*` ;
+- task Gradle `offlineMappingEval042a2`.
+
+Commande depuis `backend/` :
+
+```powershell
+.\gradlew.bat offlineMappingEval042a2
+```
+
+Le runner :
+
+- execute 7 cas metier, 5 policy/precondition et 5 invalid output ;
+- verifie `providerCallCount = 0` sur les blockers policy/precondition ;
+- compare les resultats au harness seulement, jamais dans le fake provider ;
+- produit `backend/build/reports/042a2/offline-mapping-eval-report.json` ;
+- marque le rapport `CANDIDATE_EVAL / NOT_GOLDEN / NOT_AUTHORITATIVE / NOT_MODEL_QUALITY` ;
+- echoue avec exit non-zero via JUnit/Gradle si un cas echoue.
+
+Ce moteur ne cree pas de contrat `mapping-suggestion-v2`, ne promeut pas de golden set, n'active aucun provider reel, n'ajoute aucun endpoint, aucune DB/migration, aucun OpenAPI, aucun secret, aucun `.env`, aucun appel IA et aucune capacite de production.
+
 ## Format du golden set
 
 Le fichier canonique est `evals/mapping/golden-set-v1.json`.
@@ -235,6 +262,12 @@ Depuis la racine du repo :
 .\evals\mapping\validate-042a2-candidate.ps1
 .\evals\mapping\validate-042a2-candidate-cases.ps1
 .\evals\mapping\validate-042a2-blind-review-pack.ps1
+Push-Location backend
+try {
+  .\gradlew.bat offlineMappingEval042a2
+} finally {
+  Pop-Location
+}
 ```
 
 Le script verifie :

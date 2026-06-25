@@ -6,11 +6,11 @@ Active.
 
 ## Mode
 
-SPEC_CREATION DOCS_ONLY.
+SPEC_CREATION DOCS_ONLY, avec surface `BACKEND_RUNTIME_INTERNE / EVALS` limitee a `042a2a3`.
 
 Cette spec active cadre le premier pilote IA runtime reel de Ritomer, limite aux suggestions de mapping sur le dossier demo synthetique.
 
-Elle ne livre aucun runtime, aucun provider, aucun backend, aucun frontend, aucune DB ou migration, aucun OpenAPI, aucune CI, aucune dependance, aucun secret, aucune valeur `.env`, aucun appel reseau IA et aucune spec `043`.
+Jusqu'aux livrables `042a2` precedents, elle ne livrait aucun runtime, aucun provider, aucun backend, aucun frontend, aucune DB ou migration, aucun OpenAPI, aucune CI, aucune dependance, aucun secret, aucune valeur `.env`, aucun appel reseau IA et aucune spec `043`. `042a2a3` fait exception uniquement pour un moteur offline backend interne d'evaluation candidate, sans surface produit ni provider reel.
 
 `042a1` ajoute uniquement un gate pack draft de gouvernance/readiness avant tout code provider `042b`. Les records restent `DRAFT` ou `PENDING_EVIDENCE`, sans signature humaine, sans approbation et sans date de gate inventee.
 
@@ -19,6 +19,8 @@ Elle ne livre aucun runtime, aucun provider, aucun backend, aucun frontend, aucu
 Le pack de cas candidats `042a2` ajoute uniquement des fixtures synthetiques et un validator local. Les artefacts restent `CANDIDATE / PENDING_DOUBLE_REVIEW / NOT_GOLDEN / NOT_AUTHORITATIVE`, sans signature humaine, sans contrat, sans provider, sans prompt runtime, sans backend/frontend runtime, sans DB/migration, sans OpenAPI, sans secret, sans `.env`, sans appel reseau IA et sans spec `043`.
 
 Le pack de double revue aveugle `042a2` transforme les 17 cas candidats en deux paquets de revue humaine independants. Les artefacts restent `BLIND_REVIEW_INPUT / PENDING_INDEPENDENT_REVIEW / NOT_GOLDEN / NOT_AUTHORITATIVE`, sans reponses humaines, sans adjudication, sans promotion golden set, sans contrat, sans provider, sans prompt runtime, sans backend/frontend runtime, sans DB/migration, sans OpenAPI, sans secret, sans `.env`, sans appel reseau IA et sans spec `043`.
+
+`042a2a3` ajoute un premier moteur offline backend interne et une task Gradle d'evaluation des 17 cas candidats. Ce livrable reste `CANDIDATE_EVAL / NOT_GOLDEN / NOT_AUTHORITATIVE / NOT_MODEL_QUALITY`, sans provider reel, modele reel, prompt runtime, endpoint, DB/migration, OpenAPI, contrat public, secret, `.env`, appel reseau IA, production ou spec `043`.
 
 ## Surface
 
@@ -31,6 +33,8 @@ Surface `042a2a1` : DOCS_GIT / AI_GOVERNANCE / FIDUCIARY_GOVERNANCE.
 Surface pack de cas candidats `042a2` : EVALS / CONTRACTS_DATA / DOCS_GIT.
 
 Surface pack de double revue aveugle `042a2` : EVALS / DOCS_GIT.
+
+Surface moteur offline `042a2a3` : BACKEND_RUNTIME_INTERNE / EVALS.
 
 ## Risk
 
@@ -162,12 +166,12 @@ Le mapping manuel reste toujours disponible et reste l'autorite metier durable.
 - Mesure de qualite, abstention, preuves, corrections humaines, latence et cout sans journaliser les donnees.
 - Audit durable des decisions humaines.
 
-### Exclu de cette mission documentaire
+### Exclu hors moteur offline interne `042a2a3`
 
-- Tout code runtime.
+- Tout runtime produit expose, provider reel ou appel reseau IA.
 - Tout appel provider.
 - Toute lecture de secret, `.env`, token, cookie, DSN ou credential.
-- Toute modification backend, frontend, DB, migration, OpenAPI, contrat, CI ou dependance.
+- Toute modification frontend, DB, migration, OpenAPI, contrat public, CI ou dependance.
 - Toute creation de spec `043`.
 
 ## 3. Decoupage 042a / 042b / 042c / 042d
@@ -234,6 +238,8 @@ Le pack de double revue aveugle `042a2` ajoute uniquement :
 - `evals/mapping/validate-042a2-human-review-responses.ps1`.
 
 Ces artefacts restent `BLIND_REVIEW_INPUT / PENDING_INDEPENDENT_REVIEW / NOT_GOLDEN / NOT_AUTHORITATIVE`. Ils couvrent exactement les 17 cas candidats avec des ids neutres `BR-001` a `BR-017`, deux ordres deterministes differents, les inputs synthetiques necessaires et le catalogue candidat des cibles selectionnables. Ils n'exposent pas les chemins ou hashes des fixtures candidates contenant les reponses, `sourceKind`, `sourceCaseId`, `caseInputHash`, les champs de solution source, categories, tags, commentaire de correction, montant brut, identifiant tenant/client/acteur ou mapping historique.
+
+`042a2a3` ajoute un moteur offline Kotlin interne dans `mapping.application` et un runner de test Gradle `offlineMappingEval042a2`. Le moteur execute les 17 cas candidats sans reseau et sans provider reel selon le pipeline policy/precondition -> minimisation -> provider local deterministe ou fault provider -> JSON brut non fiable -> validation stricte -> controle cible/taxonomie candidate -> normalisation -> resultat -> metriques. Le fake provider, le fault provider et le runner restent dans `src/test` et ne constituent pas un provider production. Le rapport JSON est produit sous `backend/build/reports/042a2/` et doit rester marque `CANDIDATE_EVAL / NOT_GOLDEN / NOT_AUTHORITATIVE / NOT_MODEL_QUALITY`.
 
 `042a2` devra encore traiter, dans une ou plusieurs missions separees, les livrables qui ne sont pas clos par `042a1`, `042a2a1`, `042a2a1b`, les artefacts candidats `042a2a2a`, le pack de cas candidats `042a2` ou le pack de double revue aveugle `042a2` :
 
