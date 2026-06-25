@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service
 
 data class LatestImportedBalance(
   val version: Int,
+  val sourceFileName: String,
   val lines: List<ImportedBalanceLine>
 )
 
@@ -33,6 +34,7 @@ class RepositoryBalanceImportAccess(
 
     return LatestImportedBalance(
       version = snapshot.import.version,
+      sourceFileName = snapshot.import.sourceFileName,
       lines = snapshot.lines.map {
         ImportedBalanceLine(
           lineNo = it.lineNo,

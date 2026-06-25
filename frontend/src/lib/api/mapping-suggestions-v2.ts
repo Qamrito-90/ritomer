@@ -164,7 +164,7 @@ const mappingSuggestionsV2ReadModelSchema = z
   .object({
     schemaVersion: schemaVersionSchema,
     closingFolderId: z.string().uuid(),
-    latestImportVersion: z.number().int().positive(),
+    latestImportVersion: z.number().int().positive().optional(),
     taxonomyVersion: z.number().int().positive(),
     taxonomyHash: taxonomyHashSchema,
     items: z.array(mappingSuggestionV2Schema)
