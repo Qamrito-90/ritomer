@@ -16,7 +16,14 @@ import {
   loadMappingSuggestionsShellState,
   recordMappingSuggestionDecision
 } from "../lib/api/mapping-suggestions";
+import type {
+  MappingSuggestionV2,
+  MappingSuggestionsV2ReadModel,
+  MappingSuggestionsV2ShellState
+} from "../lib/api/mapping-suggestions-v2";
+import { loadMappingSuggestionsV2ShellState } from "../lib/api/mapping-suggestions-v2";
 import type { ActiveTenant } from "../lib/api/me";
+import { isMappingSuggestionsV2LocalSimulationEnabled } from "../lib/local-feature-flags";
 
 export type AiMappingSuggestionReviewTarget = {
   code: string;
@@ -45,6 +52,8 @@ export type ManualMappingRefreshWarnings = {
   suggestionsFailed?: boolean;
 };
 
+type MappingSuggestionV2EvidenceCode = "ACCOUNT_LABEL" | "TARGET_TAXONOMY";
+
 const stateLabels: Record<MappingSuggestionsState, string> = {
   DISABLED:
     "Suggestions desactivees pour cette demo locale. Aucune suggestion n'est generee. Continuez avec le mapping manuel.",
@@ -65,6 +74,11 @@ const stateLabels: Record<MappingSuggestionsState, string> = {
     "Preuves insuffisantes pour preparer des suggestions. Continuez avec le mapping manuel."
 };
 
+const mappingSuggestionsV2SimulationBanner = "Simulation locale — aucune IA externe active.";
+const mappingSuggestionsV2UnavailableMessage =
+  "Simulation locale indisponible. L’affectation manuelle reste disponible.";
+const manualMappingTableHref = "#manual-mapping-table-title";
+
 type DecisionReviewState =
   | { kind: "idle" }
   | { kind: "submitting"; decision: MappingSuggestionDecision }
@@ -84,6 +98,16 @@ type DecisionAttempt = {
 };
 
 export function AiMappingSuggestionsPanel({
+  ...props
+}: AiMappingSuggestionsPanelProps) {
+  if (isMappingSuggestionsV2LocalSimulationEnabled()) {
+    return <AiMappingSuggestionsV2Panel {...props} />;
+  }
+
+  return <AiMappingSuggestionsV1Panel {...props} />;
+}
+
+function AiMappingSuggestionsV1Panel({
   activeTenant,
   closingFolderId,
   selectableTargets = [],
@@ -300,6 +324,342 @@ export function AiMappingSuggestionsPanel({
       </div>
     </section>
   );
+}
+
+function AiMappingSuggestionsV2Panel({
+  activeTenant,
+  closingFolderId,
+  selectableTargets = [],
+  suggestionsRefreshRequestId = 0,
+  onSuggestionsRefreshSettled
+}: AiMappingSuggestionsPanelProps) {
+  const [state, setState] = useState<MappingSuggestionsV2ShellState>({ kind: "loading" });
+  const hasLoadedSuggestionsRef = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSuggestions() {
+      const isInitialLoad = !hasLoadedSuggestionsRef.current;
+
+      if (isInitialLoad) {
+        setState({ kind: "loading" });
+      }
+
+      const nextState = await loadMappingSuggestionsV2ShellState(closingFolderId, activeTenant);
+
+      if (cancelled) {
+        return;
+      }
+
+      setState(nextState);
+      hasLoadedSuggestionsRef.current = true;
+
+      if (!isInitialLoad && suggestionsRefreshRequestId > 0) {
+        onSuggestionsRefreshSettled?.(suggestionsRefreshRequestId, nextState.kind === "ready");
+      }
+    }
+
+    void loadSuggestions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTenant, closingFolderId, onSuggestionsRefreshSettled, suggestionsRefreshRequestId]);
+
+  return (
+    <section aria-labelledby="ai-mapping-suggestion-title" className="rounded-lg border bg-muted/20 p-4">
+      <div className="grid gap-4">
+        <div className="grid gap-2">
+          <p className="label-eyebrow">Aide locale a la revue</p>
+          <h4
+            className="text-lg font-semibold text-foreground"
+            id="ai-mapping-suggestion-title"
+          >
+            Suggestions de mapping a revoir
+          </h4>
+          <div className="rounded-lg border bg-background/80 p-3 text-sm font-semibold text-foreground">
+            {mappingSuggestionsV2SimulationBanner}
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Les resultats sont en lecture seule. Le mapping manuel reste la reference.
+          </p>
+        </div>
+
+        <MappingSuggestionsV2StateSlot
+          selectableTargets={selectableTargets}
+          state={state}
+        />
+      </div>
+    </section>
+  );
+}
+
+function MappingSuggestionsV2StateSlot({
+  state,
+  selectableTargets
+}: {
+  state: MappingSuggestionsV2ShellState;
+  selectableTargets: AiMappingSuggestionReviewTarget[];
+}) {
+  if (state.kind === "loading") {
+    return <StateMessage text="Chargement de la simulation locale." />;
+  }
+
+  if (state.kind === "unavailable") {
+    return (
+      <div className="grid gap-3">
+        <StateMessage text={mappingSuggestionsV2UnavailableMessage} />
+        <ManualMappingLink />
+      </div>
+    );
+  }
+
+  return (
+    <MappingSuggestionsV2ReadModelView
+      readModel={state.readModel}
+      selectableTargets={selectableTargets}
+    />
+  );
+}
+
+function MappingSuggestionsV2ReadModelView({
+  readModel,
+  selectableTargets
+}: {
+  readModel: MappingSuggestionsV2ReadModel;
+  selectableTargets: AiMappingSuggestionReviewTarget[];
+}) {
+  const selectableTargetByCode = new Map(
+    selectableTargets
+      .filter((target) => target.selectable)
+      .map((target) => [target.code, target])
+  );
+  const globalItems = readModel.items.filter(isMappingSuggestionV2GlobalItem);
+  const accountItems = readModel.items.filter(isMappingSuggestionV2AccountItem);
+
+  return (
+    <div className="grid gap-4">
+      <div className="rounded-lg border bg-background/80 p-4">
+        <dl className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <MetricItem label="resultats locaux" value={formatSuggestionCount(readModel.items.length)} />
+          <MetricItem
+            label="import courant"
+            value={readModel.latestImportVersion === undefined ? "aucun" : String(readModel.latestImportVersion)}
+          />
+          <MetricItem label="autorite metier" value="mapping manuel" />
+          <MetricItem label="decisions" value="aucune action ici" />
+        </dl>
+      </div>
+
+      {globalItems.length > 0 ? (
+        <ul className="grid gap-3">
+          {globalItems.map((item, index) => (
+            <li key={`${item.outcome}-${item.scope}-${index}`}>
+              <MappingSuggestionsV2GlobalMessage item={item} />
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {accountItems.length === 0 && globalItems.length === 0 ? (
+        <div className="grid gap-3 rounded-lg border bg-background/80 p-4">
+          <p className="text-sm font-semibold text-foreground">Aucun resultat local</p>
+          <p className="text-sm text-muted-foreground">
+            Le mapping manuel reste disponible pour affecter les comptes.
+          </p>
+          <ManualMappingLink />
+        </div>
+      ) : null}
+
+      {accountItems.length > 0 ? (
+        <ul className="grid gap-4">
+          {accountItems.map((item) => (
+            <li key={`${item.outcome}-${item.accountCode}`}>
+              <MappingSuggestionsV2AccountCard
+                item={item}
+                selectableTargetByCode={selectableTargetByCode}
+              />
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+function MappingSuggestionsV2GlobalMessage({
+  item
+}: {
+  item: Extract<MappingSuggestionV2, { scope: "REQUEST" | "BATCH" }>;
+}) {
+  const isPolicyBlock = item.outcome === "POLICY_BLOCK";
+
+  return (
+    <article className="grid gap-3 rounded-lg border bg-background/80 p-4">
+      <div className="grid gap-2">
+        <p className="text-sm font-semibold text-foreground">
+          {isPolicyBlock ? "Demande non eligible" : "Simulation locale indisponible"}
+        </p>
+        <p className="text-sm text-muted-foreground">
+          {formatMappingSuggestionV2GlobalMessage(item)}
+        </p>
+      </div>
+      <ManualMappingLink />
+    </article>
+  );
+}
+
+function MappingSuggestionsV2AccountCard({
+  item,
+  selectableTargetByCode
+}: {
+  item: Extract<MappingSuggestionV2, { scope: "ACCOUNT" }>;
+  selectableTargetByCode: Map<string, AiMappingSuggestionReviewTarget>;
+}) {
+  if (item.outcome === "SUGGESTION") {
+    const target = selectableTargetByCode.get(item.targetCode);
+
+    if (target === undefined) {
+      return (
+        <MappingSuggestionsV2AccountIssueCard
+          accountCode={item.accountCode}
+          accountLabel={item.accountLabel}
+          message="Rubrique cible indisponible localement. L’affectation manuelle reste disponible."
+          title="Simulation locale indisponible"
+        />
+      );
+    }
+
+    return (
+      <article
+        aria-label={`simulation locale compte ${item.accountCode}`}
+        className="grid min-w-0 gap-4 overflow-hidden rounded-lg border bg-background/80 p-4"
+      >
+        <div className="grid gap-3">
+          <p className="text-sm font-semibold text-foreground">Proposition à vérifier</p>
+          <dl className="grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <DetailItem label="compte" value={`${item.accountCode} - ${item.accountLabel}`} />
+            <DetailItem label="rubrique cible" value={target.label} />
+            <DetailItem label="revue humaine" value="requise hors simulation" />
+          </dl>
+        </div>
+        <MappingSuggestionsV2EvidenceList evidenceCodes={item.evidenceCodes} />
+      </article>
+    );
+  }
+
+  if (item.outcome === "ABSTENTION") {
+    return (
+      <article
+        aria-label={`simulation locale compte ${item.accountCode}`}
+        className="grid min-w-0 gap-4 overflow-hidden rounded-lg border bg-background/80 p-4"
+      >
+        <div className="grid gap-3">
+          <p className="text-sm font-semibold text-foreground">Aucune proposition</p>
+          <dl className="grid min-w-0 gap-3 md:grid-cols-2">
+            <DetailItem label="compte" value={`${item.accountCode} - ${item.accountLabel}`} />
+            <DetailItem
+              label="motif metier"
+              value={formatMappingSuggestionV2AbstentionReason(item.abstentionReasonCode)}
+            />
+          </dl>
+        </div>
+        <MappingSuggestionsV2EvidenceList evidenceCodes={item.evidenceCodes} />
+        <ManualMappingLink />
+      </article>
+    );
+  }
+
+  if (item.outcome === "PRECONDITION_BLOCK") {
+    return (
+      <MappingSuggestionsV2AccountIssueCard
+        accountCode={item.accountCode}
+        accountLabel={item.accountLabel}
+        message={formatMappingSuggestionV2AccountPrecondition(item.preconditionBlockCode)}
+        title="Affectation manuelle a utiliser"
+      />
+    );
+  }
+
+  return (
+    <MappingSuggestionsV2AccountIssueCard
+      accountCode={item.accountCode}
+      accountLabel={item.accountLabel}
+      message={mappingSuggestionsV2UnavailableMessage}
+      title="Simulation locale indisponible"
+    />
+  );
+}
+
+function MappingSuggestionsV2AccountIssueCard({
+  accountCode,
+  accountLabel,
+  message,
+  title
+}: {
+  accountCode: string;
+  accountLabel: string;
+  message: string;
+  title: string;
+}) {
+  return (
+    <article
+      aria-label={`simulation locale compte ${accountCode}`}
+      className="grid min-w-0 gap-4 overflow-hidden rounded-lg border bg-background/80 p-4"
+    >
+      <div className="grid gap-3">
+        <p className="text-sm font-semibold text-foreground">{title}</p>
+        <dl className="grid min-w-0 gap-3 md:grid-cols-2">
+          <DetailItem label="compte" value={`${accountCode} - ${accountLabel}`} />
+          <DetailItem label="suite possible" value={message} />
+        </dl>
+      </div>
+      <ManualMappingLink />
+    </article>
+  );
+}
+
+function MappingSuggestionsV2EvidenceList({
+  evidenceCodes
+}: {
+  evidenceCodes: MappingSuggestionV2EvidenceCode[];
+}) {
+  return (
+    <div className="grid gap-3">
+      <h5 className="text-sm font-semibold text-foreground">Preuves metier</h5>
+      <ul className="grid gap-3">
+        {evidenceCodes.map((evidenceCode) => (
+          <li
+            className="rounded-lg border bg-muted/20 p-4 text-sm font-medium text-foreground"
+            key={evidenceCode}
+          >
+            {formatMappingSuggestionV2Evidence(evidenceCode)}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function ManualMappingLink() {
+  return (
+    <a className="text-sm font-semibold text-primary underline-offset-4 hover:underline" href={manualMappingTableHref}>
+      Affecter manuellement
+    </a>
+  );
+}
+
+function isMappingSuggestionV2GlobalItem(
+  item: MappingSuggestionV2
+): item is Extract<MappingSuggestionV2, { scope: "REQUEST" | "BATCH" }> {
+  return item.scope !== "ACCOUNT";
+}
+
+function isMappingSuggestionV2AccountItem(
+  item: MappingSuggestionV2
+): item is Extract<MappingSuggestionV2, { scope: "ACCOUNT" }> {
+  return item.scope === "ACCOUNT";
 }
 
 function MappingSuggestionsStateSlot({
@@ -644,6 +1004,67 @@ function MappingSuggestionErrors({ errors }: { errors: MappingSuggestionError[] 
       </ul>
     </div>
   );
+}
+
+function formatMappingSuggestionV2GlobalMessage(
+  item: Extract<MappingSuggestionV2, { scope: "REQUEST" | "BATCH" }>
+) {
+  if (item.outcome === "POLICY_BLOCK") {
+    return "Cette demande n'est pas eligible a l'affectation assistee locale. L'affectation manuelle reste disponible.";
+  }
+
+  if (item.outcome === "PRECONDITION_BLOCK") {
+    return "La balance courante doit etre verifiee avant la simulation locale. L'affectation manuelle reste disponible.";
+  }
+
+  return mappingSuggestionsV2UnavailableMessage;
+}
+
+function formatMappingSuggestionV2AbstentionReason(
+  reasonCode: Extract<MappingSuggestionV2, { outcome: "ABSTENTION" }>["abstentionReasonCode"]
+) {
+  if (reasonCode === "OUT_OF_SCOPE") {
+    return "Ce compte est hors perimetre de l'affectation assistee locale.";
+  }
+
+  if (reasonCode === "CONFLICTING_SIGNALS") {
+    return "Les elements disponibles pointent vers plusieurs traitements incompatibles.";
+  }
+
+  if (reasonCode === "INSUFFICIENT_EVIDENCE") {
+    return "Les preuves disponibles ne suffisent pas pour proposer une rubrique.";
+  }
+
+  if (reasonCode === "TAXONOMY_GAP") {
+    return "Aucune rubrique selectionnable locale ne couvre clairement ce concept.";
+  }
+
+  return "Plusieurs rubriques selectionnables restent plausibles.";
+}
+
+function formatMappingSuggestionV2AccountPrecondition(
+  preconditionCode: Extract<
+    MappingSuggestionV2,
+    { outcome: "PRECONDITION_BLOCK"; scope: "ACCOUNT" }
+  >["preconditionBlockCode"]
+) {
+  if (preconditionCode === "ACCOUNT_ALREADY_AFFECTED") {
+    return "Compte deja affecte manuellement. L'affectation manuelle reste disponible.";
+  }
+
+  if (preconditionCode === "ACCOUNT_NOT_IN_LATEST_IMPORT") {
+    return "Compte absent du dernier import. L'affectation manuelle reste disponible.";
+  }
+
+  return "Compte non eligible a la simulation locale. L'affectation manuelle reste disponible.";
+}
+
+function formatMappingSuggestionV2Evidence(evidenceCode: MappingSuggestionV2EvidenceCode) {
+  if (evidenceCode === "ACCOUNT_LABEL") {
+    return "Libelle du compte verifie localement.";
+  }
+
+  return "Rubrique cible presente dans les cibles selectionnables.";
 }
 
 function DetailItem({ label, value }: { label: string; value: string }) {

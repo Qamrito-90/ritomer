@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   deriveMappingSuggestionV2UserMessage,
   getMappingSuggestionV2AllowedDecisionCodes,
+  loadMappingSuggestionsV2ShellState,
   parseMappingSuggestionV2Payload,
   parseMappingSuggestionsV2ReadModelPayload
 } from "./mapping-suggestions-v2";
@@ -43,8 +44,108 @@ const PRECONDITION_REQUEST_BLOCK = validPayload("valid-precondition-request-scop
 const INVALID_MODEL_OUTPUT = validPayload("valid-invalid-model-output-account-scope");
 const REQUEST_TIMEOUT = validPayload("valid-timeout-request-scope");
 const BATCH_UNAVAILABLE = validPayload("valid-unavailable-batch-scope");
+const ACTIVE_TENANT = {
+  tenantId: "11111111-1111-4111-8111-111111111111",
+  tenantSlug: "tenant-alpha",
+  tenantName: "Tenant Alpha"
+};
+const CLOSING_FOLDER_ID = corpus.readModelContext.closingFolderId;
+
+function jsonResponse(status: number, payload: unknown) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: {
+      "Content-Type": "application/json"
+    }
+  });
+}
+
+function validReadModel(overrides: Record<string, unknown> = {}) {
+  return {
+    ...corpus.readModelContext,
+    items: [SUGGESTION, ABSTENTION],
+    ...overrides
+  };
+}
 
 describe("mapping suggestions v2 parser", () => {
+  it("calls the exact local read-only v2 endpoint with Accept and X-Tenant-Id only", async () => {
+    const readModel = validReadModel();
+    const fetcher = vi.fn().mockResolvedValue(jsonResponse(200, readModel));
+
+    await expect(
+      loadMappingSuggestionsV2ShellState(CLOSING_FOLDER_ID, ACTIVE_TENANT, fetcher)
+    ).resolves.toEqual({
+      kind: "ready",
+      readModel
+    });
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher).toHaveBeenCalledWith(
+      `/api/closing-folders/${CLOSING_FOLDER_ID}/mappings/suggestions-v2`,
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Accept: "application/json",
+          "X-Tenant-Id": ACTIVE_TENANT.tenantId
+        })
+      })
+    );
+
+    const init = fetcher.mock.calls[0]?.[1] as RequestInit;
+    const headers = init.headers as Record<string, string>;
+    expect(headers.Authorization).toBeUndefined();
+    expect(init.body).toBeUndefined();
+  });
+
+  it("encodes closingFolderId before calling the local v2 endpoint", async () => {
+    const fetcher = vi.fn().mockResolvedValue(jsonResponse(400, {}));
+
+    await expect(
+      loadMappingSuggestionsV2ShellState("folder id/with spaces", ACTIVE_TENANT, fetcher)
+    ).resolves.toEqual({ kind: "unavailable" });
+
+    expect(fetcher.mock.calls[0]?.[0]).toBe(
+      "/api/closing-folders/folder%20id%2Fwith%20spaces/mappings/suggestions-v2"
+    );
+  });
+
+  it.each([400, 401, 403, 404, 500, 502, 418])(
+    "maps HTTP %i to a fail-closed unavailable state",
+    async (status) => {
+      const fetcher = vi.fn().mockResolvedValue(jsonResponse(status, {}));
+
+      await expect(
+        loadMappingSuggestionsV2ShellState(CLOSING_FOLDER_ID, ACTIVE_TENANT, fetcher)
+      ).resolves.toEqual({ kind: "unavailable" });
+    }
+  );
+
+  it("maps timeout, network failure, invalid payload and folder mismatch to unavailable", async () => {
+    const timeoutFetcher = vi.fn().mockRejectedValue(new Error("timeout"));
+    const networkFetcher = vi.fn().mockRejectedValue(new Error("network"));
+    const invalidPayloadFetcher = vi.fn().mockResolvedValue(jsonResponse(200, { items: [] }));
+    const folderMismatchFetcher = vi.fn().mockResolvedValue(
+      jsonResponse(
+        200,
+        validReadModel({ closingFolderId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" })
+      )
+    );
+
+    await expect(
+      loadMappingSuggestionsV2ShellState(CLOSING_FOLDER_ID, ACTIVE_TENANT, timeoutFetcher)
+    ).resolves.toEqual({ kind: "unavailable" });
+    await expect(
+      loadMappingSuggestionsV2ShellState(CLOSING_FOLDER_ID, ACTIVE_TENANT, networkFetcher)
+    ).resolves.toEqual({ kind: "unavailable" });
+    await expect(
+      loadMappingSuggestionsV2ShellState(CLOSING_FOLDER_ID, ACTIVE_TENANT, invalidPayloadFetcher)
+    ).resolves.toEqual({ kind: "unavailable" });
+    await expect(
+      loadMappingSuggestionsV2ShellState(CLOSING_FOLDER_ID, ACTIVE_TENANT, folderMismatchFetcher)
+    ).resolves.toEqual({ kind: "unavailable" });
+  });
+
   it("parses a strict suggestion without confidence or provider free text", () => {
     const parsed = parseMappingSuggestionV2Payload(SUGGESTION);
 
