@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { requestJson, type Fetcher } from "./http";
+import type { ActiveTenant } from "./me";
 
 const schemaVersionSchema = z.literal("mapping-suggestion-v2");
 const accountCodeSchema = z.string().min(1).max(64).regex(/^[0-9A-Z._-]+$/);
@@ -176,6 +178,10 @@ export type MappingSuggestionsV2ReadModel = z.infer<typeof mappingSuggestionsV2R
 export type MappingSuggestionV2Outcome = MappingSuggestionV2["outcome"];
 export type MappingSuggestionV2Scope = "ACCOUNT" | "REQUEST" | "BATCH";
 export type MappingSuggestionV2DecisionCode = "ACCEPT" | "CORRECT" | "REJECT";
+export type MappingSuggestionsV2ShellState =
+  | { kind: "loading" }
+  | { kind: "unavailable" }
+  | { kind: "ready"; readModel: MappingSuggestionsV2ReadModel };
 type MappingSuggestionV2PreconditionBlockCode =
   | z.infer<typeof accountPreconditionBlockCodeSchema>
   | z.infer<typeof requestPreconditionBlockCodeSchema>;
@@ -195,6 +201,42 @@ export function parseMappingSuggestionsV2ReadModelPayload(
 ): MappingSuggestionsV2ReadModel | null {
   const parsed = mappingSuggestionsV2ReadModelSchema.safeParse(payload);
   return parsed.success ? parsed.data : null;
+}
+
+export async function loadMappingSuggestionsV2ShellState(
+  closingFolderId: string,
+  activeTenant: ActiveTenant,
+  fetcher: Fetcher = fetch
+): Promise<Exclude<MappingSuggestionsV2ShellState, { kind: "loading" }>> {
+  try {
+    const response = await requestJson(
+      `/api/closing-folders/${encodeURIComponent(closingFolderId)}/mappings/suggestions-v2`,
+      {
+        method: "GET",
+        headers: {
+          "X-Tenant-Id": activeTenant.tenantId
+        }
+      },
+      fetcher
+    );
+
+    if (response.status !== 200) {
+      return { kind: "unavailable" };
+    }
+
+    const readModel = parseMappingSuggestionsV2ReadModelPayload(await readJsonBody(response));
+
+    if (readModel === null || readModel.closingFolderId !== closingFolderId) {
+      return { kind: "unavailable" };
+    }
+
+    return {
+      kind: "ready",
+      readModel
+    };
+  } catch {
+    return { kind: "unavailable" };
+  }
 }
 
 export function getMappingSuggestionV2AllowedDecisionCodes(
@@ -268,4 +310,12 @@ function hasExactItems<T>(items: T[], expected: readonly T[]) {
     uniqueItems.size === expected.length &&
     expected.every((item) => uniqueItems.has(item))
   );
+}
+
+async function readJsonBody(response: Response) {
+  try {
+    return await response.json();
+  } catch {
+    return undefined;
+  }
 }

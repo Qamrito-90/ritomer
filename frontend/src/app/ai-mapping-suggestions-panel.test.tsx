@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AiMappingSuggestionsPanel } from "./ai-mapping-suggestions-panel";
 import type { MappingSuggestionsReadModel } from "../lib/api/mapping-suggestions";
+import type { MappingSuggestionsV2ReadModel } from "../lib/api/mapping-suggestions-v2";
 
 const ACTIVE_TENANT = {
   tenantId: "11111111-1111-4111-8111-111111111111",
@@ -52,6 +53,85 @@ const REFRESHED_MAPPING_SUGGESTIONS: MappingSuggestionsReadModel = {
   suggestions: []
 };
 
+const READY_MAPPING_SUGGESTIONS_V2: MappingSuggestionsV2ReadModel = {
+  schemaVersion: "mapping-suggestion-v2",
+  closingFolderId: CLOSING_FOLDER_ID,
+  latestImportVersion: 3,
+  taxonomyVersion: 2,
+  taxonomyHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  items: [
+    {
+      schemaVersion: "mapping-suggestion-v2",
+      outcome: "SUGGESTION",
+      scope: "ACCOUNT",
+      accountCode: "1000",
+      accountLabel: "Bank CHF",
+      targetCode: "BS.ASSET.CASH_AND_EQUIVALENTS",
+      explanationCode: "TARGET_SUPPORTED_BY_CANDIDATE_EVIDENCE",
+      evidenceCodes: ["ACCOUNT_LABEL", "TARGET_TAXONOMY"],
+      requiresHumanReview: true,
+      suggestionFingerprint:
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    }
+  ]
+};
+
+const OUTCOMES_MAPPING_SUGGESTIONS_V2: MappingSuggestionsV2ReadModel = {
+  ...READY_MAPPING_SUGGESTIONS_V2,
+  items: [
+    READY_MAPPING_SUGGESTIONS_V2.items[0],
+    {
+      schemaVersion: "mapping-suggestion-v2",
+      outcome: "ABSTENTION",
+      scope: "ACCOUNT",
+      accountCode: "4700",
+      accountLabel: "Synthetic operating expenses",
+      abstentionReasonCode: "INSUFFICIENT_EVIDENCE",
+      evidenceCodes: ["ACCOUNT_LABEL"]
+    },
+    {
+      schemaVersion: "mapping-suggestion-v2",
+      outcome: "POLICY_BLOCK",
+      scope: "REQUEST",
+      policyBlockCode: "OUTSIDE_ALLOWLIST_OR_PROVENANCE"
+    },
+    {
+      schemaVersion: "mapping-suggestion-v2",
+      outcome: "PRECONDITION_BLOCK",
+      scope: "REQUEST",
+      preconditionBlockCode: "STALE_IMPORT"
+    },
+    {
+      schemaVersion: "mapping-suggestion-v2",
+      outcome: "PRECONDITION_BLOCK",
+      scope: "ACCOUNT",
+      accountCode: "2800",
+      accountLabel: "Synthetic retained earnings",
+      preconditionBlockCode: "ACCOUNT_ALREADY_AFFECTED"
+    },
+    {
+      schemaVersion: "mapping-suggestion-v2",
+      outcome: "TECHNICAL_DEGRADATION",
+      scope: "REQUEST",
+      degradationCode: "TIMEOUT"
+    },
+    {
+      schemaVersion: "mapping-suggestion-v2",
+      outcome: "TECHNICAL_DEGRADATION",
+      scope: "BATCH",
+      degradationCode: "UNAVAILABLE"
+    },
+    {
+      schemaVersion: "mapping-suggestion-v2",
+      outcome: "TECHNICAL_DEGRADATION",
+      scope: "ACCOUNT",
+      accountCode: "9999",
+      accountLabel: "Synthetic local input",
+      degradationCode: "LOCAL_INPUT_INVALID"
+    }
+  ]
+};
+
 const SELECTABLE_TARGETS = [
   {
     code: "BS.ASSET.CASH_AND_EQUIVALENTS",
@@ -92,6 +172,11 @@ function renderPanel({
       onManualMappingMutationConfirmed={onManualMappingMutationConfirmed}
     />
   );
+}
+
+function enableMappingSuggestionsV2LocalSimulation() {
+  vi.stubEnv("DEV", true);
+  vi.stubEnv("VITE_RITOMER_MAPPING_SUGGESTIONS_V2_LOCAL_SIMULATION", "true");
 }
 
 function readModelForState(
@@ -165,6 +250,10 @@ function getRequestBody(fetchMock: ReturnType<typeof vi.fn>, index: number) {
   return JSON.parse(String((fetchMock.mock.calls[index]?.[1] as RequestInit).body));
 }
 
+function getRequestPaths(fetchMock: ReturnType<typeof vi.fn>) {
+  return fetchMock.mock.calls.map((call) => String(call[0]));
+}
+
 function expectNoProviderJargon(container: HTMLElement) {
   expect(container).not.toHaveTextContent(/provider/i);
   expect(container).not.toHaveTextContent(/no-provider/i);
@@ -176,8 +265,223 @@ describe("AiMappingSuggestionsPanel", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+  });
+
+  it("keeps the v1 panel and never calls v2 when the local simulation flag is absent or false", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, READY_MAPPING_SUGGESTIONS))
+      .mockResolvedValueOnce(jsonResponse(200, READY_MAPPING_SUGGESTIONS));
+
+    const firstRender = renderPanel();
+
+    expect(await screen.findByLabelText("suggestion mapping 1000 a revoir")).toBeInTheDocument();
+    firstRender.unmount();
+
+    vi.stubEnv("VITE_RITOMER_MAPPING_SUGGESTIONS_V2_LOCAL_SIMULATION", "false");
+    renderPanel();
+
+    expect(await screen.findByLabelText("suggestion mapping 1000 a revoir")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      `/api/closing-folders/${CLOSING_FOLDER_ID}/mappings/suggestions`
+    );
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      `/api/closing-folders/${CLOSING_FOLDER_ID}/mappings/suggestions`
+    );
+    expect(
+      getRequestPaths(fetchMock).some((path) => path.endsWith("/mappings/suggestions-v2"))
+    ).toBe(false);
+  });
+
+  it("keeps the v1 panel and never calls v2 when the flag is true outside DEV", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    vi.stubEnv("DEV", false);
+    vi.stubEnv("VITE_RITOMER_MAPPING_SUGGESTIONS_V2_LOCAL_SIMULATION", "true");
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, READY_MAPPING_SUGGESTIONS));
+
+    renderPanel();
+
+    expect(await screen.findByLabelText("suggestion mapping 1000 a revoir")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      `/api/closing-folders/${CLOSING_FOLDER_ID}/mappings/suggestions`
+    );
+    expect(
+      getRequestPaths(fetchMock).some((path) => path.endsWith("/mappings/suggestions-v2"))
+    ).toBe(false);
+  });
+
+  it("uses v2 only in DEV with the explicit local simulation flag and renders no decision controls", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    enableMappingSuggestionsV2LocalSimulation();
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, READY_MAPPING_SUGGESTIONS_V2));
+
+    const { container } = renderPanel();
+
+    expect(
+      await screen.findByText("Simulation locale — aucune IA externe active.")
+    ).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      `/api/closing-folders/${CLOSING_FOLDER_ID}/mappings/suggestions-v2`
+    );
+    expect(
+      getRequestPaths(fetchMock).some((path) => path.endsWith("/mappings/suggestions"))
+    ).toBe(false);
+    expect(screen.getByText("Proposition à vérifier")).toBeInTheDocument();
+    expect(screen.getByText("Cash and cash equivalents")).toBeInTheDocument();
+    expect(screen.getByText("Preuves metier")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Accepter" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Corriger" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Rejeter" })).not.toBeInTheDocument();
+    expect(container).not.toHaveTextContent(/confidence/i);
+    expect(container).not.toHaveTextContent("82 %");
+    expectNoProviderJargon(container);
+  });
+
+  it("renders v2 outcomes and scopes with business wording, manual links, and no raw technical codes", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    enableMappingSuggestionsV2LocalSimulation();
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, OUTCOMES_MAPPING_SUGGESTIONS_V2));
+
+    const { container } = renderPanel();
+
+    expect(await screen.findByText("Proposition à vérifier")).toBeInTheDocument();
+    expect(screen.getByText("Aucune proposition")).toBeInTheDocument();
+    expect(
+      screen.getByText("Les preuves disponibles ne suffisent pas pour proposer une rubrique.")
+    ).toBeInTheDocument();
+    expect(screen.getByText("Demande non eligible")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Cette demande n'est pas eligible a l'affectation assistee locale. L'affectation manuelle reste disponible."
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "La balance courante doit etre verifiee avant la simulation locale. L'affectation manuelle reste disponible."
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByText("Compte deja affecte manuellement. L'affectation manuelle reste disponible.")).toBeInTheDocument();
+    expect(screen.getAllByText("Simulation locale indisponible. L’affectation manuelle reste disponible.").length).toBeGreaterThan(0);
+
+    const manualLinks = screen.getAllByRole("link", { name: "Affecter manuellement" });
+    expect(manualLinks.length).toBeGreaterThan(0);
+    for (const link of manualLinks) {
+      expect(link).toHaveAttribute("href", "#manual-mapping-table-title");
+    }
+
+    expect(screen.queryByRole("button", { name: "Accepter" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Corriger" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Rejeter" })).not.toBeInTheDocument();
+    expect(container).not.toHaveTextContent("POLICY_BLOCK");
+    expect(container).not.toHaveTextContent("PRECONDITION_BLOCK");
+    expect(container).not.toHaveTextContent("TECHNICAL_DEGRADATION");
+    expect(container).not.toHaveTextContent("INSUFFICIENT_EVIDENCE");
+    expect(container).not.toHaveTextContent("TIMEOUT");
+    expect(container).not.toHaveTextContent("UNAVAILABLE");
+    expect(container).not.toHaveTextContent("ACCOUNT_LABEL");
+    expect(container).not.toHaveTextContent("TARGET_TAXONOMY");
+    expectNoProviderJargon(container);
+  });
+
+  it("keeps policy block request-scope global without account or accounting context", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    enableMappingSuggestionsV2LocalSimulation();
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, {
+        ...READY_MAPPING_SUGGESTIONS_V2,
+        items: [
+          {
+            schemaVersion: "mapping-suggestion-v2",
+            outcome: "POLICY_BLOCK",
+            scope: "REQUEST",
+            policyBlockCode: "CROSS_TENANT_REQUEST"
+          }
+        ]
+      })
+    );
+
+    const { container } = renderPanel();
+
+    expect(await screen.findByText("Demande non eligible")).toBeInTheDocument();
+    expect(container).not.toHaveTextContent("Bank CHF");
+    expect(container).not.toHaveTextContent("Cash and cash equivalents");
+    expect(container).not.toHaveTextContent("1000");
+  });
+
+  it("fails closed without inventing a target label when a v2 target is not locally selectable", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    enableMappingSuggestionsV2LocalSimulation();
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, {
+        ...READY_MAPPING_SUGGESTIONS_V2,
+        items: [
+          {
+            ...READY_MAPPING_SUGGESTIONS_V2.items[0],
+            targetCode: "BS.ASSET.UNKNOWN_TARGET"
+          }
+        ]
+      })
+    );
+
+    const { container } = renderPanel();
+
+    expect(
+      await screen.findByText("Rubrique cible indisponible localement. L’affectation manuelle reste disponible.")
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Affecter manuellement" })).toHaveAttribute(
+      "href",
+      "#manual-mapping-table-title"
+    );
+    expect(container).not.toHaveTextContent("BS.ASSET.UNKNOWN_TARGET");
+    expect(container).not.toHaveTextContent("Unknown");
+    expect(screen.queryByRole("button", { name: "Accepter" })).not.toBeInTheDocument();
+  });
+
+  it("renders the v2 fail-closed message for unavailable and invalid payload states without raw backend details", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    enableMappingSuggestionsV2LocalSimulation();
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { items: [], backendCode: "SCHEMA_INVALID" }));
+
+    const { container } = renderPanel();
+
+    expect(
+      await screen.findByText("Simulation locale indisponible. L’affectation manuelle reste disponible.")
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Affecter manuellement" })).toHaveAttribute(
+      "href",
+      "#manual-mapping-table-title"
+    );
+    expect(container).not.toHaveTextContent("SCHEMA_INVALID");
+    expect(container).not.toHaveTextContent("backendCode");
+    expectNoProviderJargon(container);
+  });
+
+  it("keeps v2 read-only with no POST fetch and no browser storage writes", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    const storageSetItem = vi.spyOn(Storage.prototype, "setItem");
+    const storageGetItem = vi.spyOn(Storage.prototype, "getItem");
+    enableMappingSuggestionsV2LocalSimulation();
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, OUTCOMES_MAPPING_SUGGESTIONS_V2));
+
+    renderPanel();
+
+    expect(
+      await screen.findByText("Simulation locale — aucune IA externe active.")
+    ).toBeInTheDocument();
+    for (const call of fetchMock.mock.calls) {
+      const init = call[1] as RequestInit | undefined;
+      expect(init?.method).toBe("GET");
+      expect(init?.body).toBeUndefined();
+    }
+    expect(getRequestPaths(fetchMock).some((path) => path.includes("/decision"))).toBe(false);
+    expect(storageSetItem).not.toHaveBeenCalled();
+    expect(storageGetItem).not.toHaveBeenCalled();
   });
 
   it("shows loading and HTTP/network error states", async () => {

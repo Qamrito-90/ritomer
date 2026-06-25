@@ -463,6 +463,29 @@ const READY_MAPPING_SUGGESTIONS = {
   errors: []
 };
 
+const READY_MAPPING_SUGGESTIONS_V2 = {
+  schemaVersion: "mapping-suggestion-v2",
+  closingFolderId: CLOSING_FOLDER.id,
+  latestImportVersion: 2,
+  taxonomyVersion: 2,
+  taxonomyHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  items: [
+    {
+      schemaVersion: "mapping-suggestion-v2",
+      outcome: "SUGGESTION",
+      scope: "ACCOUNT",
+      accountCode: "2000",
+      accountLabel: "Revenue",
+      targetCode: "PL.REVENUE",
+      explanationCode: "TARGET_SUPPORTED_BY_CANDIDATE_EVIDENCE",
+      evidenceCodes: ["ACCOUNT_LABEL", "TARGET_TAXONOMY"],
+      requiresHumanReview: true,
+      suggestionFingerprint:
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    }
+  ]
+};
+
 const REFRESHED_EMPTY_MAPPING_SUGGESTIONS = {
   ...READY_MAPPING_SUGGESTIONS,
   suggestions: []
@@ -770,6 +793,7 @@ describe("router manual mapping", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -824,6 +848,39 @@ describe("router manual mapping", () => {
     expect(getRequestHeaders(fetchMock, 9)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
     expect(getRequestHeaders(fetchMock, 10)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
     expectNoOutOfScopePaths(getRequestPaths(fetchMock));
+  });
+
+  it("uses the local v2 simulation in the route without calling v1 or preselecting manual mapping", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    vi.stubEnv("DEV", true);
+    vi.stubEnv("VITE_RITOMER_MAPPING_SUGGESTIONS_V2_LOCAL_SIMULATION", "true");
+    primeNominalRoute(fetchMock, {
+      extras: [() => jsonResponse(200, READY_MAPPING_SUGGESTIONS_V2)]
+    });
+
+    renderClosingRoute();
+    await waitForNominalShell();
+
+    const banner = await screen.findByText("Simulation locale — aucune IA externe active.");
+    const aiPanel = banner.closest("section");
+
+    if (!(aiPanel instanceof HTMLElement)) {
+      throw new Error("ai suggestions panel not found");
+    }
+
+    expect(within(aiPanel).getByText("Proposition à vérifier")).toBeInTheDocument();
+    expect(within(aiPanel).getByText("Produit")).toBeInTheDocument();
+    expect(within(aiPanel).queryByRole("button", { name: "Accepter" })).not.toBeInTheDocument();
+    expect(within(aiPanel).queryByRole("button", { name: "Corriger" })).not.toBeInTheDocument();
+    expect(within(aiPanel).queryByRole("button", { name: "Rejeter" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("heading", { name: "Suggestions de mapping a revoir" })).toHaveLength(1);
+    expect(getLineTargetSelect("2000")).toHaveValue("");
+
+    const paths = getRequestPaths(fetchMock);
+    expect(paths.filter((path) => path.endsWith("/mappings/suggestions-v2"))).toHaveLength(1);
+    expect(paths.filter((path) => path.endsWith("/mappings/suggestions"))).toHaveLength(0);
+    expect(paths.some((path) => path.includes("/decision"))).toBe(false);
+    expect(paths.some((path) => path.includes("/ai"))).toBe(false);
   });
 
   it("renders manual mapping as a review table without bulk or automatic apply controls", async () => {
