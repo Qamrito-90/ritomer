@@ -108,6 +108,17 @@ tasks.register<Test>("dbIntegrationTest") {
   }
 }
 
+tasks.register<Test>("offlineMappingEval042a2") {
+  description = "Runs the deterministic offline candidate mapping eval for 042a2."
+  group = "verification"
+  testClassesDirs = testSourceSet.output.classesDirs
+  classpath = testSourceSet.runtimeClasspath
+  shouldRunAfter(tasks.named("test"))
+  useJUnitPlatform {
+    includeTags("offline-mapping-eval-042a2")
+  }
+}
+
 tasks.register<JavaExec>("demoSeedLocal") {
   description = "Runs the explicit local/test-only synthetic demo seed against a configured PostgreSQL database."
   group = "application"
