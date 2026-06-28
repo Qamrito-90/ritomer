@@ -24,7 +24,16 @@ Le pack de double revue aveugle `042a2` transforme les 17 cas candidats en deux 
 
 `042a2a4` ajoute uniquement le contrat normalise `mapping-suggestion-v2` comme read-model applicatif Ritomer, un transformer offline backend depuis le moteur `042a2a3` et un parser frontend strict. Ce livrable ne cree aucun provider reel, modele reel, prompt runtime actif, endpoint actif, controller, wiring Spring, DB/migration, ecran frontend, auto-apply, bulk apply, secret, `.env`, appel reseau IA, production ou spec `043`.
 
-`042a2a5a` expose ce moteur offline derriere un endpoint backend local v2 strictement read-only et default-off : `GET /api/closing-folders/{closingFolderId}/mappings/suggestions-v2`. Le controller, le service et l'adapter local n'existent qu'en profil `local` avec `ritomer.ai.mapping-suggestions-v2.offline.enabled=true`, restent limites a l'allowlist demo synthetique backend immutable, n'utilisent aucun provider reel, aucun SDK provider, aucun appel reseau IA, aucun secret, aucune valeur `.env`, aucune ecriture DB, aucune decision humaine, aucun audit de decision, aucun frontend, aucune bascule v1 et aucune production.
+`042a2a5a` expose ce moteur offline derriere un endpoint backend local v2 strictement read-only et default-off : `GET /api/closing-folders/{closingFolderId}/mappings/suggestions-v2`. Le controller, le service et l'adapter local n'existent qu'en profil `local` avec `ritomer.ai.mapping-suggestions-v2.offline.enabled=true`, restent limites a l'allowlist demo synthetique backend immutable, n'utilisent aucun provider reel, aucun SDK provider, aucun appel reseau IA, aucun secret, aucune valeur `.env`, aucune ecriture DB, aucune decision humaine, aucun audit de decision, aucune UI de decision, aucune bascule v1 et aucune production.
+
+Etat courant du repo pour l'alignement `042b0` OpenAI readiness :
+
+- `mapping-suggestion-v2` existe comme read-model applicatif Ritomer normalise.
+- `mapping-suggestion-v1` reste inchange et v2 ne provoque aucune bascule implicite.
+- Le moteur offline deterministe existe.
+- L'endpoint local synthetic-demo-only `GET /api/closing-folders/{closingFolderId}/mappings/suggestions-v2` existe.
+- Une UI locale de simulation consomme le read-model v2 sans decision, auto-apply, bulk apply ou endpoint provider reel.
+- Aucun provider reel, appel reseau IA, secret, runtime provider ou SDK provider n'existe.
 
 ## Surface
 
@@ -43,6 +52,8 @@ Surface moteur offline `042a2a3` : BACKEND_RUNTIME_INTERNE / EVALS.
 Surface contrat normalise `042a2a4` : CONTRACTS / BACKEND_RUNTIME_INTERNE / FRONTEND_CONSUMER.
 
 Surface endpoint local offline `042a2a5a` : BACKEND_RUNTIME_LOCAL / CONTRACTS / DOCS_GIT.
+
+Surface readiness provider candidat `042b0` : DOCS_GIT / AI_GOVERNANCE / SECURITY_PRIVACY.
 
 ## Risk
 
@@ -67,7 +78,9 @@ Risque lie a l'ouverture d'une future capacite provider reelle, meme strictement
 - `specs/done/041-internal-poc-blockers-ux-readiness-v1.md`
 - `specs/done/030-ia-mapping-assiste-suggestion-review-v1.md`
 - `contracts/ai/mapping-suggestion.schema.json`
+- `contracts/ai/mapping-suggestion-v2.schema.json`
 - `contracts/openapi/mapping-suggestions-api.yaml`
+- `contracts/openapi/mapping-suggestions-v2-api.yaml`
 - `contracts/db/mapping-suggestion-decision-v1.md`
 - `contracts/reference/manual-mapping-targets-v2.yaml`
 - `evals/mapping/README.md`
@@ -106,7 +119,10 @@ Risque lie a l'ouverture d'une future capacite provider reelle, meme strictement
   - `backend/src/test/kotlin/ch/qamwaq/ritomer/mapping/application/MappingSuggestionPayloadMinimizerTest.kt`
   - `backend/src/test/kotlin/ch/qamwaq/ritomer/MappingSuggestionDecisionApiTest.kt`
   - `frontend/src/lib/api/mapping-suggestions.ts`
+  - `frontend/src/lib/api/mapping-suggestions-v2.ts`
   - `frontend/src/lib/api/mapping-suggestions.test.ts`
+  - `frontend/src/lib/api/mapping-suggestions-v2.test.ts`
+  - `frontend/src/app/ai-mapping-suggestions-panel.tsx`
   - `frontend/src/app/ai-mapping-suggestions-panel.test.tsx`
 
 Contrats impactes par `042a2a5a` :
@@ -118,7 +134,10 @@ Contract readiness `042a1` :
 - `contracts/ai/mapping-suggestion.schema.json` et `contracts/openapi/mapping-suggestions-api.yaml` ont ete verifies en lecture seule.
 - `mapping-suggestion-v1` ne represente pas explicitement `abstention`.
 - `mapping-suggestion-v1` ne represente pas explicitement les reason codes ni les etats de degradation semantiques requis par `042a2a1b`.
-- `042b` est BLOQUE jusqu'a decision contractuelle explicite : ajouter ces semantics a `mapping-suggestion-v1`, creer une nouvelle version de schema, ou les garder hors output/read-model provider.
+- `mapping-suggestion-v2` existe maintenant comme read-model Ritomer normalise et encode ces outcomes, reason codes et etats de degradation.
+- `mapping-suggestion-v2` preserve `mapping-suggestion-v1`; aucun contrat v1 n'est modifie et aucune bascule implicite v1 -> v2 n'existe.
+- `mapping-suggestion-v2` reste sans endpoint provider reel, sans appel reseau IA, sans secret et sans runtime provider.
+- `042b` reste BLOQUE par provider-readiness, signatures humaines, exact model id, privacy/legal, quotas, budget cap, kill switch, log hygiene, golden set autoritatif et gate reseau.
 - Aucun contrat n'est modifie par `042a1`.
 
 Semantic readiness `042a2a1` :
@@ -128,8 +147,8 @@ Semantic readiness `042a2a1` :
 - `policies/ai-mapping-taxonomy-pilot-record-042a2.md` definit les exigences de taxonomie pilote sans creer de taxonomie.
 - `policies/ai-mapping-business-evaluation-protocol-042a2.md` definit les objectifs d'evaluation metier sans creer de golden set ni validator.
 - `policies/ai-mapping-pilot-scope-manifest-042a2.md` definit le perimetre metier pilote draft sans approuver de taxonomy snapshot.
-- `042a2a1` et `042a2a1b` ne modifient aucun contrat et ne redigent pas le contrat `mapping-suggestion-v2`.
-- `042b` reste BLOQUE tant que la semantic readiness, le manifeste de perimetre pilote, la decision contractuelle, le golden set, le validator, les gates provider et les signatures humaines requises ne sont pas termines.
+- `042a2a1` et `042a2a1b` n'ont pas modifie de contrat a ce stade; `mapping-suggestion-v2` est ensuite livre par `042a2a4`.
+- `042b` reste BLOQUE tant que provider-readiness, signatures humaines, exact model id, privacy/legal, quotas, budget cap, kill switch, log hygiene, golden set autoritatif, validator, gates provider et gate reseau ne sont pas termines.
 
 Contract implementation `042a2a4` :
 
@@ -231,7 +250,18 @@ Aucune spec `043` ne doit etre creee par `042a`.
 - mise a jour ciblee de `runbooks/ai-incident-response.md` ;
 - clarification de cette spec et de `docs/product/v1-plan.md`.
 
-`042a1` ne choisit pas de provider, ne choisit pas de modele, ne cree pas de prompt runtime, ne modifie pas le golden set, ne cree pas de validator et ne definit pas de metriques runtime. Provider, modele, region, retention, training/non-training, cout, latence et quotas restent `NON_DÉTERMINÉ` tant qu'une preuve externe et une signature humaine ne les remplacent pas.
+`042a1` ne choisit pas de provider approuve, ne choisit pas de modele exact, ne cree pas de prompt runtime, ne modifie pas le golden set, ne cree pas de validator et ne definit pas de metriques runtime. Provider, modele exact, region, retention, training/non-training, cout, latence et quotas restent `NON_DÉTERMINÉ` tant qu'une preuve externe et une signature humaine ne les remplacent pas.
+
+`042b0` est un increment documentaire de readiness provider candidat. Il documente uniquement :
+
+- provider candidat : `OpenAI API` ;
+- endpoint candidat : `/v1/chat/completions` ;
+- domaine candidat : `eu.api.openai.com` ;
+- modele candidat public : `gpt-5.4-mini` ;
+- exact model id / snapshot exact : `PENDING_ACCOUNT_PROOF` jusqu'a preuve compte/API Ritomer ;
+- aucun fallback automatique vers alias, autre modele, autre region ou autre provider.
+
+`042b0` ne prouve aucun snapshot date, ne l'approuve pas, ne cree aucun runtime, aucun adapter provider, aucun SDK, aucun secret, aucun fichier `.env`, aucun appel reseau IA, aucun prompt runtime actif, aucun golden set promu et aucune spec `043`.
 
 `042a2a1` est le semantic readiness pack draft courant. Il livre uniquement :
 
@@ -315,6 +345,9 @@ Objectif : brancher le provider de facon controlee, sans changer l'autorite meti
 Livrables attendus pour une implementation future :
 
 - adapter provider cote backend uniquement, derriere `MappingSuggestionGenerationAccess` ou un port equivalent approuve ;
+- si OpenAI reste candidat, appel uniquement vers le domaine prouve `eu.api.openai.com` et l'endpoint prouve `/v1/chat/completions` apres gate reseau ;
+- exact model id / snapshot exact prouve dans le compte Ritomer, sans alias ni auto-upgrade ;
+- tools desactives, `store=false` ou comportement equivalent confirme, sans web search, file search, code interpreter, MCP, batch, fine-tuning ou RAG ;
 - aucun appel IA depuis le navigateur ;
 - flag provider default off ;
 - no-provider conserve ;
@@ -371,7 +404,7 @@ Flux cible :
 - GraphQL interdit dans `042`.
 - RAG et vector store interdits dans `042`.
 - Provider SDK interdit sans dependency/security review signee.
-- Client HTTP controle par l'application a privilegier si aucun SDK n'est approuve.
+- Client HTTP backend direct controle par l'application a privilegier si aucun SDK n'est approuve.
 - Secrets runtime uniquement via configuration/secret management approuve, jamais dans le repo.
 - Aucun fallback permissif : une sortie douteuse devient non decisionable.
 
@@ -434,7 +467,7 @@ Forme logique future attendue avant contrat, sans modifier les contrats actuels 
       "snippet": "Cash and cash equivalents"
     }
   ],
-  "explanationCode": "TARGET_SUPPORTED_BY_APPROVED_EVIDENCE",
+  "explanationCode": "TARGET_SUPPORTED_BY_CANDIDATE_EVIDENCE",
   "schemaVersion": "mapping-suggestion-v2",
   "promptVersion": "mapping-suggestion-runtime-v1",
   "modelVersion": "provider-model-exact-id"
@@ -480,11 +513,11 @@ Regles obligatoires :
 - une cible fournisseur inconnue, depreciee, non selectionnable ou contextuellement inadmissible est `INVALID_MODEL_OUTPUT` ou degradation technique, jamais `TAXONOMY_GAP`.
 - les comptes deja affectes ou non eligibles sont traites comme precondition ou policy outcome, pas comme abstention metier.
 
-Si le contrat public doit evoluer pour exposer ces outcomes, reason codes et etats de degradation, l'implementation future devra mettre a jour les contrats impactes avant code consommateur. Cette mission documentaire ne modifie aucun contrat.
+`mapping-suggestion-v2` expose maintenant ces outcomes, reason codes et etats de degradation comme read-model normalise Ritomer. Une future implementation provider devra lier explicitement la sortie provider au contrat et au schema hash selectionnes avant tout consumer provider-output. Cette mission documentaire ne modifie aucun contrat.
 
-Readiness `042a1` : le check lecture seule conclut que le contrat actuel ne porte pas explicitement ces outcomes, reason codes et etats de degradation. `042b` reste donc BLOQUE tant qu'une decision contractuelle explicite n'est pas prise et documentee avant code consommateur.
+Readiness `042a1` puis `042a2a4` : v1 reste inchange, v2 existe et preserve v1, v2 reste sans endpoint provider reel, sans provider runtime, sans secret et sans appel reseau IA. `042b` reste BLOQUE par provider-readiness, signatures humaines, exact model id, privacy/legal, quotas, budget cap, kill switch, log hygiene, golden set autoritatif, validator et gate reseau.
 
-Semantic readiness `042a2a1` : avant contrat `mapping-suggestion-v2`, les semantics draft imposent :
+Semantic readiness `042a2a1` puis read-model `mapping-suggestion-v2` : les semantics retenues imposent :
 
 - `SUGGESTION` visible comme `Proposition à vérifier` ;
 - degradation technique visible comme `Proposition momentanément indisponible` ;
@@ -514,7 +547,7 @@ Arbre normatif obligatoire :
    - `2+` = `ABSTENTION / AMBIGUOUS_TARGET` ;
    - `1` = `SUGGESTION`.
 
-Ces semantics ne sont pas encore un contrat. Elles bloquent le contrat et le runtime tant qu'elles ne sont pas approuvees et encodees dans une version contractuelle explicite.
+Ces semantics sont encodees dans `mapping-suggestion-v2` comme read-model normalise Ritomer. Elles ne constituent ni un output provider brut, ni une autorisation runtime provider, ni une autorisation d'appel reseau IA.
 
 ## 6. Feature flags et mode no-provider
 
@@ -805,7 +838,7 @@ Avant tout code provider reel, les gates suivants doivent etre signes et merges 
 - runbook incident pret ;
 - semantic readiness signee ;
 - golden set synthetique vert ;
-- decision contractuelle explicite sur outcomes, reason codes et etats de degradation.
+- preservation de `mapping-suggestion-v1`, binding explicite de `mapping-suggestion-v2` et absence de bascule implicite verifies.
 
 Aucun code `042b` ne peut commencer avant le merge des records de gates `042a` pre-code signes. Aucune spec `043` ne doit etre creee.
 
@@ -826,7 +859,7 @@ Records drafts `042a2a1` :
 - `policies/ai-mapping-business-evaluation-protocol-042a2.md` ;
 - `policies/ai-mapping-pilot-scope-manifest-042a2.md`.
 
-Ces records ne portent aucune signature, ne valent pas autorisation de contrat `mapping-suggestion-v2` et ne valent pas autorisation de code provider.
+Ces records ne portent aucune signature et ne valent pas autorisation de code provider.
 
 ### Gate avant activation reseau provider
 
@@ -835,13 +868,30 @@ Le gate d'activation reseau est distinct du gate pre-code. Meme si `042b` est im
 Avant tout appel reseau provider :
 
 - tous les gates pre-code doivent rester satisfaits ;
+- gates CPO/CTO/Security/IA Governance/Expert Board signes ;
+- compte/projet OpenAI Ritomer identifie ;
+- projet cree en region `Europe EEA + Switzerland` ou perimetre equivalent prouve ;
+- domaine `eu.api.openai.com` confirme ;
+- DPA/SCC/subprocessors revus et archives ;
+- ZDR ou MAM approuve, avec amendement ZDR si requis ;
+- disponibilite du modele prouvee dans le compte Ritomer ;
+- exact model id / snapshot exact prouve et pinne ; `PENDING_ACCOUNT_PROOF` n'est pas executable ;
+- endpoint `/v1/chat/completions` teste uniquement apres gate reseau ;
+- tools desactives ;
+- `store=false` ou comportement equivalent confirme ;
+- aucun web search, file search, code interpreter, MCP, batch, fine-tuning ou RAG ;
+- quotas RPM/TPM et rate limits reels du projet documentes ;
+- budget cap hard stop en place ;
+- kill switch teste ;
+- logs internes sans prompt, payload, output, header, secret, tenant interne ou account label ;
+- golden set autoritatif et evals verts avant exposition utilisateur ;
 - provider, modele exact, region, retention, training/non-training, logging, cout, latence et quotas doivent etre documentes avec preuve ;
 - le secret management runtime doit etre approuve sans secret repo ni dependance `.env` ;
 - le flag provider-runtime doit etre prouve default off ;
 - flag off doit prouver zero prompt, zero request provider, zero reseau provider, zero cout provider et zero log provider ;
 - no-provider puis mapping manuel doivent etre prouves comme fallback ;
 - logs et metrics doivent etre agreges/minimises, sans payload, prompt, output, label sensible, montant brut, identifiant tenant/client/acteur, secret, storage key ou signed URL ;
-- golden set synthetique et validation de schema doivent etre verts ;
+- golden set autoritatif synthetique et validation de schema doivent etre verts ;
 - aucun appel provider depuis le navigateur ne doit exister.
 
 ### CTO Gate
