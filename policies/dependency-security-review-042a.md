@@ -7,16 +7,16 @@
 | Record id | `042a-dependency-security-review-v1` |
 | Scope | Future controlled AI mapping runtime pilot. |
 | Surface | `DOCS_GIT / AI_GOVERNANCE / DEPENDENCY_REVIEW` |
-| Current status | `DRAFT` |
-| Current decision | No dependency, SDK, runtime JSON Schema library, provider client or model integration is approved or added by this review. |
+| Current status | `PENDING_N/A_JUSTIFICATION` |
+| Current decision | No dependency, SDK, runtime JSON Schema library, provider client or model integration is approved or added by this review. Direct backend HTTP without SDK remains the preferred candidate strategy if a future implementation can justify it. |
 
-This draft adds no dependency and performs no package, CVE, license or transitive dependency audit.
+This draft adds no dependency and performs no package, CVE, license or transitive dependency audit. Because no SDK/provider dependency is added by this docs-only mission, the review remains `PENDING_N/A_JUSTIFICATION`, not signed.
 
 ## Current options
 
 | Option | Current position | Current decision |
 | --- | --- | --- |
-| Existing backend HTTP stack / controlled client | `PENDING_EVIDENCE` | Possible future strategy, but not approved by this draft. If no new artifact is introduced, an explicit N/A justification is still required before `042b`. |
+| Existing backend HTTP stack / controlled client | `PREFERRED_PENDING_N/A_JUSTIFICATION` | Preferred future strategy, but not approved by this draft. If no new artifact is introduced, an explicit N/A justification is still required before `042b`. |
 | Provider SDK | `PENDING_EVIDENCE` | Blocked until exact package, version, license, CVEs, transitive dependencies, telemetry, logging, timeout and patch plan are reviewed and signed. |
 | Runtime JSON Schema library | `PENDING_EVIDENCE` | Blocked until exact package, version, license, CVEs, transitives, network behavior, logging behavior and cold start impact are reviewed and signed. |
 
@@ -35,6 +35,8 @@ This draft adds no dependency and performs no package, CVE, license or transitiv
 - secret handling review;
 - patch owner and emergency patch plan;
 - CPO, CTO, Security/Privacy and IA Governance review when provider runtime is affected.
+
+Any future new dependency must record exact version, license, CVE status, transitive dependencies, telemetry/logging behavior, retry/backoff behavior and owner before implementation.
 
 ## N/A rule
 
