@@ -26,7 +26,11 @@ Le pack de double revue aveugle `042a2` transforme les 17 cas candidats en deux 
 
 `042a2a5a` expose ce moteur offline derriere un endpoint backend local v2 strictement read-only et default-off : `GET /api/closing-folders/{closingFolderId}/mappings/suggestions-v2`. Le controller, le service et l'adapter local n'existent qu'en profil `local` avec `ritomer.ai.mapping-suggestions-v2.offline.enabled=true`, restent limites a l'allowlist demo synthetique backend immutable, n'utilisent aucun provider reel, aucun SDK provider, aucun appel reseau IA, aucun secret, aucune valeur `.env`, aucune ecriture DB, aucune decision humaine, aucun audit de decision, aucune UI de decision, aucune bascule v1 et aucune production.
 
-`042b0b` ajoute uniquement des preuves manuelles OpenAI Platform/API au provider-readiness record : projet dedie `ritomer-dev`, billing API, credits et limites de depense, modeles autorises et visibilite du snapshot candidat. Il ne cree aucun runtime, provider adapter, SDK, secret, fichier `.env`, appel reseau IA, prompt runtime actif, golden set promu, production ou spec `043`.
+`042b0b` ajoute uniquement des preuves manuelles OpenAI Platform/API au provider-readiness record : projet dedie `ritomer-dev`, billing API, credits et limites de depense, modeles autorises et visibilite du snapshot candidat.
+
+`042b0c` ajoute uniquement des preuves manuelles OpenAI Platform/API de preflight security/privacy : API keys actives visibles `0`, usage API `$0.00`, total requests `0`, total tokens `0`, data controls visibles, API call logging `ENABLED_PER_CALL_UI_OBSERVED`, audit logging `NOT_ENABLED_UI_OBSERVED`, et rappels de sources officielles OpenAI pour data controls, data residency, prepaid billing et audit logging.
+
+`042b0b` et `042b0c` ne creent aucun runtime, provider adapter, SDK, secret, fichier `.env`, appel reseau IA, prompt runtime actif, golden set promu, production ou spec `043`.
 
 Etat courant du repo pour l'alignement `042b0` OpenAI readiness :
 
@@ -36,7 +40,7 @@ Etat courant du repo pour l'alignement `042b0` OpenAI readiness :
 - L'endpoint local synthetic-demo-only `GET /api/closing-folders/{closingFolderId}/mappings/suggestions-v2` existe.
 - Une UI locale de simulation consomme le read-model v2 sans decision, auto-apply, bulk apply ou endpoint provider reel.
 - Aucun provider reel, appel reseau IA, secret, runtime provider ou SDK provider n'existe.
-- Les preuves manuelles `042b0b` etablissent la visibilite projet de `gpt-5.4-mini-2026-03-17`, mais ce snapshot candidat reste non executable tant que le gate reseau provider separe n'est pas signe.
+- Les preuves manuelles `042b0b` etablissent la visibilite projet de `gpt-5.4-mini-2026-03-17`; les preuves `042b0c` etablissent uniquement des observations security/privacy de preflight OpenAI Platform/API. Le snapshot candidat reste non executable tant que le gate reseau provider separe n'est pas signe.
 
 ## Surface
 
@@ -59,6 +63,8 @@ Surface endpoint local offline `042a2a5a` : BACKEND_RUNTIME_LOCAL / CONTRACTS / 
 Surface readiness provider candidat `042b0` : DOCS_GIT / AI_GOVERNANCE / SECURITY_PRIVACY.
 
 Surface readiness provider candidat `042b0b` : DOCS_GIT / AI_GOVERNANCE / SECURITY_PRIVACY.
+
+Surface readiness provider candidat `042b0c` : DOCS_GIT / AI_GOVERNANCE / SECURITY_PRIVACY.
 
 ## Risk
 
@@ -270,7 +276,17 @@ Aucune spec `043` ne doit etre creee par `042a`.
 
 `042b0b` documente aussi uniquement les preuves manuelles de compte/projet OpenAI Platform/API : acces Platform/API prouve, projet dedie `ritomer-dev`, billing API active, credits `$10`, auto recharge `OFF`, project spend limit `$10`, spend alert `100 % / $10`. API key created: `NOT_CREATED_USER_CONFIRMED`. API key shared: `NO`. La cle API devra etre creee seulement plus tard, au moment d'un gate reseau provider signe, et ne devra jamais etre commise, collee dans un chat, transmise a Codex, ni stockee dans un `.env` commite.
 
-`042b0b` prouve seulement la visibilite UI du snapshot candidat. Il ne l'approuve pas, ne le rend pas executable, ne cree aucun runtime, aucun adapter provider, aucun SDK, aucun secret, aucun fichier `.env`, aucun appel reseau IA, aucun prompt runtime actif, aucun golden set promu et aucune spec `043`.
+`042b0c` documente uniquement les preuves manuelles security/privacy OpenAI Platform/API suivantes : API keys actives visibles `0`, API key created `NOT_CREATED_USER_CONFIRMED`, API key shared `NO`, usage API `$0.00`, total requests `0`, total tokens `0`, data controls visibles `PROUVÉ`, API call logging `ENABLED_PER_CALL_UI_OBSERVED`, audit logging `NOT_ENABLED_UI_OBSERVED`. Hosted tools et sharing restent documentes seulement la ou ils sont visibles ; tout detail non observe reste `NON_DÉTERMINÉ` ou `PENDING_EVIDENCE`.
+
+Rappels de sources officielles OpenAI pour le futur gate :
+
+- `https://developers.openai.com/api/docs/guides/your-data` documente que les donnees envoyees a l'OpenAI API ne sont pas utilisees pour entrainer ou ameliorer les modeles OpenAI sauf opt-in explicite.
+- La meme source documente `/v1/chat/completions` avec `Data used for training = No`, retention abuse monitoring `30 days`, application state retention `None, see exceptions`, et eligibilite Zero Data Retention avec limites.
+- La meme source documente `eu.api.openai.com` pour `Europe (EEA + Switzerland)`, avec `/v1/chat/completions` supporte en storage et processing, et la region marquee comme necessitant MAM ou ZDR.
+- `https://help.openai.com/en/articles/8264644-how-can-i-set-up-prepaid-billing` documente les credits API prepayes comme usage API prepaye et le parametrage Auto recharge ; dans Ritomer, ces credits restent separes du runtime et auto recharge reste `OFF`.
+- `https://help.openai.com/en/articles/9687866-admin-and-audit-logs-api-for-the-api-platform` documente les capacites d'audit logging API Platform et leur activation via Data controls ; dans Ritomer, audit logging est seulement observe `NOT_ENABLED_UI_OBSERVED`.
+
+`042b0b` et `042b0c` prouvent seulement la visibilite UI et des rappels documentaires officiels. Ils n'approuvent pas le provider, ne rendent pas le snapshot executable, ne creent aucun runtime, aucun adapter provider, aucun SDK, aucun secret, aucun fichier `.env`, aucun appel reseau IA, aucun prompt runtime actif, aucun golden set promu et aucune spec `043`.
 
 `042a2a1` est le semantic readiness pack draft courant. Il livre uniquement :
 
@@ -902,6 +918,20 @@ Avant tout appel reseau provider :
 - logs et metrics doivent etre agreges/minimises, sans payload, prompt, output, label sensible, montant brut, identifiant tenant/client/acteur, secret, storage key ou signed URL ;
 - golden set autoritatif synthetique et validation de schema doivent etre verts ;
 - aucun appel provider depuis le navigateur ne doit exister.
+
+Blockers maintenus avant le premier appel reseau provider :
+
+- gate reseau provider signe ;
+- creation d'une cle API seulement au moment du test controle ;
+- cle jamais commise, jamais transmise a Codex, jamais collee dans un chat ;
+- secret management runtime approuve sans secret repo ni dependance `.env` ;
+- DPA/SCC/subprocessors revus ;
+- ZDR ou MAM tranche ;
+- `store=false` ou comportement equivalent confirme ;
+- region/projet reellement configure ou strategie de region documentee ;
+- quotas, budget, kill switch et log hygiene prouves ;
+- golden set autoritatif vert ;
+- payload whitelist et runbook signes.
 
 ### CTO Gate
 

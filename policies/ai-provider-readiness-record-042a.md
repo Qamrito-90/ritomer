@@ -8,11 +8,11 @@
 | Scope | Controlled AI mapping runtime pilot on synthetic demo data only. |
 | Surface | `DOCS_GIT / AI_GOVERNANCE / SECURITY_PRIVACY` |
 | Current status | `PENDING_EVIDENCE` |
-| Current decision | OpenAI API is documented as a candidate provider only. Manual UI evidence proves account/project preflight and candidate exact model visibility, but this record authorizes no provider, executable model snapshot, SDK, dependency, secret, network call, prompt runtime or provider runtime capability. |
+| Current decision | OpenAI API is documented as a candidate provider only. Manual UI evidence proves account/project preflight, security/privacy UI observations and candidate exact model visibility, but this record authorizes no provider, executable model snapshot, SDK, dependency, secret, network call, prompt runtime or provider runtime capability. |
 
-This record is intentionally incomplete. Every provider fact without repository evidence remains `NON_DÉTERMINÉ` or `PENDING_ACCOUNT_PROOF`.
+This record is intentionally incomplete. Every provider fact without repository evidence remains `NON_DÉTERMINÉ`, `PENDING_EVIDENCE` or `PENDING_ACCOUNT_PROOF`.
 
-## Manual OpenAI account preflight evidence - 042b0b
+## Manual OpenAI Platform/API preflight evidence - 042b0b / 042b0c
 
 Evidence source: manual OpenAI Platform/API UI observation supplied for this docs-only record. No screenshot, full project URL, internal project id, API key, secret or `.env` value is recorded.
 
@@ -27,15 +27,29 @@ Evidence source: manual OpenAI Platform/API UI observation supplied for this doc
 | Spend alert | `100 % / $10` | `PROUVÉ_PAR_UI_PLATFORM_MANUELLE` |
 | Project-authorized models | `gpt-5.4-mini`, `gpt-5.4-mini-2026-03-17` | `PROUVÉ_PAR_UI_PLATFORM_MANUELLE` |
 | Candidate exactModelId / snapshot visible in project | `gpt-5.4-mini-2026-03-17` | `PROUVÉ_PAR_UI_PLATFORM_MANUELLE` |
+| Active API keys visible | `0` | `PROUVÉ_PAR_UI_PLATFORM_MANUELLE` |
 | API key created | `NOT_CREATED_USER_CONFIRMED` | `USER_CONFIRMED` |
 | API key shared | `NO` | `USER_CONFIRMED` |
+| Usage API | `$0.00` | `PROUVÉ_PAR_UI_PLATFORM_MANUELLE` |
+| Total requests | `0` | `PROUVÉ_PAR_UI_PLATFORM_MANUELLE` |
+| Total tokens | `0` | `PROUVÉ_PAR_UI_PLATFORM_MANUELLE` |
+| Data controls visible | `PROUVÉ` | `PROUVÉ_PAR_UI_PLATFORM_MANUELLE` |
+| API call logging | `ENABLED_PER_CALL_UI_OBSERVED` | `PROUVÉ_PAR_UI_PLATFORM_MANUELLE` |
+| Audit logging | `NOT_ENABLED_UI_OBSERVED` | `PROUVÉ_PAR_UI_PLATFORM_MANUELLE` |
+| Hosted tools controls | `NON_DÉTERMINÉ` | `PENDING_EVIDENCE` |
+| Sharing controls | `NON_DÉTERMINÉ` | `PENDING_EVIDENCE` |
 | AI network call performed by Codex | `NON` | `PROUVÉ_PAR_EXECUTION_CODEX` |
 
 API key created: `NOT_CREATED_USER_CONFIRMED`.
 API key shared: `NO`.
+API keys active visible: `0`.
 The API key must be created only later, at the `gate reseau provider signe`, and must never be committed, pasted into a chat, transmitted to Codex, or stored in a committed `.env` file.
 
-This evidence proves project visibility only. It does not make the candidate exactModelId executable. Execution remains blocked until the separate provider network gate is signed and all privacy, security, runtime, secret-management, quota, budget, kill-switch, log-hygiene, payload-whitelist and golden-set evidence is complete.
+The OpenAI API prepaid credits are recorded as provider-account budget evidence only. They are separate from Ritomer runtime execution because no provider runtime, secret, SDK, adapter or network call exists. Auto recharge remains `OFF`.
+
+This evidence proves project visibility and manually observed UI controls only. It does not make the candidate exactModelId executable. Execution remains blocked until the separate provider network gate is signed and all privacy, security, runtime, secret-management, quota, budget, kill-switch, log-hygiene, payload-whitelist and golden-set evidence is complete.
+
+Hosted tools, sharing settings and data controls are recorded only where visible above. Any setting not explicitly listed remains `NON_DÉTERMINÉ` or `PENDING_EVIDENCE`.
 
 Candidate framing:
 
@@ -47,6 +61,19 @@ Candidate framing:
 - Exact model id visibility status: `PROUVÉ_PAR_UI_PLATFORM_MANUELLE`.
 - No automatic fallback is allowed to an alias, another model, another region or another provider.
 - The candidate framing does not authorize an executable dated snapshot. The visible snapshot remains non-executable until the separate provider network gate is signed.
+
+## Official OpenAI source reminders
+
+These public documentation reminders are not Ritomer approval evidence and do not replace legal/privacy review.
+
+| Topic | Official OpenAI source | Record note |
+| --- | --- | --- |
+| API data use and retention | `https://developers.openai.com/api/docs/guides/your-data` | OpenAI documents that data sent to the OpenAI API is not used to train or improve OpenAI models unless explicitly opted in. The same page documents default abuse monitoring logs retained up to 30 days. |
+| `/v1/chat/completions` retention table | `https://developers.openai.com/api/docs/guides/your-data` | The endpoint row documents `Data used for training = No`, `Abuse monitoring retention = 30 days`, `Application state retention = None, see exceptions`, and Zero Data Retention eligibility with limitations. |
+| Zero Data Retention behavior | `https://developers.openai.com/api/docs/guides/your-data` | OpenAI documents that with Zero Data Retention enabled, the `store` parameter for `/v1/chat/completions` is always treated as `false`. Ritomer has not proven ZDR, MAM or equivalent behavior for this project. |
+| Europe data residency | `https://developers.openai.com/api/docs/guides/your-data` | OpenAI documents `Europe (EEA + Switzerland)` with domain `eu.api.openai.com`, storage and processing support, and `/v1/chat/completions` support. The same table marks the region as requiring MAM or ZDR. Ritomer project region and processing/storage region remain unproven. |
+| Prepaid billing and auto recharge | `https://help.openai.com/en/articles/8264644-how-can-i-set-up-prepaid-billing` | OpenAI documents prepaid API billing as pre-purchased API usage and describes Auto recharge setup. Ritomer manual evidence records auto recharge as `OFF`; this does not activate runtime. |
+| API Platform audit logging | `https://help.openai.com/en/articles/9687866-admin-and-audit-logs-api-for-the-api-platform` | OpenAI documents Audit Log API capabilities and the data-controls path to enable audit logging. Ritomer manual evidence records audit logging as `NOT_ENABLED_UI_OBSERVED`. |
 
 Current repository state:
 
@@ -64,8 +91,8 @@ Current repository state:
 | Provider logical name | `openai-api` candidate | `PENDING_EVIDENCE` | Stable local provider name to be confirmed by CPO, CTO, Security/Privacy and IA Governance. |
 | Legal vendor name | `NON_DÉTERMINÉ` | `PENDING_EVIDENCE` | Legal contracting entity and vendor evidence attached. |
 | Provider status | `CANDIDATE_BLOCKED` | `PENDING_EVIDENCE` | Runtime requires explicit human approval; no implicit approval from this draft. |
-| Candidate API domain | `eu.api.openai.com` | `PENDING_ACCOUNT_PROOF` | Confirm domain availability and allowed use in the Ritomer OpenAI account/project before any network call. |
-| Candidate endpoint | `/v1/chat/completions` | `PENDING_ACCOUNT_PROOF` | Test only after the provider network activation gate is signed. |
+| Candidate API domain | `eu.api.openai.com`, officially documented for `Europe (EEA + Switzerland)` | `OFFICIAL_DOCS_REVIEWED / PENDING_ACCOUNT_PROOF` | Confirm project region, domain availability and allowed use in the Ritomer OpenAI account/project before any network call. |
+| Candidate endpoint | `/v1/chat/completions`, officially documented as supported for `eu.api.openai.com` | `OFFICIAL_DOCS_REVIEWED / PENDING_ACCOUNT_PROOF` | Test only after the provider network activation gate is signed. |
 | Public candidate model name | `gpt-5.4-mini` authorized in project `ritomer-dev` | `PROUVÉ_PAR_UI_PLATFORM_MANUELLE` | Manual UI proof must still be reviewed in the signed gates before any runtime use. |
 | exactModelId / exact snapshot | `gpt-5.4-mini-2026-03-17` visible in project `ritomer-dev` | `PROUVÉ_PAR_UI_PLATFORM_MANUELLE` | Candidate snapshot visibility is proven, but it is not executable until the separate provider network gate is signed. Aliases, auto-upgrade and unproved snapshots remain forbidden. |
 | Automatic fallback | `FORBIDDEN` | `PENDING_EVIDENCE` | No fallback to aliases, other models, other regions or other providers without a new signed record. |
@@ -78,8 +105,8 @@ Current repository state:
 | Output retention | `NON_DÉTERMINÉ` | `PENDING_EVIDENCE` | Exact duration, deletion path and exceptions required. |
 | Log retention | `NON_DÉTERMINÉ` | `PENDING_EVIDENCE` | Provider log content, duration and access controls required. |
 | Trace retention | `NON_DÉTERMINÉ` | `PENDING_EVIDENCE` | Provider trace content, sampling, duration and access controls required. |
-| Training / non-training | `NON_DÉTERMINÉ` | `PENDING_EVIDENCE` | Proof that customer data and metadata are not used for training, or equivalent signed mechanism. |
-| Provider logging | `NON_DÉTERMINÉ` | `PENDING_EVIDENCE` | Exact provider logging, debug logging, support logging and opt-out status required. |
+| Training / non-training | Official docs state `/v1/chat/completions` data used for training: `No`; Ritomer-specific legal/privacy decision remains `NON_DÉTERMINÉ`. | `OFFICIAL_DOCS_REVIEWED / PENDING_PRIVACY_REVIEW` | Proof that customer data and metadata are not used for training, or equivalent reviewed mechanism, still required before network activation. |
+| Provider logging | Data controls visible; API call logging `ENABLED_PER_CALL_UI_OBSERVED`; audit logging `NOT_ENABLED_UI_OBSERVED`; no API usage observed. | `PROUVÉ_PAR_UI_PLATFORM_MANUELLE / PENDING_RUNTIME_EVIDENCE` | Exact provider logging, debug logging, support logging, retention, access controls and opt-out status required. |
 | Support/debug access | `NON_DÉTERMINÉ` | `PENDING_EVIDENCE` | Who can access prompts/payloads/outputs, why, for how long and under which controls. |
 | Subprocessors | `NON_DÉTERMINÉ` | `PENDING_EVIDENCE` | Current subprocessor list and change notification process required. |
 | DPA/SCC or equivalent | `NON_DÉTERMINÉ` | `PENDING_EVIDENCE` | Signed DPA and transfer mechanism, or equivalent legal basis. |
@@ -93,7 +120,7 @@ Current repository state:
 | Incident notification delay | `NON_DÉTERMINÉ` | `PENDING_EVIDENCE` | Contractual notification delay required. |
 | Encryption in transit | `NON_DÉTERMINÉ` | `PENDING_EVIDENCE` | Protocol and minimum encryption controls required. |
 | Encryption at rest | `NON_DÉTERMINÉ` | `PENDING_EVIDENCE` | Provider at-rest encryption controls required. |
-| Billing and cost limits | Billing API enabled; credits `$10`; auto recharge `OFF`; project spend limit `$10`; spend alert `100 % / $10` | `PROUVÉ_PAR_UI_PLATFORM_MANUELLE` | Runtime cost thresholds, hard-stop behavior, per-request/per-batch caps and owner response remain required before any network call. |
+| Billing and cost limits | Billing API enabled; credits `$10`; auto recharge `OFF`; project spend limit `$10`; spend alert `100 % / $10`; usage API `$0.00`; total requests `0`; total tokens `0` | `PROUVÉ_PAR_UI_PLATFORM_MANUELLE` | Runtime cost thresholds, hard-stop behavior, per-request/per-batch caps and owner response remain required before any network call. |
 | Latency limits | `NON_DÉTERMINÉ` | `PENDING_EVIDENCE` | Timeout, p50/p95 target and fallback threshold required. |
 | Quotas | `NON_DÉTERMINÉ` | `PENDING_ACCOUNT_PROOF` | Real project RPM/TPM quotas, rate limits, retry budget and backoff policy required. |
 | Kill switch | `PENDING_TEST` | `PENDING_EVIDENCE` | Provider-runtime kill switch must be tested before first network call. |
