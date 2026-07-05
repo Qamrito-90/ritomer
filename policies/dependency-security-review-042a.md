@@ -12,6 +12,16 @@
 
 This draft adds no dependency and performs no package, CVE, license or transitive dependency audit. Because no SDK/provider dependency is added by this docs-only mission, the review remains `PENDING_N/A_JUSTIFICATION`, not signed.
 
+## Manual OpenAI account preflight evidence - 042b0b
+
+The manual OpenAI Platform/API account evidence recorded for `042b0b` has no dependency impact:
+
+- no provider SDK is added or approved;
+- no provider client package, runtime JSON Schema library or model integration is added;
+- no API key, secret, `.env` value or credential is created, read or recorded by Codex;
+- no AI network call is performed;
+- direct backend HTTP without SDK remains only a preferred candidate strategy, still pending explicit N/A justification before any `042b` implementation.
+
 ## Current options
 
 | Option | Current position | Current decision |

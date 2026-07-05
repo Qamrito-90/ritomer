@@ -8,9 +8,34 @@
 | Scope | Controlled AI mapping runtime pilot on synthetic demo data only. |
 | Surface | `DOCS_GIT / AI_GOVERNANCE / SECURITY_PRIVACY` |
 | Current status | `PENDING_EVIDENCE` |
-| Current decision | OpenAI API is documented as a candidate provider only. This record authorizes no provider, exact model snapshot, SDK, dependency, secret, network call, prompt runtime or provider runtime capability. |
+| Current decision | OpenAI API is documented as a candidate provider only. Manual UI evidence proves account/project preflight and candidate exact model visibility, but this record authorizes no provider, executable model snapshot, SDK, dependency, secret, network call, prompt runtime or provider runtime capability. |
 
 This record is intentionally incomplete. Every provider fact without repository evidence remains `NON_DÉTERMINÉ` or `PENDING_ACCOUNT_PROOF`.
+
+## Manual OpenAI account preflight evidence - 042b0b
+
+Evidence source: manual OpenAI Platform/API UI observation supplied for this docs-only record. No screenshot, full project URL, internal project id, API key, secret or `.env` value is recorded.
+
+| Evidence item | Recorded value | Evidence status |
+| --- | --- | --- |
+| OpenAI Platform/API accessible | `PROUVÉ` | `PROUVÉ_PAR_UI_PLATFORM_MANUELLE` |
+| Dedicated project | `ritomer-dev` | `PROUVÉ_PAR_UI_PLATFORM_MANUELLE` |
+| Billing API enabled | `PROUVÉ` | `PROUVÉ_PAR_UI_PLATFORM_MANUELLE` |
+| Credits added | `$10` | `PROUVÉ_PAR_UI_PLATFORM_MANUELLE` |
+| Auto recharge | `OFF` | `PROUVÉ_PAR_UI_PLATFORM_MANUELLE` |
+| Project spend limit | `$10` | `PROUVÉ_PAR_UI_PLATFORM_MANUELLE` |
+| Spend alert | `100 % / $10` | `PROUVÉ_PAR_UI_PLATFORM_MANUELLE` |
+| Project-authorized models | `gpt-5.4-mini`, `gpt-5.4-mini-2026-03-17` | `PROUVÉ_PAR_UI_PLATFORM_MANUELLE` |
+| Candidate exactModelId / snapshot visible in project | `gpt-5.4-mini-2026-03-17` | `PROUVÉ_PAR_UI_PLATFORM_MANUELLE` |
+| API key created | `NOT_CREATED_USER_CONFIRMED` | `USER_CONFIRMED` |
+| API key shared | `NO` | `USER_CONFIRMED` |
+| AI network call performed by Codex | `NON` | `PROUVÉ_PAR_EXECUTION_CODEX` |
+
+API key created: `NOT_CREATED_USER_CONFIRMED`.
+API key shared: `NO`.
+The API key must be created only later, at the `gate reseau provider signe`, and must never be committed, pasted into a chat, transmitted to Codex, or stored in a committed `.env` file.
+
+This evidence proves project visibility only. It does not make the candidate exactModelId executable. Execution remains blocked until the separate provider network gate is signed and all privacy, security, runtime, secret-management, quota, budget, kill-switch, log-hygiene, payload-whitelist and golden-set evidence is complete.
 
 Candidate framing:
 
@@ -18,9 +43,10 @@ Candidate framing:
 - Candidate endpoint: `/v1/chat/completions`.
 - Candidate domain: `eu.api.openai.com`.
 - Public candidate model name: `gpt-5.4-mini`.
-- Exact model id / snapshot: `PENDING_ACCOUNT_PROOF`.
+- Candidate exact model id / snapshot visible in project: `gpt-5.4-mini-2026-03-17`.
+- Exact model id visibility status: `PROUVÉ_PAR_UI_PLATFORM_MANUELLE`.
 - No automatic fallback is allowed to an alias, another model, another region or another provider.
-- The candidate framing does not authorize any dated snapshot. A dated snapshot may be recorded only after official evidence in the Ritomer account/project.
+- The candidate framing does not authorize an executable dated snapshot. The visible snapshot remains non-executable until the separate provider network gate is signed.
 
 Current repository state:
 
@@ -40,10 +66,10 @@ Current repository state:
 | Provider status | `CANDIDATE_BLOCKED` | `PENDING_EVIDENCE` | Runtime requires explicit human approval; no implicit approval from this draft. |
 | Candidate API domain | `eu.api.openai.com` | `PENDING_ACCOUNT_PROOF` | Confirm domain availability and allowed use in the Ritomer OpenAI account/project before any network call. |
 | Candidate endpoint | `/v1/chat/completions` | `PENDING_ACCOUNT_PROOF` | Test only after the provider network activation gate is signed. |
-| Public candidate model name | `gpt-5.4-mini` | `PENDING_ACCOUNT_PROOF` | Prove availability in the Ritomer account/project; do not treat public naming as account availability. |
-| exactModelId / exact snapshot | `PENDING_ACCOUNT_PROOF` | `PENDING_ACCOUNT_PROOF` | Exact immutable model id/version only; aliases, auto-upgrade and unproved dated snapshots are forbidden. |
+| Public candidate model name | `gpt-5.4-mini` authorized in project `ritomer-dev` | `PROUVÉ_PAR_UI_PLATFORM_MANUELLE` | Manual UI proof must still be reviewed in the signed gates before any runtime use. |
+| exactModelId / exact snapshot | `gpt-5.4-mini-2026-03-17` visible in project `ritomer-dev` | `PROUVÉ_PAR_UI_PLATFORM_MANUELLE` | Candidate snapshot visibility is proven, but it is not executable until the separate provider network gate is signed. Aliases, auto-upgrade and unproved snapshots remain forbidden. |
 | Automatic fallback | `FORBIDDEN` | `PENDING_EVIDENCE` | No fallback to aliases, other models, other regions or other providers without a new signed record. |
-| OpenAI account/project | `NON_DÉTERMINÉ` | `PENDING_ACCOUNT_PROOF` | Ritomer OpenAI account and project must be identified before any provider code or network call. |
+| OpenAI account/project | OpenAI Platform/API accessible; dedicated project `ritomer-dev` created | `PROUVÉ_PAR_UI_PLATFORM_MANUELLE` | Manual account/project evidence must be reviewed in the signed gates; no project URL or internal project id is recorded here. |
 | OpenAI project region | `NON_DÉTERMINÉ` | `PENDING_ACCOUNT_PROOF` | Project must be created in `Europe EEA + Switzerland` or equivalent evidenced OpenAI region scope before any network call. |
 | Processing region | `NON_DÉTERMINÉ` | `PENDING_ACCOUNT_PROOF` | Exact processing region and failover behavior required. |
 | Storage region | `NON_DÉTERMINÉ` | `PENDING_EVIDENCE` | Exact provider-side storage region required. |
@@ -67,7 +93,7 @@ Current repository state:
 | Incident notification delay | `NON_DÉTERMINÉ` | `PENDING_EVIDENCE` | Contractual notification delay required. |
 | Encryption in transit | `NON_DÉTERMINÉ` | `PENDING_EVIDENCE` | Protocol and minimum encryption controls required. |
 | Encryption at rest | `NON_DÉTERMINÉ` | `PENDING_EVIDENCE` | Provider at-rest encryption controls required. |
-| Cost limits | `NON_DÉTERMINÉ` | `PENDING_EVIDENCE` | Pilot budget, hard stop cap, per-request/per-batch cap and cost spike threshold required. |
+| Billing and cost limits | Billing API enabled; credits `$10`; auto recharge `OFF`; project spend limit `$10`; spend alert `100 % / $10` | `PROUVÉ_PAR_UI_PLATFORM_MANUELLE` | Runtime cost thresholds, hard-stop behavior, per-request/per-batch caps and owner response remain required before any network call. |
 | Latency limits | `NON_DÉTERMINÉ` | `PENDING_EVIDENCE` | Timeout, p50/p95 target and fallback threshold required. |
 | Quotas | `NON_DÉTERMINÉ` | `PENDING_ACCOUNT_PROOF` | Real project RPM/TPM quotas, rate limits, retry budget and backoff policy required. |
 | Kill switch | `PENDING_TEST` | `PENDING_EVIDENCE` | Provider-runtime kill switch must be tested before first network call. |
@@ -95,13 +121,13 @@ This record does not authorize network activation.
 Before the first provider network call:
 
 - CPO, CTO, Security/Privacy, IA Governance and Expert Board gates must be signed;
-- the Ritomer OpenAI account/project must be identified;
+- the manual Ritomer OpenAI account/project evidence must be reviewed without recording a full project URL or internal project id;
 - the OpenAI project must be created in `Europe EEA + Switzerland` or an evidenced equivalent region scope;
 - the candidate domain `eu.api.openai.com` must be confirmed for the Ritomer project;
 - DPA/SCC/subprocessors must be reviewed and archived;
 - ZDR or MAM must be approved, with ZDR amendment if required;
-- model availability must be proven in the Ritomer account/project;
-- `exactModelId` or exact snapshot must be proven and pinned; `PENDING_ACCOUNT_PROOF` is not executable;
+- model availability proof in the Ritomer project must be reviewed and accepted in the gate evidence;
+- candidate exactModelId visibility is manually proven as `gpt-5.4-mini-2026-03-17`, but it must still be pinned in the signed network gate before execution;
 - `/v1/chat/completions` may be tested only after the separate network activation gate;
 - OpenAI tools must be disabled;
 - `store=false` or equivalent request-storage behavior must be confirmed;
