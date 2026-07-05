@@ -8,7 +8,7 @@
 | Scope | Gate pack draft for the controlled AI mapping runtime pilot. |
 | Surface | `DOCS_GIT / AI_GOVERNANCE` |
 | Current status | `PENDING_EVIDENCE` |
-| Current decision | OpenAI API is documented as a candidate provider only. Manual UI evidence proves account/project preflight and candidate exact model visibility, but this record authorizes no executable model snapshot, dependency, prompt runtime, golden set update, validator, metrics, secret, network call or provider runtime code. |
+| Current decision | OpenAI API is documented as a candidate provider only. Manual UI evidence proves account/project preflight, security/privacy UI observations and candidate exact model visibility, but this record authorizes no executable model snapshot, dependency, prompt runtime, golden set update, validator, metrics, secret, network call or provider runtime code. |
 
 This draft is not a signature. It records the evidence still required before any `042b` provider code and before any later provider network activation.
 
@@ -27,7 +27,7 @@ This draft is not a signature. It records the evidence still required before any
 - No provider call or AI network call is made.
 - No spec `043` is created.
 
-## Manual OpenAI account preflight evidence - 042b0b
+## Manual OpenAI Platform/API preflight evidence - 042b0b / 042b0c
 
 This docs-only update records manual UI evidence from the OpenAI Platform/API account:
 
@@ -40,12 +40,31 @@ This docs-only update records manual UI evidence from the OpenAI Platform/API ac
 - Spend alert: `100 % / $10`.
 - Project-authorized models: `gpt-5.4-mini`, `gpt-5.4-mini-2026-03-17`.
 - Candidate exactModelId / snapshot visible in project: `gpt-5.4-mini-2026-03-17`.
+- Active API keys visible: `0`.
 - API key created: `NOT_CREATED_USER_CONFIRMED`.
 - API key shared: `NO`.
+- Usage API: `$0.00`.
+- Total requests: `0`.
+- Total tokens: `0`.
+- Data controls visible: `PROUVÉ`.
+- API call logging: `ENABLED_PER_CALL_UI_OBSERVED`.
+- Audit logging: `NOT_ENABLED_UI_OBSERVED`.
+- Hosted tools controls: `NON_DÉTERMINÉ`.
+- Sharing controls: `NON_DÉTERMINÉ`.
 - Future API key creation is deferred to the later `gate reseau provider signe`; the key must never be committed, pasted into a chat, transmitted to Codex, or stored in a committed `.env` file.
 - No AI network call was performed.
 
 This evidence does not authorize provider runtime code or a provider network call. The separate network gate remains required before any test against `/v1/chat/completions`.
+
+Official OpenAI documentation reminders for the future gate:
+
+- `https://developers.openai.com/api/docs/guides/your-data` documents that data sent to the OpenAI API is not used to train or improve OpenAI models unless explicitly opted in.
+- The same OpenAI data controls page documents default abuse monitoring logs retained up to 30 days, and documents `/v1/chat/completions` as `No` for training use, `30 days` for abuse monitoring retention, and Zero Data Retention eligible with limitations.
+- The same page documents `eu.api.openai.com` for `Europe (EEA + Switzerland)`, with `/v1/chat/completions` supported for storage and processing, and marks the region as requiring MAM or ZDR.
+- `https://help.openai.com/en/articles/8264644-how-can-i-set-up-prepaid-billing` documents prepaid API billing as pre-purchased API usage and documents Auto recharge setup; Ritomer manual evidence records auto recharge as `OFF`.
+- `https://help.openai.com/en/articles/9687866-admin-and-audit-logs-api-for-the-api-platform` documents API Platform audit logging capabilities and enablement from Data controls; Ritomer manual evidence records audit logging as `NOT_ENABLED_UI_OBSERVED`.
+
+These official documentation reminders do not decide DPA/SCC/subprocessors, ZDR or MAM, `store=false` behavior for the Ritomer project, effective project region, processing/storage region, retention, support/debug access, deletion process, incident notification process, quotas, kill switch, runtime log hygiene or golden set status. Those items remain blocked before any provider network activation.
 
 Current repository state:
 
@@ -130,6 +149,7 @@ Before any provider network call:
 - OpenAI project must be created in `Europe EEA + Switzerland` or an evidenced equivalent region scope;
 - candidate domain `eu.api.openai.com` must be confirmed;
 - candidate endpoint `/v1/chat/completions` must remain untested until this network gate is signed;
+- API key creation must happen only at the controlled network test gate, with no key committed, transmitted to Codex, pasted into a chat or stored in a committed `.env` file;
 - provider exact legal/vendor evidence must be attached;
 - provider/model/region/retention/training/logging/cost/latency/quota evidence must be complete;
 - model availability in the Ritomer project must be reviewed from the manual UI evidence and accepted in the gate evidence;
