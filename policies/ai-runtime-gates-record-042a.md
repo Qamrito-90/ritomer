@@ -8,7 +8,7 @@
 | Scope | Gate pack draft for the controlled AI mapping runtime pilot. |
 | Surface | `DOCS_GIT / AI_GOVERNANCE` |
 | Current status | `PENDING_EVIDENCE` |
-| Current decision | OpenAI API is documented as a candidate provider only. This record authorizes no exact model snapshot, dependency, prompt runtime, golden set update, validator, metrics, secret, network call or provider runtime code. |
+| Current decision | OpenAI API is documented as a candidate provider only. Manual UI evidence proves account/project preflight and candidate exact model visibility, but this record authorizes no executable model snapshot, dependency, prompt runtime, golden set update, validator, metrics, secret, network call or provider runtime code. |
 
 This draft is not a signature. It records the evidence still required before any `042b` provider code and before any later provider network activation.
 
@@ -17,14 +17,35 @@ This draft is not a signature. It records the evidence still required before any
 `042a1` prepares governance/readiness drafts only.
 
 - OpenAI API is recorded only as a candidate provider for future review.
-- `gpt-5.4-mini` is recorded only as a public candidate model name.
-- No exact model id or dated model snapshot is selected.
+- `gpt-5.4-mini` is recorded as a public candidate model name visible in the OpenAI project.
+- `gpt-5.4-mini-2026-03-17` is recorded as a candidate exactModelId / snapshot visible in the OpenAI project by manual UI evidence.
+- The candidate exactModelId is not executable and is not selected for runtime activation by this record.
 - No runtime prompt is created.
 - No golden set, validator or metrics artifact is created.
 - No backend, frontend, DB, OpenAPI, CI, SDK, dependency or runtime code is changed.
 - No secret, `.env`, token, cookie, DSN or credential is read or required.
 - No provider call or AI network call is made.
 - No spec `043` is created.
+
+## Manual OpenAI account preflight evidence - 042b0b
+
+This docs-only update records manual UI evidence from the OpenAI Platform/API account:
+
+- OpenAI Platform/API accessible: `PROUVÉ`.
+- Dedicated project created: `ritomer-dev`.
+- Billing API enabled: `PROUVÉ`.
+- Credits added: `$10`.
+- Auto recharge: `OFF`.
+- Project spend limit: `$10`.
+- Spend alert: `100 % / $10`.
+- Project-authorized models: `gpt-5.4-mini`, `gpt-5.4-mini-2026-03-17`.
+- Candidate exactModelId / snapshot visible in project: `gpt-5.4-mini-2026-03-17`.
+- API key created: `NOT_CREATED_USER_CONFIRMED`.
+- API key shared: `NO`.
+- Future API key creation is deferred to the later `gate reseau provider signe`; the key must never be committed, pasted into a chat, transmitted to Codex, or stored in a committed `.env` file.
+- No AI network call was performed.
+
+This evidence does not authorize provider runtime code or a provider network call. The separate network gate remains required before any test against `/v1/chat/completions`.
 
 Current repository state:
 
@@ -66,7 +87,7 @@ Decision:
 
 - No contract is modified by this hardening pass.
 - `042b` is not blocked by missing v1 semantics: v2 exists and preserves v1.
-- `042b` remains blocked by provider-readiness, required human signatures, exact model id proof, privacy/legal evidence, quotas, budget cap, kill switch evidence, log hygiene, an authoritative green golden set and the separate network activation gate.
+- `042b` remains blocked by provider-readiness, required human signatures, exact model id gate review/pinning, privacy/legal evidence, quotas, budget cap, kill switch evidence, log hygiene, an authoritative green golden set and the separate network activation gate.
 
 ## Schema pinning evidence
 
@@ -90,7 +111,7 @@ All gates below are cumulative with the existing `030d` requirements. They must 
 | Security/Privacy Review | `PENDING_EVIDENCE` | Provider privacy evidence, payload minimization, log hygiene, secret handling and incident controls. |
 | IA Governance Review | `PENDING_EVIDENCE` | Evidence-first behavior, structured output, human-in-the-loop, model/prompt/schema pinning and eval plan. |
 | Expert Board | `PENDING_EVIDENCE` | Business relevance, v2 outcomes/reason codes, payload whitelist, golden set scope and stop criteria. |
-| Provider readiness | `PENDING_EVIDENCE` | Completed `policies/ai-provider-readiness-record-042a.md` for exact provider and exact model. |
+| Provider readiness | `PENDING_EVIDENCE` | Completed `policies/ai-provider-readiness-record-042a.md` for exact provider and exact model. Current exactModelId visibility is manual UI evidence only and remains non-executable. |
 | Dependency/security review | `PENDING_N/A_JUSTIFICATION` | Completed `policies/dependency-security-review-042a.md`, or explicit N/A justification if no new dependency is introduced. |
 | Payload whitelist | `PENDING_EVIDENCE` | Signed whitelist based on `policies/ai-payload-whitelist-mapping-runtime-042a.md`. |
 | Runbook | `PENDING_EVIDENCE` | Incident runbook updated for provider-runtime kill switch, fallback and privacy/cost/timeout/cross-tenant incidents. |
@@ -111,8 +132,8 @@ Before any provider network call:
 - candidate endpoint `/v1/chat/completions` must remain untested until this network gate is signed;
 - provider exact legal/vendor evidence must be attached;
 - provider/model/region/retention/training/logging/cost/latency/quota evidence must be complete;
-- model availability in the Ritomer project must be proven;
-- `exactModelId` or exact snapshot must be proven and pinned; public model name `gpt-5.4-mini` is not enough;
+- model availability in the Ritomer project must be reviewed from the manual UI evidence and accepted in the gate evidence;
+- candidate exactModelId visibility is manually proven as `gpt-5.4-mini-2026-03-17`, but it must still be pinned in the network gate before execution; public model name `gpt-5.4-mini` is not enough;
 - no automatic fallback to alias, another model, another region or another provider may exist;
 - DPA/SCC/subprocessors must be reviewed and archived;
 - ZDR or MAM must be approved, with ZDR amendment if required;
@@ -135,7 +156,7 @@ Before any provider network call:
 - `042b` provider code is blocked until the pre-code gates above are signed and merged.
 - `042b` is blocked until provider-readiness is complete for the candidate provider and exact model id.
 - `042b` is blocked until OpenAI account/project, domain, endpoint, project region, DPA/SCC/subprocessors, ZDR or MAM, privacy, retention, logging, RPM/TPM quotas and budget cap evidence are complete.
-- `042b` is blocked until provider and exact model evidence replaces `NON_DÉTERMINÉ` / `PENDING_ACCOUNT_PROOF`.
+- `042b` is blocked until the manual exactModelId evidence is reviewed in the gates and all remaining provider, privacy/legal, quota, budget, kill switch, log hygiene and golden set evidence replaces `NON_DÉTERMINÉ` / `PENDING_ACCOUNT_PROOF`.
 - `042b` is blocked until kill switch, log hygiene and the authoritative golden set are proven green.
 - `042b` is blocked until dependency/security is completed or N/A is explicitly justified.
 - Provider network activation remains blocked even after `042b` code until the activation gate is signed.

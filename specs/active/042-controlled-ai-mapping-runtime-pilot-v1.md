@@ -26,6 +26,8 @@ Le pack de double revue aveugle `042a2` transforme les 17 cas candidats en deux 
 
 `042a2a5a` expose ce moteur offline derriere un endpoint backend local v2 strictement read-only et default-off : `GET /api/closing-folders/{closingFolderId}/mappings/suggestions-v2`. Le controller, le service et l'adapter local n'existent qu'en profil `local` avec `ritomer.ai.mapping-suggestions-v2.offline.enabled=true`, restent limites a l'allowlist demo synthetique backend immutable, n'utilisent aucun provider reel, aucun SDK provider, aucun appel reseau IA, aucun secret, aucune valeur `.env`, aucune ecriture DB, aucune decision humaine, aucun audit de decision, aucune UI de decision, aucune bascule v1 et aucune production.
 
+`042b0b` ajoute uniquement des preuves manuelles OpenAI Platform/API au provider-readiness record : projet dedie `ritomer-dev`, billing API, credits et limites de depense, modeles autorises et visibilite du snapshot candidat. Il ne cree aucun runtime, provider adapter, SDK, secret, fichier `.env`, appel reseau IA, prompt runtime actif, golden set promu, production ou spec `043`.
+
 Etat courant du repo pour l'alignement `042b0` OpenAI readiness :
 
 - `mapping-suggestion-v2` existe comme read-model applicatif Ritomer normalise.
@@ -34,6 +36,7 @@ Etat courant du repo pour l'alignement `042b0` OpenAI readiness :
 - L'endpoint local synthetic-demo-only `GET /api/closing-folders/{closingFolderId}/mappings/suggestions-v2` existe.
 - Une UI locale de simulation consomme le read-model v2 sans decision, auto-apply, bulk apply ou endpoint provider reel.
 - Aucun provider reel, appel reseau IA, secret, runtime provider ou SDK provider n'existe.
+- Les preuves manuelles `042b0b` etablissent la visibilite projet de `gpt-5.4-mini-2026-03-17`, mais ce snapshot candidat reste non executable tant que le gate reseau provider separe n'est pas signe.
 
 ## Surface
 
@@ -54,6 +57,8 @@ Surface contrat normalise `042a2a4` : CONTRACTS / BACKEND_RUNTIME_INTERNE / FRON
 Surface endpoint local offline `042a2a5a` : BACKEND_RUNTIME_LOCAL / CONTRACTS / DOCS_GIT.
 
 Surface readiness provider candidat `042b0` : DOCS_GIT / AI_GOVERNANCE / SECURITY_PRIVACY.
+
+Surface readiness provider candidat `042b0b` : DOCS_GIT / AI_GOVERNANCE / SECURITY_PRIVACY.
 
 ## Risk
 
@@ -137,7 +142,7 @@ Contract readiness `042a1` :
 - `mapping-suggestion-v2` existe maintenant comme read-model Ritomer normalise et encode ces outcomes, reason codes et etats de degradation.
 - `mapping-suggestion-v2` preserve `mapping-suggestion-v1`; aucun contrat v1 n'est modifie et aucune bascule implicite v1 -> v2 n'existe.
 - `mapping-suggestion-v2` reste sans endpoint provider reel, sans appel reseau IA, sans secret et sans runtime provider.
-- `042b` reste BLOQUE par provider-readiness, signatures humaines, exact model id, privacy/legal, quotas, budget cap, kill switch, log hygiene, golden set autoritatif et gate reseau.
+- `042b` reste BLOQUE par provider-readiness, signatures humaines, revue/pinning gate de l'exact model id, privacy/legal, quotas, budget cap, kill switch, log hygiene, golden set autoritatif et gate reseau.
 - Aucun contrat n'est modifie par `042a1`.
 
 Semantic readiness `042a2a1` :
@@ -148,7 +153,7 @@ Semantic readiness `042a2a1` :
 - `policies/ai-mapping-business-evaluation-protocol-042a2.md` definit les objectifs d'evaluation metier sans creer de golden set ni validator.
 - `policies/ai-mapping-pilot-scope-manifest-042a2.md` definit le perimetre metier pilote draft sans approuver de taxonomy snapshot.
 - `042a2a1` et `042a2a1b` n'ont pas modifie de contrat a ce stade; `mapping-suggestion-v2` est ensuite livre par `042a2a4`.
-- `042b` reste BLOQUE tant que provider-readiness, signatures humaines, exact model id, privacy/legal, quotas, budget cap, kill switch, log hygiene, golden set autoritatif, validator, gates provider et gate reseau ne sont pas termines.
+- `042b` reste BLOQUE tant que provider-readiness, signatures humaines, revue/pinning gate de l'exact model id, privacy/legal, quotas, budget cap, kill switch, log hygiene, golden set autoritatif, validator, gates provider et gate reseau ne sont pas termines.
 
 Contract implementation `042a2a4` :
 
@@ -258,10 +263,14 @@ Aucune spec `043` ne doit etre creee par `042a`.
 - endpoint candidat : `/v1/chat/completions` ;
 - domaine candidat : `eu.api.openai.com` ;
 - modele candidat public : `gpt-5.4-mini` ;
-- exact model id / snapshot exact : `PENDING_ACCOUNT_PROOF` jusqu'a preuve compte/API Ritomer ;
+- modeles autorises visibles dans le projet : `gpt-5.4-mini`, `gpt-5.4-mini-2026-03-17` ;
+- exact model id / snapshot exact candidat visible dans le projet : `gpt-5.4-mini-2026-03-17` ;
+- statut de preuve exactModelId : `PROUVÉ_PAR_UI_PLATFORM_MANUELLE` ;
 - aucun fallback automatique vers alias, autre modele, autre region ou autre provider.
 
-`042b0` ne prouve aucun snapshot date, ne l'approuve pas, ne cree aucun runtime, aucun adapter provider, aucun SDK, aucun secret, aucun fichier `.env`, aucun appel reseau IA, aucun prompt runtime actif, aucun golden set promu et aucune spec `043`.
+`042b0b` documente aussi uniquement les preuves manuelles de compte/projet OpenAI Platform/API : acces Platform/API prouve, projet dedie `ritomer-dev`, billing API active, credits `$10`, auto recharge `OFF`, project spend limit `$10`, spend alert `100 % / $10`. API key created: `NOT_CREATED_USER_CONFIRMED`. API key shared: `NO`. La cle API devra etre creee seulement plus tard, au moment d'un gate reseau provider signe, et ne devra jamais etre commise, collee dans un chat, transmise a Codex, ni stockee dans un `.env` commite.
+
+`042b0b` prouve seulement la visibilite UI du snapshot candidat. Il ne l'approuve pas, ne le rend pas executable, ne cree aucun runtime, aucun adapter provider, aucun SDK, aucun secret, aucun fichier `.env`, aucun appel reseau IA, aucun prompt runtime actif, aucun golden set promu et aucune spec `043`.
 
 `042a2a1` est le semantic readiness pack draft courant. Il livre uniquement :
 
@@ -515,7 +524,7 @@ Regles obligatoires :
 
 `mapping-suggestion-v2` expose maintenant ces outcomes, reason codes et etats de degradation comme read-model normalise Ritomer. Une future implementation provider devra lier explicitement la sortie provider au contrat et au schema hash selectionnes avant tout consumer provider-output. Cette mission documentaire ne modifie aucun contrat.
 
-Readiness `042a1` puis `042a2a4` : v1 reste inchange, v2 existe et preserve v1, v2 reste sans endpoint provider reel, sans provider runtime, sans secret et sans appel reseau IA. `042b` reste BLOQUE par provider-readiness, signatures humaines, exact model id, privacy/legal, quotas, budget cap, kill switch, log hygiene, golden set autoritatif, validator et gate reseau.
+Readiness `042a1` puis `042a2a4` : v1 reste inchange, v2 existe et preserve v1, v2 reste sans endpoint provider reel, sans provider runtime, sans secret et sans appel reseau IA. `042b` reste BLOQUE par provider-readiness, signatures humaines, revue/pinning gate de l'exact model id, privacy/legal, quotas, budget cap, kill switch, log hygiene, golden set autoritatif, validator et gate reseau.
 
 Semantic readiness `042a2a1` puis read-model `mapping-suggestion-v2` : les semantics retenues imposent :
 
@@ -875,7 +884,7 @@ Avant tout appel reseau provider :
 - DPA/SCC/subprocessors revus et archives ;
 - ZDR ou MAM approuve, avec amendement ZDR si requis ;
 - disponibilite du modele prouvee dans le compte Ritomer ;
-- exact model id / snapshot exact prouve et pinne ; `PENDING_ACCOUNT_PROOF` n'est pas executable ;
+- exact model id / snapshot exact candidat `gpt-5.4-mini-2026-03-17` prouve par UI manuelle, puis pinne dans le gate reseau avant execution ;
 - endpoint `/v1/chat/completions` teste uniquement apres gate reseau ;
 - tools desactives ;
 - `store=false` ou comportement equivalent confirme ;
