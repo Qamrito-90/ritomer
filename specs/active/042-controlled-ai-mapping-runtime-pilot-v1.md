@@ -34,9 +34,13 @@ Le pack de double revue aveugle `042a2` transforme les 17 cas candidats en deux 
 
 `042b1a` documente uniquement une tentative locale de canary OpenAI non concluante. La tentative prevoyait `POST /v1/chat/completions` sur `api.openai.com`, modele `gpt-5.4-mini-2026-03-17`, payload public non metier, non Ritomer et non client, `store=false` et aucun outil. Resultat : premiere tentative `FAIL NON_HTTP / ArgumentException`, deuxieme tentative `FAIL NON_HTTP / RuntimeException`, aucun HTTP 200, aucun modele retourne, aucun usage provider valide et aucun network PASS. La cle temporaire creee manuellement a ete revoquee ; cles actives apres revocation `0`, usage dashboard `$0.00`, total requests `0`, total tokens `0`. Aucun secret n'a ete partage avec ChatGPT/Codex/GitHub, aucun fichier `.env` n'a ete cree ou modifie, aucun commit ou fichier repo n'a ete modifie par le canary, aucun payload sensible, aucune donnee Ritomer et aucune donnee client n'ont ete envoyes.
 
-`042b1a` ne cree aucun runtime, provider adapter, SDK, secret, fichier `.env`, appel IA reussi, prompt runtime actif, golden set promu, production ou spec `043`. Canary status : `FAILED_NON_CONCLUSIVE`. Provider network activation : `STILL_BLOCKED`. `042b` provider runtime : `STILL_BLOCKED`. Aucun troisieme essai n'est autorise par ce record ; toute future tentative exige un nouveau gate reseau formel ou un gate de retry explicite.
+`042b1a` ne cree aucun runtime, provider adapter, SDK, secret, fichier `.env`, appel IA reussi, prompt runtime actif, golden set promu, production ou spec `043`. Canary status : `FAILED_NON_CONCLUSIVE`. Provider network activation : `STILL_BLOCKED`. `042b` provider runtime : `STILL_BLOCKED`. Aucun essai supplementaire n'etait autorise par ce record lui-meme ; le retry `042b1b` ci-dessous dependait d'une autorisation Security/Privacy separee.
 
-Etat courant du repo pour l'alignement `042b0` / `042b1a` OpenAI readiness :
+`042b1b` documente uniquement le retry controle OpenAI autorise apres `042b1a`. Execution locale utilisateur uniquement, aucun Codex, client `curl.exe`, endpoint unique `POST /v1/chat/completions`, host unique `api.openai.com`, modele unique `gpt-5.4-mini-2026-03-17`, `store=false` demande, aucune donnee Ritomer/client/tenant/mapping/compte/document/CSV/workpaper, aucune valeur de cle ni header enregistres dans le repo/Codex/GitHub, ChatGPT exposure `YES_ONE_TEMPORARY_KEY_PASTED_AND_TREATED_AS_COMPROMISED`, retry execution secret value `NOT_RECORDED`, aucun fallback. Resultat sanitise : `http_status=400`, `error_type=invalid_request_error`, `result=FAIL_HTTP_400`, `model_returned=null`, `usage_total_tokens=null`, `final_canary_status=STOP_NO_FALLBACK`.
+
+`042b1b` ferme le chemin canary OpenAI : `042b1b=FAIL_HTTP_400_INVALID_REQUEST_ERROR`, `network_canary=FAILED`, `network_activation=STILL_BLOCKED`, `provider_runtime=STILL_BLOCKED`, `adapter_provider=NOT_AUTHORIZED`, `spec_042b=STILL_BLOCKED`, `retry_remaining=0`, `fallback=FORBIDDEN`, aucun HTTP 200, aucun modele retourne, aucun token d'usage retourne, aucun provider runtime approuve et aucun provider OpenAI approuve. Aucun quatrieme retry canary, fallback Responses API, fallback `eu.api.openai.com`, autre endpoint, autre modele ou spec `043` n'est autorise par cette cloture.
+
+Etat courant du repo pour l'alignement `042b0` / `042b1a` / `042b1b` OpenAI readiness :
 
 - `mapping-suggestion-v2` existe comme read-model applicatif Ritomer normalise.
 - `mapping-suggestion-v1` reste inchange et v2 ne provoque aucune bascule implicite.
@@ -44,7 +48,7 @@ Etat courant du repo pour l'alignement `042b0` / `042b1a` OpenAI readiness :
 - L'endpoint local synthetic-demo-only `GET /api/closing-folders/{closingFolderId}/mappings/suggestions-v2` existe.
 - Une UI locale de simulation consomme le read-model v2 sans decision, auto-apply, bulk apply ou endpoint provider reel.
 - Aucun provider reel, appel reseau IA reussi, secret, runtime provider ou SDK provider n'existe.
-- Les preuves manuelles `042b0b` etablissent la visibilite projet de `gpt-5.4-mini-2026-03-17`; les preuves `042b0c` etablissent uniquement des observations security/privacy de preflight OpenAI Platform/API ; `042b1a` etablit uniquement une tentative canary `FAILED_NON_CONCLUSIVE`. Le snapshot candidat reste non executable tant que le gate reseau provider separe n'est pas formellement valide.
+- Les preuves manuelles `042b0b` etablissent la visibilite projet de `gpt-5.4-mini-2026-03-17`; les preuves `042b0c` etablissent uniquement des observations security/privacy de preflight OpenAI Platform/API ; `042b1a` etablit uniquement une tentative canary `FAILED_NON_CONCLUSIVE` ; `042b1b` etablit uniquement un retry controle `FAIL_HTTP_400_INVALID_REQUEST_ERROR / STOP_NO_FALLBACK`. Le snapshot candidat reste non executable, le network canary est `FAILED`, le retry restant est `0` et le gate reseau provider separe reste bloque.
 
 ## Surface
 
@@ -71,6 +75,8 @@ Surface readiness provider candidat `042b0b` : DOCS_GIT / AI_GOVERNANCE / SECURI
 Surface readiness provider candidat `042b0c` : DOCS_GIT / AI_GOVERNANCE / SECURITY_PRIVACY.
 
 Surface canary provider non conclusif `042b1a` : DOCS_GIT / AI_GOVERNANCE / SECURITY_PRIVACY.
+
+Surface retry canary provider ferme `042b1b` : DOCS_GIT / AI_GOVERNANCE / SECURITY_PRIVACY.
 
 ## Risk
 
@@ -280,9 +286,9 @@ Aucune spec `043` ne doit etre creee par `042a`.
 - statut de preuve exactModelId : `PROUVÉ_PAR_UI_PLATFORM_MANUELLE` ;
 - aucun fallback automatique vers alias, autre modele, autre region ou autre provider.
 
-`042b0b` documente aussi uniquement les preuves manuelles de compte/projet OpenAI Platform/API : acces Platform/API prouve, projet dedie `ritomer-dev`, billing API active, credits `$10`, auto recharge `OFF`, project spend limit `$10`, spend alert `100 % / $10`. API key status before canary: `NOT_CREATED_USER_CONFIRMED`. API key shared: `NO`.
+`042b0b` documente aussi uniquement les preuves manuelles de compte/projet OpenAI Platform/API : acces Platform/API prouve, projet dedie `ritomer-dev`, billing API active, credits `$10`, auto recharge `OFF`, project spend limit `$10`, spend alert `100 % / $10`. API key status before canary: `NOT_CREATED_USER_CONFIRMED`. No pre-canary key existed.
 
-`042b0c` documente uniquement les preuves manuelles security/privacy OpenAI Platform/API suivantes : API keys actives visibles `0`, API key status before canary `NOT_CREATED_USER_CONFIRMED`, API key shared `NO`, usage API `$0.00`, total requests `0`, total tokens `0`, data controls visibles `PROUVÉ`, API call logging `ENABLED_PER_CALL_UI_OBSERVED`, audit logging `NOT_ENABLED_UI_OBSERVED`. Hosted tools et sharing restent documentes seulement la ou ils sont visibles ; tout detail non observe reste `NON_DÉTERMINÉ` ou `PENDING_EVIDENCE`.
+`042b0c` documente uniquement les preuves manuelles security/privacy OpenAI Platform/API suivantes : API keys actives visibles `0`, API key status before canary `NOT_CREATED_USER_CONFIRMED`, no pre-canary key existed, usage API `$0.00`, total requests `0`, total tokens `0`, data controls visibles `PROUVÉ`, API call logging `ENABLED_PER_CALL_UI_OBSERVED`, audit logging `NOT_ENABLED_UI_OBSERVED`. Hosted tools et sharing restent documentes seulement la ou ils sont visibles ; tout detail non observe reste `NON_DÉTERMINÉ` ou `PENDING_EVIDENCE`.
 
 `042b1a` documente uniquement une tentative locale canary OpenAI non concluante, sans relance reseau par cette cloture documentaire :
 
@@ -318,18 +324,77 @@ Decision `042b1a` :
 - canary status : `FAILED_NON_CONCLUSIVE` ;
 - provider network activation : `STILL_BLOCKED` ;
 - `042b` provider runtime : `STILL_BLOCKED` ;
-- no third attempt authorized by this record ;
-- future attempt requires a new formal network gate or explicit retry gate.
+- no additional attempt authorized by this record itself ;
+- retry `042b1b` required a separate Security/Privacy authorization.
+
+`042b1b` documente uniquement le retry controle OpenAI autorise apres `042b1a`, sans relance reseau par cette cloture documentaire :
+
+- attempt : `042b1b` ;
+- execution : locale par l'utilisateur uniquement ;
+- Codex involved in network execution : `NO` ;
+- client : `curl.exe` ;
+- endpoint unique : `POST /v1/chat/completions` ;
+- host unique : `api.openai.com` ;
+- modele unique : `gpt-5.4-mini-2026-03-17` ;
+- `store=false` demande ;
+- payload : public, non metier, non Ritomer, non client ;
+- donnees Ritomer, tenant, client, mapping, compte, document, CSV ou workpaper envoyees : `NO` ;
+- API key value recorded in repo/Codex/GitHub : `NO` ;
+- ChatGPT exposure : `YES_ONE_TEMPORARY_KEY_PASTED_AND_TREATED_AS_COMPROMISED` ;
+- exposed key value recorded in repo : `NO` ;
+- retry execution secret value : `NOT_RECORDED` ;
+- fallback Responses API, `eu.api.openai.com`, autre endpoint, autre modele ou autre provider : `FORBIDDEN` ;
+- cle temporaire revoquee immediatement apres tentative.
+
+Resultat sanitise `042b1b` :
+
+- http status : `400` ;
+- error type : `invalid_request_error` ;
+- result : `FAIL_HTTP_400` ;
+- final canary status : `STOP_NO_FALLBACK` ;
+- model returned : `null` ;
+- usage total tokens : `null` ;
+- HTTP 200 obtenu : `NO` ;
+- usage provider valide : `NO` ;
+- network PASS etabli : `NO`.
+
+Preuves post-tentative `042b1b` fournies par captures utilisateur sanitisees :
+
+- API Keys / filtre Active : `0 results / No API keys found` ;
+- active keys after revocation : `0` ;
+- Usage project `ritomer-dev` : `Total Spend $0.00` ;
+- Total tokens : `0` ;
+- Total requests : `0` ;
+- Responses and Chat Completions : `0 requests / 0 input tokens` ;
+- July spend panel : `$0.00 / $10.00` ;
+- `auto_recharge=NOT_REVALIDATED_IN_LATEST_SCREENSHOTS` pour les captures post-`042b1b` ;
+- auto_recharge proof prior record : `OFF` documente par `042b0b`, non revalide par les captures post-`042b1b`.
+
+Decision finale `042b1b` :
+
+- `042b1b` : `FAIL_HTTP_400_INVALID_REQUEST_ERROR` ;
+- network canary : `FAILED` ;
+- network activation : `STILL_BLOCKED` ;
+- provider runtime : `STILL_BLOCKED` ;
+- adapter provider : `NOT_AUTHORIZED` ;
+- spec `042b` : `STILL_BLOCKED` ;
+- retry remaining : `0` ;
+- fallback : `FORBIDDEN` ;
+- no HTTP 200 ;
+- no model returned ;
+- no usage tokens returned ;
+- no provider runtime approved ;
+- no OpenAI provider approved.
 
 Rappels de sources officielles OpenAI pour le futur gate :
 
 - `https://developers.openai.com/api/docs/guides/your-data` documente que les donnees envoyees a l'OpenAI API ne sont pas utilisees pour entrainer ou ameliorer les modeles OpenAI sauf opt-in explicite.
 - La meme source documente `/v1/chat/completions` avec `Data used for training = No`, retention abuse monitoring `30 days`, application state retention `None, see exceptions`, et eligibilite Zero Data Retention avec limites.
 - La meme source documente `eu.api.openai.com` pour `Europe (EEA + Switzerland)`, avec `/v1/chat/completions` supporte en storage et processing, et la region marquee comme necessitant MAM ou ZDR.
-- `https://help.openai.com/en/articles/8264644-how-can-i-set-up-prepaid-billing` documente les credits API prepayes comme usage API prepaye et le parametrage Auto recharge ; dans Ritomer, ces credits restent separes du runtime et auto recharge reste `OFF`.
+- `https://help.openai.com/en/articles/8264644-how-can-i-set-up-prepaid-billing` documente les credits API prepayes comme usage API prepaye et le parametrage Auto recharge ; dans Ritomer, ces credits restent separes du runtime, auto recharge reste `OFF` selon `042b0b`, et n'est pas revalide par les captures post-`042b1b`.
 - `https://help.openai.com/en/articles/9687866-admin-and-audit-logs-api-for-the-api-platform` documente les capacites d'audit logging API Platform et leur activation via Data controls ; dans Ritomer, audit logging est seulement observe `NOT_ENABLED_UI_OBSERVED`.
 
-`042b0b`, `042b0c` et `042b1a` prouvent seulement la visibilite UI, des rappels documentaires officiels et une tentative canary non concluante. Ils n'approuvent pas le provider, ne rendent pas le snapshot executable, ne creent aucun runtime, aucun adapter provider, aucun SDK, aucun secret, aucun fichier `.env`, aucun appel IA reussi, aucun prompt runtime actif, aucun golden set promu et aucune spec `043`.
+`042b0b`, `042b0c`, `042b1a` et `042b1b` prouvent seulement la visibilite UI, des rappels documentaires officiels, une tentative canary non concluante puis un retry canary final `FAIL_HTTP_400_INVALID_REQUEST_ERROR / STOP_NO_FALLBACK`. Ils n'approuvent pas le provider, ne rendent pas le snapshot executable, ne creent aucun runtime, aucun adapter provider, aucun SDK, aucun secret, aucun fichier `.env`, aucun appel IA reussi, aucun prompt runtime actif, aucun golden set promu et aucune spec `043`.
 
 `042a2a1` est le semantic readiness pack draft courant. Il livre uniquement :
 
@@ -931,7 +996,7 @@ Ces records ne portent aucune signature et ne valent pas autorisation de code pr
 
 ### Gate avant activation reseau provider
 
-Le gate d'activation reseau est distinct du gate pre-code. Meme si `042b` est implemente plus tard, aucun appel provider n'est autorise sans gate d'activation formel. La tentative `042b1a` reste `FAILED_NON_CONCLUSIVE` et ne satisfait pas ce gate.
+Le gate d'activation reseau est distinct du gate pre-code. Meme si `042b` est implemente plus tard, aucun appel provider n'est autorise sans gate d'activation formel. La tentative `042b1a` reste `FAILED_NON_CONCLUSIVE` et le retry final `042b1b` est `FAIL_HTTP_400_INVALID_REQUEST_ERROR / STOP_NO_FALLBACK` ; aucun des deux ne satisfait ce gate.
 
 Avant tout nouvel appel reseau provider :
 
@@ -944,7 +1009,7 @@ Avant tout nouvel appel reseau provider :
 - ZDR ou MAM tranche, avec amendement ZDR si requis ;
 - disponibilite du modele prouvee dans le compte Ritomer ;
 - exact model id / snapshot exact candidat `gpt-5.4-mini-2026-03-17` prouve par UI manuelle, puis pinne dans le gate reseau avant execution ;
-- endpoint `/v1/chat/completions` reteste uniquement apres nouveau gate reseau formel ou gate de retry explicite ;
+- endpoint `/v1/chat/completions` non reteste dans le cadre canary `042b1`, avec `retry_remaining=0` ; toute future activation reseau exige un nouveau gate reseau formel distinct ;
 - tools desactives ;
 - `store=false` ou comportement equivalent confirme ;
 - aucun web search, file search, code interpreter, MCP, batch, fine-tuning ou RAG ;
@@ -960,12 +1025,12 @@ Avant tout nouvel appel reseau provider :
 - no-provider puis mapping manuel doivent etre prouves comme fallback ;
 - logs et metrics doivent etre agreges/minimises, sans payload, prompt, output, label sensible, montant brut, identifiant tenant/client/acteur, secret, storage key ou signed URL ;
 - golden set autoritatif synthetique et validation de schema doivent etre verts ;
-- protocole de retry canary corrige ;
+- chemin canary `042b1` ferme, sans retry restant ;
 - aucun appel provider depuis le navigateur ne doit exister.
 
 Blockers maintenus avant tout nouvel appel reseau provider :
 
-- gate reseau provider formellement valide ou gate de retry explicite ;
+- gate reseau provider formellement valide pour toute future activation, sans retry canary `042b1` restant ;
 - creation d'une cle API seulement au moment du test controle futur ;
 - cle jamais commise, jamais transmise a Codex, jamais collee dans un chat ;
 - secret management runtime valide sans secret repo ni dependance `.env` ;
@@ -982,7 +1047,7 @@ Blockers maintenus avant tout nouvel appel reseau provider :
 - golden set autoritatif vert ;
 - signatures CPO/CTO/Security/IA Governance/Expert Board ;
 - payload whitelist et runbook valides ;
-- canary retry protocol corrige.
+- chemin canary `042b1` ferme et absence de fallback/retry maintenue.
 
 ### CTO Gate
 
