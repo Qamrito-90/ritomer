@@ -8,22 +8,28 @@
 | Scope | Future controlled AI mapping runtime pilot. |
 | Surface | `DOCS_GIT / AI_GOVERNANCE / DEPENDENCY_REVIEW` |
 | Current status | `PENDING_N/A_JUSTIFICATION` |
-| Current decision | No dependency, SDK, runtime JSON Schema library, provider client or model integration is accepted or added by this review. Direct backend HTTP without SDK remains the preferred candidate strategy if a future implementation can justify it. |
+| Current decision | No dependency, SDK, runtime JSON Schema library, provider client or model integration is accepted or added by this review. The `042b1b` retry was executed locally by the user with `curl.exe` and has no repository dependency impact. Direct backend HTTP without SDK remains the preferred candidate strategy if a future implementation can justify it. |
 
 This draft adds no dependency and performs no package, CVE, license or transitive dependency audit. Because no SDK/provider dependency is added by this docs-only mission, the review remains `PENDING_N/A_JUSTIFICATION`, with no human signature.
 
-## Manual OpenAI Platform/API preflight evidence - 042b0b / 042b0c / 042b1a
+## Manual OpenAI Platform/API preflight evidence - 042b0b / 042b0c / 042b1a / 042b1b
 
-The manual OpenAI Platform/API account, security/privacy UI evidence and failed non-conclusive canary recorded for `042b0b`, `042b0c` and `042b1a` have no dependency impact:
+The manual OpenAI Platform/API account, security/privacy UI evidence, failed non-conclusive canary `042b1a` and final failed retry `042b1b` have no dependency impact:
 
 - no provider SDK is added or accepted;
 - no provider client package, runtime JSON Schema library or model integration is added;
 - no API key value, secret, `.env` value or credential is read or recorded by Codex;
 - the `042b1a` temporary API key was created manually and then revoked, outside repository dependency management;
+- the `042b1b` retry was run locally by the user with `curl.exe`, outside repository dependency management;
+- the `042b1b` temporary API key was revoked immediately after the attempt, outside repository dependency management;
+- the `042b1b` API key value was not recorded in the repo, Codex or GitHub;
+- the `042b1b` ChatGPT exposure is recorded only as `YES_ONE_TEMPORARY_KEY_PASTED_AND_TREATED_AS_COMPROMISED`, with no key value recorded here;
+- the `042b1b` retry execution secret value is `NOT_RECORDED`;
 - no AI network call is performed by Codex for this closure;
 - active API keys after revocation remain `0`;
-- API usage remains `$0.00`, with total requests `0` and total tokens `0`;
+- API usage remains `$0.00`, with total requests `0`, total tokens `0`, Responses and Chat Completions `0 requests / 0 input tokens`, and July spend `$0.00 / $10.00`;
 - the `042b1a` canary produced no HTTP 200, no model returned, no provider usage validation and no network PASS;
+- the `042b1b` retry produced `FAIL_HTTP_400_INVALID_REQUEST_ERROR / STOP_NO_FALLBACK`, no HTTP 200, no model returned, no usage tokens returned, no provider usage validation and no network PASS;
 - Data controls, API call logging and audit logging UI observations do not add a runtime dependency;
 - official OpenAI documentation was reviewed via public web documentation only, not via an OpenAI API call;
 - direct backend HTTP without SDK remains only a preferred candidate strategy, still pending explicit N/A justification before any `042b` implementation.
