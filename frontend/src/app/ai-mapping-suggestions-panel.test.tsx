@@ -259,6 +259,15 @@ function expectNoProviderJargon(container: HTMLElement) {
   expect(container).not.toHaveTextContent(/no-provider/i);
 }
 
+function expectOutcomeSummaryCount(outcome: string, count: number) {
+  const outcomeSummary = screen.getByLabelText("resume outcomes v2");
+  const matchingLabels = within(outcomeSummary).getAllByText(outcome);
+
+  expect(
+    matchingLabels.some((label) => label.parentElement?.textContent?.includes(String(count)))
+  ).toBe(true);
+}
+
 describe("AiMappingSuggestionsPanel", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
@@ -325,6 +334,8 @@ describe("AiMappingSuggestionsPanel", () => {
     expect(
       await screen.findByText("Simulation locale — aucune IA externe active.")
     ).toBeInTheDocument();
+    expect(screen.getByText(/Simulation locale non autoritative/)).toBeInTheDocument();
+    expect(screen.getByText(/Pas un jeu de reference valide/)).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0]?.[0]).toBe(
       `/api/closing-folders/${CLOSING_FOLDER_ID}/mappings/suggestions-v2`
@@ -335,6 +346,12 @@ describe("AiMappingSuggestionsPanel", () => {
     expect(screen.getByText("Proposition à vérifier")).toBeInTheDocument();
     expect(screen.getByText("Cash and cash equivalents")).toBeInTheDocument();
     expect(screen.getByText("Preuves metier")).toBeInTheDocument();
+    expect(screen.getByText("Resume par outcome v2")).toBeInTheDocument();
+    expectOutcomeSummaryCount("SUGGESTION", 1);
+    expectOutcomeSummaryCount("ABSTENTION", 0);
+    expectOutcomeSummaryCount("PRECONDITION_BLOCK", 0);
+    expectOutcomeSummaryCount("POLICY_BLOCK", 0);
+    expectOutcomeSummaryCount("TECHNICAL_DEGRADATION", 0);
     expect(screen.queryByRole("button", { name: "Accepter" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Corriger" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Rejeter" })).not.toBeInTheDocument();
@@ -351,6 +368,17 @@ describe("AiMappingSuggestionsPanel", () => {
     const { container } = renderPanel();
 
     expect(await screen.findByText("Proposition à vérifier")).toBeInTheDocument();
+    expect(screen.getByText("Resume par outcome v2")).toBeInTheDocument();
+    expectOutcomeSummaryCount("SUGGESTION", 1);
+    expectOutcomeSummaryCount("ABSTENTION", 1);
+    expectOutcomeSummaryCount("PRECONDITION_BLOCK", 2);
+    expectOutcomeSummaryCount("POLICY_BLOCK", 1);
+    expectOutcomeSummaryCount("TECHNICAL_DEGRADATION", 3);
+    expect(screen.getAllByText("SUGGESTION").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("ABSTENTION").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("PRECONDITION_BLOCK").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("POLICY_BLOCK").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("TECHNICAL_DEGRADATION").length).toBeGreaterThan(0);
     expect(screen.getByText("Aucune proposition")).toBeInTheDocument();
     expect(
       screen.getByText("Les preuves disponibles ne suffisent pas pour proposer une rubrique.")
@@ -366,7 +394,11 @@ describe("AiMappingSuggestionsPanel", () => {
         "La balance courante doit etre verifiee avant la simulation locale. L'affectation manuelle reste disponible."
       )
     ).toBeInTheDocument();
-    expect(screen.getByText("Compte deja affecte manuellement. L'affectation manuelle reste disponible.")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Compte deja affecte manuellement. La simulation ne decide rien; l'affectation manuelle reste l'action metier."
+      )
+    ).toBeInTheDocument();
     expect(screen.getAllByText("Simulation locale indisponible. L’affectation manuelle reste disponible.").length).toBeGreaterThan(0);
 
     const manualLinks = screen.getAllByRole("link", { name: "Affecter manuellement" });
@@ -378,9 +410,6 @@ describe("AiMappingSuggestionsPanel", () => {
     expect(screen.queryByRole("button", { name: "Accepter" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Corriger" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Rejeter" })).not.toBeInTheDocument();
-    expect(container).not.toHaveTextContent("POLICY_BLOCK");
-    expect(container).not.toHaveTextContent("PRECONDITION_BLOCK");
-    expect(container).not.toHaveTextContent("TECHNICAL_DEGRADATION");
     expect(container).not.toHaveTextContent("INSUFFICIENT_EVIDENCE");
     expect(container).not.toHaveTextContent("TIMEOUT");
     expect(container).not.toHaveTextContent("UNAVAILABLE");
@@ -460,6 +489,55 @@ describe("AiMappingSuggestionsPanel", () => {
     expect(container).not.toHaveTextContent("SCHEMA_INVALID");
     expect(container).not.toHaveTextContent("backendCode");
     expectNoProviderJargon(container);
+  });
+
+  it("renders an explicit v2 empty state with the local simulation posture", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    enableMappingSuggestionsV2LocalSimulation();
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, {
+        ...READY_MAPPING_SUGGESTIONS_V2,
+        items: []
+      })
+    );
+
+    renderPanel();
+
+    expect(
+      await screen.findByText("Simulation locale — aucune IA externe active.")
+    ).toBeInTheDocument();
+    expect(screen.getByText("Aucun resultat local")).toBeInTheDocument();
+    expect(
+      screen.getByText("Le mapping manuel reste disponible pour affecter les comptes.")
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Affecter manuellement" })).toHaveAttribute(
+      "href",
+      "#manual-mapping-table-title"
+    );
+    expectOutcomeSummaryCount("SUGGESTION", 0);
+    expectOutcomeSummaryCount("ABSTENTION", 0);
+    expectOutcomeSummaryCount("PRECONDITION_BLOCK", 0);
+    expectOutcomeSummaryCount("POLICY_BLOCK", 0);
+    expectOutcomeSummaryCount("TECHNICAL_DEGRADATION", 0);
+  });
+
+  it("does not fall back to v1 when the v2 local simulation fails", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    enableMappingSuggestionsV2LocalSimulation();
+    fetchMock.mockResolvedValueOnce(jsonResponse(500, {}));
+
+    renderPanel();
+
+    expect(
+      await screen.findByText("Simulation locale indisponible. L’affectation manuelle reste disponible.")
+    ).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      `/api/closing-folders/${CLOSING_FOLDER_ID}/mappings/suggestions-v2`
+    );
+    expect(
+      getRequestPaths(fetchMock).some((path) => path.endsWith("/mappings/suggestions"))
+    ).toBe(false);
   });
 
   it("keeps v2 read-only with no POST fetch and no browser storage writes", async () => {
