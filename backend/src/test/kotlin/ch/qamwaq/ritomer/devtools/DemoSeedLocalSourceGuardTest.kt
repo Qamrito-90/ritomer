@@ -40,15 +40,22 @@ class DemoSeedLocalSourceGuardTest {
     val buildScript = Path.of("build.gradle.kts").readText()
     val enabledProperty = "ritomerDemoSeedEnabled"
     val profileProperty = "ritomerDemoSeedProfile"
+    val variantProperty = "ritomerDemoSeedVariant"
 
-    assertThat(runbook).contains("-P$enabledProperty=true", "-P$profileProperty=dbtest")
+    assertThat(runbook).contains(
+      "-P$enabledProperty=true",
+      "-P$profileProperty=dbtest",
+      "-P$variantProperty=$DEMO_SEED_VARIANT_042A2A5D_MIXED_V2"
+    )
     assertThat(buildScript).contains(
       """providers.gradleProperty("$enabledProperty")""",
-      """providers.gradleProperty("$profileProperty")"""
+      """providers.gradleProperty("$profileProperty")""",
+      """providers.gradleProperty("$variantProperty")"""
     )
     assertThat(buildScript).doesNotContain(
       """providers.gradleProperty("RitomerDemoSeedEnabled")""",
-      """providers.gradleProperty("RitomerDemoSeedProfile")"""
+      """providers.gradleProperty("RitomerDemoSeedProfile")""",
+      """providers.gradleProperty("RitomerDemoSeedVariant")"""
     )
   }
 

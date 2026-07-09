@@ -10,6 +10,7 @@ import java.time.ZoneOffset
 import java.util.UUID
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Profile
+import org.springframework.core.env.Environment
 import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -22,7 +23,16 @@ internal data class DemoSeedLocalResult(
   val changedRows: Int,
   val balanceImportLineCount: Int,
   val manualMappingCount: Int,
-  val auditEventId: UUID?
+  val auditEventId: UUID?,
+  val variantResults: List<DemoSeedLocalVariantResult> = emptyList()
+)
+
+internal data class DemoSeedLocalVariantResult(
+  val variant: String,
+  val closingFolderId: UUID,
+  val balanceImportId: UUID,
+  val balanceImportLineCount: Int,
+  val manualMappingCount: Int
 )
 
 @Service
@@ -30,28 +40,52 @@ internal data class DemoSeedLocalResult(
 @ConditionalOnProperty(name = [DEMO_SEED_ENABLED_PROPERTY], havingValue = "true")
 internal class DemoSeedLocalService(
   private val jdbcClient: JdbcClient,
-  private val auditTrail: AuditTrail
+  private val auditTrail: AuditTrail,
+  private val environment: Environment
 ) {
   @Transactional
   fun seed(): DemoSeedLocalResult {
+    val requestedVariant = DemoSeedLocalVariant.fromPropertyValue(environment.getProperty(DEMO_SEED_VARIANT_PROPERTY))
+    val primaryFolder = DemoSeedLocalDataset.primaryFolder
     val now = OffsetDateTime.now(ZoneOffset.UTC)
     var changedRows = 0
 
     val tenantId = upsertTenant(now).also { changedRows += it.changedRows }.id
     val userId = upsertAppUser(now).also { changedRows += it.changedRows }.id
     changedRows += upsertTenantMembership(tenantId, userId, now)
-    changedRows += upsertClosingFolder(tenantId, now)
-    changedRows += upsertBalanceImport(tenantId, userId, now)
-    val balanceImportId = findDemoBalanceImportId(tenantId)
-    DemoSeedLocalDataset.balanceLines.forEach { line ->
+    changedRows += upsertClosingFolder(tenantId, primaryFolder, now)
+    changedRows += upsertBalanceImport(tenantId, userId, primaryFolder, now)
+    val balanceImportId = findDemoBalanceImportId(tenantId, primaryFolder)
+    primaryFolder.balanceLines.forEach { line ->
       changedRows += upsertBalanceImportLine(tenantId, balanceImportId, line)
     }
-    DemoSeedLocalDataset.manualMappings.forEach { mapping ->
-      changedRows += upsertManualMapping(tenantId, userId, mapping, now)
+    primaryFolder.manualMappings.forEach { mapping ->
+      changedRows += upsertManualMapping(tenantId, userId, primaryFolder, mapping, now)
+    }
+
+    val variantResults = mutableListOf<DemoSeedLocalVariantResult>()
+    if (requestedVariant != null) {
+      val variantFolder = requestedVariant.folderDataset
+      changedRows += upsertClosingFolder(tenantId, variantFolder, now)
+      changedRows += upsertBalanceImport(tenantId, userId, variantFolder, now)
+      val variantBalanceImportId = findDemoBalanceImportId(tenantId, variantFolder)
+      variantFolder.balanceLines.forEach { line ->
+        changedRows += upsertBalanceImportLine(tenantId, variantBalanceImportId, line)
+      }
+      variantFolder.manualMappings.forEach { mapping ->
+        changedRows += upsertManualMapping(tenantId, userId, variantFolder, mapping, now)
+      }
+      variantResults += DemoSeedLocalVariantResult(
+        variant = requestedVariant.propertyValue,
+        closingFolderId = variantFolder.closingFolderId,
+        balanceImportId = variantBalanceImportId,
+        balanceImportLineCount = variantFolder.balanceLines.size,
+        manualMappingCount = variantFolder.manualMappings.size
+      )
     }
 
     val auditEventId = if (changedRows > 0) {
-      appendSeedAudit(tenantId, userId, balanceImportId, changedRows)
+      appendSeedAudit(tenantId, userId, balanceImportId, changedRows, variantResults)
     } else {
       null
     }
@@ -59,12 +93,13 @@ internal class DemoSeedLocalService(
     return DemoSeedLocalResult(
       tenantId = tenantId,
       userId = userId,
-      closingFolderId = DemoSeedLocalDataset.closingFolderId,
+      closingFolderId = primaryFolder.closingFolderId,
       balanceImportId = balanceImportId,
       changedRows = changedRows,
-      balanceImportLineCount = DemoSeedLocalDataset.balanceLines.size,
-      manualMappingCount = DemoSeedLocalDataset.manualMappings.size,
-      auditEventId = auditEventId
+      balanceImportLineCount = primaryFolder.balanceLines.size,
+      manualMappingCount = primaryFolder.manualMappings.size,
+      auditEventId = auditEventId,
+      variantResults = variantResults
     )
   }
 
@@ -184,6 +219,7 @@ internal class DemoSeedLocalService(
 
   private fun upsertClosingFolder(
     tenantId: UUID,
+    folder: DemoSeedLocalFolderDataset,
     now: OffsetDateTime
   ): Int =
     jdbcClient.sql(
@@ -233,18 +269,19 @@ internal class DemoSeedLocalService(
         or closing_folder.archived_by_user_id is not null
       """.trimIndent()
     )
-      .param("id", DemoSeedLocalDataset.closingFolderId)
+      .param("id", folder.closingFolderId)
       .param("tenantId", tenantId)
-      .param("name", DemoSeedLocalDataset.closingFolderName)
-      .param("periodStartOn", DemoSeedLocalDataset.periodStartOn)
-      .param("periodEndOn", DemoSeedLocalDataset.periodEndOn)
-      .param("externalRef", DemoSeedLocalDataset.closingFolderExternalRef)
+      .param("name", folder.closingFolderName)
+      .param("periodStartOn", folder.periodStartOn)
+      .param("periodEndOn", folder.periodEndOn)
+      .param("externalRef", folder.closingFolderExternalRef)
       .param("now", now)
       .update()
 
   private fun upsertBalanceImport(
     tenantId: UUID,
     userId: UUID,
+    folder: DemoSeedLocalFolderDataset,
     now: OffsetDateTime
   ): Int =
     jdbcClient.sql(
@@ -286,16 +323,16 @@ internal class DemoSeedLocalService(
         or balance_import.total_credit is distinct from excluded.total_credit
       """.trimIndent()
     )
-      .param("id", DemoSeedLocalDataset.balanceImportId)
+      .param("id", folder.balanceImportId)
       .param("tenantId", tenantId)
-      .param("closingFolderId", DemoSeedLocalDataset.closingFolderId)
-      .param("version", DemoSeedLocalDataset.balanceImportVersion)
-      .param("sourceFileName", DemoSeedLocalDataset.sourceFileName)
+      .param("closingFolderId", folder.closingFolderId)
+      .param("version", folder.balanceImportVersion)
+      .param("sourceFileName", folder.sourceFileName)
       .param("now", now)
       .param("userId", userId)
-      .param("rowCount", DemoSeedLocalDataset.balanceLines.size)
-      .param("totalDebit", DemoSeedLocalDataset.totalDebit)
-      .param("totalCredit", DemoSeedLocalDataset.totalCredit)
+      .param("rowCount", folder.balanceLines.size)
+      .param("totalDebit", folder.totalDebit)
+      .param("totalCredit", folder.totalCredit)
       .update()
 
   private fun upsertBalanceImportLine(
@@ -348,6 +385,7 @@ internal class DemoSeedLocalService(
   private fun upsertManualMapping(
     tenantId: UUID,
     userId: UUID,
+    folder: DemoSeedLocalFolderDataset,
     mapping: DemoManualMapping,
     now: OffsetDateTime
   ): Int =
@@ -384,14 +422,17 @@ internal class DemoSeedLocalService(
     )
       .param("id", mapping.id)
       .param("tenantId", tenantId)
-      .param("closingFolderId", DemoSeedLocalDataset.closingFolderId)
+      .param("closingFolderId", folder.closingFolderId)
       .param("accountCode", mapping.accountCode)
       .param("targetCode", mapping.targetCode)
       .param("now", now)
       .param("userId", userId)
       .update()
 
-  private fun findDemoBalanceImportId(tenantId: UUID): UUID =
+  private fun findDemoBalanceImportId(
+    tenantId: UUID,
+    folder: DemoSeedLocalFolderDataset
+  ): UUID =
     jdbcClient.sql(
       """
       select id
@@ -402,8 +443,8 @@ internal class DemoSeedLocalService(
       """.trimIndent()
     )
       .param("tenantId", tenantId)
-      .param("closingFolderId", DemoSeedLocalDataset.closingFolderId)
-      .param("version", DemoSeedLocalDataset.balanceImportVersion)
+      .param("closingFolderId", folder.closingFolderId)
+      .param("version", folder.balanceImportVersion)
       .query(UUID::class.java)
       .single()
 
@@ -421,7 +462,8 @@ internal class DemoSeedLocalService(
     tenantId: UUID,
     userId: UUID,
     balanceImportId: UUID,
-    changedRows: Int
+    changedRows: Int,
+    variantResults: List<DemoSeedLocalVariantResult>
   ): UUID =
     auditTrail.append(
       AppendAuditEventCommand(
@@ -444,9 +486,23 @@ internal class DemoSeedLocalService(
           "changedRows" to changedRows,
           "balanceImportLineCount" to DemoSeedLocalDataset.balanceLines.size,
           "manualMappingCount" to DemoSeedLocalDataset.manualMappings.size
-        )
+        ) + variantAuditMetadata(variantResults)
       )
     )
+
+  private fun variantAuditMetadata(variantResults: List<DemoSeedLocalVariantResult>): Map<String, Any> =
+    if (variantResults.isEmpty()) {
+      emptyMap()
+    } else {
+      val variant = variantResults.single()
+      mapOf(
+        "seedVariant" to variant.variant,
+        "variantClosingFolderId" to variant.closingFolderId.toString(),
+        "variantBalanceImportId" to variant.balanceImportId.toString(),
+        "variantBalanceImportLineCount" to variant.balanceImportLineCount,
+        "variantManualMappingCount" to variant.manualMappingCount
+      )
+    }
 
   private data class UpsertedId(
     val id: UUID,
@@ -469,6 +525,44 @@ internal data class DemoManualMapping(
   val targetCode: String
 )
 
+internal data class DemoSeedLocalFolderDataset(
+  val closingFolderId: UUID,
+  val closingFolderName: String,
+  val closingFolderExternalRef: String,
+  val periodStartOn: LocalDate,
+  val periodEndOn: LocalDate,
+  val balanceImportId: UUID,
+  val balanceImportVersion: Int,
+  val sourceFileName: String,
+  val balanceLines: List<DemoBalanceLine>,
+  val manualMappings: List<DemoManualMapping>
+) {
+  val totalDebit: BigDecimal = balanceLines.fold(BigDecimal.ZERO) { total, line -> total + line.debit }
+  val totalCredit: BigDecimal = balanceLines.fold(BigDecimal.ZERO) { total, line -> total + line.credit }
+}
+
+internal enum class DemoSeedLocalVariant(
+  val propertyValue: String,
+  val folderDataset: DemoSeedLocalFolderDataset
+) {
+  MIXED_V2_042A2A5D(
+    propertyValue = DEMO_SEED_VARIANT_042A2A5D_MIXED_V2,
+    folderDataset = DemoSeedLocalDataset.variant042a2a5dMixedV2Folder
+  );
+
+  companion object {
+    fun fromPropertyValue(rawValue: String?): DemoSeedLocalVariant? {
+      val normalized = rawValue?.trim().orEmpty()
+      if (normalized.isBlank()) return null
+
+      return values().firstOrNull { it.propertyValue == normalized }
+        ?: throw IllegalArgumentException(
+          "$DEMO_SEED_VARIANT_PROPERTY must be one of ${values().map { it.propertyValue }}."
+        )
+    }
+  }
+}
+
 internal object DemoSeedLocalDataset {
   val tenantId: UUID = UUID.fromString("036a0000-0000-4000-8000-000000000001")
   const val tenantSlug: String = "ritomer-demo-036a"
@@ -482,100 +576,198 @@ internal object DemoSeedLocalDataset {
   val membershipId: UUID = UUID.fromString("036a0000-0000-4000-8000-000000000003")
   const val membershipRole: String = "ACCOUNTANT"
 
-  val closingFolderId: UUID = UUID.fromString("036a0000-0000-4000-8000-000000000004")
-  const val closingFolderName: String = "Demo Closing FY2025 (synthetic)"
-  const val closingFolderExternalRef: String = "DEMO-036A-FY2025"
-  val periodStartOn: LocalDate = LocalDate.parse("2025-01-01")
-  val periodEndOn: LocalDate = LocalDate.parse("2025-12-31")
+  private val periodStart = LocalDate.parse("2025-01-01")
+  private val periodEnd = LocalDate.parse("2025-12-31")
+  private const val importVersion: Int = 1
+  private const val syntheticSourceFileName: String = "demo-synthetic-balance.csv"
 
-  val balanceImportId: UUID = UUID.fromString("036a0000-0000-4000-8000-000000000005")
-  const val balanceImportVersion: Int = 1
-  const val sourceFileName: String = "demo-synthetic-balance.csv"
-
-  val balanceLines: List<DemoBalanceLine> = listOf(
-    DemoBalanceLine(
-      id = UUID.fromString("036a0000-0000-4000-8000-000000000101"),
-      lineNo = 1,
-      accountCode = "1000",
-      accountLabel = "Synthetic cash account",
-      debit = BigDecimal("100000.00"),
-      credit = BigDecimal("0.00")
+  val primaryFolder: DemoSeedLocalFolderDataset = DemoSeedLocalFolderDataset(
+    closingFolderId = UUID.fromString("036a0000-0000-4000-8000-000000000004"),
+    closingFolderName = "Demo Closing FY2025 (synthetic)",
+    closingFolderExternalRef = "DEMO-036A-FY2025",
+    periodStartOn = periodStart,
+    periodEndOn = periodEnd,
+    balanceImportId = UUID.fromString("036a0000-0000-4000-8000-000000000005"),
+    balanceImportVersion = importVersion,
+    sourceFileName = syntheticSourceFileName,
+    balanceLines = listOf(
+      DemoBalanceLine(
+        id = UUID.fromString("036a0000-0000-4000-8000-000000000101"),
+        lineNo = 1,
+        accountCode = "1000",
+        accountLabel = "Synthetic cash account",
+        debit = BigDecimal("100000.00"),
+        credit = BigDecimal("0.00")
+      ),
+      DemoBalanceLine(
+        id = UUID.fromString("036a0000-0000-4000-8000-000000000102"),
+        lineNo = 2,
+        accountCode = "1100",
+        accountLabel = "Synthetic trade receivables",
+        debit = BigDecimal("25000.00"),
+        credit = BigDecimal("0.00")
+      ),
+      DemoBalanceLine(
+        id = UUID.fromString("036a0000-0000-4000-8000-000000000103"),
+        lineNo = 3,
+        accountCode = "2000",
+        accountLabel = "Synthetic trade payables",
+        debit = BigDecimal("0.00"),
+        credit = BigDecimal("17000.00")
+      ),
+      DemoBalanceLine(
+        id = UUID.fromString("036a0000-0000-4000-8000-000000000104"),
+        lineNo = 4,
+        accountCode = "2800",
+        accountLabel = "Synthetic retained earnings",
+        debit = BigDecimal("0.00"),
+        credit = BigDecimal("30000.00")
+      ),
+      DemoBalanceLine(
+        id = UUID.fromString("036a0000-0000-4000-8000-000000000105"),
+        lineNo = 5,
+        accountCode = "3000",
+        accountLabel = "Synthetic operating revenue",
+        debit = BigDecimal("0.00"),
+        credit = BigDecimal("90000.00")
+      ),
+      DemoBalanceLine(
+        id = UUID.fromString("036a0000-0000-4000-8000-000000000106"),
+        lineNo = 6,
+        accountCode = "4000",
+        accountLabel = "Synthetic operating expenses",
+        debit = BigDecimal("12000.00"),
+        credit = BigDecimal("0.00")
+      )
     ),
-    DemoBalanceLine(
-      id = UUID.fromString("036a0000-0000-4000-8000-000000000102"),
-      lineNo = 2,
-      accountCode = "1100",
-      accountLabel = "Synthetic trade receivables",
-      debit = BigDecimal("25000.00"),
-      credit = BigDecimal("0.00")
-    ),
-    DemoBalanceLine(
-      id = UUID.fromString("036a0000-0000-4000-8000-000000000103"),
-      lineNo = 3,
-      accountCode = "2000",
-      accountLabel = "Synthetic trade payables",
-      debit = BigDecimal("0.00"),
-      credit = BigDecimal("17000.00")
-    ),
-    DemoBalanceLine(
-      id = UUID.fromString("036a0000-0000-4000-8000-000000000104"),
-      lineNo = 4,
-      accountCode = "2800",
-      accountLabel = "Synthetic retained earnings",
-      debit = BigDecimal("0.00"),
-      credit = BigDecimal("30000.00")
-    ),
-    DemoBalanceLine(
-      id = UUID.fromString("036a0000-0000-4000-8000-000000000105"),
-      lineNo = 5,
-      accountCode = "3000",
-      accountLabel = "Synthetic operating revenue",
-      debit = BigDecimal("0.00"),
-      credit = BigDecimal("90000.00")
-    ),
-    DemoBalanceLine(
-      id = UUID.fromString("036a0000-0000-4000-8000-000000000106"),
-      lineNo = 6,
-      accountCode = "4000",
-      accountLabel = "Synthetic operating expenses",
-      debit = BigDecimal("12000.00"),
-      credit = BigDecimal("0.00")
+    manualMappings = listOf(
+      DemoManualMapping(
+        id = UUID.fromString("036a0000-0000-4000-8000-000000000201"),
+        accountCode = "1000",
+        targetCode = "BS.ASSET.CASH_AND_EQUIVALENTS"
+      ),
+      DemoManualMapping(
+        id = UUID.fromString("036a0000-0000-4000-8000-000000000202"),
+        accountCode = "1100",
+        targetCode = "BS.ASSET.TRADE_RECEIVABLES"
+      ),
+      DemoManualMapping(
+        id = UUID.fromString("036a0000-0000-4000-8000-000000000203"),
+        accountCode = "2000",
+        targetCode = "BS.LIABILITY.TRADE_PAYABLES"
+      ),
+      DemoManualMapping(
+        id = UUID.fromString("036a0000-0000-4000-8000-000000000204"),
+        accountCode = "2800",
+        targetCode = "BS.EQUITY.RETAINED_EARNINGS"
+      ),
+      DemoManualMapping(
+        id = UUID.fromString("036a0000-0000-4000-8000-000000000205"),
+        accountCode = "3000",
+        targetCode = "PL.REVENUE.OPERATING_REVENUE"
+      ),
+      DemoManualMapping(
+        id = UUID.fromString("036a0000-0000-4000-8000-000000000206"),
+        accountCode = "4000",
+        targetCode = "PL.EXPENSE.OTHER_OPERATING_EXPENSES"
+      )
     )
   )
 
-  val totalDebit: BigDecimal = balanceLines.fold(BigDecimal.ZERO) { total, line -> total + line.debit }
-  val totalCredit: BigDecimal = balanceLines.fold(BigDecimal.ZERO) { total, line -> total + line.credit }
-
-  val manualMappings: List<DemoManualMapping> = listOf(
-    DemoManualMapping(
-      id = UUID.fromString("036a0000-0000-4000-8000-000000000201"),
-      accountCode = "1000",
-      targetCode = "BS.ASSET.CASH_AND_EQUIVALENTS"
+  val variant042a2a5dMixedV2Folder: DemoSeedLocalFolderDataset = DemoSeedLocalFolderDataset(
+    closingFolderId = UUID.fromString("042a2a5d-0000-4000-8000-000000000004"),
+    closingFolderName = "Demo Closing FY2025 042a2a5d mixed v2 (synthetic)",
+    closingFolderExternalRef = "DEMO-042A2A5D-MIXED-V2",
+    periodStartOn = periodStart,
+    periodEndOn = periodEnd,
+    balanceImportId = UUID.fromString("042a2a5d-0000-4000-8000-000000000005"),
+    balanceImportVersion = importVersion,
+    sourceFileName = syntheticSourceFileName,
+    balanceLines = listOf(
+      DemoBalanceLine(
+        id = UUID.fromString("042a2a5d-0000-4000-8000-000000000101"),
+        lineNo = 1,
+        accountCode = "1000",
+        accountLabel = "Synthetic cash account",
+        debit = BigDecimal("100000.00"),
+        credit = BigDecimal("0.00")
+      ),
+      DemoBalanceLine(
+        id = UUID.fromString("042a2a5d-0000-4000-8000-000000000102"),
+        lineNo = 2,
+        accountCode = "1100",
+        accountLabel = "Synthetic trade receivables",
+        debit = BigDecimal("25000.00"),
+        credit = BigDecimal("0.00")
+      ),
+      DemoBalanceLine(
+        id = UUID.fromString("042a2a5d-0000-4000-8000-000000000103"),
+        lineNo = 3,
+        accountCode = "2000",
+        accountLabel = "Synthetic trade payables",
+        debit = BigDecimal("0.00"),
+        credit = BigDecimal("17000.00")
+      ),
+      DemoBalanceLine(
+        id = UUID.fromString("042a2a5d-0000-4000-8000-000000000104"),
+        lineNo = 4,
+        accountCode = "2800",
+        accountLabel = "Synthetic retained earnings",
+        debit = BigDecimal("0.00"),
+        credit = BigDecimal("30000.00")
+      ),
+      DemoBalanceLine(
+        id = UUID.fromString("042a2a5d-0000-4000-8000-000000000105"),
+        lineNo = 5,
+        accountCode = "3000",
+        accountLabel = "Synthetic operating revenue",
+        debit = BigDecimal("0.00"),
+        credit = BigDecimal("90000.00")
+      ),
+      DemoBalanceLine(
+        id = UUID.fromString("042a2a5d-0000-4000-8000-000000000106"),
+        lineNo = 6,
+        accountCode = "4000",
+        accountLabel = "Synthetic operating expenses",
+        debit = BigDecimal("12000.00"),
+        credit = BigDecimal("0.00")
+      )
     ),
-    DemoManualMapping(
-      id = UUID.fromString("036a0000-0000-4000-8000-000000000202"),
-      accountCode = "1100",
-      targetCode = "BS.ASSET.TRADE_RECEIVABLES"
-    ),
-    DemoManualMapping(
-      id = UUID.fromString("036a0000-0000-4000-8000-000000000203"),
-      accountCode = "2000",
-      targetCode = "BS.LIABILITY.TRADE_PAYABLES"
-    ),
-    DemoManualMapping(
-      id = UUID.fromString("036a0000-0000-4000-8000-000000000204"),
-      accountCode = "2800",
-      targetCode = "BS.EQUITY.RETAINED_EARNINGS"
-    ),
-    DemoManualMapping(
-      id = UUID.fromString("036a0000-0000-4000-8000-000000000205"),
-      accountCode = "3000",
-      targetCode = "PL.REVENUE.OPERATING_REVENUE"
-    ),
-    DemoManualMapping(
-      id = UUID.fromString("036a0000-0000-4000-8000-000000000206"),
-      accountCode = "4000",
-      targetCode = "PL.EXPENSE.OTHER_OPERATING_EXPENSES"
+    manualMappings = listOf(
+      DemoManualMapping(
+        id = UUID.fromString("042a2a5d-0000-4000-8000-000000000201"),
+        accountCode = "1000",
+        targetCode = "BS.ASSET.CASH_AND_EQUIVALENTS"
+      ),
+      DemoManualMapping(
+        id = UUID.fromString("042a2a5d-0000-4000-8000-000000000202"),
+        accountCode = "1100",
+        targetCode = "BS.ASSET.TRADE_RECEIVABLES"
+      ),
+      DemoManualMapping(
+        id = UUID.fromString("042a2a5d-0000-4000-8000-000000000203"),
+        accountCode = "2000",
+        targetCode = "BS.LIABILITY.TRADE_PAYABLES"
+      ),
+      DemoManualMapping(
+        id = UUID.fromString("042a2a5d-0000-4000-8000-000000000204"),
+        accountCode = "2800",
+        targetCode = "BS.EQUITY.RETAINED_EARNINGS"
+      )
     )
   )
+
+  val closingFolderId: UUID = primaryFolder.closingFolderId
+  val closingFolderName: String = primaryFolder.closingFolderName
+  val closingFolderExternalRef: String = primaryFolder.closingFolderExternalRef
+  val periodStartOn: LocalDate = primaryFolder.periodStartOn
+  val periodEndOn: LocalDate = primaryFolder.periodEndOn
+
+  val balanceImportId: UUID = primaryFolder.balanceImportId
+  val balanceImportVersion: Int = primaryFolder.balanceImportVersion
+  val sourceFileName: String = primaryFolder.sourceFileName
+  val balanceLines: List<DemoBalanceLine> = primaryFolder.balanceLines
+  val totalDebit: BigDecimal = primaryFolder.totalDebit
+  val totalCredit: BigDecimal = primaryFolder.totalCredit
+  val manualMappings: List<DemoManualMapping> = primaryFolder.manualMappings
 }

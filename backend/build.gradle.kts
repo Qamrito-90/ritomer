@@ -132,4 +132,9 @@ tasks.register<JavaExec>("demoSeedLocal") {
   if (demoSeedEnabled.isPresent) {
     args("--ritomer.demo.seed.enabled=${demoSeedEnabled.get()}")
   }
+
+  val demoSeedVariant = providers.gradleProperty("ritomerDemoSeedVariant")
+  if (demoSeedVariant.isPresent) {
+    args("--ritomer.demo.seed.variant=${demoSeedVariant.get()}")
+  }
 }

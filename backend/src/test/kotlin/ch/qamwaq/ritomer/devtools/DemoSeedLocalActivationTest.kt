@@ -11,6 +11,7 @@ class DemoSeedLocalActivationTest {
     val activation = activation("local")
 
     assertThat(activation.enabled).isFalse()
+    assertThat(activation.seedVariant).isNull()
   }
 
   @Test
@@ -43,6 +44,35 @@ class DemoSeedLocalActivationTest {
   @Test
   fun `seed accepts explicit activation with spring datasource localhost`() {
     activation("local", enabled = "true", datasourceUrl = "jdbc:postgresql://localhost:5432/ritomer").requireEnabled()
+  }
+
+  @Test
+  fun `seed accepts the explicit mixed v2 variant`() {
+    val activation = activation(
+      "local",
+      enabled = "true",
+      datasourceUrl = "jdbc:postgresql://localhost:5432/ritomer",
+      properties = mapOf(DEMO_SEED_VARIANT_PROPERTY to DEMO_SEED_VARIANT_042A2A5D_MIXED_V2)
+    )
+
+    activation.requireEnabled()
+
+    assertThat(activation.seedVariant).isEqualTo(DemoSeedLocalVariant.MIXED_V2_042A2A5D)
+  }
+
+  @Test
+  fun `seed rejects unsupported variants`() {
+    val activation = activation(
+      "local",
+      enabled = "true",
+      datasourceUrl = "jdbc:postgresql://localhost:5432/ritomer",
+      properties = mapOf(DEMO_SEED_VARIANT_PROPERTY to "unsupported-local-demo")
+    )
+
+    assertThatThrownBy { activation.requireEnabled() }
+      .isInstanceOf(IllegalArgumentException::class.java)
+      .hasMessageContaining(DEMO_SEED_VARIANT_PROPERTY)
+      .hasMessageContaining(DEMO_SEED_VARIANT_042A2A5D_MIXED_V2)
   }
 
   @Test

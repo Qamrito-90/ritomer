@@ -15,6 +15,7 @@ Depuis la racine du repo :
 - `cd backend && ./gradlew dbIntegrationTest`
 - `cd backend && ./gradlew build`
 - `cd backend && ./gradlew demoSeedLocal -PritomerDemoSeedEnabled=true`
+- `cd backend && ./gradlew demoSeedLocal -PritomerDemoSeedEnabled=true -PritomerDemoSeedVariant=042a2a5d-mixed-v2`
 
 ## Seed demo local 036a
 
@@ -32,6 +33,8 @@ Garde-fous :
 - refus des URLs datasource distantes, Cloud SQL directes, prod-like ou non verifiables ;
 - aucun endpoint HTTP de seed ;
 - aucun JWT local, proxy Vite, frontend, OpenAPI, migration DB, GraphQL ou IA runtime.
+
+La variante locale `042a2a5d-mixed-v2` est separee et opt-in. Sans `-PritomerDemoSeedVariant=042a2a5d-mixed-v2`, la commande seed uniquement le scenario principal 036a.
 
 PowerShell :
 
@@ -59,6 +62,24 @@ try {
 }
 ```
 
+PowerShell pour creer aussi la variante locale mixed v2 :
+
+```powershell
+Push-Location backend
+try {
+  $env:SPRING_DATASOURCE_URL='jdbc:postgresql://localhost:5432/ritomer'
+  .\gradlew.bat demoSeedLocal -PritomerDemoSeedEnabled=true -PritomerDemoSeedVariant=042a2a5d-mixed-v2
+} finally {
+  Pop-Location
+}
+```
+
+Effet attendu :
+
+- le dossier principal `036a0000-0000-4000-8000-000000000004` reste complet avec 6 lignes de balance et 6 mappings manuels ;
+- le dossier variante `042a2a5d-0000-4000-8000-000000000004` est cree avec 6 lignes de balance et 4 mappings manuels ;
+- les comptes `3000` et `4000` restent volontairement non mappes dans la variante.
+
 ## Endpoint local suggestions v2 offline 042a2a3
 
 Le endpoint local `GET /api/closing-folders/{closingFolderId}/mappings/suggestions-v2` expose le moteur offline 042a2a3 uniquement pour la demo synthetique locale.
@@ -74,6 +95,7 @@ Garde-fous :
 - aucun `POST`, aucune decision `ACCEPT`, `CORRECT`, `REJECT`, aucun bulk et aucun auto-apply ;
 - aucune ecriture metier, aucun mapping manuel cree ou modifie et aucun audit de decision emis par ce `GET` ;
 - allowlist backend immutable limitee au tenant `036a0000-0000-4000-8000-000000000001`, au dossier `036a0000-0000-4000-8000-000000000004`, a l'import version `1` et a la source `demo-synthetic-balance.csv`.
+- allowlist locale et immutable etendue uniquement au dossier variante `042a2a5d-0000-4000-8000-000000000004`, sous le meme tenant, la meme version d'import `1` et la meme source `demo-synthetic-balance.csv`.
 
 PowerShell pour demarrer le backend local avec le endpoint v2 offline :
 
@@ -110,6 +132,7 @@ Resultats attendus :
 - demo allowlistee sans import eligible, la reponse est un `PRECONDITION_BLOCK` request-scope ;
 - compte deja affecte, la reponse est un `PRECONDITION_BLOCK` account-scope ;
 - compte eligible, la reponse contient une `SUGGESTION`, une `ABSTENTION` ou une degradation technique v2 explicite ;
+- sur la variante `042a2a5d-mixed-v2`, les counts attendus sont `SUGGESTION=1`, `ABSTENTION=1`, `PRECONDITION_BLOCK=4`, `POLICY_BLOCK=0` et `TECHNICAL_DEGRADATION=0` ;
 - aucun compte n'est ignore silencieusement.
 
 PowerShell pour un démarrage local complet :
