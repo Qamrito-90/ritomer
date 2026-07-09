@@ -53,6 +53,7 @@ export type ManualMappingRefreshWarnings = {
 };
 
 type MappingSuggestionV2EvidenceCode = "ACCOUNT_LABEL" | "TARGET_TAXONOMY";
+type MappingSuggestionV2Outcome = MappingSuggestionV2["outcome"];
 
 const stateLabels: Record<MappingSuggestionsState, string> = {
   DISABLED:
@@ -78,6 +79,13 @@ const mappingSuggestionsV2SimulationBanner = "Simulation locale — aucune IA ex
 const mappingSuggestionsV2UnavailableMessage =
   "Simulation locale indisponible. L’affectation manuelle reste disponible.";
 const manualMappingTableHref = "#manual-mapping-table-title";
+const mappingSuggestionV2OutcomeOrder = [
+  "SUGGESTION",
+  "ABSTENTION",
+  "PRECONDITION_BLOCK",
+  "POLICY_BLOCK",
+  "TECHNICAL_DEGRADATION"
+] as const satisfies readonly MappingSuggestionV2Outcome[];
 
 type DecisionReviewState =
   | { kind: "idle" }
@@ -382,7 +390,8 @@ function AiMappingSuggestionsV2Panel({
             {mappingSuggestionsV2SimulationBanner}
           </div>
           <p className="text-sm text-muted-foreground">
-            Les resultats sont en lecture seule. Le mapping manuel reste la reference.
+            Simulation locale non autoritative. Pas un jeu de reference valide; le mapping manuel
+            reste l'autorite metier.
           </p>
         </div>
 
@@ -437,12 +446,13 @@ function MappingSuggestionsV2ReadModelView({
   );
   const globalItems = readModel.items.filter(isMappingSuggestionV2GlobalItem);
   const accountItems = readModel.items.filter(isMappingSuggestionV2AccountItem);
+  const outcomeCounts = countMappingSuggestionV2Outcomes(readModel.items);
 
   return (
     <div className="grid gap-4">
-      <div className="rounded-lg border bg-background/80 p-4">
+      <div className="grid gap-3 rounded-lg border bg-background/80 p-4">
         <dl className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <MetricItem label="resultats locaux" value={formatSuggestionCount(readModel.items.length)} />
+          <MetricItem label="resultats locaux" value={formatLocalResultCount(readModel.items.length)} />
           <MetricItem
             label="import courant"
             value={readModel.latestImportVersion === undefined ? "aucun" : String(readModel.latestImportVersion)}
@@ -450,6 +460,24 @@ function MappingSuggestionsV2ReadModelView({
           <MetricItem label="autorite metier" value="mapping manuel" />
           <MetricItem label="decisions" value="aucune action ici" />
         </dl>
+        <div aria-label="resume outcomes v2" className="grid gap-3">
+          <div className="grid gap-1">
+            <p className="text-sm font-semibold text-foreground">Resume par outcome v2</p>
+            <p className="text-sm text-muted-foreground">
+              Comptage local du read-model. Il ne certifie rien et ne remplace pas l'affectation
+              manuelle.
+            </p>
+          </div>
+          <dl className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            {mappingSuggestionV2OutcomeOrder.map((outcome) => (
+              <MetricItem
+                key={outcome}
+                label={outcome}
+                value={String(outcomeCounts[outcome])}
+              />
+            ))}
+          </dl>
+        </div>
       </div>
 
       {globalItems.length > 0 ? (
@@ -501,6 +529,13 @@ function MappingSuggestionsV2GlobalMessage({
         <p className="text-sm font-semibold text-foreground">
           {isPolicyBlock ? "Demande non eligible" : "Simulation locale indisponible"}
         </p>
+        <dl className="grid min-w-0 gap-3 md:grid-cols-2">
+          <DetailItem label="outcome v2" value={item.outcome} />
+          <DetailItem
+            label="interpretation"
+            value={formatMappingSuggestionV2OutcomeExplanation(item.outcome)}
+          />
+        </dl>
         <p className="text-sm text-muted-foreground">
           {formatMappingSuggestionV2GlobalMessage(item)}
         </p>
@@ -526,6 +561,7 @@ function MappingSuggestionsV2AccountCard({
           accountCode={item.accountCode}
           accountLabel={item.accountLabel}
           message="Rubrique cible indisponible localement. L’affectation manuelle reste disponible."
+          outcome={item.outcome}
           title="Simulation locale indisponible"
         />
       );
@@ -538,13 +574,18 @@ function MappingSuggestionsV2AccountCard({
       >
         <div className="grid gap-3">
           <p className="text-sm font-semibold text-foreground">Proposition à vérifier</p>
-          <dl className="grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <dl className="grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <DetailItem label="outcome v2" value={item.outcome} />
             <DetailItem label="compte" value={`${item.accountCode} - ${item.accountLabel}`} />
             <DetailItem label="rubrique cible" value={target.label} />
-            <DetailItem label="revue humaine" value="requise hors simulation" />
+            <DetailItem
+              label="interpretation"
+              value={formatMappingSuggestionV2OutcomeExplanation(item.outcome)}
+            />
           </dl>
         </div>
         <MappingSuggestionsV2EvidenceList evidenceCodes={item.evidenceCodes} />
+        <ManualMappingLink />
       </article>
     );
   }
@@ -557,7 +598,8 @@ function MappingSuggestionsV2AccountCard({
       >
         <div className="grid gap-3">
           <p className="text-sm font-semibold text-foreground">Aucune proposition</p>
-          <dl className="grid min-w-0 gap-3 md:grid-cols-2">
+          <dl className="grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <DetailItem label="outcome v2" value={item.outcome} />
             <DetailItem label="compte" value={`${item.accountCode} - ${item.accountLabel}`} />
             <DetailItem
               label="motif metier"
@@ -577,6 +619,7 @@ function MappingSuggestionsV2AccountCard({
         accountCode={item.accountCode}
         accountLabel={item.accountLabel}
         message={formatMappingSuggestionV2AccountPrecondition(item.preconditionBlockCode)}
+        outcome={item.outcome}
         title="Affectation manuelle a utiliser"
       />
     );
@@ -587,6 +630,7 @@ function MappingSuggestionsV2AccountCard({
       accountCode={item.accountCode}
       accountLabel={item.accountLabel}
       message={mappingSuggestionsV2UnavailableMessage}
+      outcome={item.outcome}
       title="Simulation locale indisponible"
     />
   );
@@ -596,11 +640,13 @@ function MappingSuggestionsV2AccountIssueCard({
   accountCode,
   accountLabel,
   message,
+  outcome,
   title
 }: {
   accountCode: string;
   accountLabel: string;
   message: string;
+  outcome: MappingSuggestionV2Outcome;
   title: string;
 }) {
   return (
@@ -610,7 +656,8 @@ function MappingSuggestionsV2AccountIssueCard({
     >
       <div className="grid gap-3">
         <p className="text-sm font-semibold text-foreground">{title}</p>
-        <dl className="grid min-w-0 gap-3 md:grid-cols-2">
+        <dl className="grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <DetailItem label="outcome v2" value={outcome} />
           <DetailItem label="compte" value={`${accountCode} - ${accountLabel}`} />
           <DetailItem label="suite possible" value={message} />
         </dl>
@@ -1049,14 +1096,14 @@ function formatMappingSuggestionV2AccountPrecondition(
   >["preconditionBlockCode"]
 ) {
   if (preconditionCode === "ACCOUNT_ALREADY_AFFECTED") {
-    return "Compte deja affecte manuellement. L'affectation manuelle reste disponible.";
+    return "Compte deja affecte manuellement. La simulation ne decide rien; l'affectation manuelle reste l'action metier.";
   }
 
   if (preconditionCode === "ACCOUNT_NOT_IN_LATEST_IMPORT") {
-    return "Compte absent du dernier import. L'affectation manuelle reste disponible.";
+    return "Compte absent du dernier import. La simulation ne decide rien; l'affectation manuelle reste disponible.";
   }
 
-  return "Compte non eligible a la simulation locale. L'affectation manuelle reste disponible.";
+  return "Compte non eligible a la simulation locale. La simulation ne decide rien; l'affectation manuelle reste disponible.";
 }
 
 function formatMappingSuggestionV2Evidence(evidenceCode: MappingSuggestionV2EvidenceCode) {
@@ -1065,6 +1112,42 @@ function formatMappingSuggestionV2Evidence(evidenceCode: MappingSuggestionV2Evid
   }
 
   return "Rubrique cible presente dans les cibles selectionnables.";
+}
+
+function formatMappingSuggestionV2OutcomeExplanation(outcome: MappingSuggestionV2Outcome) {
+  if (outcome === "SUGGESTION") {
+    return "Proposition locale a verifier; la simulation ne decide rien.";
+  }
+
+  if (outcome === "ABSTENTION") {
+    return "Aucune proposition locale exploitable; l'affectation reste manuelle.";
+  }
+
+  if (outcome === "PRECONDITION_BLOCK") {
+    return "Blocage de precondition avant toute proposition; action manuelle requise.";
+  }
+
+  if (outcome === "POLICY_BLOCK") {
+    return "Demande hors cadre de la simulation locale; action manuelle requise.";
+  }
+
+  return "Simulation locale degradee; action manuelle requise.";
+}
+
+function countMappingSuggestionV2Outcomes(items: MappingSuggestionV2[]) {
+  const counts: Record<MappingSuggestionV2Outcome, number> = {
+    SUGGESTION: 0,
+    ABSTENTION: 0,
+    PRECONDITION_BLOCK: 0,
+    POLICY_BLOCK: 0,
+    TECHNICAL_DEGRADATION: 0
+  };
+
+  for (const item of items) {
+    counts[item.outcome] += 1;
+  }
+
+  return counts;
 }
 
 function DetailItem({ label, value }: { label: string; value: string }) {
@@ -1254,6 +1337,18 @@ function formatSuggestionCount(count: number) {
   }
 
   return `${count} suggestions`;
+}
+
+function formatLocalResultCount(count: number) {
+  if (count === 0) {
+    return "aucun";
+  }
+
+  if (count === 1) {
+    return "1 resultat";
+  }
+
+  return `${count} resultats`;
 }
 
 function formatEvidenceType(type: MappingSuggestion["evidence"][number]["type"]) {

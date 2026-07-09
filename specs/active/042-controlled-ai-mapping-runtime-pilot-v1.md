@@ -6,7 +6,7 @@ Active.
 
 ## Mode
 
-SPEC_CREATION avec increment runtime local controle `042a2a5a`.
+SPEC_CREATION avec increment runtime local controle `042a2a5a` et amelioration frontend de simulation locale `042a2a5c`.
 
 Cette spec active cadre le premier pilote IA runtime reel de Ritomer, limite aux suggestions de mapping sur le dossier demo synthetique.
 
@@ -25,6 +25,8 @@ Le pack de double revue aveugle `042a2` transforme les 17 cas candidats en deux 
 `042a2a4` ajoute uniquement le contrat normalise `mapping-suggestion-v2` comme read-model applicatif Ritomer, un transformer offline backend depuis le moteur `042a2a3` et un parser frontend strict. Ce livrable ne cree aucun provider reel, modele reel, prompt runtime actif, endpoint actif, controller, wiring Spring, DB/migration, ecran frontend, auto-apply, bulk apply, secret, `.env`, appel reseau IA, production ou spec `043`.
 
 `042a2a5a` expose ce moteur offline derriere un endpoint backend local v2 strictement read-only et default-off : `GET /api/closing-folders/{closingFolderId}/mappings/suggestions-v2`. Le controller, le service et l'adapter local n'existent qu'en profil `local` avec `ritomer.ai.mapping-suggestions-v2.offline.enabled=true`, restent limites a l'allowlist demo synthetique backend immutable, n'utilisent aucun provider reel, aucun SDK provider, aucun appel reseau IA, aucun secret, aucune valeur `.env`, aucune ecriture DB, aucune decision humaine, aucun audit de decision, aucune UI de decision, aucune bascule v1 et aucune production.
+
+`042a2a5c` ameliore uniquement l'UX/frontend de la simulation locale offline `mapping-suggestions-v2` pour le POC interne. L'interface conserve le bandeau exact `Simulation locale — aucune IA externe active.`, expose une posture visible non autoritative, rappelle que le read-model local n'est pas un jeu de reference valide, affiche les counts par outcome `SUGGESTION`, `ABSTENTION`, `PRECONDITION_BLOCK`, `POLICY_BLOCK` et `TECHNICAL_DEGRADATION`, et garde l'affectation manuelle comme autorite metier. Ce livrable ne cree aucun provider reel, modele reel, prompt runtime actif, endpoint, controller, service, adapter, contrat/OpenAPI, DB/migration, auth, audit, decision v2, auto-apply, bulk apply, bascule v1 automatique, secret, appel reseau IA, production ou spec `043`.
 
 `042b0b` ajoute uniquement des preuves manuelles OpenAI Platform/API au provider-readiness record : projet dedie `ritomer-dev`, billing API, credits et limites de depense, modeles autorises et visibilite du snapshot candidat.
 
@@ -46,7 +48,7 @@ Etat courant du repo pour l'alignement `042b0` / `042b1a` / `042b1b` OpenAI read
 - `mapping-suggestion-v1` reste inchange et v2 ne provoque aucune bascule implicite.
 - Le moteur offline deterministe existe.
 - L'endpoint local synthetic-demo-only `GET /api/closing-folders/{closingFolderId}/mappings/suggestions-v2` existe.
-- Une UI locale de simulation consomme le read-model v2 sans decision, auto-apply, bulk apply ou endpoint provider reel.
+- Une UI locale de simulation consomme le read-model v2 sans decision, auto-apply, bulk apply ou endpoint provider reel ; `042a2a5c` la rend plus lisible pour le POC interne avec posture non autoritative, counts par outcome et lien d'affectation manuelle.
 - Aucun provider reel, appel reseau IA reussi, secret, runtime provider ou SDK provider n'existe.
 - Les preuves manuelles `042b0b` etablissent la visibilite projet de `gpt-5.4-mini-2026-03-17`; les preuves `042b0c` etablissent uniquement des observations security/privacy de preflight OpenAI Platform/API ; `042b1a` etablit uniquement une tentative canary `FAILED_NON_CONCLUSIVE` ; `042b1b` etablit uniquement un retry controle `FAIL_HTTP_400_INVALID_REQUEST_ERROR / STOP_NO_FALLBACK`. Le snapshot candidat reste non executable, le network canary est `FAILED`, le retry restant est `0` et le gate reseau provider separe reste bloque.
 
@@ -67,6 +69,8 @@ Surface moteur offline `042a2a3` : BACKEND_RUNTIME_INTERNE / EVALS.
 Surface contrat normalise `042a2a4` : CONTRACTS / BACKEND_RUNTIME_INTERNE / FRONTEND_CONSUMER.
 
 Surface endpoint local offline `042a2a5a` : BACKEND_RUNTIME_LOCAL / CONTRACTS / DOCS_GIT.
+
+Surface simulation frontend locale `042a2a5c` : FRONTEND / DOCS_GIT.
 
 Surface readiness provider candidat `042b0` : DOCS_GIT / AI_GOVERNANCE / SECURITY_PRIVACY.
 
@@ -458,6 +462,17 @@ Ces artefacts restent `BLIND_REVIEW_INPUT / PENDING_INDEPENDENT_REVIEW / NOT_GOL
 - allowlist backend immutable demo synthetique ;
 - OpenAPI v2 avec le chemin GET local et runbook local-dev ;
 - tests d'activation, gates, provenance, comportements v2, non-ecriture, non-reseau et non-regression v1.
+
+`042a2a5c` ajoute uniquement l'amelioration UX/frontend de la simulation locale offline v2 :
+
+- bandeau exact `Simulation locale — aucune IA externe active.` conserve ;
+- mention visible de simulation locale non autoritative, sans jeu de reference valide et avec affectation manuelle comme autorite metier ;
+- resume par outcome v2 avec counts `SUGGESTION`, `ABSTENTION`, `PRECONDITION_BLOCK`, `POLICY_BLOCK` et `TECHNICAL_DEGRADATION` ;
+- wording metier court derive des codes/read-model existants, sans texte provider libre ;
+- preuves existantes rendues sous forme sobre et scannable ;
+- comptes bloques ou deja affectes expliques comme non decisionnes par la simulation, avec action manuelle explicite ;
+- aucun bouton `ACCEPT`, `CORRECT`, `REJECT`, aucun `POST`, aucun fallback automatique v1, aucun auto-apply, aucun bulk apply ;
+- aucun backend, contrat, OpenAPI, DB/migration, auth, tenant isolation, audit, provider, secret, appel reseau IA, production ou spec `043`.
 
 `042a2` devra encore traiter, dans une ou plusieurs missions separees, les livrables qui ne sont pas clos par `042a1`, `042a2a1`, `042a2a1b`, les artefacts candidats `042a2a2a`, le pack de cas candidats `042a2` ou le pack de double revue aveugle `042a2` :
 
