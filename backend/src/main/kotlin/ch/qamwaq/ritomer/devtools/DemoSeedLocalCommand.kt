@@ -32,13 +32,14 @@ fun main(args: Array<String>) {
 
       val result = seedService.seed()
       logger.info(
-        "Demo seed local completed: tenantId={}, closingFolderId={}, balanceImportId={}, changedRows={}, lineCount={}, mappingCount={}",
+        "Demo seed local completed: tenantId={}, closingFolderId={}, balanceImportId={}, changedRows={}, lineCount={}, mappingCount={}, variantCount={}",
         result.tenantId,
         result.closingFolderId,
         result.balanceImportId,
         result.changedRows,
         result.balanceImportLineCount,
-        result.manualMappingCount
+        result.manualMappingCount,
+        result.variantResults.size
       )
     }
 }

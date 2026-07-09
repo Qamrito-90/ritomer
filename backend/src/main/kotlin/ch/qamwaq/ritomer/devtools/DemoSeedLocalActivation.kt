@@ -3,14 +3,19 @@ package ch.qamwaq.ritomer.devtools
 import org.springframework.core.env.Environment
 
 internal const val DEMO_SEED_ENABLED_PROPERTY = "ritomer.demo.seed.enabled"
+internal const val DEMO_SEED_VARIANT_PROPERTY = "ritomer.demo.seed.variant"
+internal const val DEMO_SEED_VARIANT_042A2A5D_MIXED_V2 = "042a2a5d-mixed-v2"
 
 internal data class DemoSeedLocalActivation(
   val activeProfiles: Set<String>,
   val enabledPropertyValue: String?,
+  val variantPropertyValue: String?,
   val datasourceUrl: String?,
   val blockedRuntimeMarkers: Set<String>
 ) {
   val enabled: Boolean = enabledPropertyValue?.trim()?.equals("true", ignoreCase = true) == true
+  val seedVariant: DemoSeedLocalVariant?
+    get() = DemoSeedLocalVariant.fromPropertyValue(variantPropertyValue)
 
   fun requireEnabled() {
     if (blockedRuntimeMarkers.isNotEmpty()) {
@@ -36,6 +41,7 @@ internal data class DemoSeedLocalActivation(
     if (!enabled) {
       throw IllegalStateException("$DEMO_SEED_ENABLED_PROPERTY must be explicitly set to true.")
     }
+    seedVariant
     if (!isAllowedLocalPostgreSqlDatasource(datasourceUrl)) {
       throw IllegalStateException(
         "Demo seed datasource must be a local PostgreSQL target on localhost, 127.0.0.1 or [::1]."
@@ -77,6 +83,7 @@ internal data class DemoSeedLocalActivation(
         DemoSeedLocalActivation(
           activeProfiles = profiles,
           enabledPropertyValue = environment.getProperty(DEMO_SEED_ENABLED_PROPERTY),
+          variantPropertyValue = environment.getProperty(DEMO_SEED_VARIANT_PROPERTY),
           datasourceUrl = datasourceUrlFrom(environment),
           blockedRuntimeMarkers = blockedRuntimeMarkersFrom(environment)
         )

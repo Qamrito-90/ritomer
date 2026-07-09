@@ -48,7 +48,8 @@ class MappingSuggestionsV2OfflineService(
     val taxonomyVersion = taxonomy.taxonomyVersion
     val taxonomyHash = taxonomy.hash()
 
-    if (!isAllowlisted(access.tenantId, closingFolderId)) {
+    val allowlistedFolder = allowlistedFolder(access.tenantId, closingFolderId)
+    if (allowlistedFolder == null) {
       return readModel(
         closingFolderId = closingFolderId,
         latestImportVersion = null,
@@ -75,7 +76,10 @@ class MappingSuggestionsV2OfflineService(
         )
       )
 
-    if (latestImport.version != ALLOWLISTED_IMPORT_VERSION || latestImport.sourceFileName != ALLOWLISTED_SOURCE_FILE_NAME) {
+    if (
+      latestImport.version != allowlistedFolder.importVersion ||
+      latestImport.sourceFileName != allowlistedFolder.sourceFileName
+    ) {
       return readModel(
         closingFolderId = closingFolderId,
         latestImportVersion = latestImport.version,
@@ -255,8 +259,13 @@ class MappingSuggestionsV2OfflineService(
       else -> OfflineMappingEvalBalanceSignal.MIXED_OR_UNKNOWN.name
     }
 
-  private fun isAllowlisted(tenantId: UUID, closingFolderId: UUID): Boolean =
-    tenantId == ALLOWLISTED_TENANT_ID && closingFolderId == ALLOWLISTED_CLOSING_FOLDER_ID
+  private fun allowlistedFolder(
+    tenantId: UUID,
+    closingFolderId: UUID
+  ): AllowlistedSyntheticDemoFolder? =
+    ALLOWLISTED_SYNTHETIC_DEMO_FOLDERS.firstOrNull {
+      it.tenantId == tenantId && it.closingFolderId == closingFolderId
+    }
 
   private fun requireAnyRole(access: TenantAccessContext, allowedRoles: Set<String>) {
     if (access.effectiveRoles.none { it in allowedRoles }) {
@@ -267,10 +276,23 @@ class MappingSuggestionsV2OfflineService(
   companion object {
     private val READ_ROLES = setOf("ACCOUNTANT", "REVIEWER", "MANAGER", "ADMIN")
 
-    private val ALLOWLISTED_TENANT_ID: UUID = UUID.fromString("036a0000-0000-4000-8000-000000000001")
-    private val ALLOWLISTED_CLOSING_FOLDER_ID: UUID = UUID.fromString("036a0000-0000-4000-8000-000000000004")
-    private const val ALLOWLISTED_IMPORT_VERSION = 1
-    private const val ALLOWLISTED_SOURCE_FILE_NAME = "demo-synthetic-balance.csv"
+    private val DEMO_TENANT_ID: UUID = UUID.fromString("036a0000-0000-4000-8000-000000000001")
+    private const val DEMO_IMPORT_VERSION = 1
+    private const val DEMO_SOURCE_FILE_NAME = "demo-synthetic-balance.csv"
+    private val ALLOWLISTED_SYNTHETIC_DEMO_FOLDERS = setOf(
+      AllowlistedSyntheticDemoFolder(
+        tenantId = DEMO_TENANT_ID,
+        closingFolderId = UUID.fromString("036a0000-0000-4000-8000-000000000004"),
+        importVersion = DEMO_IMPORT_VERSION,
+        sourceFileName = DEMO_SOURCE_FILE_NAME
+      ),
+      AllowlistedSyntheticDemoFolder(
+        tenantId = DEMO_TENANT_ID,
+        closingFolderId = UUID.fromString("042a2a5d-0000-4000-8000-000000000004"),
+        importVersion = DEMO_IMPORT_VERSION,
+        sourceFileName = DEMO_SOURCE_FILE_NAME
+      )
+    )
 
     private val PILOT_ROOT_TARGET_CODES = listOf(
       "BS.ASSET",
@@ -296,3 +318,10 @@ class MappingSuggestionsV2OfflineService(
     )
   }
 }
+
+private data class AllowlistedSyntheticDemoFolder(
+  val tenantId: UUID,
+  val closingFolderId: UUID,
+  val importVersion: Int,
+  val sourceFileName: String
+)

@@ -1,5 +1,8 @@
 package ch.qamwaq.ritomer
 
+import ch.qamwaq.ritomer.devtools.DemoSeedLocalDataset
+import ch.qamwaq.ritomer.devtools.DemoSeedLocalFolderDataset
+import ch.qamwaq.ritomer.devtools.DemoSeedLocalVariant
 import ch.qamwaq.ritomer.closing.domain.ClosingFolder
 import ch.qamwaq.ritomer.closing.domain.ClosingFolderStatus
 import ch.qamwaq.ritomer.identity.domain.TenantRole
@@ -20,6 +23,8 @@ import ch.qamwaq.ritomer.mapping.application.OfflineMappingEvalProviderRequest
 import ch.qamwaq.ritomer.mapping.application.OfflineMappingEvalProviderResponse
 import ch.qamwaq.ritomer.mapping.domain.ManualMapping
 import ch.qamwaq.ritomer.shared.application.ACTIVE_TENANT_HEADER
+import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import java.math.BigDecimal
 import java.nio.file.Files
 import java.nio.file.Path
@@ -332,6 +337,77 @@ class MappingSuggestionsV2ApiTest {
   }
 
   @Test
+  fun `primary 036a demo with six existing mappings remains precondition only`() {
+    seedClosingFolder(tenantId = DEMO_TENANT_ID, id = DEMO_CLOSING_FOLDER_ID)
+    seedMembership("demo-user", DEMO_TENANT_ID, TenantRole.ACCOUNTANT)
+    seedDemoFolderData(DemoSeedLocalDataset.primaryFolder)
+
+    val response = mockMvc.get(v2Path(DEMO_CLOSING_FOLDER_ID)) {
+      header(ACTIVE_TENANT_HEADER, DEMO_TENANT_ID.toString())
+      with(actorJwt("demo-user"))
+    }.andExpect {
+      status { isOk() }
+      jsonPath("$.schemaVersion") { value("mapping-suggestion-v2") }
+      jsonPath("$.latestImportVersion") { value(1) }
+      jsonPath("$.items.length()") { value(6) }
+    }.andReturn().response.contentAsString
+
+    val items = jsonItems(response)
+    assertThat(items).hasSize(6)
+    assertThat(items.map { it.get("outcome").asText() }.toSet()).containsExactly("PRECONDITION_BLOCK")
+    assertThat(items.map { it.get("preconditionBlockCode").asText() }.toSet())
+      .containsExactly("ACCOUNT_ALREADY_AFFECTED")
+    assertThat(items.map { it.get("accountCode").asText() })
+      .containsExactly("1000", "1100", "2000", "2800", "3000", "4000")
+
+    assertThat(recordingProvider.calls).isZero()
+    assertNoWrites(
+      expectedManualMappingAccountCodes = listOf("1000", "1100", "2000", "2800", "3000", "4000")
+    )
+  }
+
+  @Test
+  fun `mixed 042a2a5d demo returns one suggestion one abstention and four preconditions without writes`() {
+    val variant = DemoSeedLocalVariant.MIXED_V2_042A2A5D.folderDataset
+    seedClosingFolder(tenantId = DEMO_TENANT_ID, id = VARIANT_CLOSING_FOLDER_ID)
+    seedMembership("demo-user", DEMO_TENANT_ID, TenantRole.ACCOUNTANT)
+    seedDemoFolderData(variant)
+
+    val response = mockMvc.get(v2Path(VARIANT_CLOSING_FOLDER_ID)) {
+      header(ACTIVE_TENANT_HEADER, DEMO_TENANT_ID.toString())
+      with(actorJwt("demo-user"))
+    }.andExpect {
+      status { isOk() }
+      jsonPath("$.schemaVersion") { value("mapping-suggestion-v2") }
+      jsonPath("$.closingFolderId") { value(VARIANT_CLOSING_FOLDER_ID.toString()) }
+      jsonPath("$.latestImportVersion") { value(1) }
+      jsonPath("$.items.length()") { value(6) }
+    }.andReturn().response.contentAsString
+
+    val items = jsonItems(response)
+    assertThat(items.countOutcome("SUGGESTION")).isEqualTo(1)
+    assertThat(items.countOutcome("ABSTENTION")).isEqualTo(1)
+    assertThat(items.countOutcome("PRECONDITION_BLOCK")).isEqualTo(4)
+    assertThat(items.countOutcome("POLICY_BLOCK")).isZero()
+    assertThat(items.countOutcome("TECHNICAL_DEGRADATION")).isZero()
+
+    val byAccount = items.associateBy { it.get("accountCode").asText() }
+    assertThat(byAccount.getValue("3000").get("outcome").asText()).isEqualTo("SUGGESTION")
+    assertThat(byAccount.getValue("3000").get("targetCode").asText()).isEqualTo("PL.REVENUE.OPERATING_REVENUE")
+    assertThat(byAccount.getValue("3000").get("requiresHumanReview").asBoolean()).isTrue()
+    assertThat(byAccount.getValue("4000").get("outcome").asText()).isEqualTo("ABSTENTION")
+    assertThat(byAccount.getValue("4000").get("abstentionReasonCode").asText()).isEqualTo("INSUFFICIENT_EVIDENCE")
+    assertThat(byAccount.getValue("4000").has("targetCode")).isFalse()
+
+    assertThat(recordingProvider.calls).isEqualTo(2)
+    assertThat(recordingProvider.requests.map { it.account.accountCode }).containsExactly("3000", "4000")
+    assertNoWrites(
+      closingFolderId = VARIANT_CLOSING_FOLDER_ID,
+      expectedManualMappingAccountCodes = listOf("1000", "1100", "2000", "2800")
+    )
+  }
+
+  @Test
   fun `local provider incident degrades to technical degradation without writes`() {
     recordingProvider.fail = true
     seedClosingFolder(tenantId = DEMO_TENANT_ID, id = DEMO_CLOSING_FOLDER_ID)
@@ -458,10 +534,13 @@ class MappingSuggestionsV2ApiTest {
     assertThat(forbiddenMarkers.filter { it in source }).isEmpty()
   }
 
-  private fun assertNoWrites(expectedManualMappingAccountCodes: List<String> = emptyList()) {
+  private fun assertNoWrites(
+    closingFolderId: UUID = DEMO_CLOSING_FOLDER_ID,
+    expectedManualMappingAccountCodes: List<String> = emptyList()
+  ) {
     assertThat(auditTestStore.auditEvents()).isEmpty()
     assertThat(mappingSuggestionDecisionRequestTestStore.records()).isEmpty()
-    assertThat(manualMappingTestStore.mappings(DEMO_TENANT_ID, DEMO_CLOSING_FOLDER_ID).map { it.accountCode })
+    assertThat(manualMappingTestStore.mappings(DEMO_TENANT_ID, closingFolderId).map { it.accountCode })
       .containsExactlyElementsOf(expectedManualMappingAccountCodes)
   }
 
@@ -531,6 +610,34 @@ class MappingSuggestionsV2ApiTest {
         lines = lines
       )
     )
+  }
+
+  private fun seedDemoFolderData(folder: DemoSeedLocalFolderDataset) {
+    seedImportVersion(
+      tenantId = DEMO_TENANT_ID,
+      closingFolderId = folder.closingFolderId,
+      version = folder.balanceImportVersion,
+      sourceFileName = folder.sourceFileName,
+      lines = folder.balanceLines.map {
+        line(
+          lineNo = it.lineNo,
+          accountCode = it.accountCode,
+          accountLabel = it.accountLabel,
+          debit = it.debit.toPlainString(),
+          credit = it.credit.toPlainString()
+        )
+      }
+    )
+    folder.manualMappings.forEach {
+      manualMappingTestStore.save(
+        manualMapping(
+          tenantId = DEMO_TENANT_ID,
+          closingFolderId = folder.closingFolderId,
+          accountCode = it.accountCode,
+          targetCode = it.targetCode
+        )
+      )
+    }
   }
 
   private fun manualMapping(
@@ -728,10 +835,18 @@ class RecordingMappingSuggestionsV2OfflineProvider : OfflineMappingEvalProvider 
 
 private val DEMO_TENANT_ID: UUID = UUID.fromString("036a0000-0000-4000-8000-000000000001")
 private val DEMO_CLOSING_FOLDER_ID: UUID = UUID.fromString("036a0000-0000-4000-8000-000000000004")
+private val VARIANT_CLOSING_FOLDER_ID: UUID = UUID.fromString("042a2a5d-0000-4000-8000-000000000004")
 private const val DEMO_SOURCE_FILE_NAME = "demo-synthetic-balance.csv"
+private val jsonMapper = jacksonObjectMapper()
 
 private fun v2Path(closingFolderId: UUID): String =
   "/api/closing-folders/$closingFolderId/mappings/suggestions-v2"
+
+private fun jsonItems(response: String): List<JsonNode> =
+  jsonMapper.readTree(response).get("items").toList()
+
+private fun List<JsonNode>.countOutcome(outcome: String): Int =
+  count { it.get("outcome").asText() == outcome }
 
 private fun actorJwt(
   subject: String

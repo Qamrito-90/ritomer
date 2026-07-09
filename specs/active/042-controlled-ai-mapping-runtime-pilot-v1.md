@@ -6,7 +6,7 @@ Active.
 
 ## Mode
 
-SPEC_CREATION avec increment runtime local controle `042a2a5a` et amelioration frontend de simulation locale `042a2a5c`.
+SPEC_CREATION avec increment runtime local controle `042a2a5a`, amelioration frontend de simulation locale `042a2a5c` et variante seed locale opt-in `042a2a5d`.
 
 Cette spec active cadre le premier pilote IA runtime reel de Ritomer, limite aux suggestions de mapping sur le dossier demo synthetique.
 
@@ -27,6 +27,8 @@ Le pack de double revue aveugle `042a2` transforme les 17 cas candidats en deux 
 `042a2a5a` expose ce moteur offline derriere un endpoint backend local v2 strictement read-only et default-off : `GET /api/closing-folders/{closingFolderId}/mappings/suggestions-v2`. Le controller, le service et l'adapter local n'existent qu'en profil `local` avec `ritomer.ai.mapping-suggestions-v2.offline.enabled=true`, restent limites a l'allowlist demo synthetique backend immutable, n'utilisent aucun provider reel, aucun SDK provider, aucun appel reseau IA, aucun secret, aucune valeur `.env`, aucune ecriture DB, aucune decision humaine, aucun audit de decision, aucune UI de decision, aucune bascule v1 et aucune production.
 
 `042a2a5c` ameliore uniquement l'UX/frontend de la simulation locale offline `mapping-suggestions-v2` pour le POC interne. L'interface conserve le bandeau exact `Simulation locale — aucune IA externe active.`, expose une posture visible non autoritative, rappelle que le read-model local n'est pas un jeu de reference valide, affiche les counts par outcome `SUGGESTION`, `ABSTENTION`, `PRECONDITION_BLOCK`, `POLICY_BLOCK` et `TECHNICAL_DEGRADATION`, et garde l'affectation manuelle comme autorite metier. Ce livrable ne cree aucun provider reel, modele reel, prompt runtime actif, endpoint, controller, service, adapter, contrat/OpenAPI, DB/migration, auth, audit, decision v2, auto-apply, bulk apply, bascule v1 automatique, secret, appel reseau IA, production ou spec `043`.
+
+`042a2a5d` ajoute uniquement une variante locale opt-in du seed demo pour rendre le scenario `mapping-suggestions-v2` observable sans modifier le seed principal 036a. La commande documentee avec seulement `-PritomerDemoSeedEnabled=true` continue de seeder uniquement le dossier principal `036a0000-0000-4000-8000-000000000004` avec 6 lignes de balance et 6 mappings manuels. La variante n'est creee que si `-PritomerDemoSeedVariant=042a2a5d-mixed-v2` est fourni ; elle utilise le dossier `042a2a5d-0000-4000-8000-000000000004`, la meme source `demo-synthetic-balance.csv`, 6 lignes de balance et seulement 4 mappings manuels (`1000`, `1100`, `2000`, `2800`). Les comptes `3000` et `4000` restent non mappes afin que le moteur offline produise naturellement `SUGGESTION=1`, `ABSTENTION=1`, `PRECONDITION_BLOCK=4`, `POLICY_BLOCK=0` et `TECHNICAL_DEGRADATION=0`, sans provider externe, decision v2, migration, endpoint nouveau, contrat public, auto-apply, bulk apply ou spec `043`.
 
 `042b0b` ajoute uniquement des preuves manuelles OpenAI Platform/API au provider-readiness record : projet dedie `ritomer-dev`, billing API, credits et limites de depense, modeles autorises et visibilite du snapshot candidat.
 
@@ -71,6 +73,8 @@ Surface contrat normalise `042a2a4` : CONTRACTS / BACKEND_RUNTIME_INTERNE / FRON
 Surface endpoint local offline `042a2a5a` : BACKEND_RUNTIME_LOCAL / CONTRACTS / DOCS_GIT.
 
 Surface simulation frontend locale `042a2a5c` : FRONTEND / DOCS_GIT.
+
+Surface variante seed locale `042a2a5d` : BACKEND_RUNTIME_LOCAL / DOCS_GIT.
 
 Surface readiness provider candidat `042b0` : DOCS_GIT / AI_GOVERNANCE / SECURITY_PRIVACY.
 
@@ -191,7 +195,7 @@ Endpoint local offline `042a2a5a` :
 - `GET /api/closing-folders/{closingFolderId}/mappings/suggestions-v2` est ajoute uniquement comme endpoint local read-only, sans `POST`, sans decision, sans accept/correct/reject, sans bulk et sans auto-apply.
 - L'activation exige le profil Spring `local` et `ritomer.ai.mapping-suggestions-v2.offline.enabled=true`; le defaut reste `false` et le controller/service/adapter sont absents hors profil/flag.
 - Les gates d'execution sont : auth existante, resolver tenant existant, existence tenant-scopee du closing folder, allowlist tenant/folder, import/provenance synthetique, preconditions comptes, puis moteur offline.
-- L'allowlist backend immutable est limitee au tenant `036a0000-0000-4000-8000-000000000001`, au dossier `036a0000-0000-4000-8000-000000000004`, a l'import version `1` et a la source `demo-synthetic-balance.csv`.
+- L'allowlist backend immutable est limitee au tenant `036a0000-0000-4000-8000-000000000001`, aux dossiers `036a0000-0000-4000-8000-000000000004` et `042a2a5d-0000-4000-8000-000000000004`, a l'import version `1` et a la source `demo-synthetic-balance.csv`.
 - Le moteur appele est `OfflineMappingEvalEngine042a2` via un port provider-agnostic interne et un adapter local deterministe ; aucun provider reel, SDK provider, appel reseau IA, secret, `.env`, prompt runtime actif ou cout provider n'est introduit.
 - Les reponses restent des items `mapping-suggestion-v2` normalises via `MappingSuggestionV2Transformer`, sans `state`, sans `providerCallCount`, sans payload provider et sans label/payload brut en logs.
 - Les comptes deja mappes exposent `PRECONDITION_BLOCK / ACCOUNT`; les comptes eligibles exposent `SUGGESTION`, `ABSTENTION` ou degradation technique explicite ; aucun compte n'est ignore silencieusement.
@@ -473,6 +477,16 @@ Ces artefacts restent `BLIND_REVIEW_INPUT / PENDING_INDEPENDENT_REVIEW / NOT_GOL
 - comptes bloques ou deja affectes expliques comme non decisionnes par la simulation, avec action manuelle explicite ;
 - aucun bouton `ACCEPT`, `CORRECT`, `REJECT`, aucun `POST`, aucun fallback automatique v1, aucun auto-apply, aucun bulk apply ;
 - aucun backend, contrat, OpenAPI, DB/migration, auth, tenant isolation, audit, provider, secret, appel reseau IA, production ou spec `043`.
+
+`042a2a5d` ajoute uniquement la variante seed locale opt-in :
+
+- le seed principal 036a reste complet et inchange : tenant `036a0000-0000-4000-8000-000000000001`, dossier `036a0000-0000-4000-8000-000000000004`, import version `1`, source `demo-synthetic-balance.csv`, 6 lignes de balance et 6 mappings manuels ;
+- la variante `042a2a5d-mixed-v2` est creee uniquement avec `-PritomerDemoSeedVariant=042a2a5d-mixed-v2` ;
+- le dossier variante est `042a2a5d-0000-4000-8000-000000000004`, import version `1`, source `demo-synthetic-balance.csv`, 6 lignes de balance et 4 mappings manuels ;
+- mappings conserves dans la variante : `1000 -> BS.ASSET.CASH_AND_EQUIVALENTS`, `1100 -> BS.ASSET.TRADE_RECEIVABLES`, `2000 -> BS.LIABILITY.TRADE_PAYABLES`, `2800 -> BS.EQUITY.RETAINED_EARNINGS` ;
+- comptes volontairement non mappes dans la variante : `3000 Synthetic operating revenue` et `4000 Synthetic operating expenses` ;
+- outcome attendu via le moteur offline existant : `items=6`, `SUGGESTION=1`, `ABSTENTION=1`, `PRECONDITION_BLOCK=4`, `POLICY_BLOCK=0`, `TECHNICAL_DEGRADATION=0` ;
+- aucun provider externe, contrat public, DB/migration, endpoint nouveau, decision v2, auto-apply, bulk apply, bascule v1 automatique, production ou spec `043`.
 
 `042a2` devra encore traiter, dans une ou plusieurs missions separees, les livrables qui ne sont pas clos par `042a1`, `042a2a1`, `042a2a1b`, les artefacts candidats `042a2a2a`, le pack de cas candidats `042a2` ou le pack de double revue aveugle `042a2` :
 
