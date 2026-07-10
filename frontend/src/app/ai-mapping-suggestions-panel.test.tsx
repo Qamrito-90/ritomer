@@ -259,9 +259,21 @@ function expectNoProviderJargon(container: HTMLElement) {
   expect(container).not.toHaveTextContent(/no-provider/i);
 }
 
-function expectOutcomeSummaryCount(outcome: string, count: number) {
-  const outcomeSummary = screen.getByLabelText("resume outcomes v2");
-  const matchingLabels = within(outcomeSummary).getAllByText(outcome);
+function expectNoRawV2OutcomeLabels(container: HTMLElement) {
+  for (const rawOutcome of [
+    "SUGGESTION",
+    "ABSTENTION",
+    "PRECONDITION_BLOCK",
+    "POLICY_BLOCK",
+    "TECHNICAL_DEGRADATION"
+  ]) {
+    expect(container).not.toHaveTextContent(rawOutcome);
+  }
+}
+
+function expectOutcomeSummaryCount(label: string, count: number) {
+  const outcomeSummary = screen.getByLabelText("résumé local de la simulation");
+  const matchingLabels = within(outcomeSummary).getAllByText(label);
 
   expect(
     matchingLabels.some((label) => label.parentElement?.textContent?.includes(String(count)))
@@ -343,20 +355,21 @@ describe("AiMappingSuggestionsPanel", () => {
     expect(
       getRequestPaths(fetchMock).some((path) => path.endsWith("/mappings/suggestions"))
     ).toBe(false);
-    expect(screen.getByText("Proposition à vérifier")).toBeInTheDocument();
+    expect(screen.getAllByText("Proposition à vérifier").length).toBeGreaterThan(0);
     expect(screen.getByText("Cash and cash equivalents")).toBeInTheDocument();
     expect(screen.getByText("Preuves metier")).toBeInTheDocument();
-    expect(screen.getByText("Resume par outcome v2")).toBeInTheDocument();
-    expectOutcomeSummaryCount("SUGGESTION", 1);
-    expectOutcomeSummaryCount("ABSTENTION", 0);
-    expectOutcomeSummaryCount("PRECONDITION_BLOCK", 0);
-    expectOutcomeSummaryCount("POLICY_BLOCK", 0);
-    expectOutcomeSummaryCount("TECHNICAL_DEGRADATION", 0);
+    expect(screen.getByText("Résumé local de la simulation")).toBeInTheDocument();
+    expectOutcomeSummaryCount("Propositions à vérifier", 1);
+    expectOutcomeSummaryCount("Sans proposition", 0);
+    expectOutcomeSummaryCount("Affectations manuelles", 0);
+    expectOutcomeSummaryCount("Hors périmètre", 0);
+    expectOutcomeSummaryCount("Indisponibles", 0);
     expect(screen.queryByRole("button", { name: "Accepter" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Corriger" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Rejeter" })).not.toBeInTheDocument();
     expect(container).not.toHaveTextContent(/confidence/i);
     expect(container).not.toHaveTextContent("82 %");
+    expectNoRawV2OutcomeLabels(container);
     expectNoProviderJargon(container);
   });
 
@@ -367,23 +380,21 @@ describe("AiMappingSuggestionsPanel", () => {
 
     const { container } = renderPanel();
 
-    expect(await screen.findByText("Proposition à vérifier")).toBeInTheDocument();
-    expect(screen.getByText("Resume par outcome v2")).toBeInTheDocument();
-    expectOutcomeSummaryCount("SUGGESTION", 1);
-    expectOutcomeSummaryCount("ABSTENTION", 1);
-    expectOutcomeSummaryCount("PRECONDITION_BLOCK", 2);
-    expectOutcomeSummaryCount("POLICY_BLOCK", 1);
-    expectOutcomeSummaryCount("TECHNICAL_DEGRADATION", 3);
-    expect(screen.getAllByText("SUGGESTION").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("ABSTENTION").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("PRECONDITION_BLOCK").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("POLICY_BLOCK").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("TECHNICAL_DEGRADATION").length).toBeGreaterThan(0);
-    expect(screen.getByText("Aucune proposition")).toBeInTheDocument();
+    expect((await screen.findAllByText("Proposition à vérifier")).length).toBeGreaterThan(0);
+    expect(screen.getByText("Résumé local de la simulation")).toBeInTheDocument();
+    expectOutcomeSummaryCount("Propositions à vérifier", 1);
+    expectOutcomeSummaryCount("Sans proposition", 1);
+    expectOutcomeSummaryCount("Affectations manuelles", 2);
+    expectOutcomeSummaryCount("Hors périmètre", 1);
+    expectOutcomeSummaryCount("Indisponibles", 3);
+    expect(screen.getAllByText("Proposition à vérifier").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Aucune proposition").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Affectation manuelle à utiliser").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Hors périmètre local").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Simulation indisponible").length).toBeGreaterThan(0);
     expect(
       screen.getByText("Les preuves disponibles ne suffisent pas pour proposer une rubrique.")
     ).toBeInTheDocument();
-    expect(screen.getByText("Demande non eligible")).toBeInTheDocument();
     expect(
       screen.getByText(
         "Cette demande n'est pas eligible a l'affectation assistee locale. L'affectation manuelle reste disponible."
@@ -415,6 +426,7 @@ describe("AiMappingSuggestionsPanel", () => {
     expect(container).not.toHaveTextContent("UNAVAILABLE");
     expect(container).not.toHaveTextContent("ACCOUNT_LABEL");
     expect(container).not.toHaveTextContent("TARGET_TAXONOMY");
+    expectNoRawV2OutcomeLabels(container);
     expectNoProviderJargon(container);
   });
 
@@ -437,7 +449,7 @@ describe("AiMappingSuggestionsPanel", () => {
 
     const { container } = renderPanel();
 
-    expect(await screen.findByText("Demande non eligible")).toBeInTheDocument();
+    expect((await screen.findAllByText("Hors périmètre local")).length).toBeGreaterThan(0);
     expect(container).not.toHaveTextContent("Bank CHF");
     expect(container).not.toHaveTextContent("Cash and cash equivalents");
     expect(container).not.toHaveTextContent("1000");
@@ -514,11 +526,11 @@ describe("AiMappingSuggestionsPanel", () => {
       "href",
       "#manual-mapping-table-title"
     );
-    expectOutcomeSummaryCount("SUGGESTION", 0);
-    expectOutcomeSummaryCount("ABSTENTION", 0);
-    expectOutcomeSummaryCount("PRECONDITION_BLOCK", 0);
-    expectOutcomeSummaryCount("POLICY_BLOCK", 0);
-    expectOutcomeSummaryCount("TECHNICAL_DEGRADATION", 0);
+    expectOutcomeSummaryCount("Propositions à vérifier", 0);
+    expectOutcomeSummaryCount("Sans proposition", 0);
+    expectOutcomeSummaryCount("Affectations manuelles", 0);
+    expectOutcomeSummaryCount("Hors périmètre", 0);
+    expectOutcomeSummaryCount("Indisponibles", 0);
   });
 
   it("does not fall back to v1 when the v2 local simulation fails", async () => {

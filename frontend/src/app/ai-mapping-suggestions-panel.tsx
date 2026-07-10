@@ -86,6 +86,20 @@ const mappingSuggestionV2OutcomeOrder = [
   "POLICY_BLOCK",
   "TECHNICAL_DEGRADATION"
 ] as const satisfies readonly MappingSuggestionV2Outcome[];
+const mappingSuggestionV2OutcomeDetailLabels: Record<MappingSuggestionV2Outcome, string> = {
+  SUGGESTION: "Proposition à vérifier",
+  ABSTENTION: "Aucune proposition",
+  PRECONDITION_BLOCK: "Affectation manuelle à utiliser",
+  POLICY_BLOCK: "Hors périmètre local",
+  TECHNICAL_DEGRADATION: "Simulation indisponible"
+};
+const mappingSuggestionV2OutcomeSummaryLabels: Record<MappingSuggestionV2Outcome, string> = {
+  SUGGESTION: "Propositions à vérifier",
+  ABSTENTION: "Sans proposition",
+  PRECONDITION_BLOCK: "Affectations manuelles",
+  POLICY_BLOCK: "Hors périmètre",
+  TECHNICAL_DEGRADATION: "Indisponibles"
+};
 
 type DecisionReviewState =
   | { kind: "idle" }
@@ -460,19 +474,19 @@ function MappingSuggestionsV2ReadModelView({
           <MetricItem label="autorite metier" value="mapping manuel" />
           <MetricItem label="decisions" value="aucune action ici" />
         </dl>
-        <div aria-label="resume outcomes v2" className="grid gap-3">
+        <div aria-label="résumé local de la simulation" className="grid gap-3">
           <div className="grid gap-1">
-            <p className="text-sm font-semibold text-foreground">Resume par outcome v2</p>
+            <p className="text-sm font-semibold text-foreground">Résumé local de la simulation</p>
             <p className="text-sm text-muted-foreground">
-              Comptage local du read-model. Il ne certifie rien et ne remplace pas l'affectation
-              manuelle.
+              Comptage local des statuts de simulation. Il ne certifie rien et ne remplace pas
+              l'affectation manuelle.
             </p>
           </div>
           <dl className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             {mappingSuggestionV2OutcomeOrder.map((outcome) => (
               <MetricItem
                 key={outcome}
-                label={outcome}
+                label={mappingSuggestionV2OutcomeSummaryLabels[outcome]}
                 value={String(outcomeCounts[outcome])}
               />
             ))}
@@ -521,16 +535,17 @@ function MappingSuggestionsV2GlobalMessage({
 }: {
   item: Extract<MappingSuggestionV2, { scope: "REQUEST" | "BATCH" }>;
 }) {
-  const isPolicyBlock = item.outcome === "POLICY_BLOCK";
-
   return (
     <article className="grid gap-3 rounded-lg border bg-background/80 p-4">
       <div className="grid gap-2">
         <p className="text-sm font-semibold text-foreground">
-          {isPolicyBlock ? "Demande non eligible" : "Simulation locale indisponible"}
+          {mappingSuggestionV2OutcomeDetailLabels[item.outcome]}
         </p>
         <dl className="grid min-w-0 gap-3 md:grid-cols-2">
-          <DetailItem label="outcome v2" value={item.outcome} />
+          <DetailItem
+            label="résultat local"
+            value={mappingSuggestionV2OutcomeDetailLabels[item.outcome]}
+          />
           <DetailItem
             label="interpretation"
             value={formatMappingSuggestionV2OutcomeExplanation(item.outcome)}
@@ -575,7 +590,6 @@ function MappingSuggestionsV2AccountCard({
         <div className="grid gap-3">
           <p className="text-sm font-semibold text-foreground">Proposition à vérifier</p>
           <dl className="grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <DetailItem label="outcome v2" value={item.outcome} />
             <DetailItem label="compte" value={`${item.accountCode} - ${item.accountLabel}`} />
             <DetailItem label="rubrique cible" value={target.label} />
             <DetailItem
@@ -599,7 +613,10 @@ function MappingSuggestionsV2AccountCard({
         <div className="grid gap-3">
           <p className="text-sm font-semibold text-foreground">Aucune proposition</p>
           <dl className="grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-3">
-            <DetailItem label="outcome v2" value={item.outcome} />
+            <DetailItem
+              label="résultat local"
+              value={mappingSuggestionV2OutcomeDetailLabels[item.outcome]}
+            />
             <DetailItem label="compte" value={`${item.accountCode} - ${item.accountLabel}`} />
             <DetailItem
               label="motif metier"
@@ -620,7 +637,7 @@ function MappingSuggestionsV2AccountCard({
         accountLabel={item.accountLabel}
         message={formatMappingSuggestionV2AccountPrecondition(item.preconditionBlockCode)}
         outcome={item.outcome}
-        title="Affectation manuelle a utiliser"
+        title="Affectation manuelle à utiliser"
       />
     );
   }
@@ -657,7 +674,10 @@ function MappingSuggestionsV2AccountIssueCard({
       <div className="grid gap-3">
         <p className="text-sm font-semibold text-foreground">{title}</p>
         <dl className="grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          <DetailItem label="outcome v2" value={outcome} />
+          <DetailItem
+            label="résultat local"
+            value={mappingSuggestionV2OutcomeDetailLabels[outcome]}
+          />
           <DetailItem label="compte" value={`${accountCode} - ${accountLabel}`} />
           <DetailItem label="suite possible" value={message} />
         </dl>

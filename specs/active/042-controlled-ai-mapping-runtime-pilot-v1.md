@@ -6,7 +6,7 @@ Active.
 
 ## Mode
 
-SPEC_CREATION avec increment runtime local controle `042a2a5a`, amelioration frontend de simulation locale `042a2a5c` et variante seed locale opt-in `042a2a5d`.
+SPEC_CREATION avec increment runtime local controle `042a2a5a`, amelioration frontend de simulation locale `042a2a5c`, variante seed locale opt-in `042a2a5d` et polish UX des libelles utilisateur `042a2a5e`.
 
 Cette spec active cadre le premier pilote IA runtime reel de Ritomer, limite aux suggestions de mapping sur le dossier demo synthetique.
 
@@ -30,6 +30,8 @@ Le pack de double revue aveugle `042a2` transforme les 17 cas candidats en deux 
 
 `042a2a5d` ajoute uniquement une variante locale opt-in du seed demo pour rendre le scenario `mapping-suggestions-v2` observable sans modifier le seed principal 036a. La commande documentee avec seulement `-PritomerDemoSeedEnabled=true` continue de seeder uniquement le dossier principal `036a0000-0000-4000-8000-000000000004` avec 6 lignes de balance et 6 mappings manuels. La variante n'est creee que si `-PritomerDemoSeedVariant=042a2a5d-mixed-v2` est fourni ; elle utilise le dossier `042a2a5d-0000-4000-8000-000000000004`, la meme source `demo-synthetic-balance.csv`, 6 lignes de balance et seulement 4 mappings manuels (`1000`, `1100`, `2000`, `2800`). Les comptes `3000` et `4000` restent non mappes afin que le moteur offline produise naturellement `SUGGESTION=1`, `ABSTENTION=1`, `PRECONDITION_BLOCK=4`, `POLICY_BLOCK=0` et `TECHNICAL_DEGRADATION=0`, sans provider externe, decision v2, migration, endpoint nouveau, contrat public, auto-apply, bulk apply ou spec `043`.
 
+`042a2a5e` polit uniquement les libelles utilisateur de la simulation locale offline `mapping-suggestions-v2`. Les cartes et compteurs affichent des libelles metier comprehensibles, tandis que les enums `SUGGESTION`, `ABSTENTION`, `PRECONDITION_BLOCK`, `POLICY_BLOCK` et `TECHNICAL_DEGRADATION` restent internes aux types, contrats, tests et fixtures. Le bandeau exact `Simulation locale — aucune IA externe active.`, la posture non autoritative, le rappel d'absence de jeu de reference valide, l'affectation manuelle comme autorite metier et le lien `Affecter manuellement` restent visibles. Ce polish ne cree aucun backend, seed, endpoint, contrat/OpenAPI/JSON Schema, DB/migration, auth, audit, provider, valeur sensible, fichier d'environnement local, appel reseau IA, decision v2, auto-apply, bulk apply, fallback v1 automatique, production ou spec `043`.
+
 `042b0b` ajoute uniquement des preuves manuelles OpenAI Platform/API au provider-readiness record : projet dedie `ritomer-dev`, billing API, credits et limites de depense, modeles autorises et visibilite du snapshot candidat.
 
 `042b0c` ajoute uniquement des preuves manuelles OpenAI Platform/API de preflight security/privacy : API keys actives visibles `0`, usage API `$0.00`, total requests `0`, total tokens `0`, data controls visibles, API call logging `ENABLED_PER_CALL_UI_OBSERVED`, audit logging `NOT_ENABLED_UI_OBSERVED`, et rappels de sources officielles OpenAI pour data controls, data residency, prepaid billing et audit logging.
@@ -50,7 +52,7 @@ Etat courant du repo pour l'alignement `042b0` / `042b1a` / `042b1b` OpenAI read
 - `mapping-suggestion-v1` reste inchange et v2 ne provoque aucune bascule implicite.
 - Le moteur offline deterministe existe.
 - L'endpoint local synthetic-demo-only `GET /api/closing-folders/{closingFolderId}/mappings/suggestions-v2` existe.
-- Une UI locale de simulation consomme le read-model v2 sans decision, auto-apply, bulk apply ou endpoint provider reel ; `042a2a5c` la rend plus lisible pour le POC interne avec posture non autoritative, counts par outcome et lien d'affectation manuelle.
+- Une UI locale de simulation consomme le read-model v2 sans decision, auto-apply, bulk apply ou endpoint provider reel ; `042a2a5c` la rend plus lisible pour le POC interne avec posture non autoritative, counts par outcome et lien d'affectation manuelle, puis `042a2a5e` remplace les enums visibles par des libelles metier dans les cartes et compteurs.
 - Aucun provider reel, appel reseau IA reussi, secret, runtime provider ou SDK provider n'existe.
 - Les preuves manuelles `042b0b` etablissent la visibilite projet de `gpt-5.4-mini-2026-03-17`; les preuves `042b0c` etablissent uniquement des observations security/privacy de preflight OpenAI Platform/API ; `042b1a` etablit uniquement une tentative canary `FAILED_NON_CONCLUSIVE` ; `042b1b` etablit uniquement un retry controle `FAIL_HTTP_400_INVALID_REQUEST_ERROR / STOP_NO_FALLBACK`. Le snapshot candidat reste non executable, le network canary est `FAILED`, le retry restant est `0` et le gate reseau provider separe reste bloque.
 
@@ -75,6 +77,8 @@ Surface endpoint local offline `042a2a5a` : BACKEND_RUNTIME_LOCAL / CONTRACTS / 
 Surface simulation frontend locale `042a2a5c` : FRONTEND / DOCS_GIT.
 
 Surface variante seed locale `042a2a5d` : BACKEND_RUNTIME_LOCAL / DOCS_GIT.
+
+Surface polish libelles utilisateur `042a2a5e` : FRONTEND / DOCS_GIT.
 
 Surface readiness provider candidat `042b0` : DOCS_GIT / AI_GOVERNANCE / SECURITY_PRIVACY.
 
@@ -487,6 +491,15 @@ Ces artefacts restent `BLIND_REVIEW_INPUT / PENDING_INDEPENDENT_REVIEW / NOT_GOL
 - comptes volontairement non mappes dans la variante : `3000 Synthetic operating revenue` et `4000 Synthetic operating expenses` ;
 - outcome attendu via le moteur offline existant : `items=6`, `SUGGESTION=1`, `ABSTENTION=1`, `PRECONDITION_BLOCK=4`, `POLICY_BLOCK=0`, `TECHNICAL_DEGRADATION=0` ;
 - aucun provider externe, contrat public, DB/migration, endpoint nouveau, decision v2, auto-apply, bulk apply, bascule v1 automatique, production ou spec `043`.
+
+`042a2a5e` ajoute uniquement le polish UX des libelles utilisateur de la simulation locale offline v2 :
+
+- les compteurs affichent des libelles metier : `Propositions a verifier`, `Sans proposition`, `Affectations manuelles`, `Hors perimetre`, `Indisponibles` ;
+- les cartes affichent des libelles metier : `Proposition a verifier`, `Aucune proposition`, `Affectation manuelle a utiliser`, `Hors perimetre local`, `Simulation indisponible` ;
+- les libelles techniques visibles `outcome v2` et `Resume par outcome v2` ne sont plus exposes dans le panneau v2 ;
+- les enums v2 restent autorisees dans les types, contrats, fixtures et tests, mais ne doivent plus etre visibles dans la surface utilisateur v2 ;
+- le bandeau exact `Simulation locale — aucune IA externe active.`, la posture non autoritative, l'absence de jeu de reference valide, le mapping manuel comme autorite metier, le lien `Affecter manuellement`, l'absence de boutons `ACCEPT`, `CORRECT`, `REJECT` et l'absence de fallback automatique v1 restent verifies ;
+- aucun backend, contrat, OpenAPI, JSON Schema, seed, endpoint, DB/migration, auth, tenant isolation, audit, provider, valeur sensible, fichier d'environnement local, appel reseau IA, production ou spec `043`.
 
 `042a2` devra encore traiter, dans une ou plusieurs missions separees, les livrables qui ne sont pas clos par `042a1`, `042a2a1`, `042a2a1b`, les artefacts candidats `042a2a2a`, le pack de cas candidats `042a2` ou le pack de double revue aveugle `042a2` :
 
