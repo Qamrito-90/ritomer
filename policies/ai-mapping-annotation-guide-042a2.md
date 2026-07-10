@@ -9,7 +9,7 @@
 | Surface | `DOCS_GIT / AI_GOVERNANCE / FIDUCIARY_GOVERNANCE` |
 | Current status | `DRAFT` |
 | Human-review workflow state | `PENDING_HUMAN_RESPONSES` |
-| Current decision | This guide does not create a golden set, validator, provider, prompt runtime, contract or runtime capability. |
+| Current decision | This guide creates no golden set, operational response validator, provider, prompt runtime, contract or runtime capability. The distinct `042a2a6a` increment adds only a built-in structural repository checker, not a Draft 2020-12 engine. |
 
 All examples in this guide are synthetic and illustrative.
 
@@ -131,6 +131,8 @@ Each annotated case must record:
 No annotation field may contain secrets, `.env` values, tokens, credentials, DSNs, cookies, raw customer data, raw CSV, private storage keys or cross-tenant data.
 
 The strict blind-response artifact is intentionally narrower than this complete annotation record. A reviewer response contains only the fields authorized by `evals/mapping/reviews/042a2/reviewer-response-schema-v1.json`. Freeze metadata, comparison results, adjudication justification, timestamps, hashes and promotion evidence belong to the future human-controlled review record described below. The response schema alone must never be presented as a complete adjudication or promotion record.
+
+`reviewer-response-schema-v2.json`, introduced separately by `042a2a6a`, is a documentary future schema only. It does not replace the v1 schema in the merged `042a2a6` protocol, is not wired to the existing response validator and is not authorized for response collection.
 
 ## Double annotation rules
 
@@ -285,6 +287,25 @@ This protocol does not authorize or create:
 - a secret or `.env` dependency;
 - a runtime, contract, schema, database, migration or product behavior change;
 - a spec `043`.
+
+## Human-review governance hardening - 042a2a6a
+
+`042a2a6a` is a distinct additive increment. It preserves the preceding `042a2a6` protocol and adds only a non-operational governance kit with statuses `DRAFT / NOT_EXECUTABLE / NOT_DISTRIBUTABLE / NOT_VALIDATED_BY_DRAFT_2020_12_ENGINE`.
+
+The current declared state remains `PENDING_HUMAN_RESPONSES`. The baseline ledger record is `HARDENING_ONLY`, has `transitionApplied=false`, contains no human evidence and keeps every authorization false:
+
+- `collectionAuthorized=false`;
+- `distributionAuthorized=false`;
+- `providerAuthorized=false`;
+- `goldenPromotionAuthorized=false`;
+- `adjudicationAuthorized=false`;
+- `retryAuthorized=false`.
+
+The ledger is the canonical source of the declared workflow state, but a future authorization is always the conjunction of a valid ledger state, an authorized transition, referenced human evidence, verified hashes, passed required validations and present required human approvals. A state alone never authorizes distribution, adjudication, golden promotion, provider activation or retry.
+
+Security/Privacy is `REQUIRED_BEFORE_MERGE`, followed by a new operational Security/Privacy confirmation `REQUIRED_BEFORE_DISTRIBUTION`. Sub-deliverable 2 is `STOP_DEPENDENCY_REQUIRED`; no Draft 2020-12 engine is selected or added. JSON syntax and repository invariants checked; Draft 2020-12 semantic validation not performed.
+
+No response, participant registry instance, round manifest instance, attestation, freeze, clarification, adjudication dossier or golden artifact is created. The structural schemas and checker do not authorize distribution or collection.
 
 ## Adjudication
 

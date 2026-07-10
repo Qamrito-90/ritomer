@@ -1,0 +1,230 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ritomer:evals:mapping:reviews:042a2:review-clarification-record-schema-v1",
+  "title": "042a2 review clarification record schema v1",
+  "description": "Documentary schema for a future neutral clarification shared identically with both reviewers. It cannot carry protected decision content or authorize review activity.",
+  "$comment": "DRAFT; NOT_EXECUTABLE; NOT_DISTRIBUTABLE; NOT_VALIDATED_BY_DRAFT_2020_12_ENGINE. JSON syntax and repository invariants checked; Draft 2020-12 semantic validation not performed.",
+  "x-ritomer-status": [
+    "DRAFT",
+    "NOT_EXECUTABLE",
+    "NOT_DISTRIBUTABLE",
+    "NOT_VALIDATED_BY_DRAFT_2020_12_ENGINE"
+  ],
+  "oneOf": [
+    {
+      "$ref": "#/$defs/MayInfluenceDecision"
+    },
+    {
+      "$ref": "#/$defs/NoDecisionInfluence"
+    }
+  ],
+  "$defs": {
+    "SchemaVersion": {
+      "const": "042a2-review-clarification-record-v1"
+    },
+    "ClarificationId": {
+      "type": "string",
+      "pattern": "^clarification-[a-z0-9][a-z0-9-]{0,79}$"
+    },
+    "ReviewRoundId": {
+      "type": "string",
+      "pattern": "^review-round-[a-z0-9][a-z0-9-]{0,79}$"
+    },
+    "ReviewerPseudonym": {
+      "enum": [
+        "reviewer-a",
+        "reviewer-b"
+      ]
+    },
+    "ClarificationText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "Recipients": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        {
+          "const": "reviewer-a"
+        },
+        {
+          "const": "reviewer-b"
+        }
+      ],
+      "items": false
+    },
+    "UtcTimestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?Z$"
+    },
+    "MayInfluenceDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "recordType",
+        "clarificationImpact",
+        "clarificationId",
+        "reviewRoundId",
+        "requestingReviewerPseudonym",
+        "reviewerQuestion",
+        "neutralReformulation",
+        "sharedResponse",
+        "recipients",
+        "questionAskedAt",
+        "neutralReformulationRecordedAt",
+        "sharedResponseDistributedAt",
+        "sameResponseForBothReviewers",
+        "protectedDecisionContentAbsent",
+        "bothReviewsPaused",
+        "reviewerAPausedAt",
+        "reviewerBPausedAt",
+        "reviewerAResumedAt",
+        "reviewerBResumedAt",
+        "symmetricResumeConfirmed"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/SchemaVersion"
+        },
+        "recordType": {
+          "const": "REVIEW_CLARIFICATION"
+        },
+        "clarificationImpact": {
+          "const": "MAY_INFLUENCE_DECISION"
+        },
+        "clarificationId": {
+          "$ref": "#/$defs/ClarificationId"
+        },
+        "reviewRoundId": {
+          "$ref": "#/$defs/ReviewRoundId"
+        },
+        "requestingReviewerPseudonym": {
+          "$ref": "#/$defs/ReviewerPseudonym"
+        },
+        "reviewerQuestion": {
+          "$ref": "#/$defs/ClarificationText"
+        },
+        "neutralReformulation": {
+          "$ref": "#/$defs/ClarificationText"
+        },
+        "sharedResponse": {
+          "$ref": "#/$defs/ClarificationText"
+        },
+        "recipients": {
+          "$ref": "#/$defs/Recipients"
+        },
+        "questionAskedAt": {
+          "$ref": "#/$defs/UtcTimestamp"
+        },
+        "neutralReformulationRecordedAt": {
+          "$ref": "#/$defs/UtcTimestamp"
+        },
+        "sharedResponseDistributedAt": {
+          "$ref": "#/$defs/UtcTimestamp"
+        },
+        "sameResponseForBothReviewers": {
+          "const": true
+        },
+        "protectedDecisionContentAbsent": {
+          "description": "Confirms that no target, category, source solution or other protected decision content was revealed.",
+          "const": true
+        },
+        "bothReviewsPaused": {
+          "const": true
+        },
+        "reviewerAPausedAt": {
+          "$ref": "#/$defs/UtcTimestamp"
+        },
+        "reviewerBPausedAt": {
+          "$ref": "#/$defs/UtcTimestamp"
+        },
+        "reviewerAResumedAt": {
+          "$ref": "#/$defs/UtcTimestamp"
+        },
+        "reviewerBResumedAt": {
+          "$ref": "#/$defs/UtcTimestamp"
+        },
+        "symmetricResumeConfirmed": {
+          "const": true
+        }
+      }
+    },
+    "NoDecisionInfluence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "recordType",
+        "clarificationImpact",
+        "clarificationId",
+        "reviewRoundId",
+        "requestingReviewerPseudonym",
+        "reviewerQuestion",
+        "neutralReformulation",
+        "sharedResponse",
+        "recipients",
+        "questionAskedAt",
+        "neutralReformulationRecordedAt",
+        "sharedResponseDistributedAt",
+        "sameResponseForBothReviewers",
+        "protectedDecisionContentAbsent",
+        "bothReviewsPaused"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/SchemaVersion"
+        },
+        "recordType": {
+          "const": "REVIEW_CLARIFICATION"
+        },
+        "clarificationImpact": {
+          "const": "NO_DECISION_INFLUENCE"
+        },
+        "clarificationId": {
+          "$ref": "#/$defs/ClarificationId"
+        },
+        "reviewRoundId": {
+          "$ref": "#/$defs/ReviewRoundId"
+        },
+        "requestingReviewerPseudonym": {
+          "$ref": "#/$defs/ReviewerPseudonym"
+        },
+        "reviewerQuestion": {
+          "$ref": "#/$defs/ClarificationText"
+        },
+        "neutralReformulation": {
+          "$ref": "#/$defs/ClarificationText"
+        },
+        "sharedResponse": {
+          "$ref": "#/$defs/ClarificationText"
+        },
+        "recipients": {
+          "$ref": "#/$defs/Recipients"
+        },
+        "questionAskedAt": {
+          "$ref": "#/$defs/UtcTimestamp"
+        },
+        "neutralReformulationRecordedAt": {
+          "$ref": "#/$defs/UtcTimestamp"
+        },
+        "sharedResponseDistributedAt": {
+          "$ref": "#/$defs/UtcTimestamp"
+        },
+        "sameResponseForBothReviewers": {
+          "const": true
+        },
+        "protectedDecisionContentAbsent": {
+          "description": "Confirms that no target, category, source solution or other protected decision content was revealed.",
+          "const": true
+        },
+        "bothReviewsPaused": {
+          "const": false
+        }
+      }
+    }
+  }
+}

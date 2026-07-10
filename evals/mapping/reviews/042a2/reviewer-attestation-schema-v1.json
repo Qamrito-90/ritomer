@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ritomer:evals:mapping:reviews:042a2:reviewer-attestation-schema-v1",
+  "title": "042a2 reviewer attestation schema v1",
+  "description": "Documentary schema for future off-repository reviewer attestations. References are pseudonymous and are not official or cryptographic signatures.",
+  "$comment": "DRAFT; NOT_EXECUTABLE; NOT_DISTRIBUTABLE; NOT_VALIDATED_BY_DRAFT_2020_12_ENGINE. JSON syntax and repository invariants checked; Draft 2020-12 semantic validation not performed.",
+  "x-ritomer-status": [
+    "DRAFT",
+    "NOT_EXECUTABLE",
+    "NOT_DISTRIBUTABLE",
+    "NOT_VALIDATED_BY_DRAFT_2020_12_ENGINE"
+  ],
+  "oneOf": [
+    {
+      "$ref": "#/$defs/PreReviewAttestation"
+    },
+    {
+      "$ref": "#/$defs/AtFreezeAttestation"
+    }
+  ],
+  "$defs": {
+    "SchemaVersion": {
+      "const": "042a2-reviewer-attestation-v1"
+    },
+    "ReviewRoundId": {
+      "type": "string",
+      "pattern": "^review-round-[a-z0-9][a-z0-9-]{0,79}$"
+    },
+    "ReviewerPseudonym": {
+      "type": "string",
+      "pattern": "^reviewer-[a-z0-9][a-z0-9-]{0,39}$"
+    },
+    "CoordinatorPseudonym": {
+      "type": "string",
+      "pattern": "^coordinator-[a-z0-9][a-z0-9-]{0,39}$"
+    },
+    "AttestationReference": {
+      "description": "Opaque reference only; it is not a cryptographic or official signature.",
+      "type": "string",
+      "pattern": "^attestation-ref-[a-z0-9][a-z0-9-]{0,79}$"
+    },
+    "Sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "UtcTimestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?Z$"
+    },
+    "PreReviewAttestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "attestationType",
+        "reviewRoundId",
+        "reviewerPseudonym",
+        "identityVerifiedOutsideRepository",
+        "competenceAttestedOutsideRepository",
+        "noDisqualifyingExposure",
+        "noForbiddenSourceAccess",
+        "noAiAssistantUseCommitment",
+        "reviewerAttestationReference",
+        "attestedAt"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/SchemaVersion"
+        },
+        "attestationType": {
+          "const": "PRE_REVIEW"
+        },
+        "reviewRoundId": {
+          "$ref": "#/$defs/ReviewRoundId"
+        },
+        "reviewerPseudonym": {
+          "$ref": "#/$defs/ReviewerPseudonym"
+        },
+        "identityVerifiedOutsideRepository": {
+          "const": true
+        },
+        "competenceAttestedOutsideRepository": {
+          "const": true
+        },
+        "noDisqualifyingExposure": {
+          "const": true
+        },
+        "noForbiddenSourceAccess": {
+          "const": true
+        },
+        "noAiAssistantUseCommitment": {
+          "const": true
+        },
+        "reviewerAttestationReference": {
+          "$ref": "#/$defs/AttestationReference"
+        },
+        "attestedAt": {
+          "$ref": "#/$defs/UtcTimestamp"
+        }
+      }
+    },
+    "AtFreezeAttestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "attestationType",
+        "reviewRoundId",
+        "responseAuthorPseudonym",
+        "noDiscussionOrComparison",
+        "noOppositePackOrResponseAccess",
+        "finalResponseSha256",
+        "finalHashAcknowledged",
+        "reviewerAttestationReference",
+        "coordinatorPseudonym",
+        "coordinatorCounterAttestationReference",
+        "attestedAt"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/SchemaVersion"
+        },
+        "attestationType": {
+          "const": "AT_FREEZE"
+        },
+        "reviewRoundId": {
+          "$ref": "#/$defs/ReviewRoundId"
+        },
+        "responseAuthorPseudonym": {
+          "$ref": "#/$defs/ReviewerPseudonym"
+        },
+        "noDiscussionOrComparison": {
+          "const": true
+        },
+        "noOppositePackOrResponseAccess": {
+          "const": true
+        },
+        "finalResponseSha256": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "finalHashAcknowledged": {
+          "const": true
+        },
+        "reviewerAttestationReference": {
+          "$ref": "#/$defs/AttestationReference"
+        },
+        "coordinatorPseudonym": {
+          "$ref": "#/$defs/CoordinatorPseudonym"
+        },
+        "coordinatorCounterAttestationReference": {
+          "$ref": "#/$defs/AttestationReference"
+        },
+        "attestedAt": {
+          "$ref": "#/$defs/UtcTimestamp"
+        }
+      }
+    }
+  }
+}

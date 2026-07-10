@@ -6,7 +6,7 @@ Active.
 
 ## Mode
 
-SPEC_CREATION avec increment runtime local controle `042a2a5a`, premiere simulation frontend locale `042a2a5b`, amelioration de simulation locale `042a2a5c`, variante seed locale opt-in `042a2a5d`, polish UX des libelles utilisateur `042a2a5e` et protocole documentaire de revue humaine/adjudication `042a2a6`.
+SPEC_CREATION avec increment runtime local controle `042a2a5a`, premiere simulation frontend locale `042a2a5b`, amelioration de simulation locale `042a2a5c`, variante seed locale opt-in `042a2a5d`, polish UX des libelles utilisateur `042a2a5e`, protocole documentaire de revue humaine/adjudication `042a2a6` et kit de hardening non operationnel `042a2a6a`.
 
 Cette spec active cadre le premier pilote IA runtime reel de Ritomer, limite aux suggestions de mapping sur le dossier demo synthetique.
 
@@ -35,6 +35,8 @@ Le pack de double revue aveugle `042a2` transforme les 17 cas candidats en deux 
 `042a2a5e` polit uniquement les libelles utilisateur de la simulation locale offline `mapping-suggestions-v2`. Les cartes et compteurs affichent des libelles metier comprehensibles, tandis que les enums `SUGGESTION`, `ABSTENTION`, `PRECONDITION_BLOCK`, `POLICY_BLOCK` et `TECHNICAL_DEGRADATION` restent internes aux types, contrats, tests et fixtures. Le bandeau exact `Simulation locale — aucune IA externe active.`, la posture non autoritative, le rappel d'absence de jeu de reference valide, l'affectation manuelle comme autorite metier et le lien `Affecter manuellement` restent visibles. Ce polish ne cree aucun backend, seed, endpoint, contrat/OpenAPI/JSON Schema, DB/migration, auth, audit, provider, valeur sensible, fichier d'environnement local, appel reseau IA, decision v2, auto-apply, bulk apply, fallback v1 automatique, production ou spec `043`.
 
 `042a2a6` formalise uniquement le protocole operationnel de distribution separee des packs A/B, collecte de futures reponses humaines reelles, validation, gel, comparaison par `blindCaseId`, adjudication humaine et gates de promotion. L'etat operationnel courant est `PENDING_HUMAN_RESPONSES`. Aucun fichier de reponse humaine, aucune adjudication et aucun golden set 042a2 ne sont crees ou promus. Les etats futurs sont `PENDING_ADJUDICATION`, `ADJUDICATED_NOT_GOLDEN`, `GOLDEN_CANDIDATE_PENDING_GOVERNANCE` et `GOLDEN_APPROVED`, ce dernier restant inaccessible sans gate humain futur explicite. Ce livrable reste `DOCS_ONLY`, sans runtime, test runtime, contrat, schema, validator, provider, appel IA, secret, `.env`, production ou spec `043`.
+
+`042a2a6a` est un increment distinct de hardening du protocole, sans reecriture retroactive de `042a2a6`. Il ajoute seulement un record de gouvernance, des schemas documentaires `DRAFT / NOT_EXECUTABLE / NOT_DISTRIBUTABLE / NOT_VALIDATED_BY_DRAFT_2020_12_ENGINE`, un baseline ledger `HARDENING_ONLY`, des instructions answer-free, un runbook coordinateur non executable et un checker structurel Node built-in. Le state reste `PENDING_HUMAN_RESPONSES`; toutes les autorisations restent `false`; aucune distribution, collecte, adjudication, promotion, reponse, attestation, freeze, round reel, golden set, dependance, provider, retry ou appel reseau IA n'est cree.
 
 `042b0b` ajoute uniquement des preuves manuelles OpenAI Platform/API au provider-readiness record : projet dedie `ritomer-dev`, billing API, credits et limites de depense, modeles autorises et visibilite du snapshot candidat.
 
@@ -87,6 +89,8 @@ Surface variante seed locale `042a2a5d` : BACKEND_RUNTIME_LOCAL / DOCS_GIT.
 Surface polish libelles utilisateur `042a2a5e` : FRONTEND / DOCS_GIT.
 
 Surface protocole de revue humaine/adjudication `042a2a6` : DOCS_ONLY / DOCS_GIT / AI_GOVERNANCE / FIDUCIARY_GOVERNANCE.
+
+Surface kit de hardening `042a2a6a` : DOCS_GIT / EVALS / AI_GOVERNANCE / FIDUCIARY_GOVERNANCE / SECURITY_PRIVACY, strictement non operationnelle.
 
 Surface readiness provider candidat `042b0` : DOCS_GIT / AI_GOVERNANCE / SECURITY_PRIVACY.
 
@@ -545,6 +549,22 @@ Ces artefacts restent `BLIND_REVIEW_INPUT / PENDING_INDEPENDENT_REVIEW / NOT_GOL
 - Le statut courant est `PENDING_HUMAN_RESPONSES`. Les transitions futures autorisees par preuves sont `PENDING_ADJUDICATION`, `ADJUDICATED_NOT_GOLDEN`, `GOLDEN_CANDIDATE_PENDING_GOVERNANCE`, puis `GOLDEN_APPROVED` uniquement apres un gate humain futur explicite.
 - Aucun fichier de reponse humaine, aucune adjudication et aucun golden set 042a2 ne sont crees par cette mission.
 - Aucun provider, retry, fallback, appel reseau IA, secret, `.env`, runtime, contrat, schema, validator, backend, frontend, DB/migration, production ou spec `043` n'est autorise.
+
+### Kit de hardening 042a2a6a - gouvernance de revue humaine
+
+`042a2a6a` preserve `042a2a6` comme protocole documentaire anterieur merge par la PR #98. Il ne remplace pas le schema v1 dans ce protocole et ne branche aucun nouvel artefact a un workflow.
+
+- Statuts des nouveaux schemas : `DRAFT / NOT_EXECUTABLE / NOT_DISTRIBUTABLE / NOT_VALIDATED_BY_DRAFT_2020_12_ENGINE`.
+- Etat declare canonique : ledger JSONL `PENDING_HUMAN_RESPONSES` avec exactement un record `HARDENING_ONLY`, `sequence=0`, `previousRecordHash=GENESIS`, aucun changement d'etat et aucune preuve humaine.
+- Autorisations courantes : `collectionAuthorized=false`, `distributionAuthorized=false`, `providerAuthorized=false`, `goldenPromotionAuthorized=false`, `adjudicationAuthorized=false`, `retryAuthorized=false`.
+- Toute autorisation future reste la conjonction d'un state ledger valide, d'une transition autorisee, de preuves humaines referencees, de hashes verifies, de validations requises passees et d'approbations humaines requises presentes. Un state seul n'autorise jamais une distribution, une adjudication, une promotion golden, un provider ou un retry.
+- Security/Privacy : `REQUIRED_BEFORE_MERGE`, puis nouvelle confirmation operationnelle `REQUIRED_BEFORE_DISTRIBUTION`.
+- Sous-livrable 2 / moteur JSON Schema Draft 2020-12 : `STOP_DEPENDENCY_REQUIRED`; aucune bibliotheque selectionnee et aucune dependance ajoutee.
+- JSON syntax and repository invariants checked; Draft 2020-12 semantic validation not performed.
+- Le checker Node built-in controle uniquement syntaxe et invariants du repo; il ne constitue pas un moteur Draft 2020-12 ni un outil de collecte.
+- Le ledger est un tamper-evident workflow ledger, versionne, append-only par politique et no-in-place-edit; Git signing reste `PENDING_EVIDENCE` et branch protection `NOT_PROVED`.
+- Aucun vrai nom, e-mail, participant, manifeste de round, fichier de reponse, attestation, freeze, clarification, dossier adjudicateur, adjudication ou golden set `042a2` n'est cree.
+- `042` reste active; aucune spec `043` n'est creee. `provider_runtime=STILL_BLOCKED`, `adapter_provider=NOT_AUTHORIZED`, `retry_remaining=0`, `fallback=FORBIDDEN`.
 
 `042a2` devra encore traiter, dans une ou plusieurs missions separees, les livrables qui ne sont pas executes par `042a2a6` et ne sont pas clos par `042a1`, `042a2a1`, `042a2a1b`, les artefacts candidats `042a2a2a`, le pack de cas candidats `042a2` ou le pack de double revue aveugle `042a2` :
 

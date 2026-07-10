@@ -136,6 +136,47 @@ Exemple de validation d'une reponse humaine future :
 
 Ce pack ne remplit aucune reponse humaine, ne realise aucune adjudication et ne promeut aucun golden set.
 
+## Kit de hardening de revue humaine 042a2a6a
+
+`042a2a6a` est distinct du protocole documentaire `042a2a6` merge auparavant. Il prepare des structures futures sans modifier ni brancher les artefacts v1.
+
+Tous les nouveaux JSON Schemas portent explicitement :
+
+- `DRAFT`;
+- `NOT_EXECUTABLE`;
+- `NOT_DISTRIBUTABLE`;
+- `NOT_VALIDATED_BY_DRAFT_2020_12_ENGINE`.
+
+JSON syntax and repository invariants checked; Draft 2020-12 semantic validation not performed.
+
+Artefacts documentaires du kit :
+
+- `evals/mapping/reviews/042a2/reviewer-instructions-v1.md`;
+- `evals/mapping/reviews/042a2/reviewer-response-schema-v2.json`;
+- `evals/mapping/reviews/042a2/restricted-participant-registry-schema-v1.json`;
+- `evals/mapping/reviews/042a2/review-round-manifest-schema-v1.json`;
+- `evals/mapping/reviews/042a2/reviewer-attestation-schema-v1.json`;
+- `evals/mapping/reviews/042a2/review-freeze-record-schema-v1.json`;
+- `evals/mapping/reviews/042a2/workflow-ledger-record-schema-v1.json`;
+- `evals/mapping/reviews/042a2/workflow-transition-ledger-v1.jsonl`;
+- `evals/mapping/reviews/042a2/review-clarification-record-schema-v1.json`;
+- `evals/mapping/reviews/042a2/adjudication-dossier-manifest-schema-v1.json`;
+- `evals/mapping/validate-042a2-human-review-governance-kit.mjs`.
+
+Le ledger JSONL contient uniquement un baseline de configuration `HARDENING_ONLY`, `sequence=0`, `previousRecordHash=GENESIS`, sans transition et sans preuve humaine. Le state declare reste `PENDING_HUMAN_RESPONSES`; collection, distribution, provider, golden promotion, adjudication et retry restent tous non autorises.
+
+Le ledger est un tamper-evident workflow ledger, versionne, append-only par politique et no-in-place-edit. Une autorisation future exige cumulativement un state valide, une transition autorisee, des preuves humaines referencees, des hashes verifies, les validations requises passees et les approbations humaines requises presentes. Le state seul ne suffit jamais.
+
+Convention ledger : UTF-8 sans BOM, LF, une ligne JSON par record, aucun commentaire ou ligne vide, ordre de proprietes deterministe, sequence monotone, hash precedent SHA-256 exact-byte lowercase calcule hors LF terminal, et hash de fichier pouvant inclure toutes les fins de ligne. Le baseline utilise `GENESIS`.
+
+Le checker Node utilise uniquement les modules integres. Il verifie la syntaxe JSON/JSONL et les invariants du repository; il n'execute pas la semantique Draft 2020-12 et ne collecte aucune reponse. Le moteur Draft 2020-12 reste `STOP_DEPENDENCY_REQUIRED`, sans bibliotheque selectionnee ou ajoutee.
+
+Security/Privacy est `REQUIRED_BEFORE_MERGE`; une nouvelle confirmation operationnelle Security/Privacy est `REQUIRED_BEFORE_DISTRIBUTION`. Aucune distribution actuelle n'est autorisee.
+
+Aucune instance reelle de reponse, registre participant, manifeste de round, attestation, freeze, clarification ou dossier adjudicateur n'est creee. Aucun golden set `042a2`, provider, retry, appel reseau IA, secret, `.env`, backend, frontend, DB/migration, OpenAPI, endpoint ou spec `043` n'est ajoute.
+
+La spec `042` reste active et seule active; aucune spec `043` n'est creee. Posture inchangee : `provider_runtime=STILL_BLOCKED`, `adapter_provider=NOT_AUTHORIZED`, `retry_remaining=0`, `fallback=FORBIDDEN`.
+
 ## Moteur offline interne 042a2a3
 
 `042a2a3` ajoute un moteur backend interne et une task Gradle pour executer les 17 cas candidats sans reseau et sans provider reel.
@@ -262,6 +303,8 @@ Depuis la racine du repo :
 .\evals\mapping\validate-042a2-candidate.ps1
 .\evals\mapping\validate-042a2-candidate-cases.ps1
 .\evals\mapping\validate-042a2-blind-review-pack.ps1
+node --check evals/mapping/validate-042a2-human-review-governance-kit.mjs
+node evals/mapping/validate-042a2-human-review-governance-kit.mjs
 Push-Location backend
 try {
   .\gradlew.bat offlineMappingEval042a2

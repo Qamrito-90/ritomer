@@ -1,0 +1,435 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ritomer:evals:mapping:reviews:042a2:review-round-manifest-schema-v1",
+  "title": "042a2 review round manifest schema v1",
+  "description": "Documentary schema for a future human-review round manifest. The manifest records evidence references but never authorizes collection or distribution by itself.",
+  "$comment": "DRAFT; NOT_EXECUTABLE; NOT_DISTRIBUTABLE; NOT_VALIDATED_BY_DRAFT_2020_12_ENGINE. JSON syntax and repository invariants checked; Draft 2020-12 semantic validation not performed.",
+  "x-ritomer-status": [
+    "DRAFT",
+    "NOT_EXECUTABLE",
+    "NOT_DISTRIBUTABLE",
+    "NOT_VALIDATED_BY_DRAFT_2020_12_ENGINE"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "manifestType",
+    "manifestState",
+    "reviewRoundId",
+    "referenceCommitSha",
+    "artifactSet",
+    "toolVersions",
+    "roleAssignments",
+    "accessControlReferences",
+    "manifestDoesNotAuthorizeDistribution"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "042a2-review-round-manifest-v1"
+    },
+    "manifestType": {
+      "const": "FUTURE_HUMAN_REVIEW_ROUND"
+    },
+    "manifestState": {
+      "enum": [
+        "PRE_DISTRIBUTION",
+        "DISTRIBUTED"
+      ]
+    },
+    "reviewRoundId": {
+      "$ref": "#/$defs/ReviewRoundId"
+    },
+    "referenceCommitSha": {
+      "$ref": "#/$defs/CommitSha"
+    },
+    "artifactSet": {
+      "$ref": "#/$defs/ArtifactSet"
+    },
+    "toolVersions": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/ToolVersion"
+      }
+    },
+    "roleAssignments": {
+      "$ref": "#/$defs/FirstRoundRoleAssignments"
+    },
+    "accessControlReferences": {
+      "$ref": "#/$defs/AccessControlReferences"
+    },
+    "distributionEvidence": {
+      "$ref": "#/$defs/DistributionEvidence"
+    },
+    "manifestDoesNotAuthorizeDistribution": {
+      "const": true
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "manifestState"
+        ],
+        "properties": {
+          "manifestState": {
+            "const": "PRE_DISTRIBUTION"
+          }
+        }
+      },
+      "then": {
+        "not": {
+          "required": [
+            "distributionEvidence"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "manifestState"
+        ],
+        "properties": {
+          "manifestState": {
+            "const": "DISTRIBUTED"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "distributionEvidence"
+        ]
+      }
+    }
+  ],
+  "$defs": {
+    "ReviewRoundId": {
+      "type": "string",
+      "pattern": "^review-round-[a-z0-9][a-z0-9-]{0,79}$"
+    },
+    "CommitSha": {
+      "type": "string",
+      "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$"
+    },
+    "Sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "RepositoryPath": {
+      "description": "Repository-relative path using forward slashes; absolute and private paths are not permitted.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 400,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(^|/)\\.\\.(/|$))[A-Za-z0-9][A-Za-z0-9._/-]*$"
+    },
+    "OpaqueId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,79}$"
+    },
+    "ArtifactReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifactId",
+        "version",
+        "repositoryPath",
+        "sha256"
+      ],
+      "properties": {
+        "artifactId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "repositoryPath": {
+          "$ref": "#/$defs/RepositoryPath"
+        },
+        "sha256": {
+          "$ref": "#/$defs/Sha256"
+        }
+      }
+    },
+    "ReviewerPackReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reviewerPseudonym",
+        "artifactId",
+        "version",
+        "repositoryPath",
+        "sha256"
+      ],
+      "properties": {
+        "reviewerPseudonym": {
+          "enum": [
+            "reviewer-a",
+            "reviewer-b"
+          ]
+        },
+        "artifactId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "repositoryPath": {
+          "$ref": "#/$defs/RepositoryPath"
+        },
+        "sha256": {
+          "$ref": "#/$defs/Sha256"
+        }
+      }
+    },
+    "InstructionsReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifactId",
+        "version",
+        "repositoryPath",
+        "sha256",
+        "answerFree"
+      ],
+      "properties": {
+        "artifactId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "repositoryPath": {
+          "$ref": "#/$defs/RepositoryPath"
+        },
+        "sha256": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "answerFree": {
+          "const": true
+        }
+      }
+    },
+    "ArtifactSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reviewerAPack",
+        "reviewerBPack",
+        "responseSchema",
+        "reviewerInstructions",
+        "validators"
+      ],
+      "properties": {
+        "reviewerAPack": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/ReviewerPackReference"
+            },
+            {
+              "properties": {
+                "reviewerPseudonym": {
+                  "const": "reviewer-a"
+                }
+              }
+            }
+          ]
+        },
+        "reviewerBPack": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/ReviewerPackReference"
+            },
+            {
+              "properties": {
+                "reviewerPseudonym": {
+                  "const": "reviewer-b"
+                }
+              }
+            }
+          ]
+        },
+        "responseSchema": {
+          "$ref": "#/$defs/ArtifactReference"
+        },
+        "reviewerInstructions": {
+          "$ref": "#/$defs/InstructionsReference"
+        },
+        "validators": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/ArtifactReference"
+          }
+        }
+      }
+    },
+    "ToolVersion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "toolId",
+        "version"
+      ],
+      "properties": {
+        "toolId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        }
+      }
+    },
+    "FirstRoundRoleAssignments": {
+      "description": "Four distinct generic pseudonyms are fixed for the first future round.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reviewerA",
+        "reviewerB",
+        "coordinator",
+        "adjudicator"
+      ],
+      "properties": {
+        "reviewerA": {
+          "const": "reviewer-a"
+        },
+        "reviewerB": {
+          "const": "reviewer-b"
+        },
+        "coordinator": {
+          "const": "coordinator-1"
+        },
+        "adjudicator": {
+          "const": "adjudicator-1"
+        }
+      }
+    },
+    "AclReference": {
+      "type": "string",
+      "pattern": "^acl-ref-[a-z0-9][a-z0-9-]{0,79}$"
+    },
+    "AccessControlReferences": {
+      "description": "Opaque, non-sensitive references only; no detailed access-control data or private location is carried here.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reviewerAPackCustody",
+        "reviewerBPackCustody",
+        "coordinatorCustody",
+        "adjudicationCustody"
+      ],
+      "properties": {
+        "reviewerAPackCustody": {
+          "$ref": "#/$defs/AclReference"
+        },
+        "reviewerBPackCustody": {
+          "$ref": "#/$defs/AclReference"
+        },
+        "coordinatorCustody": {
+          "$ref": "#/$defs/AclReference"
+        },
+        "adjudicationCustody": {
+          "$ref": "#/$defs/AclReference"
+        }
+      }
+    },
+    "LedgerRecordReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "recordId",
+        "version",
+        "sha256"
+      ],
+      "properties": {
+        "recordId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/Sha256"
+        }
+      }
+    },
+    "UtcTimestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?Z$"
+    },
+    "DistributionEvidence": {
+      "description": "Future evidence only. Every element is bound to the single reviewRoundId and referenceCommitSha at manifest root.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authorizedTransitionReference",
+        "ledgerStateValid",
+        "hashesVerified",
+        "requiredValidationsPassed",
+        "requiredHumanApprovalsPresent",
+        "packADistributedAt",
+        "packBDistributedAt",
+        "responseSchemaConfirmedAt",
+        "reviewerInstructionsConfirmedAt",
+        "validatorsConfirmedAt",
+        "sameRoundConfirmed",
+        "sameCommitConfirmed"
+      ],
+      "properties": {
+        "authorizedTransitionReference": {
+          "$ref": "#/$defs/LedgerRecordReference"
+        },
+        "ledgerStateValid": {
+          "const": true
+        },
+        "hashesVerified": {
+          "const": true
+        },
+        "requiredValidationsPassed": {
+          "const": true
+        },
+        "requiredHumanApprovalsPresent": {
+          "const": true
+        },
+        "packADistributedAt": {
+          "$ref": "#/$defs/UtcTimestamp"
+        },
+        "packBDistributedAt": {
+          "$ref": "#/$defs/UtcTimestamp"
+        },
+        "responseSchemaConfirmedAt": {
+          "$ref": "#/$defs/UtcTimestamp"
+        },
+        "reviewerInstructionsConfirmedAt": {
+          "$ref": "#/$defs/UtcTimestamp"
+        },
+        "validatorsConfirmedAt": {
+          "$ref": "#/$defs/UtcTimestamp"
+        },
+        "sameRoundConfirmed": {
+          "const": true
+        },
+        "sameCommitConfirmed": {
+          "const": true
+        }
+      }
+    }
+  }
+}
