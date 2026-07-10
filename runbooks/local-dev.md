@@ -14,8 +14,8 @@ Depuis la racine du repo :
 - `cd backend && ./gradlew test`
 - `cd backend && ./gradlew dbIntegrationTest`
 - `cd backend && ./gradlew build`
-- `cd backend && ./gradlew demoSeedLocal -PritomerDemoSeedEnabled=true`
-- `cd backend && ./gradlew demoSeedLocal -PritomerDemoSeedEnabled=true -PritomerDemoSeedVariant=042a2a5d-mixed-v2`
+- `cd backend && ./gradlew -PritomerDemoSeedEnabled=true demoSeedLocal`
+- `cd backend && ./gradlew -PritomerDemoSeedEnabled=true -PritomerDemoSeedVariant=042a2a5d-mixed-v2 demoSeedLocal`
 
 ## Seed demo local 036a
 
@@ -36,13 +36,15 @@ Garde-fous :
 
 La variante locale `042a2a5d-mixed-v2` est separee et opt-in. Sans `-PritomerDemoSeedVariant=042a2a5d-mixed-v2`, la commande seed uniquement le scenario principal 036a.
 
+Dans les exemples Windows PowerShell, les proprietes Gradle `-P...` doivent preceder la task `demoSeedLocal`; `--no-daemon`, s'il est utilise, reste avant les `-P`.
+
 PowerShell :
 
 ```powershell
 Push-Location backend
 try {
   $env:SPRING_DATASOURCE_URL='jdbc:postgresql://localhost:5432/ritomer'
-  .\gradlew.bat demoSeedLocal -PritomerDemoSeedEnabled=true
+  .\gradlew.bat -PritomerDemoSeedEnabled=true demoSeedLocal
 } finally {
   Pop-Location
 }
@@ -56,7 +58,7 @@ Pour `dbtest`, la datasource doit aussi rester locale. Une execution via `cloud-
 Push-Location backend
 try {
   $env:RITOMER_DB_TEST_JDBC_URL='jdbc:postgresql://127.0.0.1:5432/ritomer'
-  .\gradlew.bat demoSeedLocal -PritomerDemoSeedEnabled=true -PritomerDemoSeedProfile=dbtest
+  .\gradlew.bat -PritomerDemoSeedEnabled=true -PritomerDemoSeedProfile=dbtest demoSeedLocal
 } finally {
   Pop-Location
 }
@@ -68,7 +70,7 @@ PowerShell pour creer aussi la variante locale mixed v2 :
 Push-Location backend
 try {
   $env:SPRING_DATASOURCE_URL='jdbc:postgresql://localhost:5432/ritomer'
-  .\gradlew.bat demoSeedLocal -PritomerDemoSeedEnabled=true -PritomerDemoSeedVariant=042a2a5d-mixed-v2
+  .\gradlew.bat -PritomerDemoSeedEnabled=true -PritomerDemoSeedVariant=042a2a5d-mixed-v2 demoSeedLocal
 } finally {
   Pop-Location
 }
