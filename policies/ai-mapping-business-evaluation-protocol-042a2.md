@@ -5,9 +5,10 @@
 | Field | Value |
 | --- | --- |
 | Protocol id | `042a2-ai-mapping-business-evaluation-protocol-v1` |
-| Scope | Business evaluation protocol for future semantic mapping readiness, before contract v2, golden set update or provider runtime. |
+| Scope | Business evaluation protocol for human review, adjudication, future golden-set governance and provider-runtime readiness; `mapping-suggestion-v2` already exists and is not approved by this protocol. |
 | Surface | `DOCS_GIT / AI_GOVERNANCE / FIDUCIARY_GOVERNANCE` |
 | Current status | `DRAFT` |
+| Human-review workflow state | `PENDING_HUMAN_RESPONSES` |
 | Current decision | This protocol does not approve a provider, model, prompt runtime, contract, golden set, validator, runtime metric collector, secret, network call or production activation. |
 
 This protocol defines how business usefulness must be evaluated later. It does not execute the evaluation.
@@ -61,6 +62,33 @@ The future evaluation must include:
 - separate measurement of business abstention, policy block and technical failure.
 
 The same participant must not adjudicate their own disputed case.
+
+## Human evidence gate before evaluation - 042a2a6
+
+The collection, freeze, comparison and adjudication workflow is defined normatively in `policies/ai-mapping-annotation-guide-042a2.md`. The current state is `PENDING_HUMAN_RESPONSES` because the repository contains blind inputs and a response schema, but no real human response set, no adjudication record and no promoted 042a2 golden set.
+
+Business evaluation must not start from candidate fixture answers, offline evaluator results, an AI-generated response or a partially collected review. Before any adjudicated labels can be used as evaluation evidence, the following cumulative conditions must be met:
+
+- reviewer A received only pack A and reviewer B received only pack B;
+- both reviewers are real humans and completed their 17 responses independently;
+- each response conforms strictly to `evals/mapping/reviews/042a2/reviewer-response-schema-v1.json` and passes `evals/mapping/validate-042a2-human-review-responses.ps1` against its own committed pack;
+- the committed blind pack and schema pass `evals/mapping/validate-042a2-blind-review-pack.ps1`;
+- the two response files, pack files and schema have recorded hashes, validation results, freeze timestamps and independence attestations;
+- both responses were frozen before any cross-review or comparison;
+- comparison was performed by `blindCaseId`, not array position;
+- every exact agreement was ratified and every divergence was resolved by a distinct human adjudicator or an explicitly documented joint CPO/IA Governance decision;
+- `TAXONOMY_GAP`, `POLICY_BLOCK`, `PRECONDITION_BLOCK` and `INVALID_MODEL_OUTPUT` retained their required routing and were not converted into approximate suggestions;
+- no stop condition remains open.
+
+The workflow states have these business meanings:
+
+- `PENDING_HUMAN_RESPONSES`: evaluation evidence is unavailable;
+- `PENDING_ADJUDICATION`: two valid frozen response sets exist, but no adjudicated reference exists yet;
+- `ADJUDICATED_NOT_GOLDEN`: all cases have final human dispositions, but they are review evidence only and must not be used as an authoritative scoring reference or described as an approved golden set;
+- `GOLDEN_CANDIDATE_PENDING_GOVERNANCE`: a future separately authorized mission has materialized and validated a candidate for governance review;
+- `GOLDEN_APPROVED`: a future explicit human governance gate has approved an authoritative artifact. This state is not reachable in `042a2a6`.
+
+No state transition authorizes a provider, provider retry, AI network call, runtime activation, secret handling or spec `043`. If responses are missing or invalid, independence is compromised, expected answers leak, a frozen hash changes, a divergence is non-adjudicable, or promotion evidence is incomplete, evaluation and promotion stop at the last valid state.
 
 ## Required event fields
 
@@ -134,7 +162,9 @@ Before this protocol can support runtime activation:
 - the pilot taxonomy must be frozen and hashed;
 - the semantic readiness record must be approved;
 - the contract must encode the approved semantics;
-- the golden set and validator must be created in a separate mission and pass;
+- the human-review workflow must have reached `ADJUDICATED_NOT_GOLDEN` with complete frozen response, comparison and adjudication evidence;
+- the golden set and validator must be created in a separate future authorized mission, reach `GOLDEN_CANDIDATE_PENDING_GOVERNANCE` and pass;
+- `GOLDEN_APPROVED` must be recorded only by a later explicit human governance gate;
 - business evaluation results must meet the objectives above;
 - Expert Board and IA Governance must sign the result.
 
