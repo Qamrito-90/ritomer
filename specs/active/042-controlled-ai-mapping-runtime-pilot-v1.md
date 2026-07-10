@@ -501,6 +501,22 @@ Ces artefacts restent `BLIND_REVIEW_INPUT / PENDING_INDEPENDENT_REVIEW / NOT_GOL
 - le bandeau exact `Simulation locale — aucune IA externe active.`, la posture non autoritative, l'absence de jeu de reference valide, le mapping manuel comme autorite metier, le lien `Affecter manuellement`, l'absence de boutons `ACCEPT`, `CORRECT`, `REJECT` et l'absence de fallback automatique v1 restent verifies ;
 - aucun backend, contrat, OpenAPI, JSON Schema, seed, endpoint, DB/migration, auth, tenant isolation, audit, provider, valeur sensible, fichier d'environnement local, appel reseau IA, production ou spec `043`.
 
+### Cloture documentaire partielle 042a2a5 - local offline POC
+
+`042a2a5` est cloture partiellement comme bloc local offline POC, sans fermer la spec `042`.
+
+- `042a2a5a` endpoint local offline read-only livre : `GET /api/closing-folders/{closingFolderId}/mappings/suggestions-v2`, local/profile/flag only, sans decision.
+- `042a2a5c` simulation UX locale offline v2 livree.
+- `042a2a5d` variante seed locale opt-in `042a2a5d-mixed-v2` livree.
+- `042a2a5e` polish des libelles utilisateur livre.
+- Smokes utilisateur locaux : `042a2a5c=PASS`, `042a2a5d=PASS`, `042a2a5e=PASS`.
+- Scenario mixte local prouve sur la variante : `SUGGESTION=1`, `ABSTENTION=1`, `PRECONDITION_BLOCK=4`, `POLICY_BLOCK=0`, `TECHNICAL_DEGRADATION=0`.
+- Seed principal `036a` inchange : 6 lignes de balance et 6 mappings manuels ; variante `042a2a5d` opt-in prouvee avec 6 lignes et 4 mappings manuels.
+- UI utilisateur observee : raw enums visibles = `NO`, libelles metier visibles = `YES`, boutons `ACCEPT` / `CORRECT` / `REJECT` visibles = `NO`.
+- Observations runtime locales : fallback v1 automatique observe = `NO`, appel reseau provider observe = `NO`, appel post decision v2 observe = `NO`.
+- Cette cloture partielle n'introduit aucun provider, aucun appel reseau IA, aucun secret, aucun `.env`, aucune DB/migration, aucun endpoint nouveau hors endpoint local deja livre, aucun changement de contrat public, aucune decision v2, aucun auto-apply, aucun fallback v1 automatique, aucune production et aucune spec `043`.
+- `042` reste active. `042b` et le provider restent bloques : `provider_runtime=STILL_BLOCKED`, `adapter_provider=NOT_AUTHORIZED`, `retry_remaining=0`, `fallback=FORBIDDEN`. OpenAI reste un provider candidat bloque et non approuve.
+
 `042a2` devra encore traiter, dans une ou plusieurs missions separees, les livrables qui ne sont pas clos par `042a1`, `042a2a1`, `042a2a1b`, les artefacts candidats `042a2a2a`, le pack de cas candidats `042a2` ou le pack de double revue aveugle `042a2` :
 
 - reponses humaines independantes ;
