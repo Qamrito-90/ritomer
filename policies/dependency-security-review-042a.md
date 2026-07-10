@@ -42,6 +42,29 @@ The manual OpenAI Platform/API account, security/privacy UI evidence, failed non
 | Provider SDK | `PENDING_EVIDENCE` | Blocked until exact package, version, license, CVEs, transitive dependencies, telemetry, logging, timeout and patch plan are reviewed and validated. |
 | Runtime JSON Schema library | `PENDING_EVIDENCE` | Blocked until exact package, version, license, CVEs, transitives, network behavior, logging behavior and cold start impact are reviewed and validated. |
 
+## Draft 2020-12 engine gate - 042a2a6a
+
+| Field | Value |
+| --- | --- |
+| Sub-deliverable | `042a2a6a`, sub-deliverable 2 |
+| Gate | `STOP_DEPENDENCY_REQUIRED` |
+| Selected library | `NONE` |
+| Dependency added | `NONE` |
+| Draft 2020-12 semantic validation | `NOT_PERFORMED` |
+
+The governance kit targets JSON Schema Draft 2020-12 as documentation only. Its Node built-in checker parses JSON and verifies repository invariants; it is not a JSON Schema engine.
+
+The following are not acceptable as Draft 2020-12 conformance evidence:
+
+- transitive Ajv 6, which does not satisfy the required Draft 2020-12 engine gate;
+- partial PowerShell validation;
+- the custom structural checker introduced by `042a2a6a`;
+- successful JSON parsing alone.
+
+No library is selected and no manifest or lockfile is changed. A future dependency review must record the exact engine and version, license, CVEs, transitive dependencies, telemetry, logging behavior, maintenance posture, patch owner and compatibility with the supported local, CI and production environments before this stop can be reconsidered.
+
+JSON syntax and repository invariants checked; Draft 2020-12 semantic validation not performed.
+
 ## Evidence required before changing this draft
 
 - exact dependency coordinates and version, or explicit no-new-dependency justification;
@@ -70,4 +93,5 @@ If `042b` uses only an already present backend HTTP component without introducin
 
 - No provider SDK may be added by `042b` without a completed dependency/security review.
 - No runtime JSON Schema dependency may be added by `042b` without a completed dependency/security review.
+- The `042a2a6a` Draft 2020-12 engine gate remains `STOP_DEPENDENCY_REQUIRED`; neither Ajv 6, partial PowerShell checks nor a custom validator may be relabelled as semantic conformance.
 - No dependency may be added to bypass provider-readiness, payload whitelist, contract readiness or runbook gates.

@@ -9,7 +9,7 @@
 | Surface | `DOCS_GIT / AI_GOVERNANCE / FIDUCIARY_GOVERNANCE` |
 | Current status | `DRAFT` |
 | Human-review workflow state | `PENDING_HUMAN_RESPONSES` |
-| Current decision | This protocol does not approve a provider, model, prompt runtime, contract, golden set, validator, runtime metric collector, secret, network call or production activation. |
+| Current decision | This protocol does not approve a provider, model, prompt runtime, contract, golden set, operational response validator, runtime metric collector, secret, network call or production activation. The separate `042a2a6a` structural checker is not a Draft 2020-12 engine or evaluation tool. |
 
 This protocol defines how business usefulness must be evaluated later. It does not execute the evaluation.
 
@@ -89,6 +89,27 @@ The workflow states have these business meanings:
 - `GOLDEN_APPROVED`: a future explicit human governance gate has approved an authoritative artifact. This state is not reachable in `042a2a6`.
 
 No state transition authorizes a provider, provider retry, AI network call, runtime activation, secret handling or spec `043`. If responses are missing or invalid, independence is compromised, expected answers leak, a frozen hash changes, a divergence is non-adjudicable, or promotion evidence is incomplete, evaluation and promotion stop at the last valid state.
+
+## Governance hardening gate before collection - 042a2a6a
+
+`042a2a6a` preserves the `042a2a6` protocol above and adds a separate kit with statuses `DRAFT / NOT_EXECUTABLE / NOT_DISTRIBUTABLE / NOT_VALIDATED_BY_DRAFT_2020_12_ENGINE`. Its schemas are documentary future structures and its Node checker verifies only JSON syntax and repository invariants.
+
+The declared workflow state remains `PENDING_HUMAN_RESPONSES`; human responses, adjudications and the `042a2` golden set remain at zero. The `HARDENING_ONLY` baseline applies no transition, contains no human evidence and keeps collection, distribution, adjudication, golden promotion, provider and retry authorizations at `false`.
+
+Any future authorization requires all of the following together:
+
+- a valid ledger state;
+- an authorized adjacent transition;
+- referenced human evidence;
+- verified exact-byte hashes;
+- all required validations passed;
+- all required human approvals present.
+
+The state alone is never evaluation evidence and never authorizes distribution, adjudication, promotion, provider activation or retry. Security/Privacy is `REQUIRED_BEFORE_MERGE`, and a new operational Security/Privacy confirmation is `REQUIRED_BEFORE_DISTRIBUTION`. The Draft 2020-12 engine gate is `STOP_DEPENDENCY_REQUIRED`; no library is selected or added.
+
+JSON syntax and repository invariants checked; Draft 2020-12 semantic validation not performed.
+
+No real response, registry, manifest, attestation, freeze, clarification or adjudication dossier is materialized by this hardening gate.
 
 ## Required event fields
 

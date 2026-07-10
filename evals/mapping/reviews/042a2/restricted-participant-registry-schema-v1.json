@@ -1,0 +1,230 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ritomer:evals:mapping:reviews:042a2:restricted-participant-registry-schema-v1",
+  "title": "042a2 restricted participant registry schema v1",
+  "description": "Documentary schema for an access-restricted, off-repository identity-to-pseudonym registry. A real registry instance is prohibited from the repository.",
+  "$comment": "DRAFT; NOT_EXECUTABLE; NOT_DISTRIBUTABLE; NOT_VALIDATED_BY_DRAFT_2020_12_ENGINE. JSON syntax and repository invariants checked; Draft 2020-12 semantic validation not performed.",
+  "x-ritomer-status": [
+    "DRAFT",
+    "NOT_EXECUTABLE",
+    "NOT_DISTRIBUTABLE",
+    "NOT_VALIDATED_BY_DRAFT_2020_12_ENGINE"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "registryType",
+    "registryId",
+    "custodyReference",
+    "repositoryStorageProhibited",
+    "participants"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "042a2-restricted-participant-registry-v1"
+    },
+    "registryType": {
+      "const": "RESTRICTED_IDENTITY_PSEUDONYM_LINKAGE"
+    },
+    "registryId": {
+      "type": "string",
+      "pattern": "^restricted-registry-[a-z0-9][a-z0-9-]{0,79}$"
+    },
+    "custodyReference": {
+      "description": "Opaque non-path, non-URL reference to access-restricted custody outside the repository.",
+      "type": "string",
+      "pattern": "^restricted-custody-ref-[a-z0-9][a-z0-9-]{0,79}$"
+    },
+    "repositoryStorageProhibited": {
+      "const": true
+    },
+    "participants": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/Participant"
+      }
+    }
+  },
+  "$defs": {
+    "Participant": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Reviewer"
+        },
+        {
+          "$ref": "#/$defs/Coordinator"
+        },
+        {
+          "$ref": "#/$defs/Adjudicator"
+        },
+        {
+          "$ref": "#/$defs/Approver"
+        }
+      ]
+    },
+    "ExternalIdentityReference": {
+      "type": "string",
+      "pattern": "^identity-ref-[a-z0-9][a-z0-9-]{0,79}$"
+    },
+    "ExternalCompetenceReference": {
+      "type": "string",
+      "pattern": "^competence-ref-[a-z0-9][a-z0-9-]{0,79}$"
+    },
+    "UtcTimestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?Z$"
+    },
+    "Reviewer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "participantRole",
+        "pseudonym",
+        "externalIdentityReference",
+        "externalCompetenceReference",
+        "identityVerifiedOutsideRepository",
+        "competenceAttestedOutsideRepository",
+        "verificationRecordedAt"
+      ],
+      "properties": {
+        "participantRole": {
+          "const": "REVIEWER"
+        },
+        "pseudonym": {
+          "type": "string",
+          "pattern": "^reviewer-[a-z0-9][a-z0-9-]{0,39}$"
+        },
+        "externalIdentityReference": {
+          "$ref": "#/$defs/ExternalIdentityReference"
+        },
+        "externalCompetenceReference": {
+          "$ref": "#/$defs/ExternalCompetenceReference"
+        },
+        "identityVerifiedOutsideRepository": {
+          "const": true
+        },
+        "competenceAttestedOutsideRepository": {
+          "const": true
+        },
+        "verificationRecordedAt": {
+          "$ref": "#/$defs/UtcTimestamp"
+        }
+      }
+    },
+    "Coordinator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "participantRole",
+        "pseudonym",
+        "externalIdentityReference",
+        "externalCompetenceReference",
+        "identityVerifiedOutsideRepository",
+        "competenceAttestedOutsideRepository",
+        "verificationRecordedAt"
+      ],
+      "properties": {
+        "participantRole": {
+          "const": "COORDINATOR"
+        },
+        "pseudonym": {
+          "type": "string",
+          "pattern": "^coordinator-[a-z0-9][a-z0-9-]{0,39}$"
+        },
+        "externalIdentityReference": {
+          "$ref": "#/$defs/ExternalIdentityReference"
+        },
+        "externalCompetenceReference": {
+          "$ref": "#/$defs/ExternalCompetenceReference"
+        },
+        "identityVerifiedOutsideRepository": {
+          "const": true
+        },
+        "competenceAttestedOutsideRepository": {
+          "const": true
+        },
+        "verificationRecordedAt": {
+          "$ref": "#/$defs/UtcTimestamp"
+        }
+      }
+    },
+    "Adjudicator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "participantRole",
+        "pseudonym",
+        "externalIdentityReference",
+        "externalCompetenceReference",
+        "identityVerifiedOutsideRepository",
+        "competenceAttestedOutsideRepository",
+        "verificationRecordedAt"
+      ],
+      "properties": {
+        "participantRole": {
+          "const": "ADJUDICATOR"
+        },
+        "pseudonym": {
+          "type": "string",
+          "pattern": "^adjudicator-[a-z0-9][a-z0-9-]{0,39}$"
+        },
+        "externalIdentityReference": {
+          "$ref": "#/$defs/ExternalIdentityReference"
+        },
+        "externalCompetenceReference": {
+          "$ref": "#/$defs/ExternalCompetenceReference"
+        },
+        "identityVerifiedOutsideRepository": {
+          "const": true
+        },
+        "competenceAttestedOutsideRepository": {
+          "const": true
+        },
+        "verificationRecordedAt": {
+          "$ref": "#/$defs/UtcTimestamp"
+        }
+      }
+    },
+    "Approver": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "participantRole",
+        "pseudonym",
+        "externalIdentityReference",
+        "externalCompetenceReference",
+        "identityVerifiedOutsideRepository",
+        "competenceAttestedOutsideRepository",
+        "verificationRecordedAt"
+      ],
+      "properties": {
+        "participantRole": {
+          "const": "APPROVER"
+        },
+        "pseudonym": {
+          "type": "string",
+          "pattern": "^approver-[a-z0-9][a-z0-9-]{0,39}$"
+        },
+        "externalIdentityReference": {
+          "$ref": "#/$defs/ExternalIdentityReference"
+        },
+        "externalCompetenceReference": {
+          "$ref": "#/$defs/ExternalCompetenceReference"
+        },
+        "identityVerifiedOutsideRepository": {
+          "const": true
+        },
+        "competenceAttestedOutsideRepository": {
+          "const": true
+        },
+        "verificationRecordedAt": {
+          "$ref": "#/$defs/UtcTimestamp"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,371 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ritomer:evals:mapping:reviews:042a2:adjudication-dossier-manifest-schema-v1",
+  "title": "042a2 adjudication dossier manifest schema v1",
+  "description": "Documentary schema for a future pseudonymous human-adjudication dossier manifest. It references frozen evidence and excludes protected solution sources and coordinator opinion.",
+  "$comment": "DRAFT; NOT_EXECUTABLE; NOT_DISTRIBUTABLE; NOT_VALIDATED_BY_DRAFT_2020_12_ENGINE. JSON syntax and repository invariants checked; Draft 2020-12 semantic validation not performed.",
+  "x-ritomer-status": [
+    "DRAFT",
+    "NOT_EXECUTABLE",
+    "NOT_DISTRIBUTABLE",
+    "NOT_VALIDATED_BY_DRAFT_2020_12_ENGINE"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "manifestType",
+    "status",
+    "dossierId",
+    "reviewRoundId",
+    "neutralReviewInput",
+    "exactTargetCatalog",
+    "annotationGuide",
+    "responseA",
+    "responseB",
+    "frozenJustificationA",
+    "frozenJustificationB",
+    "divergentFields",
+    "applicableRules",
+    "contentExclusions",
+    "decisionRoute",
+    "manifestDoesNotAuthorizeAdjudication"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "042a2-adjudication-dossier-manifest-v1"
+    },
+    "manifestType": {
+      "const": "FUTURE_HUMAN_ADJUDICATION_DOSSIER"
+    },
+    "status": {
+      "$ref": "#/$defs/ArtifactStatus"
+    },
+    "dossierId": {
+      "type": "string",
+      "pattern": "^adjudication-dossier-[a-z0-9][a-z0-9-]{0,79}$"
+    },
+    "reviewRoundId": {
+      "type": "string",
+      "pattern": "^review-round-[a-z0-9][a-z0-9-]{0,79}$"
+    },
+    "neutralReviewInput": {
+      "$ref": "#/$defs/ArtifactReference"
+    },
+    "exactTargetCatalog": {
+      "$ref": "#/$defs/ArtifactReference"
+    },
+    "annotationGuide": {
+      "$ref": "#/$defs/ArtifactReference"
+    },
+    "responseA": {
+      "$ref": "#/$defs/ReviewerAArtifactReference"
+    },
+    "responseB": {
+      "$ref": "#/$defs/ReviewerBArtifactReference"
+    },
+    "frozenJustificationA": {
+      "$ref": "#/$defs/FrozenEvidenceReference"
+    },
+    "frozenJustificationB": {
+      "$ref": "#/$defs/FrozenEvidenceReference"
+    },
+    "divergentFields": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "outcome",
+          "reasonCode",
+          "targetCode",
+          "evidenceState",
+          "criticalFlags",
+          "expectedHumanAction",
+          "humanJustification",
+          "decisiveSignal",
+          "mainAlternativeRejected",
+          "unresolvable"
+        ]
+      }
+    },
+    "applicableRules": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/ArtifactReference"
+      }
+    },
+    "contentExclusions": {
+      "$ref": "#/$defs/ContentExclusions"
+    },
+    "decisionRoute": {
+      "$ref": "#/$defs/DecisionRoute"
+    },
+    "manifestDoesNotAuthorizeAdjudication": {
+      "const": true
+    }
+  },
+  "$defs": {
+    "ArtifactStatus": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        {
+          "const": "NOT_GOLDEN"
+        },
+        {
+          "const": "NOT_AUTHORITATIVE"
+        }
+      ],
+      "items": false
+    },
+    "Sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "RepositoryPath": {
+      "description": "Repository-relative path using forward slashes; absolute and private paths are not permitted.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 400,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(^|/)\\.\\.(/|$))[A-Za-z0-9][A-Za-z0-9._/-]*$"
+    },
+    "OpaqueId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,79}$"
+    },
+    "ArtifactReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifactId",
+        "version",
+        "repositoryPath",
+        "sha256"
+      ],
+      "properties": {
+        "artifactId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "repositoryPath": {
+          "$ref": "#/$defs/RepositoryPath"
+        },
+        "sha256": {
+          "$ref": "#/$defs/Sha256"
+        }
+      }
+    },
+    "ReviewerAArtifactReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reviewerPseudonym",
+        "artifactId",
+        "version",
+        "repositoryPath",
+        "sha256"
+      ],
+      "properties": {
+        "reviewerPseudonym": {
+          "const": "reviewer-a"
+        },
+        "artifactId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "repositoryPath": {
+          "$ref": "#/$defs/RepositoryPath"
+        },
+        "sha256": {
+          "$ref": "#/$defs/Sha256"
+        }
+      }
+    },
+    "ReviewerBArtifactReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reviewerPseudonym",
+        "artifactId",
+        "version",
+        "repositoryPath",
+        "sha256"
+      ],
+      "properties": {
+        "reviewerPseudonym": {
+          "const": "reviewer-b"
+        },
+        "artifactId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "repositoryPath": {
+          "$ref": "#/$defs/RepositoryPath"
+        },
+        "sha256": {
+          "$ref": "#/$defs/Sha256"
+        }
+      }
+    },
+    "FrozenEvidenceReference": {
+      "description": "Hash-bound reference to frozen response evidence; the evidence content is not copied into this manifest.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidenceId",
+        "version",
+        "sourceResponseSha256",
+        "evidenceSha256"
+      ],
+      "properties": {
+        "evidenceId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sourceResponseSha256": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "evidenceSha256": {
+          "$ref": "#/$defs/Sha256"
+        }
+      }
+    },
+    "ContentExclusions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "expectedAnswerAbsent",
+        "sourceSolutionAbsent",
+        "originalSourceCaseAbsent",
+        "offlineEvaluatorResultAbsent",
+        "modelResponseAbsent",
+        "coordinatorOpinionAbsent",
+        "reviewerSeniorityAbsent"
+      ],
+      "properties": {
+        "expectedAnswerAbsent": {
+          "const": true
+        },
+        "sourceSolutionAbsent": {
+          "const": true
+        },
+        "originalSourceCaseAbsent": {
+          "const": true
+        },
+        "offlineEvaluatorResultAbsent": {
+          "const": true
+        },
+        "modelResponseAbsent": {
+          "const": true
+        },
+        "coordinatorOpinionAbsent": {
+          "const": true
+        },
+        "reviewerSeniorityAbsent": {
+          "const": true
+        }
+      }
+    },
+    "LedgerRecordReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "recordId",
+        "version",
+        "sha256"
+      ],
+      "properties": {
+        "recordId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/Sha256"
+        }
+      }
+    },
+    "DecisionRoute": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/HumanAdjudicationRoute"
+        },
+        {
+          "$ref": "#/$defs/NonAdjudicableStopRoute"
+        }
+      ]
+    },
+    "HumanAdjudicationRoute": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "route",
+        "adjudicatorPseudonym",
+        "authorizedTransitionReference",
+        "manualDecisionRequired"
+      ],
+      "properties": {
+        "route": {
+          "const": "HUMAN_ADJUDICATION"
+        },
+        "adjudicatorPseudonym": {
+          "const": "adjudicator-1"
+        },
+        "authorizedTransitionReference": {
+          "$ref": "#/$defs/LedgerRecordReference"
+        },
+        "manualDecisionRequired": {
+          "const": true
+        }
+      }
+    },
+    "NonAdjudicableStopRoute": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "route",
+        "reasonCode",
+        "ledgerStopReference",
+        "stopRequired"
+      ],
+      "properties": {
+        "route": {
+          "const": "NON_ADJUDICABLE_STOP"
+        },
+        "reasonCode": {
+          "const": "NON_ADJUDICABLE"
+        },
+        "ledgerStopReference": {
+          "$ref": "#/$defs/LedgerRecordReference"
+        },
+        "stopRequired": {
+          "const": true
+        }
+      }
+    }
+  }
+}

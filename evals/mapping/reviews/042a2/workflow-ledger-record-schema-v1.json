@@ -1,0 +1,991 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ritomer:evals:mapping:reviews:042a2:workflow-ledger-record-schema-v1",
+  "title": "042a2 workflow ledger record schema v1",
+  "description": "Documentary schema for a tamper-evident workflow ledger that is versioned, append-only by policy and no-in-place-edit. A recorded state is distinct from authorization and is never sufficient by itself to permit distribution, adjudication, golden promotion, provider activity or retry.",
+  "$comment": "DRAFT; NOT_EXECUTABLE; NOT_DISTRIBUTABLE; NOT_VALIDATED_BY_DRAFT_2020_12_ENGINE. JSON syntax and repository invariants checked; Draft 2020-12 semantic validation not performed.",
+  "x-ritomer-status": [
+    "DRAFT",
+    "NOT_EXECUTABLE",
+    "NOT_DISTRIBUTABLE",
+    "NOT_VALIDATED_BY_DRAFT_2020_12_ENGINE"
+  ],
+  "oneOf": [
+    {
+      "$ref": "#/$defs/HardeningOnly"
+    },
+    {
+      "$ref": "#/$defs/Transition"
+    },
+    {
+      "$ref": "#/$defs/Stop"
+    },
+    {
+      "$ref": "#/$defs/Invalidation"
+    }
+  ],
+  "$defs": {
+    "SchemaVersion": {
+      "const": "042a2-workflow-ledger-record-v1"
+    },
+    "Sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "WorkflowState": {
+      "type": "string",
+      "enum": [
+        "PENDING_HUMAN_RESPONSES",
+        "PENDING_ADJUDICATION",
+        "ADJUDICATED_NOT_GOLDEN",
+        "GOLDEN_CANDIDATE_PENDING_GOVERNANCE",
+        "GOLDEN_APPROVED"
+      ]
+    },
+    "OpaqueId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,79}$"
+    },
+    "EvidenceReference": {
+      "description": "Reference by id, version and exact-byte SHA-256 only; no response, identity or business justification is embedded.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidenceId",
+        "version",
+        "sha256"
+      ],
+      "properties": {
+        "evidenceId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/Sha256"
+        }
+      }
+    },
+    "LedgerRecordReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "recordId",
+        "version",
+        "sha256"
+      ],
+      "properties": {
+        "recordId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/Sha256"
+        }
+      }
+    },
+    "ApprovalQuorum": {
+      "description": "Pseudonymous approval references only. This does not establish an official signature or non-repudiation.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "quorumType",
+        "quorumPolicyReference",
+        "approvalReferences",
+        "satisfied"
+      ],
+      "properties": {
+        "quorumType": {
+          "enum": [
+            "DISTRIBUTION_AUTHORIZATION",
+            "REVIEW_FREEZE",
+            "ADJUDICATION",
+            "GOVERNANCE_PROMOTION"
+          ]
+        },
+        "quorumPolicyReference": {
+          "description": "Versioned and hash-bound policy reference defining the required count and role composition.",
+          "$ref": "#/$defs/EvidenceReference"
+        },
+        "approvalReferences": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/EvidenceReference"
+          }
+        },
+        "satisfied": {
+          "const": true
+        }
+      }
+    },
+    "TransitionGate": {
+      "description": "All conjunctive conditions are mandatory. None can be inferred from state alone.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ledgerStateValid",
+        "authorizedTransition",
+        "referencedHumanEvidencePresent",
+        "verifiedHashes",
+        "requiredValidationsPassed",
+        "requiredHumanApprovalsPresent",
+        "transitionAuthorizationReference",
+        "validationReferences",
+        "approvalQuorum"
+      ],
+      "properties": {
+        "ledgerStateValid": {
+          "const": true
+        },
+        "authorizedTransition": {
+          "const": true
+        },
+        "referencedHumanEvidencePresent": {
+          "const": true
+        },
+        "verifiedHashes": {
+          "const": true
+        },
+        "requiredValidationsPassed": {
+          "const": true
+        },
+        "requiredHumanApprovalsPresent": {
+          "const": true
+        },
+        "transitionAuthorizationReference": {
+          "$ref": "#/$defs/EvidenceReference"
+        },
+        "validationReferences": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/EvidenceReference"
+          }
+        },
+        "approvalQuorum": {
+          "$ref": "#/$defs/ApprovalQuorum"
+        }
+      }
+    },
+    "InvalidationGate": {
+      "description": "Fail-safe invalidation evidence. Invalidation removes authority and is not an authorization, so normal approval conjunction fields do not apply.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ledgerStateValid",
+        "invalidationRequired",
+        "referencedInvalidationEvidencePresent",
+        "verifiedHashes",
+        "downstreamInvalidationRequired",
+        "invalidationEvidenceReferences"
+      ],
+      "properties": {
+        "ledgerStateValid": {
+          "const": true
+        },
+        "invalidationRequired": {
+          "const": true
+        },
+        "referencedInvalidationEvidencePresent": {
+          "const": true
+        },
+        "verifiedHashes": {
+          "const": true
+        },
+        "downstreamInvalidationRequired": {
+          "const": true
+        },
+        "invalidationEvidenceReferences": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/EvidenceReference"
+          }
+        }
+      }
+    },
+    "HardeningOnly": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "recordType",
+        "sequence",
+        "previousRecordHash",
+        "stateBefore",
+        "stateAfter",
+        "transitionApplied",
+        "collectionAuthorized",
+        "distributionAuthorized",
+        "providerAuthorized",
+        "goldenPromotionAuthorized",
+        "adjudicationAuthorized",
+        "retryAuthorized",
+        "evidenceClass",
+        "humanResponseEvidencePresent",
+        "humanApprovalEvidencePresent",
+        "humanSignaturePresent"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/SchemaVersion"
+        },
+        "recordType": {
+          "const": "HARDENING_ONLY"
+        },
+        "sequence": {
+          "const": 0
+        },
+        "previousRecordHash": {
+          "const": "GENESIS"
+        },
+        "stateBefore": {
+          "const": "PENDING_HUMAN_RESPONSES"
+        },
+        "stateAfter": {
+          "const": "PENDING_HUMAN_RESPONSES"
+        },
+        "transitionApplied": {
+          "const": false
+        },
+        "collectionAuthorized": {
+          "const": false
+        },
+        "distributionAuthorized": {
+          "const": false
+        },
+        "providerAuthorized": {
+          "const": false
+        },
+        "goldenPromotionAuthorized": {
+          "const": false
+        },
+        "adjudicationAuthorized": {
+          "const": false
+        },
+        "retryAuthorized": {
+          "const": false
+        },
+        "evidenceClass": {
+          "const": "CONFIGURATION_BASELINE"
+        },
+        "humanResponseEvidencePresent": {
+          "const": false
+        },
+        "humanApprovalEvidencePresent": {
+          "const": false
+        },
+        "humanSignaturePresent": {
+          "const": false
+        }
+      }
+    },
+    "Transition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "recordType",
+        "recordId",
+        "recordVersion",
+        "transitionType",
+        "sequence",
+        "previousRecordHash",
+        "stateBefore",
+        "stateAfter",
+        "transitionApplied",
+        "collectionAuthorized",
+        "distributionAuthorized",
+        "providerAuthorized",
+        "goldenPromotionAuthorized",
+        "adjudicationAuthorized",
+        "retryAuthorized",
+        "evidenceClass",
+        "humanResponseEvidencePresent",
+        "humanApprovalEvidencePresent",
+        "humanSignaturePresent",
+        "evidenceReferences",
+        "transitionGate"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/SchemaVersion"
+        },
+        "recordType": {
+          "const": "TRANSITION"
+        },
+        "recordId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "recordVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "transitionType": {
+          "enum": [
+            "REVIEW_ROUND_DISTRIBUTION_AUTHORIZED",
+            "HUMAN_RESPONSES_FROZEN",
+            "ADJUDICATION_COMPLETED",
+            "GOLDEN_CANDIDATE_ASSEMBLED",
+            "GOLDEN_GOVERNANCE_APPROVED"
+          ]
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "previousRecordHash": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "stateBefore": {
+          "$ref": "#/$defs/WorkflowState"
+        },
+        "stateAfter": {
+          "$ref": "#/$defs/WorkflowState"
+        },
+        "transitionApplied": {
+          "const": true
+        },
+        "collectionAuthorized": {
+          "type": "boolean"
+        },
+        "distributionAuthorized": {
+          "type": "boolean"
+        },
+        "providerAuthorized": {
+          "const": false
+        },
+        "goldenPromotionAuthorized": {
+          "type": "boolean"
+        },
+        "adjudicationAuthorized": {
+          "type": "boolean"
+        },
+        "retryAuthorized": {
+          "const": false
+        },
+        "evidenceClass": {
+          "enum": [
+            "HUMAN_REVIEW_EVIDENCE",
+            "ADJUDICATION_EVIDENCE",
+            "GOVERNANCE_EVIDENCE"
+          ]
+        },
+        "humanResponseEvidencePresent": {
+          "type": "boolean"
+        },
+        "humanApprovalEvidencePresent": {
+          "const": true
+        },
+        "humanSignaturePresent": {
+          "description": "A true value refers only to pseudonymous human attestation evidence; it does not claim a cryptographic or official signature.",
+          "const": true
+        },
+        "evidenceReferences": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/EvidenceReference"
+          }
+        },
+        "transitionGate": {
+          "$ref": "#/$defs/TransitionGate"
+        }
+      },
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "required": [
+                "transitionType",
+                "stateBefore",
+                "stateAfter",
+                "evidenceClass",
+                "collectionAuthorized",
+                "distributionAuthorized",
+                "goldenPromotionAuthorized",
+                "adjudicationAuthorized",
+                "humanResponseEvidencePresent"
+              ],
+              "properties": {
+                "transitionType": {
+                  "const": "REVIEW_ROUND_DISTRIBUTION_AUTHORIZED"
+                },
+                "stateBefore": {
+                  "const": "PENDING_HUMAN_RESPONSES"
+                },
+                "stateAfter": {
+                  "const": "PENDING_HUMAN_RESPONSES"
+                },
+                "evidenceClass": {
+                  "const": "GOVERNANCE_EVIDENCE"
+                },
+                "collectionAuthorized": {
+                  "const": true
+                },
+                "distributionAuthorized": {
+                  "const": true
+                },
+                "goldenPromotionAuthorized": {
+                  "const": false
+                },
+                "adjudicationAuthorized": {
+                  "const": false
+                },
+                "humanResponseEvidencePresent": {
+                  "const": false
+                },
+                "transitionGate": {
+                  "properties": {
+                    "approvalQuorum": {
+                      "properties": {
+                        "quorumType": {
+                          "const": "DISTRIBUTION_AUTHORIZATION"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "required": [
+                "transitionType",
+                "stateBefore",
+                "stateAfter",
+                "evidenceClass",
+                "collectionAuthorized",
+                "distributionAuthorized",
+                "goldenPromotionAuthorized",
+                "adjudicationAuthorized",
+                "humanResponseEvidencePresent"
+              ],
+              "properties": {
+                "transitionType": {
+                  "const": "HUMAN_RESPONSES_FROZEN"
+                },
+                "stateBefore": {
+                  "const": "PENDING_HUMAN_RESPONSES"
+                },
+                "stateAfter": {
+                  "const": "PENDING_ADJUDICATION"
+                },
+                "evidenceClass": {
+                  "const": "HUMAN_REVIEW_EVIDENCE"
+                },
+                "collectionAuthorized": {
+                  "const": false
+                },
+                "distributionAuthorized": {
+                  "const": false
+                },
+                "goldenPromotionAuthorized": {
+                  "const": false
+                },
+                "adjudicationAuthorized": {
+                  "const": true
+                },
+                "humanResponseEvidencePresent": {
+                  "const": true
+                },
+                "transitionGate": {
+                  "properties": {
+                    "approvalQuorum": {
+                      "properties": {
+                        "quorumType": {
+                          "const": "REVIEW_FREEZE"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "required": [
+                "transitionType",
+                "stateBefore",
+                "stateAfter",
+                "evidenceClass",
+                "collectionAuthorized",
+                "distributionAuthorized",
+                "goldenPromotionAuthorized",
+                "adjudicationAuthorized",
+                "humanResponseEvidencePresent"
+              ],
+              "properties": {
+                "transitionType": {
+                  "const": "ADJUDICATION_COMPLETED"
+                },
+                "stateBefore": {
+                  "const": "PENDING_ADJUDICATION"
+                },
+                "stateAfter": {
+                  "const": "ADJUDICATED_NOT_GOLDEN"
+                },
+                "evidenceClass": {
+                  "const": "ADJUDICATION_EVIDENCE"
+                },
+                "collectionAuthorized": {
+                  "const": false
+                },
+                "distributionAuthorized": {
+                  "const": false
+                },
+                "goldenPromotionAuthorized": {
+                  "const": false
+                },
+                "adjudicationAuthorized": {
+                  "const": false
+                },
+                "humanResponseEvidencePresent": {
+                  "const": true
+                },
+                "transitionGate": {
+                  "properties": {
+                    "approvalQuorum": {
+                      "properties": {
+                        "quorumType": {
+                          "const": "ADJUDICATION"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "required": [
+                "transitionType",
+                "stateBefore",
+                "stateAfter",
+                "evidenceClass",
+                "collectionAuthorized",
+                "distributionAuthorized",
+                "goldenPromotionAuthorized",
+                "adjudicationAuthorized",
+                "humanResponseEvidencePresent"
+              ],
+              "properties": {
+                "transitionType": {
+                  "const": "GOLDEN_CANDIDATE_ASSEMBLED"
+                },
+                "stateBefore": {
+                  "const": "ADJUDICATED_NOT_GOLDEN"
+                },
+                "stateAfter": {
+                  "const": "GOLDEN_CANDIDATE_PENDING_GOVERNANCE"
+                },
+                "evidenceClass": {
+                  "const": "GOVERNANCE_EVIDENCE"
+                },
+                "collectionAuthorized": {
+                  "const": false
+                },
+                "distributionAuthorized": {
+                  "const": false
+                },
+                "goldenPromotionAuthorized": {
+                  "const": false
+                },
+                "adjudicationAuthorized": {
+                  "const": false
+                },
+                "humanResponseEvidencePresent": {
+                  "const": true
+                },
+                "transitionGate": {
+                  "properties": {
+                    "approvalQuorum": {
+                      "properties": {
+                        "quorumType": {
+                          "const": "GOVERNANCE_PROMOTION"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "required": [
+                "transitionType",
+                "stateBefore",
+                "stateAfter",
+                "evidenceClass",
+                "collectionAuthorized",
+                "distributionAuthorized",
+                "goldenPromotionAuthorized",
+                "adjudicationAuthorized",
+                "humanResponseEvidencePresent"
+              ],
+              "properties": {
+                "transitionType": {
+                  "const": "GOLDEN_GOVERNANCE_APPROVED"
+                },
+                "stateBefore": {
+                  "const": "GOLDEN_CANDIDATE_PENDING_GOVERNANCE"
+                },
+                "stateAfter": {
+                  "const": "GOLDEN_APPROVED"
+                },
+                "evidenceClass": {
+                  "const": "GOVERNANCE_EVIDENCE"
+                },
+                "collectionAuthorized": {
+                  "const": false
+                },
+                "distributionAuthorized": {
+                  "const": false
+                },
+                "goldenPromotionAuthorized": {
+                  "const": true
+                },
+                "adjudicationAuthorized": {
+                  "const": false
+                },
+                "humanResponseEvidencePresent": {
+                  "const": true
+                },
+                "transitionGate": {
+                  "properties": {
+                    "approvalQuorum": {
+                      "properties": {
+                        "quorumType": {
+                          "const": "GOVERNANCE_PROMOTION"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "Stop": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "recordType",
+        "recordId",
+        "recordVersion",
+        "stopReasonCode",
+        "sequence",
+        "previousRecordHash",
+        "stateBefore",
+        "stateAfter",
+        "transitionApplied",
+        "collectionAuthorized",
+        "distributionAuthorized",
+        "providerAuthorized",
+        "goldenPromotionAuthorized",
+        "adjudicationAuthorized",
+        "retryAuthorized",
+        "evidenceClass",
+        "humanResponseEvidencePresent",
+        "humanApprovalEvidencePresent",
+        "humanSignaturePresent",
+        "evidenceReferences",
+        "stopDisposition"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/SchemaVersion"
+        },
+        "recordType": {
+          "const": "STOP"
+        },
+        "recordId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "recordVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "stopReasonCode": {
+          "enum": [
+            "NON_ADJUDICABLE",
+            "VALIDATION_FAILED",
+            "HASH_MISMATCH",
+            "INDEPENDENCE_BREACH",
+            "REQUIRED_QUORUM_NOT_MET",
+            "REQUIRED_APPROVAL_MISSING",
+            "EVIDENCE_MISSING"
+          ]
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "previousRecordHash": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "stateBefore": {
+          "$ref": "#/$defs/WorkflowState"
+        },
+        "stateAfter": {
+          "$ref": "#/$defs/WorkflowState"
+        },
+        "transitionApplied": {
+          "const": false
+        },
+        "collectionAuthorized": {
+          "const": false
+        },
+        "distributionAuthorized": {
+          "const": false
+        },
+        "providerAuthorized": {
+          "const": false
+        },
+        "goldenPromotionAuthorized": {
+          "const": false
+        },
+        "adjudicationAuthorized": {
+          "const": false
+        },
+        "retryAuthorized": {
+          "const": false
+        },
+        "evidenceClass": {
+          "const": "STOP_EVIDENCE"
+        },
+        "humanResponseEvidencePresent": {
+          "type": "boolean"
+        },
+        "humanApprovalEvidencePresent": {
+          "const": false
+        },
+        "humanSignaturePresent": {
+          "const": false
+        },
+        "evidenceReferences": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/EvidenceReference"
+          }
+        },
+        "stopDisposition": {
+          "const": "NO_STATE_ADVANCE"
+        }
+      },
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "stateBefore": {
+                  "const": "PENDING_HUMAN_RESPONSES"
+                },
+                "stateAfter": {
+                  "const": "PENDING_HUMAN_RESPONSES"
+                }
+              }
+            },
+            {
+              "properties": {
+                "stateBefore": {
+                  "const": "PENDING_ADJUDICATION"
+                },
+                "stateAfter": {
+                  "const": "PENDING_ADJUDICATION"
+                }
+              }
+            },
+            {
+              "properties": {
+                "stateBefore": {
+                  "const": "ADJUDICATED_NOT_GOLDEN"
+                },
+                "stateAfter": {
+                  "const": "ADJUDICATED_NOT_GOLDEN"
+                }
+              }
+            },
+            {
+              "properties": {
+                "stateBefore": {
+                  "const": "GOLDEN_CANDIDATE_PENDING_GOVERNANCE"
+                },
+                "stateAfter": {
+                  "const": "GOLDEN_CANDIDATE_PENDING_GOVERNANCE"
+                }
+              }
+            },
+            {
+              "properties": {
+                "stateBefore": {
+                  "const": "GOLDEN_APPROVED"
+                },
+                "stateAfter": {
+                  "const": "GOLDEN_APPROVED"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "if": {
+            "properties": {
+              "stopReasonCode": {
+                "const": "NON_ADJUDICABLE"
+              }
+            },
+            "required": [
+              "stopReasonCode"
+            ]
+          },
+          "then": {
+            "properties": {
+              "stateBefore": {
+                "const": "PENDING_ADJUDICATION"
+              },
+              "stateAfter": {
+                "const": "PENDING_ADJUDICATION"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Invalidation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "recordType",
+        "recordId",
+        "recordVersion",
+        "invalidationReasonCode",
+        "sequence",
+        "previousRecordHash",
+        "stateBefore",
+        "stateAfter",
+        "transitionApplied",
+        "collectionAuthorized",
+        "distributionAuthorized",
+        "providerAuthorized",
+        "goldenPromotionAuthorized",
+        "adjudicationAuthorized",
+        "retryAuthorized",
+        "evidenceClass",
+        "humanResponseEvidencePresent",
+        "humanApprovalEvidencePresent",
+        "humanSignaturePresent",
+        "evidenceReferences",
+        "invalidatedRecords",
+        "invalidationGate"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/SchemaVersion"
+        },
+        "recordType": {
+          "const": "INVALIDATION"
+        },
+        "recordId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "recordVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "invalidationReasonCode": {
+          "enum": [
+            "HASH_CHANGED",
+            "RESPONSE_REOPENED",
+            "VALIDATION_REVOKED",
+            "INDEPENDENCE_COMPROMISED",
+            "DOWNSTREAM_EVIDENCE_INVALID"
+          ]
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "previousRecordHash": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "stateBefore": {
+          "enum": [
+            "PENDING_ADJUDICATION",
+            "ADJUDICATED_NOT_GOLDEN",
+            "GOLDEN_CANDIDATE_PENDING_GOVERNANCE",
+            "GOLDEN_APPROVED"
+          ]
+        },
+        "stateAfter": {
+          "const": "PENDING_HUMAN_RESPONSES"
+        },
+        "transitionApplied": {
+          "const": true
+        },
+        "collectionAuthorized": {
+          "const": false
+        },
+        "distributionAuthorized": {
+          "const": false
+        },
+        "providerAuthorized": {
+          "const": false
+        },
+        "goldenPromotionAuthorized": {
+          "const": false
+        },
+        "adjudicationAuthorized": {
+          "const": false
+        },
+        "retryAuthorized": {
+          "const": false
+        },
+        "evidenceClass": {
+          "const": "INVALIDATION_EVIDENCE"
+        },
+        "humanResponseEvidencePresent": {
+          "const": false
+        },
+        "humanApprovalEvidencePresent": {
+          "const": false
+        },
+        "humanSignaturePresent": {
+          "const": false
+        },
+        "evidenceReferences": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/EvidenceReference"
+          }
+        },
+        "invalidatedRecords": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/LedgerRecordReference"
+          }
+        },
+        "invalidationGate": {
+          "$ref": "#/$defs/InvalidationGate"
+        }
+      }
+    }
+  }
+}

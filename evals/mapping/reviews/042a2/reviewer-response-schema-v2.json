@@ -1,0 +1,986 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ritomer:evals:mapping:reviews:042a2:reviewer-response-schema-v2",
+  "title": "042a2 reviewer response schema v2",
+  "description": "Documentary schema for a future human review response without expected-answer or oracle fields. It is not an operational collection contract and does not authorize review distribution, adjudication, golden promotion or provider activity.",
+  "$comment": "DRAFT; NOT_EXECUTABLE; NOT_DISTRIBUTABLE; NOT_VALIDATED_BY_DRAFT_2020_12_ENGINE. JSON syntax and repository invariants checked; Draft 2020-12 semantic validation not performed.",
+  "x-ritomer-status": [
+    "DRAFT",
+    "NOT_EXECUTABLE",
+    "NOT_DISTRIBUTABLE",
+    "NOT_VALIDATED_BY_DRAFT_2020_12_ENGINE"
+  ],
+  "oneOf": [
+    {
+      "$ref": "#/$defs/RealRoundResponse"
+    },
+    {
+      "$ref": "#/$defs/DryRunResponse"
+    }
+  ],
+  "$defs": {
+    "SchemaVersion": {
+      "type": "string",
+      "const": "042a2-reviewer-response-v2"
+    },
+    "ArtifactStatus": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        {
+          "const": "NOT_GOLDEN"
+        },
+        {
+          "const": "NOT_AUTHORITATIVE"
+        }
+      ],
+      "items": false
+    },
+    "ReviewRoundId": {
+      "type": "string",
+      "pattern": "^review-round-[a-z0-9][a-z0-9-]{0,79}$"
+    },
+    "ReviewerPseudonym": {
+      "type": "string",
+      "pattern": "^reviewer-[a-z0-9][a-z0-9-]{0,39}$"
+    },
+    "ReviewCaseId": {
+      "type": "string",
+      "pattern": "^(BR-(00[1-9]|01[0-7])|DRY-[A-Z0-9][A-Z0-9-]{0,63})$"
+    },
+    "BlindCaseId": {
+      "type": "string",
+      "pattern": "^BR-(00[1-9]|01[0-7])$"
+    },
+    "DryRunCaseId": {
+      "type": "string",
+      "pattern": "^DRY-[A-Z0-9][A-Z0-9-]{0,63}$"
+    },
+    "AllBlindCaseIdsExactlyOnce": {
+      "description": "Each governed BR-001 through BR-017 identifier must occur exactly once in a REAL_ROUND response.",
+      "allOf": [
+        {
+          "contains": {
+            "required": [
+              "caseId"
+            ],
+            "properties": {
+              "caseId": {
+                "const": "BR-001"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "required": [
+              "caseId"
+            ],
+            "properties": {
+              "caseId": {
+                "const": "BR-002"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "required": [
+              "caseId"
+            ],
+            "properties": {
+              "caseId": {
+                "const": "BR-003"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "required": [
+              "caseId"
+            ],
+            "properties": {
+              "caseId": {
+                "const": "BR-004"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "required": [
+              "caseId"
+            ],
+            "properties": {
+              "caseId": {
+                "const": "BR-005"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "required": [
+              "caseId"
+            ],
+            "properties": {
+              "caseId": {
+                "const": "BR-006"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "required": [
+              "caseId"
+            ],
+            "properties": {
+              "caseId": {
+                "const": "BR-007"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "required": [
+              "caseId"
+            ],
+            "properties": {
+              "caseId": {
+                "const": "BR-008"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "required": [
+              "caseId"
+            ],
+            "properties": {
+              "caseId": {
+                "const": "BR-009"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "required": [
+              "caseId"
+            ],
+            "properties": {
+              "caseId": {
+                "const": "BR-010"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "required": [
+              "caseId"
+            ],
+            "properties": {
+              "caseId": {
+                "const": "BR-011"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "required": [
+              "caseId"
+            ],
+            "properties": {
+              "caseId": {
+                "const": "BR-012"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "required": [
+              "caseId"
+            ],
+            "properties": {
+              "caseId": {
+                "const": "BR-013"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "required": [
+              "caseId"
+            ],
+            "properties": {
+              "caseId": {
+                "const": "BR-014"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "required": [
+              "caseId"
+            ],
+            "properties": {
+              "caseId": {
+                "const": "BR-015"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "required": [
+              "caseId"
+            ],
+            "properties": {
+              "caseId": {
+                "const": "BR-016"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "required": [
+              "caseId"
+            ],
+            "properties": {
+              "caseId": {
+                "const": "BR-017"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        }
+      ]
+    },
+    "TargetCode": {
+      "type": "string",
+      "enum": [
+        "BS.ASSET.CASH_AND_EQUIVALENTS",
+        "BS.ASSET.TRADE_RECEIVABLES",
+        "BS.LIABILITY.TRADE_PAYABLES",
+        "BS.EQUITY.RETAINED_EARNINGS",
+        "PL.REVENUE.OPERATING_REVENUE",
+        "PL.EXPENSE.OTHER_OPERATING_EXPENSES"
+      ]
+    },
+    "HumanJustification": {
+      "type": "string",
+      "minLength": 250,
+      "maxLength": 400
+    },
+    "DecisiveSignal": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "MainAlternativeRejected": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "CriticalFlags": {
+      "oneOf": [
+        {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "const": "NONE"
+          }
+        },
+        {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "ACTIVE_PASSIVE_BOUNDARY",
+              "BALANCE_SHEET_INCOME_STATEMENT_BOUNDARY",
+              "REVENUE_EXPENSE_BOUNDARY",
+              "CONTRA_ACCOUNT",
+              "TARGET_VALIDITY",
+              "TAXONOMY_GAP",
+              "POLICY_INCIDENT",
+              "TECHNICAL_INCIDENT"
+            ]
+          }
+        }
+      ]
+    },
+    "TaxonomyGapCriticalFlags": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/CriticalFlags"
+        },
+        {
+          "contains": {
+            "const": "TAXONOMY_GAP"
+          },
+          "minContains": 1,
+          "maxContains": 1
+        }
+      ]
+    },
+    "PolicyCriticalFlags": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/CriticalFlags"
+        },
+        {
+          "contains": {
+            "const": "POLICY_INCIDENT"
+          },
+          "minContains": 1,
+          "maxContains": 1
+        }
+      ]
+    },
+    "TechnicalCriticalFlags": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/CriticalFlags"
+        },
+        {
+          "contains": {
+            "const": "TECHNICAL_INCIDENT"
+          },
+          "minContains": 1,
+          "maxContains": 1
+        }
+      ]
+    },
+    "RealReviewItem": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/ReviewItem"
+        },
+        {
+          "properties": {
+            "caseId": {
+              "$ref": "#/$defs/BlindCaseId"
+            }
+          }
+        }
+      ]
+    },
+    "DryRunReviewItem": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/ReviewItem"
+        },
+        {
+          "properties": {
+            "caseId": {
+              "$ref": "#/$defs/DryRunCaseId"
+            }
+          }
+        }
+      ]
+    },
+    "ReviewItem": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Suggestion"
+        },
+        {
+          "$ref": "#/$defs/Abstention"
+        },
+        {
+          "$ref": "#/$defs/PolicyBlock"
+        },
+        {
+          "$ref": "#/$defs/PreconditionBlock"
+        },
+        {
+          "$ref": "#/$defs/InvalidModelOutput"
+        }
+      ]
+    },
+    "Suggestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "caseId",
+        "outcome",
+        "targetCode",
+        "evidenceState",
+        "criticalFlags",
+        "expectedHumanAction",
+        "humanJustification",
+        "decisiveSignal"
+      ],
+      "properties": {
+        "caseId": {
+          "$ref": "#/$defs/ReviewCaseId"
+        },
+        "outcome": {
+          "const": "SUGGESTION"
+        },
+        "targetCode": {
+          "$ref": "#/$defs/TargetCode"
+        },
+        "evidenceState": {
+          "const": "SUFFICIENT"
+        },
+        "criticalFlags": {
+          "$ref": "#/$defs/CriticalFlags"
+        },
+        "expectedHumanAction": {
+          "const": "REVIEW_TARGET"
+        },
+        "humanJustification": {
+          "$ref": "#/$defs/HumanJustification"
+        },
+        "decisiveSignal": {
+          "$ref": "#/$defs/DecisiveSignal"
+        },
+        "mainAlternativeRejected": {
+          "$ref": "#/$defs/MainAlternativeRejected"
+        }
+      }
+    },
+    "Abstention": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/OutOfScopeAbstention"
+        },
+        {
+          "$ref": "#/$defs/ConflictingSignalsAbstention"
+        },
+        {
+          "$ref": "#/$defs/InsufficientEvidenceAbstention"
+        },
+        {
+          "$ref": "#/$defs/TaxonomyGapAbstention"
+        },
+        {
+          "$ref": "#/$defs/AmbiguousTargetAbstention"
+        }
+      ]
+    },
+    "OutOfScopeAbstention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "caseId",
+        "outcome",
+        "reasonCode",
+        "evidenceState",
+        "criticalFlags",
+        "expectedHumanAction",
+        "humanJustification",
+        "decisiveSignal"
+      ],
+      "properties": {
+        "caseId": {
+          "$ref": "#/$defs/ReviewCaseId"
+        },
+        "outcome": {
+          "const": "ABSTENTION"
+        },
+        "reasonCode": {
+          "const": "OUT_OF_SCOPE"
+        },
+        "evidenceState": {
+          "const": "SUFFICIENT"
+        },
+        "criticalFlags": {
+          "$ref": "#/$defs/CriticalFlags"
+        },
+        "expectedHumanAction": {
+          "const": "REVIEW_ABSTENTION_REASON"
+        },
+        "humanJustification": {
+          "$ref": "#/$defs/HumanJustification"
+        },
+        "decisiveSignal": {
+          "$ref": "#/$defs/DecisiveSignal"
+        },
+        "mainAlternativeRejected": {
+          "$ref": "#/$defs/MainAlternativeRejected"
+        },
+        "unresolvable": {
+          "const": true
+        }
+      }
+    },
+    "ConflictingSignalsAbstention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "caseId",
+        "outcome",
+        "reasonCode",
+        "evidenceState",
+        "criticalFlags",
+        "expectedHumanAction",
+        "humanJustification",
+        "decisiveSignal"
+      ],
+      "properties": {
+        "caseId": {
+          "$ref": "#/$defs/ReviewCaseId"
+        },
+        "outcome": {
+          "const": "ABSTENTION"
+        },
+        "reasonCode": {
+          "const": "CONFLICTING_SIGNALS"
+        },
+        "evidenceState": {
+          "const": "CONFLICTING"
+        },
+        "criticalFlags": {
+          "$ref": "#/$defs/CriticalFlags"
+        },
+        "expectedHumanAction": {
+          "const": "REVIEW_ABSTENTION_REASON"
+        },
+        "humanJustification": {
+          "$ref": "#/$defs/HumanJustification"
+        },
+        "decisiveSignal": {
+          "$ref": "#/$defs/DecisiveSignal"
+        },
+        "mainAlternativeRejected": {
+          "$ref": "#/$defs/MainAlternativeRejected"
+        },
+        "unresolvable": {
+          "const": true
+        }
+      }
+    },
+    "InsufficientEvidenceAbstention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "caseId",
+        "outcome",
+        "reasonCode",
+        "evidenceState",
+        "criticalFlags",
+        "expectedHumanAction",
+        "humanJustification",
+        "decisiveSignal"
+      ],
+      "properties": {
+        "caseId": {
+          "$ref": "#/$defs/ReviewCaseId"
+        },
+        "outcome": {
+          "const": "ABSTENTION"
+        },
+        "reasonCode": {
+          "const": "INSUFFICIENT_EVIDENCE"
+        },
+        "evidenceState": {
+          "enum": [
+            "INSUFFICIENT",
+            "MISSING"
+          ]
+        },
+        "criticalFlags": {
+          "$ref": "#/$defs/CriticalFlags"
+        },
+        "expectedHumanAction": {
+          "const": "REVIEW_ABSTENTION_REASON"
+        },
+        "humanJustification": {
+          "$ref": "#/$defs/HumanJustification"
+        },
+        "decisiveSignal": {
+          "$ref": "#/$defs/DecisiveSignal"
+        },
+        "mainAlternativeRejected": {
+          "$ref": "#/$defs/MainAlternativeRejected"
+        },
+        "unresolvable": {
+          "const": true
+        }
+      }
+    },
+    "TaxonomyGapAbstention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "caseId",
+        "outcome",
+        "reasonCode",
+        "evidenceState",
+        "criticalFlags",
+        "expectedHumanAction",
+        "humanJustification",
+        "decisiveSignal",
+        "unresolvable"
+      ],
+      "properties": {
+        "caseId": {
+          "$ref": "#/$defs/ReviewCaseId"
+        },
+        "outcome": {
+          "const": "ABSTENTION"
+        },
+        "reasonCode": {
+          "const": "TAXONOMY_GAP"
+        },
+        "evidenceState": {
+          "const": "SUFFICIENT"
+        },
+        "criticalFlags": {
+          "$ref": "#/$defs/TaxonomyGapCriticalFlags"
+        },
+        "expectedHumanAction": {
+          "const": "REVIEW_ABSTENTION_REASON"
+        },
+        "humanJustification": {
+          "$ref": "#/$defs/HumanJustification"
+        },
+        "decisiveSignal": {
+          "$ref": "#/$defs/DecisiveSignal"
+        },
+        "mainAlternativeRejected": {
+          "$ref": "#/$defs/MainAlternativeRejected"
+        },
+        "unresolvable": {
+          "const": true
+        }
+      }
+    },
+    "AmbiguousTargetAbstention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "caseId",
+        "outcome",
+        "reasonCode",
+        "evidenceState",
+        "criticalFlags",
+        "expectedHumanAction",
+        "humanJustification",
+        "decisiveSignal",
+        "unresolvable"
+      ],
+      "properties": {
+        "caseId": {
+          "$ref": "#/$defs/ReviewCaseId"
+        },
+        "outcome": {
+          "const": "ABSTENTION"
+        },
+        "reasonCode": {
+          "const": "AMBIGUOUS_TARGET"
+        },
+        "evidenceState": {
+          "enum": [
+            "SUFFICIENT",
+            "CONFLICTING"
+          ]
+        },
+        "criticalFlags": {
+          "$ref": "#/$defs/CriticalFlags"
+        },
+        "expectedHumanAction": {
+          "const": "REVIEW_ABSTENTION_REASON"
+        },
+        "humanJustification": {
+          "$ref": "#/$defs/HumanJustification"
+        },
+        "decisiveSignal": {
+          "$ref": "#/$defs/DecisiveSignal"
+        },
+        "mainAlternativeRejected": {
+          "$ref": "#/$defs/MainAlternativeRejected"
+        },
+        "unresolvable": {
+          "const": true
+        }
+      }
+    },
+    "PolicyBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "caseId",
+        "outcome",
+        "reasonCode",
+        "evidenceState",
+        "criticalFlags",
+        "expectedHumanAction",
+        "humanJustification",
+        "decisiveSignal"
+      ],
+      "properties": {
+        "caseId": {
+          "$ref": "#/$defs/ReviewCaseId"
+        },
+        "outcome": {
+          "const": "POLICY_BLOCK"
+        },
+        "reasonCode": {
+          "enum": [
+            "NON_SYNTHETIC_REQUEST",
+            "CROSS_TENANT_REQUEST",
+            "OUTSIDE_ALLOWLIST_OR_PROVENANCE",
+            "LANGUAGE_OUT_OF_COHORT",
+            "GATE_INVALID",
+            "PRIVACY_OR_TENANT_BOUNDARY"
+          ]
+        },
+        "evidenceState": {
+          "const": "POLICY_BLOCKED"
+        },
+        "criticalFlags": {
+          "$ref": "#/$defs/PolicyCriticalFlags"
+        },
+        "expectedHumanAction": {
+          "const": "ROUTE_TO_GOVERNANCE"
+        },
+        "humanJustification": {
+          "$ref": "#/$defs/HumanJustification"
+        },
+        "decisiveSignal": {
+          "$ref": "#/$defs/DecisiveSignal"
+        },
+        "mainAlternativeRejected": {
+          "$ref": "#/$defs/MainAlternativeRejected"
+        },
+        "unresolvable": {
+          "const": true
+        }
+      }
+    },
+    "PreconditionBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "caseId",
+        "outcome",
+        "reasonCode",
+        "evidenceState",
+        "criticalFlags",
+        "expectedHumanAction",
+        "humanJustification",
+        "decisiveSignal"
+      ],
+      "properties": {
+        "caseId": {
+          "$ref": "#/$defs/ReviewCaseId"
+        },
+        "outcome": {
+          "const": "PRECONDITION_BLOCK"
+        },
+        "reasonCode": {
+          "enum": [
+            "ACCOUNT_ALREADY_AFFECTED",
+            "ACCOUNT_NOT_IN_LATEST_IMPORT",
+            "STALE_IMPORT",
+            "NOT_ELIGIBLE"
+          ]
+        },
+        "evidenceState": {
+          "const": "STALE_PRECONDITION"
+        },
+        "criticalFlags": {
+          "$ref": "#/$defs/CriticalFlags"
+        },
+        "expectedHumanAction": {
+          "const": "CHECK_PRECONDITION"
+        },
+        "humanJustification": {
+          "$ref": "#/$defs/HumanJustification"
+        },
+        "decisiveSignal": {
+          "$ref": "#/$defs/DecisiveSignal"
+        },
+        "mainAlternativeRejected": {
+          "$ref": "#/$defs/MainAlternativeRejected"
+        },
+        "unresolvable": {
+          "const": true
+        }
+      }
+    },
+    "InvalidModelOutput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "caseId",
+        "outcome",
+        "reasonCode",
+        "evidenceState",
+        "criticalFlags",
+        "expectedHumanAction",
+        "humanJustification",
+        "decisiveSignal"
+      ],
+      "properties": {
+        "caseId": {
+          "$ref": "#/$defs/ReviewCaseId"
+        },
+        "outcome": {
+          "const": "INVALID_MODEL_OUTPUT"
+        },
+        "reasonCode": {
+          "enum": [
+            "TARGET_UNKNOWN",
+            "TARGET_DEPRECATED",
+            "TARGET_NOT_SELECTABLE",
+            "SECTION_OR_ROOT_PROPOSED",
+            "MALFORMED_OUTPUT",
+            "SCHEMA_INVALID",
+            "CONTEXTUALLY_INADMISSIBLE_TARGET"
+          ]
+        },
+        "evidenceState": {
+          "const": "TECHNICAL_INVALID"
+        },
+        "criticalFlags": {
+          "$ref": "#/$defs/TechnicalCriticalFlags"
+        },
+        "expectedHumanAction": {
+          "const": "ROUTE_TO_TECHNICAL_REVIEW"
+        },
+        "humanJustification": {
+          "$ref": "#/$defs/HumanJustification"
+        },
+        "decisiveSignal": {
+          "$ref": "#/$defs/DecisiveSignal"
+        },
+        "mainAlternativeRejected": {
+          "$ref": "#/$defs/MainAlternativeRejected"
+        },
+        "unresolvable": {
+          "const": true
+        }
+      }
+    },
+    "RealRoundResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "status",
+        "reviewMode",
+        "reviewRoundId",
+        "reviewerPseudonym",
+        "responses"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/SchemaVersion"
+        },
+        "status": {
+          "$ref": "#/$defs/ArtifactStatus"
+        },
+        "reviewMode": {
+          "const": "REAL_ROUND"
+        },
+        "reviewRoundId": {
+          "$ref": "#/$defs/ReviewRoundId"
+        },
+        "reviewerPseudonym": {
+          "$ref": "#/$defs/ReviewerPseudonym"
+        },
+        "responses": {
+          "type": "array",
+          "minItems": 17,
+          "maxItems": 17,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/RealReviewItem"
+          },
+          "allOf": [
+            {
+              "$ref": "#/$defs/AllBlindCaseIdsExactlyOnce"
+            }
+          ]
+        }
+      }
+    },
+    "DryRunResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "status",
+        "reviewMode",
+        "reviewerPseudonym",
+        "responses"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/SchemaVersion"
+        },
+        "status": {
+          "$ref": "#/$defs/ArtifactStatus"
+        },
+        "reviewMode": {
+          "const": "DRY_RUN"
+        },
+        "reviewerPseudonym": {
+          "$ref": "#/$defs/ReviewerPseudonym"
+        },
+        "responses": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/DryRunReviewItem"
+          }
+        }
+      }
+    }
+  }
+}
