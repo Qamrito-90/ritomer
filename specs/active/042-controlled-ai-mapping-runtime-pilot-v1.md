@@ -6,7 +6,7 @@ Active.
 
 ## Mode
 
-SPEC_CREATION avec increment runtime local controle `042a2a5a`, amelioration frontend de simulation locale `042a2a5c`, variante seed locale opt-in `042a2a5d` et polish UX des libelles utilisateur `042a2a5e`.
+SPEC_CREATION avec increment runtime local controle `042a2a5a`, premiere simulation frontend locale `042a2a5b`, amelioration de simulation locale `042a2a5c`, variante seed locale opt-in `042a2a5d`, polish UX des libelles utilisateur `042a2a5e` et protocole documentaire de revue humaine/adjudication `042a2a6`.
 
 Cette spec active cadre le premier pilote IA runtime reel de Ritomer, limite aux suggestions de mapping sur le dossier demo synthetique.
 
@@ -26,11 +26,15 @@ Le pack de double revue aveugle `042a2` transforme les 17 cas candidats en deux 
 
 `042a2a5a` expose ce moteur offline derriere un endpoint backend local v2 strictement read-only et default-off : `GET /api/closing-folders/{closingFolderId}/mappings/suggestions-v2`. Le controller, le service et l'adapter local n'existent qu'en profil `local` avec `ritomer.ai.mapping-suggestions-v2.offline.enabled=true`, restent limites a l'allowlist demo synthetique backend immutable, n'utilisent aucun provider reel, aucun SDK provider, aucun appel reseau IA, aucun secret, aucune valeur `.env`, aucune ecriture DB, aucune decision humaine, aucun audit de decision, aucune UI de decision, aucune bascule v1 et aucune production.
 
+`042a2a5b` ajoute la premiere UI locale de simulation offline `mapping-suggestions-v2`, derriere son activation locale explicite, sans decision v2, auto-apply, bulk apply, fallback v1 automatique, provider reel, appel reseau IA, secret, production ou spec `043`.
+
 `042a2a5c` ameliore uniquement l'UX/frontend de la simulation locale offline `mapping-suggestions-v2` pour le POC interne. L'interface conserve le bandeau exact `Simulation locale — aucune IA externe active.`, expose une posture visible non autoritative, rappelle que le read-model local n'est pas un jeu de reference valide, affiche les counts par outcome `SUGGESTION`, `ABSTENTION`, `PRECONDITION_BLOCK`, `POLICY_BLOCK` et `TECHNICAL_DEGRADATION`, et garde l'affectation manuelle comme autorite metier. Ce livrable ne cree aucun provider reel, modele reel, prompt runtime actif, endpoint, controller, service, adapter, contrat/OpenAPI, DB/migration, auth, audit, decision v2, auto-apply, bulk apply, bascule v1 automatique, secret, appel reseau IA, production ou spec `043`.
 
 `042a2a5d` ajoute uniquement une variante locale opt-in du seed demo pour rendre le scenario `mapping-suggestions-v2` observable sans modifier le seed principal 036a. La commande documentee avec seulement `-PritomerDemoSeedEnabled=true` continue de seeder uniquement le dossier principal `036a0000-0000-4000-8000-000000000004` avec 6 lignes de balance et 6 mappings manuels. La variante n'est creee que si `-PritomerDemoSeedVariant=042a2a5d-mixed-v2` est fourni ; elle utilise le dossier `042a2a5d-0000-4000-8000-000000000004`, la meme source `demo-synthetic-balance.csv`, 6 lignes de balance et seulement 4 mappings manuels (`1000`, `1100`, `2000`, `2800`). Les comptes `3000` et `4000` restent non mappes afin que le moteur offline produise naturellement `SUGGESTION=1`, `ABSTENTION=1`, `PRECONDITION_BLOCK=4`, `POLICY_BLOCK=0` et `TECHNICAL_DEGRADATION=0`, sans provider externe, decision v2, migration, endpoint nouveau, contrat public, auto-apply, bulk apply ou spec `043`.
 
 `042a2a5e` polit uniquement les libelles utilisateur de la simulation locale offline `mapping-suggestions-v2`. Les cartes et compteurs affichent des libelles metier comprehensibles, tandis que les enums `SUGGESTION`, `ABSTENTION`, `PRECONDITION_BLOCK`, `POLICY_BLOCK` et `TECHNICAL_DEGRADATION` restent internes aux types, contrats, tests et fixtures. Le bandeau exact `Simulation locale — aucune IA externe active.`, la posture non autoritative, le rappel d'absence de jeu de reference valide, l'affectation manuelle comme autorite metier et le lien `Affecter manuellement` restent visibles. Ce polish ne cree aucun backend, seed, endpoint, contrat/OpenAPI/JSON Schema, DB/migration, auth, audit, provider, valeur sensible, fichier d'environnement local, appel reseau IA, decision v2, auto-apply, bulk apply, fallback v1 automatique, production ou spec `043`.
+
+`042a2a6` formalise uniquement le protocole operationnel de distribution separee des packs A/B, collecte de futures reponses humaines reelles, validation, gel, comparaison par `blindCaseId`, adjudication humaine et gates de promotion. L'etat operationnel courant est `PENDING_HUMAN_RESPONSES`. Aucun fichier de reponse humaine, aucune adjudication et aucun golden set 042a2 ne sont crees ou promus. Les etats futurs sont `PENDING_ADJUDICATION`, `ADJUDICATED_NOT_GOLDEN`, `GOLDEN_CANDIDATE_PENDING_GOVERNANCE` et `GOLDEN_APPROVED`, ce dernier restant inaccessible sans gate humain futur explicite. Ce livrable reste `DOCS_ONLY`, sans runtime, test runtime, contrat, schema, validator, provider, appel IA, secret, `.env`, production ou spec `043`.
 
 `042b0b` ajoute uniquement des preuves manuelles OpenAI Platform/API au provider-readiness record : projet dedie `ritomer-dev`, billing API, credits et limites de depense, modeles autorises et visibilite du snapshot candidat.
 
@@ -52,7 +56,7 @@ Etat courant du repo pour l'alignement `042b0` / `042b1a` / `042b1b` OpenAI read
 - `mapping-suggestion-v1` reste inchange et v2 ne provoque aucune bascule implicite.
 - Le moteur offline deterministe existe.
 - L'endpoint local synthetic-demo-only `GET /api/closing-folders/{closingFolderId}/mappings/suggestions-v2` existe.
-- Une UI locale de simulation consomme le read-model v2 sans decision, auto-apply, bulk apply ou endpoint provider reel ; `042a2a5c` la rend plus lisible pour le POC interne avec posture non autoritative, counts par outcome et lien d'affectation manuelle, puis `042a2a5e` remplace les enums visibles par des libelles metier dans les cartes et compteurs.
+- Une UI locale de simulation consomme le read-model v2 sans decision, auto-apply, bulk apply ou endpoint provider reel ; `042a2a5b` livre cette premiere simulation, `042a2a5c` la rend plus lisible pour le POC interne avec posture non autoritative, counts par outcome et lien d'affectation manuelle, puis `042a2a5e` remplace les enums visibles par des libelles metier dans les cartes et compteurs.
 - Aucun provider reel, appel reseau IA reussi, secret, runtime provider ou SDK provider n'existe.
 - Les preuves manuelles `042b0b` etablissent la visibilite projet de `gpt-5.4-mini-2026-03-17`; les preuves `042b0c` etablissent uniquement des observations security/privacy de preflight OpenAI Platform/API ; `042b1a` etablit uniquement une tentative canary `FAILED_NON_CONCLUSIVE` ; `042b1b` etablit uniquement un retry controle `FAIL_HTTP_400_INVALID_REQUEST_ERROR / STOP_NO_FALLBACK`. Le snapshot candidat reste non executable, le network canary est `FAILED`, le retry restant est `0` et le gate reseau provider separe reste bloque.
 
@@ -74,11 +78,15 @@ Surface contrat normalise `042a2a4` : CONTRACTS / BACKEND_RUNTIME_INTERNE / FRON
 
 Surface endpoint local offline `042a2a5a` : BACKEND_RUNTIME_LOCAL / CONTRACTS / DOCS_GIT.
 
+Surface premiere simulation frontend locale `042a2a5b` : FRONTEND / DOCS_GIT.
+
 Surface simulation frontend locale `042a2a5c` : FRONTEND / DOCS_GIT.
 
 Surface variante seed locale `042a2a5d` : BACKEND_RUNTIME_LOCAL / DOCS_GIT.
 
 Surface polish libelles utilisateur `042a2a5e` : FRONTEND / DOCS_GIT.
+
+Surface protocole de revue humaine/adjudication `042a2a6` : DOCS_ONLY / DOCS_GIT / AI_GOVERNANCE / FIDUCIARY_GOVERNANCE.
 
 Surface readiness provider candidat `042b0` : DOCS_GIT / AI_GOVERNANCE / SECURITY_PRIVACY.
 
@@ -471,6 +479,13 @@ Ces artefacts restent `BLIND_REVIEW_INPUT / PENDING_INDEPENDENT_REVIEW / NOT_GOL
 - OpenAPI v2 avec le chemin GET local et runbook local-dev ;
 - tests d'activation, gates, provenance, comportements v2, non-ecriture, non-reseau et non-regression v1.
 
+`042a2a5b` ajoute uniquement la premiere UI locale de simulation offline v2 :
+
+- consommation du read-model `mapping-suggestion-v2` depuis le frontend local sous activation explicite ;
+- presentation des outcomes offline sans decision v2, sans auto-apply et sans bulk apply ;
+- mapping manuel conserve comme autorite metier ;
+- aucun provider reel, appel reseau IA, fallback v1 automatique, secret, production ou spec `043`.
+
 `042a2a5c` ajoute uniquement l'amelioration UX/frontend de la simulation locale offline v2 :
 
 - bandeau exact `Simulation locale — aucune IA externe active.` conserve ;
@@ -506,6 +521,7 @@ Ces artefacts restent `BLIND_REVIEW_INPUT / PENDING_INDEPENDENT_REVIEW / NOT_GOL
 `042a2a5` est cloture partiellement comme bloc local offline POC, sans fermer la spec `042`.
 
 - `042a2a5a` endpoint local offline read-only livre : `GET /api/closing-folders/{closingFolderId}/mappings/suggestions-v2`, local/profile/flag only, sans decision.
+- `042a2a5b` premiere simulation UI locale offline v2 livree.
 - `042a2a5c` simulation UX locale offline v2 livree.
 - `042a2a5d` variante seed locale opt-in `042a2a5d-mixed-v2` livree.
 - `042a2a5e` polish des libelles utilisateur livre.
@@ -517,11 +533,24 @@ Ces artefacts restent `BLIND_REVIEW_INPUT / PENDING_INDEPENDENT_REVIEW / NOT_GOL
 - Cette cloture partielle n'introduit aucun provider, aucun appel reseau IA, aucun secret, aucun `.env`, aucune DB/migration, aucun endpoint nouveau hors endpoint local deja livre, aucun changement de contrat public, aucune decision v2, aucun auto-apply, aucun fallback v1 automatique, aucune production et aucune spec `043`.
 - `042` reste active. `042b` et le provider restent bloques : `provider_runtime=STILL_BLOCKED`, `adapter_provider=NOT_AUTHORIZED`, `retry_remaining=0`, `fallback=FORBIDDEN`. OpenAI reste un provider candidat bloque et non approuve.
 
-`042a2` devra encore traiter, dans une ou plusieurs missions separees, les livrables qui ne sont pas clos par `042a1`, `042a2a1`, `042a2a1b`, les artefacts candidats `042a2a2a`, le pack de cas candidats `042a2` ou le pack de double revue aveugle `042a2` :
+### Protocole documentaire 042a2a6 - revue humaine et adjudication
 
-- reponses humaines independantes ;
-- adjudication ;
-- promotion golden set eventuelle ;
+`042a2a6` porte le protocole operationnel dans `policies/ai-mapping-annotation-guide-042a2.md` et la gate de preuve metier dans `policies/ai-mapping-business-evaluation-protocol-042a2.md`.
+
+- Reviewer A recoit uniquement le pack A ; reviewer B recoit uniquement le pack B ; les deux humains travaillent independamment.
+- Chaque future reponse humaine reelle doit respecter `reviewer-response-schema-v1.json` et etre validee contre le pack effectivement distribue.
+- Les deux jeux complets, valides, traces par hash et geles sont requis avant toute comparaison ou adjudication.
+- La comparaison se fait par `blindCaseId`, jamais par position, et distingue accord exact, divergence, reponse invalide, abstention, insuffisance de preuve, taxonomy gap, policy block, precondition block et invalid model output.
+- Toute divergence est tranchee par un adjudicateur humain distinct ou par une decision humaine CPO/IA Governance explicitement documentee ; aucune cible approximative n'est forcee.
+- Le statut courant est `PENDING_HUMAN_RESPONSES`. Les transitions futures autorisees par preuves sont `PENDING_ADJUDICATION`, `ADJUDICATED_NOT_GOLDEN`, `GOLDEN_CANDIDATE_PENDING_GOVERNANCE`, puis `GOLDEN_APPROVED` uniquement apres un gate humain futur explicite.
+- Aucun fichier de reponse humaine, aucune adjudication et aucun golden set 042a2 ne sont crees par cette mission.
+- Aucun provider, retry, fallback, appel reseau IA, secret, `.env`, runtime, contrat, schema, validator, backend, frontend, DB/migration, production ou spec `043` n'est autorise.
+
+`042a2` devra encore traiter, dans une ou plusieurs missions separees, les livrables qui ne sont pas executes par `042a2a6` et ne sont pas clos par `042a1`, `042a2a1`, `042a2a1b`, les artefacts candidats `042a2a2a`, le pack de cas candidats `042a2` ou le pack de double revue aveugle `042a2` :
+
+- collecte et gel de vraies reponses humaines independantes selon le protocole `042a2a6` ;
+- comparaison et adjudication humaines effectives ;
+- promotion golden set eventuelle dans une mission future separee et apres gate de gouvernance ;
 - definition exacte du provider logique candidat, du modele exact, du prompt versionne et du schema hash ;
 - schema de sortie runtime strict, compatible ou explicitement aligne avec `mapping-suggestion-v1` ;
 - prompt file versionne pour le mapping runtime, sans prompt libre non trace ;
