@@ -26,6 +26,8 @@ This manifest records the business perimeter that must be proven before a future
 - No provider call or AI network call is made.
 - No spec `043` is created.
 
+The statements in this boundary describe the historical `042a2a1b` deliverable. They remain true and do not conflict with the later, separate CPO decision that opened `043`.
+
 ## Exact pilot objective
 
 The future pilot objective is limited to assisting a human reviewer with affectation of eligible synthetic demo balance accounts.
@@ -140,7 +142,8 @@ Non-synthetic, cross-tenant, outside allowlist, outside provenance or invalid-ga
 - `policies/ai-mapping-taxonomy-pilot-record-042a2.md` defines taxonomy readiness requirements and admissibility.
 - `policies/ai-mapping-annotation-guide-042a2.md` defines annotation and adjudication requirements.
 - `policies/ai-mapping-business-evaluation-protocol-042a2.md` defines future evaluation requirements.
-- `specs/active/042-controlled-ai-mapping-runtime-pilot-v1.md` remains the active spec context.
+- `specs/backlog/042-controlled-ai-mapping-runtime-pilot-v1.md` is the preserved current context for this manifest, paused with `PAUSED_BY_SEPARATE_CPO_DECISION` and never moved to Done.
+- `specs/active/043-controlled-fiduciary-pilot-readiness-v1.md` is a separate CPO-controlled readiness spec; it does not approve, activate, alter or close this manifest or `042`.
 
 This manifest does not override any approved contract, current manual mapping authority or existing backend behavior.
 

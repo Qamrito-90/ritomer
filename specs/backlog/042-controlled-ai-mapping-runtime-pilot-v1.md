@@ -2,13 +2,21 @@
 
 ## Status
 
-Active.
+Backlog.
+
+Pause reason: `PAUSED_BY_SEPARATE_CPO_DECISION`.
+
+## Current lifecycle after 043a
+
+The CPO decision that opened `043-controlled-fiduciary-pilot-readiness-v1` is separate from every transition governed by `042`. It pauses `042` in backlog; it does not close it, approve it, move it to Done, authorize a provider or alter any evidence, state, blocker, hash, retry or human-review gate recorded below.
+
+Statements below saying that `042` was active or that no `043` existed are preserved as historical evidence of the corresponding `042` increments. They are not the current lifecycle assertion after the separate CPO decision.
 
 ## Mode
 
 SPEC_CREATION avec increment runtime local controle `042a2a5a`, premiere simulation frontend locale `042a2a5b`, amelioration de simulation locale `042a2a5c`, variante seed locale opt-in `042a2a5d`, polish UX des libelles utilisateur `042a2a5e`, protocole documentaire de revue humaine/adjudication `042a2a6` et kit de hardening non operationnel `042a2a6a`.
 
-Cette spec active cadre le premier pilote IA runtime reel de Ritomer, limite aux suggestions de mapping sur le dossier demo synthetique.
+Cette spec en backlog conserve le cadrage du premier pilote IA runtime reel de Ritomer, limite aux suggestions de mapping sur le dossier demo synthetique.
 
 Jusqu'aux livrables `042a2` precedents, elle ne livrait aucun runtime, aucun provider, aucun backend, aucun frontend, aucune DB ou migration, aucun OpenAPI, aucune CI, aucune dependance, aucun secret, aucune valeur `.env`, aucun appel reseau IA et aucune spec `043`. `042a2a3` fait exception uniquement pour un moteur offline backend interne d'evaluation candidate, sans surface produit ni provider reel.
 

@@ -187,9 +187,9 @@ Semantique corrective D/E/F : l'ordre metier est `OUT_OF_SCOPE` -> `CONFLICTING_
 
 Aucune reponse humaine n'est destinee a Git. Les futures instances sont des donnees personnelles pseudonymisees, non anonymes, referencees par `custodyReference` opaque et SHA-256 exact-byte. Stockage, juridiction, ACL, retention et suppression restent `NON DETERMINÉ / REQUIRED_BEFORE_DISTRIBUTION`. Aucun validateur operationnel du contenu personnel, prive, URL ou chemin n'est livre; cette condition future reste fail-closed.
 
-Aucune instance reelle de reponse, registre participant, manifeste de round, attestation, freeze, clarification ou dossier adjudicateur n'est creee. Aucun golden set `042a2`, provider, retry, appel reseau IA, secret, `.env`, backend, frontend, DB/migration, OpenAPI, endpoint ou spec `043` n'est ajoute.
+Aucune instance reelle de reponse, registre participant, manifeste de round, attestation, freeze, clarification ou dossier adjudicateur n'est creee. Aucun golden set `042a2`, provider, retry, appel reseau IA, secret, `.env`, backend, frontend, DB/migration, OpenAPI, endpoint ou spec `043` n'est ajoute par le kit historique `042a2a6a`.
 
-La spec `042` reste active et seule active; aucune spec `043` n'est creee. Posture inchangee : `provider_runtime=STILL_BLOCKED`, `adapter_provider=NOT_AUTHORIZED`, `retry_remaining=0`, `fallback=FORBIDDEN`.
+Etat courant apres la decision CPO separee `043a` : la spec `042` est en backlog avec le motif `PAUSED_BY_SEPARATE_CPO_DECISION`, jamais Done; la spec `043` est active. Cette decision ne provient d'aucune transition `042` et ne modifie aucun artefact de preuve. Posture inchangee : `PENDING_HUMAN_RESPONSES`, human responses=`0`, adjudications=`0`, golden set `042a2`=`0`, `collectionAuthorized=false`, `distributionAuthorized=false`, `providerAuthorized=false`, `goldenPromotionAuthorized=false`, `adjudicationAuthorized=false`, `retryAuthorized=false`, `provider_runtime=STILL_BLOCKED`, `adapter_provider=NOT_AUTHORIZED`, `retry_remaining=0`, `fallback=FORBIDDEN`. JSON syntax and repository invariants checked; Draft 2020-12 semantic validation not performed.
 
 ## Moteur offline interne 042a2a3
 
