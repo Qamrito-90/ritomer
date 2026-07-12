@@ -1,0 +1,8 @@
+accountCode,accountLabel,debit,credit
+1000,Synthetic cash account,105000.00,0.00
+1100,Synthetic trade receivables,25000.00,0.00
+1200,Synthetic prepaid expenses,7000.00,0.00
+2000,Synthetic trade payables,0.00,29000.00
+2800,Synthetic retained earnings,0.00,30000.00
+3000,Synthetic operating revenue,0.00,90000.00
+4000,Synthetic operating expenses,12000.00,0.00

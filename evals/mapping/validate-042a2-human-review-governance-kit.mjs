@@ -38,6 +38,12 @@ const PR99_TECHNICAL_RATIFICATION =
   "PR #99 technical exact-diff ratification = RATIFIED_WITH_NON_BLOCKING_CORRECTIONS";
 const PR99_SECURITY_RATIFICATION =
   "PR #99 Security/Privacy exact-diff ratification = RATIFIED_WITH_CONDITIONS_BEFORE_USE";
+const PR99_BASE = "14b7ef952f8d9594a53e63542ee2d6d80bbcaa2f";
+const PR99_HEAD = "fd8b63d2193c4adebb5a847405d1d30c1cae9214";
+const HISTORICAL_SPEC_042_ACTIVE_PATH = "specs/active/042-controlled-ai-mapping-runtime-pilot-v1.md";
+const CURRENT_SPEC_042_BACKLOG_PATH = "specs/backlog/042-controlled-ai-mapping-runtime-pilot-v1.md";
+const CURRENT_SPEC_043_ACTIVE_PATH = "specs/active/043-controlled-fiduciary-pilot-readiness-v1.md";
+const ROADMAP_PATH = "docs/product/product-roadmap.md";
 const GOVERNANCE_STATUSES = [
   "DRAFT",
   "NOT_EXECUTABLE",
@@ -49,7 +55,7 @@ const EXISTING_ALLOWED = [
   "policies/ai-mapping-annotation-guide-042a2.md",
   "policies/ai-mapping-business-evaluation-protocol-042a2.md",
   "policies/dependency-security-review-042a.md",
-  "specs/active/042-controlled-ai-mapping-runtime-pilot-v1.md",
+  HISTORICAL_SPEC_042_ACTIVE_PATH,
   "docs/product/v1-plan.md",
   "evals/mapping/README.md",
 ];
@@ -76,24 +82,26 @@ const EXPECTED_HISTORICAL_STATUS_BY_PATH = new Map([
   ...NEW_ALLOWED.map((path) => [path, "A"]),
 ]);
 
-const CORRECTIVE_ALLOWED_FILE_SET = [
-  "evals/mapping/validate-042a2-human-review-governance-kit.mjs",
-  "evals/mapping/reviews/042a2/reviewer-instructions-v1.md",
-  "evals/mapping/reviews/042a2/reviewer-response-schema-v2.json",
-  "evals/mapping/reviews/042a2/restricted-participant-registry-schema-v1.json",
-  "evals/mapping/reviews/042a2/reviewer-attestation-schema-v1.json",
-  "evals/mapping/reviews/042a2/review-freeze-record-schema-v1.json",
-  "evals/mapping/reviews/042a2/review-clarification-record-schema-v1.json",
-  "evals/mapping/reviews/042a2/adjudication-dossier-manifest-schema-v1.json",
-  "evals/mapping/reviews/042a2/workflow-ledger-record-schema-v1.json",
-  "policies/ai-mapping-annotation-guide-042a2.md",
-  "policies/ai-mapping-business-evaluation-protocol-042a2.md",
-  "policies/ai-mapping-human-review-hardening-record-042a2.md",
-  "runbooks/ai-mapping-human-review-coordinator-042a2.md",
-  "evals/mapping/README.md",
-  "specs/active/042-controlled-ai-mapping-runtime-pilot-v1.md",
+const CURRENT_043A_ALLOWED_FILE_SET = [
+  "README.md",
+  ROADMAP_PATH,
   "docs/product/v1-plan.md",
+  "evals/mapping/README.md",
+  "evals/mapping/validate-042a2-human-review-governance-kit.mjs",
+  "fixtures/pilot/043/balance-fy2025-v1.csv",
+  "fixtures/pilot/043/evidence-bank-reconciliation-fy2025-v1.csv",
+  "fixtures/pilot/043/observation-template-v1.md",
+  "fixtures/pilot/043/README.md",
+  "fixtures/pilot/043/validate-043-pilot-fixtures.ps1",
+  "policies/ai-mapping-pilot-scope-manifest-042a2.md",
+  HISTORICAL_SPEC_042_ACTIVE_PATH,
+  CURRENT_SPEC_043_ACTIVE_PATH,
+  CURRENT_SPEC_042_BACKLOG_PATH,
 ].sort();
+
+const CURRENT_GOVERNANCE_FILE_SET = [...new Set(EXACT_ALLOWED_FILE_SET.map((path) =>
+  path === HISTORICAL_SPEC_042_ACTIVE_PATH ? CURRENT_SPEC_042_BACKLOG_PATH : path,
+))].sort();
 
 const SCHEMA_PATHS = [
   "evals/mapping/reviews/042a2/reviewer-response-schema-v2.json",
@@ -136,7 +144,8 @@ const DOCUMENTARY_HUMAN_REVIEW_ALLOWLIST = new Set([
   "policies/ai-mapping-human-review-hardening-record-042a2.md",
   "policies/ai-mapping-pilot-scope-manifest-042a2.md",
   "runbooks/ai-mapping-human-review-coordinator-042a2.md",
-  "specs/active/042-controlled-ai-mapping-runtime-pilot-v1.md",
+  HISTORICAL_SPEC_042_ACTIVE_PATH,
+  CURRENT_SPEC_042_BACKLOG_PATH,
   "docs/product/v1-plan.md",
 ]);
 
@@ -335,6 +344,14 @@ function parseCliArgs(args) {
     addError("--head:lowercase_full_sha_required");
     invalid = true;
   }
+  if (base !== PR99_BASE) {
+    addError("--base:pr99_exact_base_required");
+    invalid = true;
+  }
+  if (head !== PR99_HEAD) {
+    addError("--head:pr99_exact_head_required");
+    invalid = true;
+  }
   if (invalid) {
     console.log("validation_mode=INVALID_HISTORICAL_ARGUMENTS");
     return { mode: "INVALID" };
@@ -359,6 +376,7 @@ function parseCliArgs(args) {
   console.log("validation_mode=BASE_TO_HEAD");
   console.log(`diff_base=${base}`);
   console.log(`diff_head=${head}`);
+  console.log("historical_pr99_range_pinned=YES");
   return { mode: "HISTORICAL", base, head };
 }
 
@@ -569,19 +587,21 @@ function validateExactFileSet(range) {
       expectedStatusMapVerified,
     };
   } else {
-    const unexpected = actual.filter((path) => !CORRECTIVE_ALLOWED_FILE_SET.includes(path));
-    assert(unexpected.length === 0, `worktree contains a path outside the corrective whitelist`);
-    console.log(`diff_file_set_verified=${actual.length === 0 ? "CLEAN_COMMITTED_STATE" : `WORKTREE_ALLOWED_${actual.length}`}`);
+    const exactCurrentFileSet = actual.length === 0 || sameArray(actual, CURRENT_043A_ALLOWED_FILE_SET);
+    assert(exactCurrentFileSet, `worktree file set must be clean or exactly the 14-path 043a whitelist`);
+    console.log(`diff_file_set_verified=${actual.length === 0 ? "CLEAN_COMMITTED_STATE" : exactCurrentFileSet ? "YES_14_OF_14" : `NO_${actual.length}_OF_14`}`);
+    console.log(`current_043a_exact_file_set=${exactCurrentFileSet ? "YES" : "NO"}`);
   }
 
   for (const path of NEW_ALLOWED) {
     assert(existsSync(absolutePath(path)), `${path}: required new artifact missing`);
   }
   const forbiddenSurface = actual.filter((path) =>
-    /(^|\/)(backend|frontend)(\/|$)|(^|\/)contracts\/|(^|\/)specs\/(active|backlog|done)\/043|(^|\/)(package\.json|pnpm-lock\.yaml|package-lock\.json|yarn\.lock|build\.gradle(?:\.kts)?|settings\.gradle(?:\.kts)?)$/i.test(path),
+    /(^|\/)(backend|frontend)(\/|$)|(^|\/)contracts\/|(^|\/)(package\.json|pnpm-lock\.yaml|package-lock\.json|yarn\.lock|build\.gradle(?:\.kts)?|settings\.gradle(?:\.kts)?)$/i.test(path),
   );
-  assert(forbiddenSurface.length === 0, `forbidden runtime, contract, spec 043, manifest or lockfile surface changed`);
+  assert(forbiddenSurface.length === 0, `forbidden runtime, contract, manifest or lockfile surface changed`);
   console.log(`manifest_lockfile_drift=${forbiddenSurface.length === 0 ? "NO" : "YES"}`);
+  console.log(`no_runtime_change=${forbiddenSurface.length === 0 ? "YES" : "NO"}`);
   return historicalVerification;
 }
 
@@ -615,6 +635,7 @@ function validateProtectedHashesAndCases() {
   console.log(`protected_v1_exact_byte_hashes_unchanged=${protectedArtifactsUnchanged ? "YES" : "NO"}`);
   console.log(`candidate_17_cases_exact_byte_unchanged=${candidateCasesUnchanged ? "YES" : "NO"}`);
   console.log(`protected_artifacts_unchanged=${protectedArtifactsUnchanged ? "YES" : "NO"}`);
+  console.log(`protected_042_artifacts_unchanged=${protectedArtifactsUnchanged ? "YES" : "NO"}`);
 }
 
 function validateObjectClosure(node, repoPath, pointer = "#", containerKey = "") {
@@ -1106,7 +1127,7 @@ function validateDocumentCoherence() {
     "policies/ai-mapping-human-review-hardening-record-042a2.md",
     "policies/ai-mapping-annotation-guide-042a2.md",
     "policies/ai-mapping-business-evaluation-protocol-042a2.md",
-    "specs/active/042-controlled-ai-mapping-runtime-pilot-v1.md",
+    CURRENT_SPEC_042_BACKLOG_PATH,
     "docs/product/v1-plan.md",
     "evals/mapping/README.md",
     "runbooks/ai-mapping-human-review-coordinator-042a2.md",
@@ -1117,7 +1138,7 @@ function validateDocumentCoherence() {
 
   const gateDocs = [
     "policies/ai-mapping-human-review-hardening-record-042a2.md",
-    "specs/active/042-controlled-ai-mapping-runtime-pilot-v1.md",
+    CURRENT_SPEC_042_BACKLOG_PATH,
     "docs/product/v1-plan.md",
     "evals/mapping/README.md",
     "runbooks/ai-mapping-human-review-coordinator-042a2.md",
@@ -1129,7 +1150,7 @@ function validateDocumentCoherence() {
   const authDocs = [
     "policies/ai-mapping-human-review-hardening-record-042a2.md",
     "policies/ai-mapping-annotation-guide-042a2.md",
-    "specs/active/042-controlled-ai-mapping-runtime-pilot-v1.md",
+    CURRENT_SPEC_042_BACKLOG_PATH,
   ];
   const authTokens = [
     "collectionAuthorized=false",
@@ -1141,9 +1162,10 @@ function validateDocumentCoherence() {
   ];
   for (const path of authDocs) assertTokens(path, authTokens);
 
-  assertTokens("specs/active/042-controlled-ai-mapping-runtime-pilot-v1.md", [
+  assertTokens(CURRENT_SPEC_042_BACKLOG_PATH, [
     "### Protocole documentaire 042a2a6 - revue humaine et adjudication",
     "### Kit de hardening 042a2a6a - gouvernance de revue humaine",
+    "PAUSED_BY_SEPARATE_CPO_DECISION",
     "provider_runtime=STILL_BLOCKED",
     "adapter_provider=NOT_AUTHORIZED",
     "retry_remaining=0",
@@ -1158,11 +1180,16 @@ function validateDocumentCoherence() {
     "fallback=FORBIDDEN",
   ]);
   assertTokens("evals/mapping/README.md", [
-    "spec `042` reste active",
+    "spec `042` est en backlog",
+    "spec `043` est active",
     "provider_runtime=STILL_BLOCKED",
     "adapter_provider=NOT_AUTHORIZED",
     "retry_remaining=0",
     "fallback=FORBIDDEN",
+  ]);
+  assertTokens("policies/ai-mapping-pilot-scope-manifest-042a2.md", [
+    CURRENT_SPEC_042_BACKLOG_PATH,
+    CURRENT_SPEC_043_ACTIVE_PATH,
   ]);
 
   const reviewerInstructionsPath = "evals/mapping/reviews/042a2/reviewer-instructions-v1.md";
@@ -1267,7 +1294,7 @@ function validateDocumentCoherence() {
   for (const path of [
     "policies/ai-mapping-human-review-hardening-record-042a2.md",
     "evals/mapping/README.md",
-    "specs/active/042-controlled-ai-mapping-runtime-pilot-v1.md",
+    CURRENT_SPEC_042_BACKLOG_PATH,
     "docs/product/v1-plan.md",
   ]) {
     assertTokens(path, [
@@ -1279,7 +1306,7 @@ function validateDocumentCoherence() {
     ]);
   }
 
-  for (const path of EXACT_ALLOWED_FILE_SET) {
+  for (const path of CURRENT_GOVERNANCE_FILE_SET) {
     assert(!readText(path).includes(FORBIDDEN_VALIDATION_CLAIM), `${path}: forbidden validation claim present`);
   }
   const coherent = errors.length === errorCountBefore;
@@ -1287,11 +1314,99 @@ function validateDocumentCoherence() {
   console.log(`subdeliverables_042a2a6_and_042a2a6a_distinct=${coherent ? "YES" : "NO"}`);
 }
 
+function normalizeSearchText(value) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replaceAll("’", "'")
+    .replace(/[`*_#|]/g, " ")
+    .replace(/[–—]/g, "-")
+    .replace(/[ \t]+/g, " ")
+    .toLowerCase();
+}
+
+function validateRoadmap() {
+  const roadmapFilePresent = existsSync(absolutePath(ROADMAP_PATH));
+  assert(roadmapFilePresent, `${ROADMAP_PATH}: canonical product roadmap missing`);
+  console.log(`roadmap_file_present=${roadmapFilePresent ? "YES" : "NO"}`);
+  if (!roadmapFilePresent) {
+    console.log("roadmap_six_workstreams=NO");
+    console.log("roadmap_mcp_m0_to_m5=NO");
+    console.log("roadmap_no_automatic_specs=NO");
+    console.log("roadmap_no_invented_dates=NO");
+    return;
+  }
+
+  const rawRoadmap = readText(ROADMAP_PATH);
+  const roadmap = normalizeSearchText(rawRoadmap);
+  const lines = roadmap.split(/\r?\n/);
+  const requiredWorkstreams = [
+    "produit fiduciaire",
+    "saas & identite",
+    "trust & operations",
+    "go-to-market",
+    "ia-native",
+    "agent platform & mcp",
+  ];
+  const sixWorkstreamsPresent = requiredWorkstreams.every((workstream) => roadmap.includes(workstream));
+  assert(sixWorkstreamsPresent, `${ROADMAP_PATH}: the six canonical workstreams are not all present`);
+
+  const requiredMcpMaturities = [
+    ["m0", "capability catalog"],
+    ["m1", "mcp local read-only"],
+    ["m2", "copilot ritomer read-only"],
+    ["m3", "outils de brouillon"],
+    ["m4", "mcp distant prive"],
+    ["m5", "workflows agentiques controles"],
+  ];
+  const mcpM0ToM5Present = requiredMcpMaturities.every(([level, label]) =>
+    lines.some((line) => line.includes(level) && line.includes(label)),
+  );
+  assert(mcpM0ToM5Present, `${ROADMAP_PATH}: MCP maturity M0 through M5 is incomplete`);
+
+  const noAutomaticSuccessor = lines.some((line) =>
+    line.includes("aucune spec") && line.includes("automati"),
+  );
+  const noCommitted044Plus = lines.some((line) =>
+    line.includes("aucune spec")
+      && line.includes("044")
+      && (line.includes("cree") || line.includes("engag")),
+  );
+  const futurePortfolioCandidateOnly = lines.some((line) =>
+    line.includes("spec") && line.includes("candidate") && line.includes("future"),
+  );
+  const noAutomaticSpecs = noAutomaticSuccessor && noCommitted044Plus && futurePortfolioCandidateOnly;
+  assert(noAutomaticSpecs, `${ROADMAP_PATH}: future specs must remain candidates with no automatic or committed 044+ spec`);
+
+  const noCalendarYear = !/\b20\d{2}\b/.test(roadmap);
+  const explicitNoInventedPlanning = lines.some((line) =>
+    line.includes("aucune date")
+      && line.includes("capacite")
+      && line.includes("promesse commerciale"),
+  );
+  const noInventedDates = noCalendarYear && explicitNoInventedPlanning;
+  assert(noInventedDates, `${ROADMAP_PATH}: roadmap contains a calendar year or omits the no-invented-planning commitment`);
+
+  console.log(`roadmap_six_workstreams=${sixWorkstreamsPresent ? "YES" : "NO"}`);
+  console.log(`roadmap_mcp_m0_to_m5=${mcpM0ToM5Present ? "YES" : "NO"}`);
+  console.log(`roadmap_no_automatic_specs=${noAutomaticSpecs ? "YES" : "NO"}`);
+  console.log(`roadmap_no_invented_dates=${noInventedDates ? "YES" : "NO"}`);
+}
+
 function trackedPaths() {
   return gitOutput(["ls-files", "-z"])
     .split("\0")
     .filter(Boolean)
     .map(normalizePath)
+    .sort();
+}
+
+function worktreeVisiblePaths() {
+  return gitOutput(["ls-files", "-z", "--cached", "--others", "--exclude-standard"])
+    .split("\0")
+    .filter(Boolean)
+    .map(normalizePath)
+    .filter((path) => existsSync(absolutePath(path)))
     .sort();
 }
 
@@ -1318,6 +1433,7 @@ function inspectJsonObjectForHumanInstance(node, findings) {
 function validateNoRealInstances() {
   const errorCountBefore = errors.length;
   const tracked = trackedPaths();
+  const visible = worktreeVisiblePaths();
   const reviewPrefix = "evals/mapping/reviews/042a2/";
   const actualNames = tracked
     .filter((path) => path.startsWith(reviewPrefix) && !path.slice(reviewPrefix.length).includes("/"))
@@ -1328,13 +1444,18 @@ function validateNoRealInstances() {
   const promoted042a2 = tracked.filter((path) => /042a2.*golden|golden.*042a2/i.test(path));
   assert(promoted042a2.length === 0, `a tracked 042a2 golden artifact exists unexpectedly`);
 
-  const activeSpecs = tracked
-    .filter((path) => path.startsWith("specs/active/") && path.endsWith(".md"))
-    .map((path) => path.slice("specs/active/".length))
-    .sort();
-  assert(sameArray(activeSpecs, ["042-controlled-ai-mapping-runtime-pilot-v1.md"]), `tracked specs/active must contain only spec 042`);
-  const spec043 = tracked.filter((path) => /(^|\/)specs\/(?:active|backlog|done)\/043/i.test(path));
-  assert(spec043.length === 0, `a tracked spec 043 artifact exists unexpectedly`);
+  const spec042Backlog = visible.filter((path) => /^specs\/backlog\/042(?:[-_.]|$)/i.test(path));
+  const spec042ActiveOrDone = visible.filter((path) => /^specs\/(?:active|done)\/042(?:[-_.]|$)/i.test(path));
+  const spec043Active = visible.filter((path) => /^specs\/active\/043(?:[-_.]|$)/i.test(path));
+  const spec043OutsideActive = visible.filter((path) => /^specs\/(?:backlog|done)\/043(?:[-_.]|$)/i.test(path));
+  const spec042BacklogValid = spec042Backlog.length === 1 && spec042Backlog[0] === CURRENT_SPEC_042_BACKLOG_PATH;
+  const spec042ActiveOrDoneValid = spec042ActiveOrDone.length === 0;
+  const spec043ActiveValid = spec043Active.length === 1 && spec043Active[0] === CURRENT_SPEC_043_ACTIVE_PATH;
+  const spec043OutsideActiveValid = spec043OutsideActive.length === 0;
+  assert(spec042BacklogValid, `current lifecycle must contain exactly one backlog spec 042 at the canonical path`);
+  assert(spec042ActiveOrDoneValid, `current lifecycle must contain no active or done spec 042`);
+  assert(spec043ActiveValid, `current lifecycle must contain exactly one active spec 043 at the canonical path`);
+  assert(spec043OutsideActiveValid, `current lifecycle must contain no backlog or done spec 043`);
 
   const humanFilenamePattern = /(?:reviewer|human-review).*(?:response|attestation)|(?:response|attestation).*(?:reviewer|human-review)|(?:review|human).*(?:freeze|clarification)|(?:freeze|clarification).*(?:review|human)|participant.*registry|registry.*participant|adjudication.*dossier|dossier.*adjudication|review-round.*manifest|manifest.*review-round/i;
   for (const path of tracked) {
@@ -1366,21 +1487,33 @@ function validateNoRealInstances() {
   console.log(`clarification_instances=${humanCount}`);
   console.log(`adjudication_instances=${humanCount}`);
   console.log(`golden_set_042a2_instances=${promoted042a2.length}`);
-  console.log(`spec_043_instances=${spec043.length}`);
+  console.log(`spec_042_backlog_instances=${spec042Backlog.length}`);
+  console.log(`spec_042_active_or_done_instances=${spec042ActiveOrDone.length}`);
+  console.log(`spec_043_active_instances=${spec043Active.length}`);
+  console.log(`spec_043_outside_active_instances=${spec043OutsideActive.length}`);
+  console.log(`spec_043_instances=${spec043Active.length + spec043OutsideActive.length}`);
+  console.log(`042_backlog_only=${spec042BacklogValid && spec042ActiveOrDoneValid ? "YES" : "NO"}`);
+  console.log(`043_active_only=${spec043ActiveValid && spec043OutsideActiveValid ? "YES" : "NO"}`);
+  console.log("spec_lifecycle_scope=WORKTREE_VISIBLE_TRACKED_AND_UNTRACKED");
   console.log("repo_wide_human_instance_scope=GIT_TRACKED_FILES_ONLY");
 }
 
-function addedLinesForScan(range) {
+function parseAddedLinesFromUnifiedDiff(diff) {
   const lines = [];
-  const diffArgs = range.mode === "HISTORICAL"
-    ? ["diff", "--unified=0", "--no-color", `${range.base}..${range.head}`, "--", ...EXACT_ALLOWED_FILE_SET]
-    : ["diff", "--no-ext-diff", "--unified=0", "--no-color", "HEAD", "--", ...CORRECTIVE_ALLOWED_FILE_SET];
-  const diff = gitOutput(diffArgs);
   let currentPath;
   let currentLine = 0;
   for (const rawLine of diff.split("\n")) {
+    if (rawLine.startsWith("diff --git ")) {
+      currentPath = undefined;
+      currentLine = 0;
+      continue;
+    }
     if (rawLine.startsWith("+++ b/")) {
       currentPath = normalizePath(rawLine.slice(6));
+      continue;
+    }
+    if (rawLine === "+++ /dev/null") {
+      currentPath = undefined;
       continue;
     }
     if (rawLine.startsWith("@@")) {
@@ -1389,10 +1522,61 @@ function addedLinesForScan(range) {
       continue;
     }
     if (rawLine.startsWith("+") && !rawLine.startsWith("+++")) {
-      lines.push({ path: currentPath, line: currentLine, text: rawLine.slice(1) });
+      if (currentPath !== undefined) {
+        lines.push({ path: currentPath, line: currentLine, text: rawLine.slice(1) });
+      }
       currentLine += 1;
     } else if (rawLine.startsWith(" ")) {
       currentLine += 1;
+    }
+  }
+  return lines;
+}
+
+function currentUntrackedPaths() {
+  return gitOutput(["ls-files", "-z", "--others", "--exclude-standard"])
+    .split("\0")
+    .filter(Boolean)
+    .map(normalizePath)
+    .filter((path) => CURRENT_043A_ALLOWED_FILE_SET.includes(path))
+    .filter((path) => existsSync(absolutePath(path)))
+    .sort();
+}
+
+function addedLinesComparedToPrevious(currentPath, previousText) {
+  const previousLineCounts = new Map();
+  for (const line of previousText.split(/\r?\n/)) {
+    previousLineCounts.set(line, (previousLineCounts.get(line) ?? 0) + 1);
+  }
+
+  const added = [];
+  const currentLines = readText(currentPath).split(/\r?\n/);
+  currentLines.forEach((line, index) => {
+    const previousCount = previousLineCounts.get(line) ?? 0;
+    if (previousCount > 0) {
+      previousLineCounts.set(line, previousCount - 1);
+    } else {
+      added.push({ path: currentPath, line: index + 1, text: line });
+    }
+  });
+  return added;
+}
+
+function addedLinesForScan(range) {
+  const diffArgs = range.mode === "HISTORICAL"
+    ? ["diff", "--unified=0", "--no-color", `${range.base}..${range.head}`, "--", ...EXACT_ALLOWED_FILE_SET]
+    : ["diff", "--no-ext-diff", "--unified=0", "--no-color", "--find-renames", "HEAD", "--", ...CURRENT_043A_ALLOWED_FILE_SET];
+  const lines = parseAddedLinesFromUnifiedDiff(gitOutput(diffArgs));
+  if (range.mode === "HISTORICAL") return lines;
+
+  for (const path of currentUntrackedPaths()) {
+    if (path === CURRENT_SPEC_042_BACKLOG_PATH) {
+      const previousText = gitOutput(["show", `HEAD:${HISTORICAL_SPEC_042_ACTIVE_PATH}`]);
+      lines.push(...addedLinesComparedToPrevious(path, previousText));
+    } else {
+      readText(path).split(/\r?\n/).forEach((text, index) => {
+        lines.push({ path, line: index + 1, text });
+      });
     }
   }
   return lines;
@@ -1474,6 +1658,7 @@ function validateAddedLineHygiene(range) {
   console.log(`added_line_hygiene_scope=${range.mode === "HISTORICAL" ? "BASE_TO_HEAD" : "HEAD_TO_WORKTREE"}`);
   console.log(`no_secret_value_added=${secretFindings === 0 ? "YES" : "NO"}`);
   console.log(`no_personal_data_instance_added=${personalDataFindings === 0 ? "YES" : "NO"}`);
+  console.log(`no_personal_data_added=${personalDataFindings === 0 ? "YES" : "NO"}`);
   console.log(`no_private_path_or_url_added=${privateLocationFindings === 0 ? "YES" : "NO"}`);
 }
 
@@ -1485,6 +1670,7 @@ function main() {
   validateSchemas();
   validateLedger();
   validateDocumentCoherence();
+  validateRoadmap();
   validateNoRealInstances();
   validateAddedLineHygiene(range);
   return historicalVerification;

@@ -8,9 +8,10 @@ Ce dépôt sert à construire une plateforme SaaS suisse de closing comptable, m
 3. `docs/vision/architecture.md`
 4. `docs/vision/ai-native.md`
 5. `docs/product/v1-plan.md`
-6. `docs/adr/*.md`
-7. `specs/active/<feature>.md` de la mission courante
-8. `contracts/*` impactés par la mission
+6. `docs/product/product-roadmap.md`
+7. `docs/adr/*.md`
+8. `specs/active/<feature>.md` de la mission courante
+9. `contracts/*` impactés par la mission
 
 Référence UI documentaire : `docs/ui/ui-foundations-v1.md`
 
@@ -27,7 +28,7 @@ Le produit repose sur 3 couches complémentaires :
 - `docs/vision/` : North Star UX, architecture et IA
 - `docs/ui/` : source de vérité documentaire UI
 - `docs/playbooks/` : patterns d’exécution et garde-fous
-- `docs/product/` : plan V1 exécutable
+- `docs/product/` : plan V1 exécutable et roadmap produit canonique orientée outcomes, preuves et gates
 - `docs/adr/` : décisions structurantes
 - `docs/archive/` : documents historisés ou supersédés
 - `specs/active/` : mission atomique active à implémenter
@@ -35,6 +36,7 @@ Le produit repose sur 3 couches complémentaires :
 - `specs/done/` : missions atomiques terminées
 - `contracts/` : contrats techniques source de vérité
 - `evals/` : qualité IA
+- `fixtures/` : fixtures synthétiques gelées, versionnées et validées pour les répétitions contrôlées
 - `prompts/` : prompts et garde-fous versionnés
 - `knowledge/` : politique de retrieval / RAG
 - `runbooks/` : exploitation et incidents

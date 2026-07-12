@@ -1,0 +1,2 @@
+evidenceType,periodEnd,accountCode,bookBalance,statementBalance,difference,provenance
+SYNTHETIC_BANK_RECONCILIATION,2025-12-31,1000,105000.00,105000.00,0.00,RITOMER_INTERNAL_SYNTHETIC
