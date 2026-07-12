@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:ritomer:evals:mapping:reviews:042a2:workflow-ledger-record-schema-v1",
   "title": "042a2 workflow ledger record schema v1",
-  "description": "Documentary schema for a tamper-evident workflow ledger that is versioned, append-only by policy and no-in-place-edit. A recorded state is distinct from authorization and is never sufficient by itself to permit distribution, adjudication, golden promotion, provider activity or retry.",
+  "description": "Documentary schema for a tamper-evident workflow ledger that is versioned, append-only by policy and no-in-place-edit. A recorded state is distinct from authorization and is never sufficient by itself to permit distribution, adjudication, golden promotion, provider activity or retry. La chaîne SHA-256 fournit une détection locale des modifications lorsqu’un head ou un ancrage de confiance antérieur est déjà connu. Elle ne détecte pas à elle seule une troncation, un replay, un réordonnancement avec recalcul ou le remplacement complet du ledger. Elle n’authentifie aucun auteur, n’anonymise aucune donnée et n’établit ni exhaustivité, ni non-répudiation, ni signature officielle. Avant utilisation, un ancrage externe devra être prouvé : branche protégée, artefact CI protégé, tag signé, journal d’audit indépendant ou mécanisme équivalent. Sans ancrage, le ledger ne constitue pas une preuve autonome.",
   "$comment": "DRAFT; NOT_EXECUTABLE; NOT_DISTRIBUTABLE; NOT_VALIDATED_BY_DRAFT_2020_12_ENGINE. JSON syntax and repository invariants checked; Draft 2020-12 semantic validation not performed.",
   "x-ritomer-status": [
     "DRAFT",

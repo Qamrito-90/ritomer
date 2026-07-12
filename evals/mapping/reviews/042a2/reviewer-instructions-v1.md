@@ -9,11 +9,11 @@
 
 JSON syntax and repository invariants checked; Draft 2020-12 semantic validation not performed.
 
-These answer-free instructions are shared unchanged for reviewer A and reviewer B. They do not authorize distribution or collection. A Security/Privacy review is required before merge, and a new operational Security/Privacy confirmation is required before any future distribution.
+These answer-free instructions are shared unchanged for reviewer A and reviewer B. They do not authorize distribution or collection. `PR #99 technical exact-diff ratification = RATIFIED_WITH_NON_BLOCKING_CORRECTIONS` and `PR #99 Security/Privacy exact-diff ratification = RATIFIED_WITH_CONDITIONS_BEFORE_USE`; `corrective diff Security/Privacy review = REQUIRED_BEFORE_MERGE` and `operational Security/Privacy confirmation = REQUIRED_BEFORE_DISTRIBUTION` still apply.
 
 ## First-round separation of duties
 
-The first real round requires four distinct humans represented only by generic pseudonyms in repository-facing artifacts:
+The first real round requires four distinct humans. The labels below are documentary role slots, not participant identities and not proof of pseudonymization:
 
 - `reviewer-a` reviews pack A;
 - `reviewer-b` reviews pack B;
@@ -21,6 +21,8 @@ The first real round requires four distinct humans represented only by generic p
 - `adjudicator-1` may adjudicate only after both responses are frozen.
 
 Reviewers work independently. The coordinator does not decide accounting content. The adjudicator is not a reviewer. No AI system is a reviewer, coordinator or adjudicator.
+
+Future participant pseudonyms and opaque references must be generated automatically and randomly, limited to one round, not derived from a name, e-mail, employee identifier, employer or HR identifier, and not reused across rounds without explicit approval. The documentary schemas constrain only their shape and do not prove this procedural property. No human response is intended for Git.
 
 ## Authorized material
 
@@ -57,35 +59,40 @@ If forbidden material is encountered or independence is doubtful, stop and notif
 
 ## Decision tree
 
-Apply the tree in order and stop at the first supported result.
+Process the fail-closed gates separately: an unauthorized request is `POLICY_BLOCK`; an unmet account/import/eligibility condition is `PRECONDITION_BLOCK`; and a malformed or unknown, deprecated, non-selectable, root, section or contextually inadmissible supplied model result is `INVALID_MODEL_OUTPUT`. After processing any POLICY_BLOCK, PRECONDITION_BLOCK and INVALID_MODEL_OUTPUT conditions, apply the following semantic decision branch in order and stop at the first established result.
 
-1. **Authorized request boundary**
-   - Use `POLICY_BLOCK` for a request blocked by governance, privacy, tenant, provenance, allowlist, cohort or gate rules.
-   - Use `ABSTENTION / OUT_OF_SCOPE` only when the request is authorized and the business concept is established, but that concept is explicitly outside the assistance perimeter.
-2. **Case preconditions**
-   - Use `PRECONDITION_BLOCK` when the case cannot be reviewed because an account/import/eligibility precondition is not satisfied.
-   - Use `ABSTENTION` only after the preconditions are satisfied and the lack of a target is a business-semantic result.
-3. **Evidence sufficiency**
-   - Use `ABSTENTION / INSUFFICIENT_EVIDENCE` when the concept or candidate set cannot be established from supplied evidence.
-   - Use `ABSTENTION / AMBIGUOUS_TARGET` when the concept is established and two or more admissible targets remain plausible.
-4. **Taxonomy versus invalid output**
-   - Use `ABSTENTION / TAXONOMY_GAP` when a valid established concept has no admissible target in the exact supplied taxonomy.
-   - Use `INVALID_MODEL_OUTPUT` when a supplied model result is malformed or proposes an unknown, deprecated, non-selectable, root, section or contextually inadmissible target.
-5. **Conflicts**
-   - Use `ABSTENTION / CONFLICTING_SIGNALS` only when supplied material signals point materially to different concepts or target families.
-   - Use `INSUFFICIENT_EVIDENCE` for a simple lack of proof without a material contradiction.
-6. **Suggestion**
-   - Use `SUGGESTION` only when exactly one final target is admissible and supported by sufficient evidence.
+1. **`OUT_OF_SCOPE`** — use `ABSTENTION / OUT_OF_SCOPE` only when:
+   - the request is authorized;
+   - all preconditions are met;
+   - the business concept is established;
+   - that concept is explicitly outside the assistance perimeter.
+
+   An isolated signal toward an out-of-scope concept is not enough when other material signals support an incompatible concept; use `CONFLICTING_SIGNALS` in that case.
+2. **`CONFLICTING_SIGNALS`** — use `ABSTENTION / CONFLICTING_SIGNALS` when two or more positive and materially incompatible signals point to different concepts, treatments or target families.
+3. **`INSUFFICIENT_EVIDENCE`** — use `ABSTENTION / INSUFFICIENT_EVIDENCE` when the authorized evidence cannot reliably establish the business concept or the admissible candidate set. Missing or weak evidence is not a conflict.
+4. **Calcul des cibles admissibles** — only after the preceding results are excluded, calculate the exact known, non-deprecated, selectable and contextually admissible targets for the established concept:
+   - **Zero admissible targets:** use `ABSTENTION / TAXONOMY_GAP`.
+   - **Two or more admissible targets:** use `ABSTENTION / AMBIGUOUS_TARGET`.
+   - **Exactly one admissible target:** use `SUGGESTION`.
+
+`TAXONOMY_GAP` is allowed only when the business concept is established, the evidence is not insufficient, the absence of a target comes from the exact supplied catalog/taxonomy, and no approximate target is invented.
+
+For `AMBIGUOUS_TARGET`, SUFFICIENT means sufficient to establish the business concept and the admissible candidate set; it does not mean sufficient to select, validate or approve one unique target. `CONFLICTING` is not allowed in the `AMBIGUOUS_TARGET` branch; materially conflicting evidence stops at step 2.
 
 ## Outcome matrix
 
 | Outcome | Reason or target field | Evidence state | Human action | Critical flags guidance |
 | --- | --- | --- | --- | --- |
-| `SUGGESTION` | `targetCode` required; `reasonCode` absent | `SUFFICIENT` | `REVIEW_TARGET` | Use `NONE` only when no boundary applies; otherwise record every material boundary flag. |
-| `ABSTENTION` | One business `reasonCode`; `targetCode` absent | `CONFLICTING`, `INSUFFICIENT`, `MISSING` or `SUFFICIENT`, consistently with the reason | `REVIEW_ABSTENTION_REASON` | Use `TAXONOMY_GAP` for an actual gap and relevant boundary flags where material. |
-| `POLICY_BLOCK` | One policy `reasonCode`; `targetCode` absent | `POLICY_BLOCKED` | `ROUTE_TO_GOVERNANCE` | `POLICY_INCIDENT` required. |
-| `PRECONDITION_BLOCK` | One precondition `reasonCode`; `targetCode` absent | `STALE_PRECONDITION` | `CHECK_PRECONDITION` | Use only material boundary flags; never force a business outcome. |
-| `INVALID_MODEL_OUTPUT` | One invalid-output `reasonCode`; `targetCode` absent | `TECHNICAL_INVALID` | `ROUTE_TO_TECHNICAL_REVIEW` | `TECHNICAL_INCIDENT` required; add `TARGET_VALIDITY` when relevant. |
+| `SUGGESTION` | `targetCode`; no `reasonCode` | `SUFFICIENT` | `REVIEW_TARGET` | Use `NONE` only when no boundary applies; otherwise record every material boundary flag. |
+| `ABSTENTION` | `OUT_OF_SCOPE` | `SUFFICIENT` | `REVIEW_ABSTENTION_REASON` | Use relevant boundary flags where material. |
+| `ABSTENTION` | `CONFLICTING_SIGNALS` | `CONFLICTING` | `REVIEW_ABSTENTION_REASON` | A material contradiction must stop before target calculation. |
+| `ABSTENTION` | `INSUFFICIENT_EVIDENCE` | `INSUFFICIENT` or `MISSING` | `REVIEW_ABSTENTION_REASON` | Never invent missing proof. |
+| `ABSTENTION` | `TAXONOMY_GAP` | `SUFFICIENT` | `REVIEW_ABSTENTION_REASON` | `TAXONOMY_GAP` flag required. |
+| `ABSTENTION` | `AMBIGUOUS_TARGET` | `SUFFICIENT` uniquement | `REVIEW_ABSTENTION_REASON` | Two or more admissible targets remain after sufficient-evidence and conflict checks. |
+| `POLICY_BLOCK` | One policy `reasonCode` | `POLICY_BLOCKED` | `ROUTE_TO_GOVERNANCE` | `POLICY_INCIDENT` required. |
+| `PRECONDITION_BLOCK` | `STALE_IMPORT` | `STALE_PRECONDITION` | `CHECK_PRECONDITION` | Never force a business outcome. |
+| `PRECONDITION_BLOCK` | `ACCOUNT_ALREADY_AFFECTED`, `ACCOUNT_NOT_IN_LATEST_IMPORT`, `NOT_ELIGIBLE` | `PRECONDITION_NOT_MET` | `CHECK_PRECONDITION` | Never force a business outcome. |
+| `INVALID_MODEL_OUTPUT` | One invalid-output `reasonCode` | `TECHNICAL_INVALID` | `ROUTE_TO_TECHNICAL_REVIEW` | `TECHNICAL_INCIDENT` required; add `TARGET_VALIDITY` when relevant. |
 
 `NONE` is exclusive in `criticalFlags`. It must not appear with another flag.
 
@@ -98,7 +105,7 @@ Apply the tree in order and stop at the first supported result.
 | `outcome` | The semantic route selected after applying the decision tree. |
 | `reasonCode` | The bounded explanation category for a non-suggestion outcome; it is not free-form advice. |
 | `targetCode` | Exact final selectable rubric code, present only for `SUGGESTION`. |
-| `evidenceState` | Assessment of whether supplied evidence is sufficient, missing, conflicting, blocked, stale or technically invalid. |
+| `evidenceState` | Closed assessment: sufficient, missing, conflicting, policy-blocked, `STALE_PRECONDITION`, `PRECONDITION_NOT_MET` or technically invalid, according to the exact outcome/reason matrix. |
 | `criticalFlags` | Material accounting/governance boundaries that require explicit attention. |
 | `expectedHumanAction` | Governed next human route; it is not an expected answer or oracle. |
 | `humanJustification` | Reviewer-authored rationale of 250–400 characters, grounded only in authorized material. |
@@ -109,6 +116,12 @@ Apply the tree in order and stop at the first supported result.
 ## Human justification
 
 Every case requires a reviewer-authored justification between 250 and 400 characters. It must state the decisive supplied signal, explain the selected boundary, and avoid copied source text, expected-answer language or speculative facts. When a material alternative exists, record the principal rejected alternative and the reason for rejection. When no safe resolution is possible, use the applicable non-suggestion outcome and the optional `unresolvable=true` marker; never invent a target.
+
+## Free-text data minimization
+
+The following normative rule applies equally to `humanJustification`, `decisiveSignal`, `mainAlternativeRejected`, `reviewerQuestion`, `neutralReformulation` and `sharedResponse`:
+
+Ne saisir aucun nom, e-mail, initiale nominative, employeur, identifiant de collaborateur, identifiant client ou tenant, dossier, import, chemin local ou réseau, URL, emplacement de stockage, référence personnelle, preuve de compétence ou contenu provenant d’une source privée. Utiliser uniquement les identifiants synthétiques et les codes fournis dans le pack. En cas de doute, arrêter la saisie et signaler l’incident sans recopier la donnée.
 
 ## Neutral clarification mechanism
 

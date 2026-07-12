@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:ritomer:evals:mapping:reviews:042a2:restricted-participant-registry-schema-v1",
   "title": "042a2 restricted participant registry schema v1",
-  "description": "Documentary schema for an access-restricted, off-repository identity-to-pseudonym registry. A real registry instance is prohibited from the repository.",
+  "description": "Documentary schema for an access-restricted, off-repository identity-to-pseudonym registry. A real registry instance is prohibited from the repository. Future pseudonyms and opaque references must be generated automatically and randomly, be limited to one review round, not be derived from a name, e-mail, employee identifier, employer or HR identifier, and not be reused across rounds without explicit approval. This schema constrains only shape and does not prove those procedural properties.",
   "$comment": "DRAFT; NOT_EXECUTABLE; NOT_DISTRIBUTABLE; NOT_VALIDATED_BY_DRAFT_2020_12_ENGINE. JSON syntax and repository invariants checked; Draft 2020-12 semantic validation not performed.",
   "x-ritomer-status": [
     "DRAFT",
@@ -32,7 +32,7 @@
       "pattern": "^restricted-registry-[a-z0-9][a-z0-9-]{0,79}$"
     },
     "custodyReference": {
-      "description": "Opaque non-path, non-URL reference to access-restricted custody outside the repository.",
+      "description": "Opaque non-path, non-URL reference to access-restricted custody outside the repository. It must follow the future automatic, random, round-scoped, non-identity-derived and no-reuse-without-approval procedure; this schema does not prove that procedure.",
       "type": "string",
       "pattern": "^restricted-custody-ref-[a-z0-9][a-z0-9-]{0,79}$"
     },
@@ -66,10 +66,12 @@
       ]
     },
     "ExternalIdentityReference": {
+      "description": "Opaque reference generated under the future automatic, random, round-scoped, non-identity-derived and no-reuse-without-approval procedure. It must not contain the identity itself; this schema does not prove those properties.",
       "type": "string",
       "pattern": "^identity-ref-[a-z0-9][a-z0-9-]{0,79}$"
     },
     "ExternalCompetenceReference": {
+      "description": "Opaque reference generated under the future automatic, random, round-scoped, non-identity-derived and no-reuse-without-approval procedure. It must not contain competence evidence itself; this schema does not prove those properties.",
       "type": "string",
       "pattern": "^competence-ref-[a-z0-9][a-z0-9-]{0,79}$"
     },
@@ -95,6 +97,7 @@
           "const": "REVIEWER"
         },
         "pseudonym": {
+          "description": "Future random round-scoped pseudonym; its generation, non-derivation and non-reuse require external procedural verification and are not proved by this pattern.",
           "type": "string",
           "pattern": "^reviewer-[a-z0-9][a-z0-9-]{0,39}$"
         },
@@ -132,6 +135,7 @@
           "const": "COORDINATOR"
         },
         "pseudonym": {
+          "description": "Future random round-scoped pseudonym; its generation, non-derivation and non-reuse require external procedural verification and are not proved by this pattern.",
           "type": "string",
           "pattern": "^coordinator-[a-z0-9][a-z0-9-]{0,39}$"
         },
@@ -169,6 +173,7 @@
           "const": "ADJUDICATOR"
         },
         "pseudonym": {
+          "description": "Future random round-scoped pseudonym; its generation, non-derivation and non-reuse require external procedural verification and are not proved by this pattern.",
           "type": "string",
           "pattern": "^adjudicator-[a-z0-9][a-z0-9-]{0,39}$"
         },
@@ -206,6 +211,7 @@
           "const": "APPROVER"
         },
         "pseudonym": {
+          "description": "Future random round-scoped pseudonym; its generation, non-derivation and non-reuse require external procedural verification and are not proved by this pattern.",
           "type": "string",
           "pattern": "^approver-[a-z0-9][a-z0-9-]{0,39}$"
         },

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:ritomer:evals:mapping:reviews:042a2:adjudication-dossier-manifest-schema-v1",
   "title": "042a2 adjudication dossier manifest schema v1",
-  "description": "Documentary schema for a future pseudonymous human-adjudication dossier manifest. It references frozen evidence and excludes protected solution sources and coordinator opinion.",
+  "description": "Documentary schema for exactly two future pseudonymous human disposition modes over frozen A/B responses: agreement ratification or divergence adjudication. It excludes protected solution sources and coordinator opinion and is not an authorization.",
   "$comment": "DRAFT; NOT_EXECUTABLE; NOT_DISTRIBUTABLE; NOT_VALIDATED_BY_DRAFT_2020_12_ENGINE. JSON syntax and repository invariants checked; Draft 2020-12 semantic validation not performed.",
   "x-ritomer-status": [
     "DRAFT",
@@ -10,104 +10,21 @@
     "NOT_DISTRIBUTABLE",
     "NOT_VALIDATED_BY_DRAFT_2020_12_ENGINE"
   ],
-  "type": "object",
-  "additionalProperties": false,
-  "required": [
-    "schemaVersion",
-    "manifestType",
-    "status",
-    "dossierId",
-    "reviewRoundId",
-    "neutralReviewInput",
-    "exactTargetCatalog",
-    "annotationGuide",
-    "responseA",
-    "responseB",
-    "frozenJustificationA",
-    "frozenJustificationB",
-    "divergentFields",
-    "applicableRules",
-    "contentExclusions",
-    "decisionRoute",
-    "manifestDoesNotAuthorizeAdjudication"
+  "oneOf": [
+    {
+      "$ref": "#/$defs/AgreementRatification"
+    },
+    {
+      "$ref": "#/$defs/DivergenceAdjudication"
+    }
   ],
-  "properties": {
-    "schemaVersion": {
+  "$defs": {
+    "SchemaVersion": {
       "const": "042a2-adjudication-dossier-manifest-v1"
     },
-    "manifestType": {
+    "ManifestType": {
       "const": "FUTURE_HUMAN_ADJUDICATION_DOSSIER"
     },
-    "status": {
-      "$ref": "#/$defs/ArtifactStatus"
-    },
-    "dossierId": {
-      "type": "string",
-      "pattern": "^adjudication-dossier-[a-z0-9][a-z0-9-]{0,79}$"
-    },
-    "reviewRoundId": {
-      "type": "string",
-      "pattern": "^review-round-[a-z0-9][a-z0-9-]{0,79}$"
-    },
-    "neutralReviewInput": {
-      "$ref": "#/$defs/ArtifactReference"
-    },
-    "exactTargetCatalog": {
-      "$ref": "#/$defs/ArtifactReference"
-    },
-    "annotationGuide": {
-      "$ref": "#/$defs/ArtifactReference"
-    },
-    "responseA": {
-      "$ref": "#/$defs/ReviewerAArtifactReference"
-    },
-    "responseB": {
-      "$ref": "#/$defs/ReviewerBArtifactReference"
-    },
-    "frozenJustificationA": {
-      "$ref": "#/$defs/FrozenEvidenceReference"
-    },
-    "frozenJustificationB": {
-      "$ref": "#/$defs/FrozenEvidenceReference"
-    },
-    "divergentFields": {
-      "type": "array",
-      "minItems": 1,
-      "uniqueItems": true,
-      "items": {
-        "enum": [
-          "outcome",
-          "reasonCode",
-          "targetCode",
-          "evidenceState",
-          "criticalFlags",
-          "expectedHumanAction",
-          "humanJustification",
-          "decisiveSignal",
-          "mainAlternativeRejected",
-          "unresolvable"
-        ]
-      }
-    },
-    "applicableRules": {
-      "type": "array",
-      "minItems": 1,
-      "uniqueItems": true,
-      "items": {
-        "$ref": "#/$defs/ArtifactReference"
-      }
-    },
-    "contentExclusions": {
-      "$ref": "#/$defs/ContentExclusions"
-    },
-    "decisionRoute": {
-      "$ref": "#/$defs/DecisionRoute"
-    },
-    "manifestDoesNotAuthorizeAdjudication": {
-      "const": true
-    }
-  },
-  "$defs": {
     "ArtifactStatus": {
       "type": "array",
       "minItems": 2,
@@ -127,15 +44,38 @@
       "pattern": "^[0-9a-f]{64}$"
     },
     "RepositoryPath": {
-      "description": "Repository-relative path using forward slashes; absolute and private paths are not permitted.",
+      "description": "Repository-relative path for documentary Git artifacts only; absolute and private paths are not permitted.",
       "type": "string",
       "minLength": 1,
       "maxLength": 400,
       "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(^|/)\\.\\.(/|$))[A-Za-z0-9][A-Za-z0-9._/-]*$"
     },
+    "CustodyReference": {
+      "description": "Opaque locator-free reference to a human response held outside Git. It must contain no URL, no path, no provider, no bucket, no tenant and no identity, and it must be procedurally bound to the sibling exact-byte SHA-256. Future opaque references must be generated automatically and randomly, be limited to one review round, not be identity-derived and not be reused across rounds without explicit approval. This schema does not prove those semantic properties or the hash binding.",
+      "type": "string",
+      "pattern": "^custody-ref-[a-z0-9][a-z0-9-]{0,79}$"
+    },
     "OpaqueId": {
+      "description": "Future opaque references must be generated automatically and randomly, be limited to one review round, not be derived from a name, e-mail, employee identifier, employer or HR identifier, and not be reused across rounds without explicit approval. This schema does not prove those procedural properties.",
       "type": "string",
       "pattern": "^[a-z][a-z0-9-]{1,79}$"
+    },
+    "DossierId": {
+      "type": "string",
+      "pattern": "^adjudication-dossier-[a-z0-9][a-z0-9-]{0,79}$"
+    },
+    "ReviewRoundId": {
+      "type": "string",
+      "pattern": "^review-round-[a-z0-9][a-z0-9-]{0,79}$"
+    },
+    "BlindCaseId": {
+      "type": "string",
+      "pattern": "^BR-(00[1-9]|01[0-7])$"
+    },
+    "UtcTimestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?Z$"
     },
     "ArtifactReference": {
       "type": "object",
@@ -164,18 +104,19 @@
         }
       }
     },
-    "ReviewerAArtifactReference": {
+    "ReviewerAResponseReference": {
       "type": "object",
       "additionalProperties": false,
       "required": [
         "reviewerPseudonym",
         "artifactId",
         "version",
-        "repositoryPath",
+        "custodyReference",
         "sha256"
       ],
       "properties": {
         "reviewerPseudonym": {
+          "description": "Documentary reviewer-A role slot only. It does not prove the future random round-scoped pseudonym-generation procedure.",
           "const": "reviewer-a"
         },
         "artifactId": {
@@ -187,26 +128,27 @@
           "maxLength": 80,
           "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
         },
-        "repositoryPath": {
-          "$ref": "#/$defs/RepositoryPath"
+        "custodyReference": {
+          "$ref": "#/$defs/CustodyReference"
         },
         "sha256": {
           "$ref": "#/$defs/Sha256"
         }
       }
     },
-    "ReviewerBArtifactReference": {
+    "ReviewerBResponseReference": {
       "type": "object",
       "additionalProperties": false,
       "required": [
         "reviewerPseudonym",
         "artifactId",
         "version",
-        "repositoryPath",
+        "custodyReference",
         "sha256"
       ],
       "properties": {
         "reviewerPseudonym": {
+          "description": "Documentary reviewer-B role slot only. It does not prove the future random round-scoped pseudonym-generation procedure.",
           "const": "reviewer-b"
         },
         "artifactId": {
@@ -218,8 +160,8 @@
           "maxLength": 80,
           "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
         },
-        "repositoryPath": {
-          "$ref": "#/$defs/RepositoryPath"
+        "custodyReference": {
+          "$ref": "#/$defs/CustodyReference"
         },
         "sha256": {
           "$ref": "#/$defs/Sha256"
@@ -248,6 +190,49 @@
           "$ref": "#/$defs/Sha256"
         },
         "evidenceSha256": {
+          "$ref": "#/$defs/Sha256"
+        }
+      }
+    },
+    "EvidenceReference": {
+      "description": "Opaque, versioned, exact-byte hash-bound evidence reference. It contains no personal justification or free text and is not an official signature.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidenceId",
+        "version",
+        "sha256"
+      ],
+      "properties": {
+        "evidenceId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/Sha256"
+        }
+      }
+    },
+    "LedgerRecordReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "recordId",
+        "version",
+        "sha256"
+      ],
+      "properties": {
+        "recordId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sha256": {
           "$ref": "#/$defs/Sha256"
         }
       }
@@ -288,25 +273,31 @@
         }
       }
     },
-    "LedgerRecordReference": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "recordId",
-        "version",
-        "sha256"
-      ],
-      "properties": {
-        "recordId": {
-          "$ref": "#/$defs/OpaqueId"
-        },
-        "version": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "sha256": {
-          "$ref": "#/$defs/Sha256"
-        }
+    "DivergentFields": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "outcome",
+          "reasonCode",
+          "targetCode",
+          "evidenceState",
+          "criticalFlags",
+          "expectedHumanAction",
+          "humanJustification",
+          "decisiveSignal",
+          "mainAlternativeRejected",
+          "unresolvable"
+        ]
+      }
+    },
+    "ApplicableRules": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/ArtifactReference"
       }
     },
     "DecisionRoute": {
@@ -333,7 +324,9 @@
           "const": "HUMAN_ADJUDICATION"
         },
         "adjudicatorPseudonym": {
-          "const": "adjudicator-1"
+          "description": "Future random round-scoped pseudonym subject to external role-separation verification; this pattern does not prove person-level separation.",
+          "type": "string",
+          "pattern": "^adjudicator-[a-z0-9][a-z0-9-]{0,39}$"
         },
         "authorizedTransitionReference": {
           "$ref": "#/$defs/LedgerRecordReference"
@@ -363,6 +356,191 @@
           "$ref": "#/$defs/LedgerRecordReference"
         },
         "stopRequired": {
+          "const": true
+        }
+      }
+    },
+    "AgreementRatification": {
+      "description": "REVIEW_EVIDENCE_ONLY; NOT_GOLDEN; NOT_AUTHORITATIVE. AGREEMENT_RATIFICATION confirms only the concordance and acceptability of two frozen human responses for this synthetic review round. It approves no official mapping and creates no golden set.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "manifestType",
+        "dossierMode",
+        "status",
+        "dossierId",
+        "reviewRoundId",
+        "blindCaseId",
+        "neutralReviewInput",
+        "exactTargetCatalog",
+        "annotationGuide",
+        "responseA",
+        "responseB",
+        "agreementConfirmed",
+        "explicitHumanRatification",
+        "ratifierPseudonym",
+        "approvalReference",
+        "ratifiedAt",
+        "authorizedTransitionReference",
+        "applicableRules",
+        "contentExclusions",
+        "manifestDoesNotAuthorizeAdjudication"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/SchemaVersion"
+        },
+        "manifestType": {
+          "$ref": "#/$defs/ManifestType"
+        },
+        "dossierMode": {
+          "const": "AGREEMENT_RATIFICATION"
+        },
+        "status": {
+          "$ref": "#/$defs/ArtifactStatus"
+        },
+        "dossierId": {
+          "$ref": "#/$defs/DossierId"
+        },
+        "reviewRoundId": {
+          "$ref": "#/$defs/ReviewRoundId"
+        },
+        "blindCaseId": {
+          "$ref": "#/$defs/BlindCaseId"
+        },
+        "neutralReviewInput": {
+          "$ref": "#/$defs/ArtifactReference"
+        },
+        "exactTargetCatalog": {
+          "$ref": "#/$defs/ArtifactReference"
+        },
+        "annotationGuide": {
+          "$ref": "#/$defs/ArtifactReference"
+        },
+        "responseA": {
+          "$ref": "#/$defs/ReviewerAResponseReference"
+        },
+        "responseB": {
+          "$ref": "#/$defs/ReviewerBResponseReference"
+        },
+        "agreementConfirmed": {
+          "const": true
+        },
+        "explicitHumanRatification": {
+          "const": true
+        },
+        "ratifierPseudonym": {
+          "description": "Future random round-scoped adjudicator pseudonym consistent with the protected round-role assignment and restricted participant registry; this pattern does not prove human identity, authority or separation.",
+          "type": "string",
+          "pattern": "^adjudicator-[a-z0-9][a-z0-9-]{0,39}$"
+        },
+        "approvalReference": {
+          "$ref": "#/$defs/EvidenceReference"
+        },
+        "ratifiedAt": {
+          "$ref": "#/$defs/UtcTimestamp"
+        },
+        "authorizedTransitionReference": {
+          "$ref": "#/$defs/LedgerRecordReference"
+        },
+        "applicableRules": {
+          "$ref": "#/$defs/ApplicableRules"
+        },
+        "contentExclusions": {
+          "$ref": "#/$defs/ContentExclusions"
+        },
+        "manifestDoesNotAuthorizeAdjudication": {
+          "const": true
+        }
+      }
+    },
+    "DivergenceAdjudication": {
+      "description": "REVIEW_EVIDENCE_ONLY; NOT_GOLDEN; NOT_AUTHORITATIVE. DIVERGENCE_ADJUDICATION records only a traceable human disposition for this synthetic case and review round. It remains review evidence, may conclude NON_ADJUDICABLE, approves no official mapping and creates no golden set.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "manifestType",
+        "dossierMode",
+        "status",
+        "dossierId",
+        "reviewRoundId",
+        "blindCaseId",
+        "neutralReviewInput",
+        "exactTargetCatalog",
+        "annotationGuide",
+        "responseA",
+        "responseB",
+        "frozenJustificationA",
+        "frozenJustificationB",
+        "divergentFields",
+        "applicableRules",
+        "contentExclusions",
+        "decisionRoute",
+        "roleSeparationConfirmed",
+        "manifestDoesNotAuthorizeAdjudication"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/SchemaVersion"
+        },
+        "manifestType": {
+          "$ref": "#/$defs/ManifestType"
+        },
+        "dossierMode": {
+          "const": "DIVERGENCE_ADJUDICATION"
+        },
+        "status": {
+          "$ref": "#/$defs/ArtifactStatus"
+        },
+        "dossierId": {
+          "$ref": "#/$defs/DossierId"
+        },
+        "reviewRoundId": {
+          "$ref": "#/$defs/ReviewRoundId"
+        },
+        "blindCaseId": {
+          "$ref": "#/$defs/BlindCaseId"
+        },
+        "neutralReviewInput": {
+          "$ref": "#/$defs/ArtifactReference"
+        },
+        "exactTargetCatalog": {
+          "$ref": "#/$defs/ArtifactReference"
+        },
+        "annotationGuide": {
+          "$ref": "#/$defs/ArtifactReference"
+        },
+        "responseA": {
+          "$ref": "#/$defs/ReviewerAResponseReference"
+        },
+        "responseB": {
+          "$ref": "#/$defs/ReviewerBResponseReference"
+        },
+        "frozenJustificationA": {
+          "$ref": "#/$defs/FrozenEvidenceReference"
+        },
+        "frozenJustificationB": {
+          "$ref": "#/$defs/FrozenEvidenceReference"
+        },
+        "divergentFields": {
+          "$ref": "#/$defs/DivergentFields"
+        },
+        "applicableRules": {
+          "$ref": "#/$defs/ApplicableRules"
+        },
+        "contentExclusions": {
+          "$ref": "#/$defs/ContentExclusions"
+        },
+        "decisionRoute": {
+          "$ref": "#/$defs/DecisionRoute"
+        },
+        "roleSeparationConfirmed": {
+          "description": "Procedural assertion requiring person-level verification outside this schema; the schema does not prove that the humans are distinct.",
+          "const": true
+        },
+        "manifestDoesNotAuthorizeAdjudication": {
           "const": true
         }
       }

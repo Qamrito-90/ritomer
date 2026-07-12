@@ -546,7 +546,7 @@ Ces artefacts restent `BLIND_REVIEW_INPUT / PENDING_INDEPENDENT_REVIEW / NOT_GOL
 - Les deux jeux complets, valides, traces par hash et geles sont requis avant toute comparaison ou adjudication.
 - La comparaison se fait par `blindCaseId`, jamais par position, et distingue accord exact, divergence, reponse invalide, abstention, insuffisance de preuve, taxonomy gap, policy block, precondition block et invalid model output.
 - Toute divergence est tranchee par un adjudicateur humain distinct ou par une decision humaine CPO/IA Governance explicitement documentee ; aucune cible approximative n'est forcee.
-- Le statut courant est `PENDING_HUMAN_RESPONSES`. Les transitions futures autorisees par preuves sont `PENDING_ADJUDICATION`, `ADJUDICATED_NOT_GOLDEN`, `GOLDEN_CANDIDATE_PENDING_GOVERNANCE`, puis `GOLDEN_APPROVED` uniquement apres un gate humain futur explicite.
+- Le statut courant est `PENDING_HUMAN_RESPONSES`. Les transitions futures sont definies mais actuellement non autorisees : `PENDING_ADJUDICATION`, `ADJUDICATED_NOT_GOLDEN`, `GOLDEN_CANDIDATE_PENDING_GOVERNANCE`, puis `GOLDEN_APPROVED` uniquement apres un gate humain futur explicite et tous les autres conjuncts.
 - Aucun fichier de reponse humaine, aucune adjudication et aucun golden set 042a2 ne sont crees par cette mission.
 - Aucun provider, retry, fallback, appel reseau IA, secret, `.env`, runtime, contrat, schema, validator, backend, frontend, DB/migration, production ou spec `043` n'est autorise.
 
@@ -558,11 +558,19 @@ Ces artefacts restent `BLIND_REVIEW_INPUT / PENDING_INDEPENDENT_REVIEW / NOT_GOL
 - Etat declare canonique : ledger JSONL `PENDING_HUMAN_RESPONSES` avec exactement un record `HARDENING_ONLY`, `sequence=0`, `previousRecordHash=GENESIS`, aucun changement d'etat et aucune preuve humaine.
 - Autorisations courantes : `collectionAuthorized=false`, `distributionAuthorized=false`, `providerAuthorized=false`, `goldenPromotionAuthorized=false`, `adjudicationAuthorized=false`, `retryAuthorized=false`.
 - Toute autorisation future reste la conjonction d'un state ledger valide, d'une transition autorisee, de preuves humaines referencees, de hashes verifies, de validations requises passees et d'approbations humaines requises presentes. Un state seul n'autorise jamais une distribution, une adjudication, une promotion golden, un provider ou un retry.
-- Security/Privacy : `REQUIRED_BEFORE_MERGE`, puis nouvelle confirmation operationnelle `REQUIRED_BEFORE_DISTRIBUTION`.
+- `PR #99 technical exact-diff ratification = RATIFIED_WITH_NON_BLOCKING_CORRECTIONS`.
+- `PR #99 Security/Privacy exact-diff ratification = RATIFIED_WITH_CONDITIONS_BEFORE_USE`.
+- `corrective diff Security/Privacy review = REQUIRED_BEFORE_MERGE`.
+- `IA Governance / fiduciary review of D/E/F = REQUIRED_BEFORE_MERGE`.
+- `operational Security/Privacy confirmation = REQUIRED_BEFORE_DISTRIBUTION`.
+- Ces dispositions ne sont ni des signatures, ni des autorisations de collecte, distribution ou utilisation; toutes les autorisations restent `false`.
 - Sous-livrable 2 / moteur JSON Schema Draft 2020-12 : `STOP_DEPENDENCY_REQUIRED`; aucune bibliotheque selectionnee et aucune dependance ajoutee.
 - JSON syntax and repository invariants checked; Draft 2020-12 semantic validation not performed.
 - Le checker Node built-in controle uniquement syntaxe et invariants du repo; il ne constitue pas un moteur Draft 2020-12 ni un outil de collecte.
 - Le ledger est un tamper-evident workflow ledger, versionne, append-only par politique et no-in-place-edit; Git signing reste `PENDING_EVIDENCE` et branch protection `NOT_PROVED`.
+- La chaine SHA-256 ne fournit qu'une detection locale avec head ou ancrage anterieur connu; elle ne prouve ni exhaustivite, ni auteur, ni non-repudiation et ne detecte pas seule troncation, replay, reordonnancement recalcule ou remplacement complet. Aucun ancrage externe n'est actuellement prouve; sans ancrage, le ledger n'est pas une preuve autonome.
+- Aucune reponse humaine n'est destinee a Git. Les futures instances sont des donnees personnelles pseudonymisees, non anonymes, referencees par `custodyReference` opaque liee au SHA-256 exact-byte. Stockage reel, juridiction, ACL, retention, suppression et validateur operationnel de contenu personnel/prive restent `REQUIRED_BEFORE_DISTRIBUTION` et fail-closed.
+- Semantique D/E/F : `OUT_OF_SCOPE` precede `CONFLICTING_SIGNALS`, puis `INSUFFICIENT_EVIDENCE`, puis le calcul des cibles; `AMBIGUOUS_TARGET` impose `SUFFICIENT`; `STALE_IMPORT` impose `STALE_PRECONDITION`; les trois autres preconditions imposent `PRECONDITION_NOT_MET`.
 - Aucun vrai nom, e-mail, participant, manifeste de round, fichier de reponse, attestation, freeze, clarification, dossier adjudicateur, adjudication ou golden set `042a2` n'est cree.
 - `042` reste active; aucune spec `043` n'est creee. `provider_runtime=STILL_BLOCKED`, `adapter_provider=NOT_AUTHORIZED`, `retry_remaining=0`, `fallback=FORBIDDEN`.
 

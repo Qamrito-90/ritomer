@@ -27,21 +27,40 @@
       "pattern": "^review-round-[a-z0-9][a-z0-9-]{0,79}$"
     },
     "ReviewerPseudonym": {
+      "description": "Future pseudonyms must be generated automatically and randomly, be limited to one review round, not be derived from a name, e-mail, employee identifier, employer or HR identifier, and not be reused across rounds without explicit approval. This schema does not prove those procedural properties.",
       "type": "string",
       "pattern": "^reviewer-[a-z0-9][a-z0-9-]{0,39}$"
     },
     "CoordinatorPseudonym": {
+      "description": "Future pseudonyms must be generated automatically and randomly, be limited to one review round, not be derived from a name, e-mail, employee identifier, employer or HR identifier, and not be reused across rounds without explicit approval. This schema does not prove those procedural properties.",
       "type": "string",
       "pattern": "^coordinator-[a-z0-9][a-z0-9-]{0,39}$"
     },
     "AttestationReference": {
-      "description": "Opaque reference only; it is not a cryptographic or official signature.",
+      "description": "Opaque reference only; it is not a cryptographic or official signature. Future opaque references must be generated automatically and randomly, be limited to one review round, not be derived from a name, e-mail, employee identifier, employer or HR identifier, and not be reused across rounds without explicit approval. This schema does not prove those procedural properties.",
       "type": "string",
       "pattern": "^attestation-ref-[a-z0-9][a-z0-9-]{0,79}$"
     },
     "Sha256": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
+    },
+    "EligibilityCompetenceEvidence": {
+      "description": "Reference to off-repository reviewer eligibility and competence evidence, bound to its sibling exact-byte SHA-256. Presence and shape do not certify legal identity, competence, substantive truth, absence of AI use or absence of forbidden-source access.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attestationReference",
+        "sha256"
+      ],
+      "properties": {
+        "attestationReference": {
+          "$ref": "#/$defs/AttestationReference"
+        },
+        "sha256": {
+          "$ref": "#/$defs/Sha256"
+        }
+      }
     },
     "UtcTimestamp": {
       "type": "string",
@@ -61,6 +80,7 @@
         "noDisqualifyingExposure",
         "noForbiddenSourceAccess",
         "noAiAssistantUseCommitment",
+        "eligibilityCompetenceEvidence",
         "reviewerAttestationReference",
         "attestedAt"
       ],
@@ -92,6 +112,9 @@
         "noAiAssistantUseCommitment": {
           "const": true
         },
+        "eligibilityCompetenceEvidence": {
+          "$ref": "#/$defs/EligibilityCompetenceEvidence"
+        },
         "reviewerAttestationReference": {
           "$ref": "#/$defs/AttestationReference"
         },
@@ -110,6 +133,8 @@
         "responseAuthorPseudonym",
         "noDiscussionOrComparison",
         "noOppositePackOrResponseAccess",
+        "noAiAssistantUsed",
+        "noForbiddenSourceAccess",
         "finalResponseSha256",
         "finalHashAcknowledged",
         "reviewerAttestationReference",
@@ -134,6 +159,14 @@
           "const": true
         },
         "noOppositePackOrResponseAccess": {
+          "const": true
+        },
+        "noAiAssistantUsed": {
+          "description": "Required reviewer declaration at freeze. Its presence does not prove the absolute absence of AI use.",
+          "const": true
+        },
+        "noForbiddenSourceAccess": {
+          "description": "Required reviewer declaration at freeze. Its presence does not prove the absolute absence of forbidden-source access.",
           "const": true
         },
         "finalResponseSha256": {

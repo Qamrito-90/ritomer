@@ -167,11 +167,25 @@ Le ledger JSONL contient uniquement un baseline de configuration `HARDENING_ONLY
 
 Le ledger est un tamper-evident workflow ledger, versionne, append-only par politique et no-in-place-edit. Une autorisation future exige cumulativement un state valide, une transition autorisee, des preuves humaines referencees, des hashes verifies, les validations requises passees et les approbations humaines requises presentes. Le state seul ne suffit jamais.
 
+La chaine SHA-256 fournit seulement une detection locale lorsqu'un head ou un ancrage anterieur de confiance est deja connu; elle ne prouve ni exhaustivite, ni auteur, ni non-repudiation, et ne detecte pas seule troncation, replay, reordonnancement recalcule ou remplacement complet. Aucun ancrage externe actuel n'est prouve; sans ancrage, le ledger n'est pas une preuve autonome.
+
 Convention ledger : UTF-8 sans BOM, LF, une ligne JSON par record, aucun commentaire ou ligne vide, ordre de proprietes deterministe, sequence monotone, hash precedent SHA-256 exact-byte lowercase calcule hors LF terminal, et hash de fichier pouvant inclure toutes les fins de ligne. Le baseline utilise `GENESIS`.
 
 Le checker Node utilise uniquement les modules integres. Il verifie la syntaxe JSON/JSONL et les invariants du repository; il n'execute pas la semantique Draft 2020-12 et ne collecte aucune reponse. Le moteur Draft 2020-12 reste `STOP_DEPENDENCY_REQUIRED`, sans bibliotheque selectionnee ou ajoutee.
 
-Security/Privacy est `REQUIRED_BEFORE_MERGE`; une nouvelle confirmation operationnelle Security/Privacy est `REQUIRED_BEFORE_DISTRIBUTION`. Aucune distribution actuelle n'est autorisee.
+Review dispositions:
+
+- `PR #99 technical exact-diff ratification = RATIFIED_WITH_NON_BLOCKING_CORRECTIONS`;
+- `PR #99 Security/Privacy exact-diff ratification = RATIFIED_WITH_CONDITIONS_BEFORE_USE`;
+- `corrective diff Security/Privacy review = REQUIRED_BEFORE_MERGE`;
+- `IA Governance / fiduciary review of D/E/F = REQUIRED_BEFORE_MERGE`;
+- `operational Security/Privacy confirmation = REQUIRED_BEFORE_DISTRIBUTION`.
+
+Ces mentions ne sont ni des signatures, ni une autorisation de collecte ou de distribution. Aucune distribution actuelle n'est autorisee.
+
+Semantique corrective D/E/F : l'ordre metier est `OUT_OF_SCOPE` -> `CONFLICTING_SIGNALS` -> `INSUFFICIENT_EVIDENCE` -> calcul des cibles admissibles -> `AMBIGUOUS_TARGET` si plusieurs cibles restent possibles -> `SUGGESTION` si une seule cible est etablie. `AMBIGUOUS_TARGET` impose `SUFFICIENT` uniquement. `STALE_IMPORT` impose `STALE_PRECONDITION`; `ACCOUNT_ALREADY_AFFECTED`, `ACCOUNT_NOT_IN_LATEST_IMPORT` et `NOT_ELIGIBLE` imposent `PRECONDITION_NOT_MET`.
+
+Aucune reponse humaine n'est destinee a Git. Les futures instances sont des donnees personnelles pseudonymisees, non anonymes, referencees par `custodyReference` opaque et SHA-256 exact-byte. Stockage, juridiction, ACL, retention et suppression restent `NON DETERMINÉ / REQUIRED_BEFORE_DISTRIBUTION`. Aucun validateur operationnel du contenu personnel, prive, URL ou chemin n'est livre; cette condition future reste fail-closed.
 
 Aucune instance reelle de reponse, registre participant, manifeste de round, attestation, freeze, clarification ou dossier adjudicateur n'est creee. Aucun golden set `042a2`, provider, retry, appel reseau IA, secret, `.env`, backend, frontend, DB/migration, OpenAPI, endpoint ou spec `043` n'est ajoute.
 
