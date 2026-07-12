@@ -29,10 +29,20 @@ The review inputs below are recorded only as hardening conditions. They are not 
 | IA Governance | `HARDENING_CONDITIONS_REQUIRED` | Evidence-first state transitions, explicit authorizations, referenced human evidence and conservative stop/invalidation paths are required. No collection is authorized. |
 | Expert fiduciaire | `HARDENING_CONDITIONS_REQUIRED` | Answer-free instructions, fiduciary field glossary, decision boundaries, human justification and non-approximate target rules are required. No response or adjudication is authorized. |
 | CTO Gate | `APPROVED_WITH_CONDITIONS` as stated in the mission brief | A non-operational kit, exact-byte preservation, dependency stop, structural checks and a conservative ledger baseline are required. This is not a distribution or runtime approval. |
-| Security/Privacy review | `REQUIRED_BEFORE_MERGE` | A human Security/Privacy review of this hardening increment is required before merge. No such approval is recorded here. |
+| Corrective diff Security/Privacy review | `REQUIRED_BEFORE_MERGE` | A human Security/Privacy review of this corrective increment is required before merge. No such approval is recorded here. |
 | Security/Privacy operational confirmation | `REQUIRED_BEFORE_DISTRIBUTION` | A new, explicit operational confirmation is required immediately before any future distribution, even if the merge review has passed. |
 
 No review row above authorizes a real participant registry, response, attestation, freeze, clarification, round manifest, adjudication dossier or transition.
+
+Exact review dispositions carried into this corrective record:
+
+- `PR #99 technical exact-diff ratification = RATIFIED_WITH_NON_BLOCKING_CORRECTIONS`;
+- `PR #99 Security/Privacy exact-diff ratification = RATIFIED_WITH_CONDITIONS_BEFORE_USE`;
+- `corrective diff Security/Privacy review = REQUIRED_BEFORE_MERGE`;
+- `IA Governance / fiduciary review of D/E/F = REQUIRED_BEFORE_MERGE`;
+- `operational Security/Privacy confirmation = REQUIRED_BEFORE_DISTRIBUTION`.
+
+These dispositions are neither signatures nor authorizations to collect, distribute or use human responses. Every current authorization remains `false`.
 
 ## Dependency gate
 
@@ -81,7 +91,11 @@ A ledger state alone never authorizes distribution, adjudication, golden promoti
 
 ## Baseline ledger posture
 
-The ledger is a tamper-evident workflow ledger, versioned and append-only by policy. It uses no-in-place-edit so that modification is detectable through exact-byte hashes and the hash chain.
+The ledger is a tamper-evident workflow ledger, versioned and append-only by policy. It uses no-in-place-edit so that modification is locally detectable through exact-byte hashes and the hash chain only when a trusted prior head or anchor is already known.
+
+La chaîne SHA-256 fournit une détection locale des modifications lorsqu’un head ou un ancrage de confiance antérieur est déjà connu. Elle ne détecte pas à elle seule une troncation, un replay, un réordonnancement avec recalcul ou le remplacement complet du ledger. Elle n’authentifie aucun auteur, n’anonymise aucune donnée et n’établit ni exhaustivité, ni non-répudiation, ni signature officielle.
+
+Avant utilisation, un ancrage externe devra être prouvé : branche protégée, artefact CI protégé, tag signé, journal d’audit indépendant ou mécanisme équivalent. Sans ancrage, le ledger ne constitue pas une preuve autonome.
 
 It is not described as an immutable ledger, an absolute immutability mechanism, non-repudiation, a cryptographic human seal, an unfalsifiable journal or an official signature system.
 
@@ -120,8 +134,18 @@ Each schema introduced by `042a2a6a` carries these four documentary statuses:
 
 They target Draft 2020-12 as documentation, close modeled instance objects with `additionalProperties=false`, and use discriminated branches where conditional fields differ. No schema is wired into a workflow or used to collect a response.
 
+## Human-data custody and procedural limits
+
+Aucune réponse humaine n’est destinée à Git. Les futures instances sont des données personnelles pseudonymisées, non anonymes. A human response may be referenced only through an opaque `custodyReference`, containing no URL, path, provider, bucket, tenant or identity, and procedurally bound to the exact artifact SHA-256.
+
+Future pseudonyms and opaque references must be generated automatically and randomly, limited to one round, not derived from a name, e-mail, employee identifier, employer or HR identifier, and not reused across rounds without explicit approval. The documentary schemas constrain shape only and do not prove these properties.
+
+Real storage, jurisdiction, ACL, retention and deletion are `NON DÉTERMINÉ / REQUIRED_BEFORE_DISTRIBUTION`. No operational validator for personal-data, private-source or locator content is delivered by this kit; that validator remains a future fail-closed condition before distribution.
+
+Le coordinateur confirme uniquement les contrôles de custody, d’identité d’artefact, de hash, de timestamp et de présence des déclarations requises. Il ne certifie ni l’identité juridique, ni la vérité substantielle de la réponse, ni l’absence absolue d’usage d’IA ou d’accès interdit.
+
 ## Prohibitions preserved
 
 `042a2a6a` creates no real participant, identity, e-mail address, response, attestation, freeze, clarification, review round, adjudication dossier, adjudication decision or golden artifact. It performs no distribution, collection, promotion, provider call, retry, fallback or AI network call. It reads no secret or `.env` value and creates no runtime, backend, frontend, database, migration, OpenAPI, endpoint, dependency or spec `043`.
 
-No signature or approval is recorded in this draft.
+No signature, operational approval, or collection/distribution authorization is recorded by this draft.

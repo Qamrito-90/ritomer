@@ -57,10 +57,10 @@
       "pattern": "^review-round-[a-z0-9][a-z0-9-]{0,79}$"
     },
     "responseA": {
-      "$ref": "#/$defs/ReviewerAArtifactReference"
+      "$ref": "#/$defs/ReviewerAResponseReference"
     },
     "responseB": {
-      "$ref": "#/$defs/ReviewerBArtifactReference"
+      "$ref": "#/$defs/ReviewerBResponseReference"
     },
     "packA": {
       "$ref": "#/$defs/ReviewerAArtifactReference"
@@ -130,6 +130,11 @@
       "maxLength": 400,
       "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(^|/)\\.\\.(/|$))[A-Za-z0-9][A-Za-z0-9._/-]*$"
     },
+    "CustodyReference": {
+      "description": "Opaque locator-free reference to a human response held outside Git. It must contain no URL, no path, no provider, no bucket, no tenant and no identity, and it must be procedurally bound to the sibling exact-byte SHA-256. Future opaque references must be generated automatically and randomly, be limited to one review round, not be identity-derived and not be reused across rounds without explicit approval. This schema does not prove those semantic properties or the hash binding.",
+      "type": "string",
+      "pattern": "^custody-ref-[a-z0-9][a-z0-9-]{0,79}$"
+    },
     "ArtifactReference": {
       "type": "object",
       "additionalProperties": false,
@@ -152,6 +157,72 @@
         },
         "repositoryPath": {
           "$ref": "#/$defs/RepositoryPath"
+        },
+        "sha256": {
+          "$ref": "#/$defs/Sha256"
+        }
+      }
+    },
+    "ReviewerAResponseReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reviewerPseudonym",
+        "artifactId",
+        "version",
+        "custodyReference",
+        "sha256"
+      ],
+      "properties": {
+        "reviewerPseudonym": {
+          "description": "Documentary reviewer-A role slot only. The future participant pseudonym remains subject to the separately verified random round-scoped generation procedure.",
+          "const": "reviewer-a"
+        },
+        "artifactId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,79}$"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "custodyReference": {
+          "$ref": "#/$defs/CustodyReference"
+        },
+        "sha256": {
+          "$ref": "#/$defs/Sha256"
+        }
+      }
+    },
+    "ReviewerBResponseReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reviewerPseudonym",
+        "artifactId",
+        "version",
+        "custodyReference",
+        "sha256"
+      ],
+      "properties": {
+        "reviewerPseudonym": {
+          "description": "Documentary reviewer-B role slot only. The future participant pseudonym remains subject to the separately verified random round-scoped generation procedure.",
+          "const": "reviewer-b"
+        },
+        "artifactId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,79}$"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "custodyReference": {
+          "$ref": "#/$defs/CustodyReference"
         },
         "sha256": {
           "$ref": "#/$defs/Sha256"

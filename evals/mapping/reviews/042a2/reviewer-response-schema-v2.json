@@ -42,6 +42,7 @@
       "pattern": "^review-round-[a-z0-9][a-z0-9-]{0,79}$"
     },
     "ReviewerPseudonym": {
+      "description": "Future pseudonyms must be generated automatically and randomly, be limited to one review round, not be derived from a name, e-mail, employee identifier, employer or HR identifier, and not be reused across rounds without explicit approval. This documentary schema constrains only shape and does not prove those procedural properties.",
       "type": "string",
       "pattern": "^reviewer-[a-z0-9][a-z0-9-]{0,39}$"
     },
@@ -312,16 +313,19 @@
       ]
     },
     "HumanJustification": {
+      "description": "Ne saisir aucun nom, e-mail, initiale nominative, employeur, identifiant de collaborateur, identifiant client ou tenant, dossier, import, chemin local ou réseau, URL, emplacement de stockage, référence personnelle, preuve de compétence ou contenu provenant d’une source privée. Utiliser uniquement les identifiants synthétiques et les codes fournis dans le pack. En cas de doute, arrêter la saisie et signaler l’incident sans recopier la donnée.",
       "type": "string",
       "minLength": 250,
       "maxLength": 400
     },
     "DecisiveSignal": {
+      "description": "Ne saisir aucun nom, e-mail, initiale nominative, employeur, identifiant de collaborateur, identifiant client ou tenant, dossier, import, chemin local ou réseau, URL, emplacement de stockage, référence personnelle, preuve de compétence ou contenu provenant d’une source privée. Utiliser uniquement les identifiants synthétiques et les codes fournis dans le pack. En cas de doute, arrêter la saisie et signaler l’incident sans recopier la donnée.",
       "type": "string",
       "minLength": 1,
       "maxLength": 300
     },
     "MainAlternativeRejected": {
+      "description": "Ne saisir aucun nom, e-mail, initiale nominative, employeur, identifiant de collaborateur, identifiant client ou tenant, dossier, import, chemin local ou réseau, URL, emplacement de stockage, référence personnelle, preuve de compétence ou contenu provenant d’une source privée. Utiliser uniquement les identifiants synthétiques et les codes fournis dans le pack. En cas de doute, arrêter la saisie et signaler l’incident sans recopier la donnée.",
       "type": "string",
       "minLength": 1,
       "maxLength": 300
@@ -722,10 +726,8 @@
           "const": "AMBIGUOUS_TARGET"
         },
         "evidenceState": {
-          "enum": [
-            "SUFFICIENT",
-            "CONFLICTING"
-          ]
+          "description": "SUFFICIENT means sufficient to establish the business concept and the admissible candidate set; it does not mean sufficient to select, validate or approve one unique target.",
+          "const": "SUFFICIENT"
         },
         "criticalFlags": {
           "$ref": "#/$defs/CriticalFlags"
@@ -801,6 +803,62 @@
       }
     },
     "PreconditionBlock": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/StaleImportPreconditionBlock"
+        },
+        {
+          "$ref": "#/$defs/PreconditionNotMetBlock"
+        }
+      ]
+    },
+    "StaleImportPreconditionBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "caseId",
+        "outcome",
+        "reasonCode",
+        "evidenceState",
+        "criticalFlags",
+        "expectedHumanAction",
+        "humanJustification",
+        "decisiveSignal"
+      ],
+      "properties": {
+        "caseId": {
+          "$ref": "#/$defs/ReviewCaseId"
+        },
+        "outcome": {
+          "const": "PRECONDITION_BLOCK"
+        },
+        "reasonCode": {
+          "const": "STALE_IMPORT"
+        },
+        "evidenceState": {
+          "const": "STALE_PRECONDITION"
+        },
+        "criticalFlags": {
+          "$ref": "#/$defs/CriticalFlags"
+        },
+        "expectedHumanAction": {
+          "const": "CHECK_PRECONDITION"
+        },
+        "humanJustification": {
+          "$ref": "#/$defs/HumanJustification"
+        },
+        "decisiveSignal": {
+          "$ref": "#/$defs/DecisiveSignal"
+        },
+        "mainAlternativeRejected": {
+          "$ref": "#/$defs/MainAlternativeRejected"
+        },
+        "unresolvable": {
+          "const": true
+        }
+      }
+    },
+    "PreconditionNotMetBlock": {
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -824,12 +882,11 @@
           "enum": [
             "ACCOUNT_ALREADY_AFFECTED",
             "ACCOUNT_NOT_IN_LATEST_IMPORT",
-            "STALE_IMPORT",
             "NOT_ELIGIBLE"
           ]
         },
         "evidenceState": {
-          "const": "STALE_PRECONDITION"
+          "const": "PRECONDITION_NOT_MET"
         },
         "criticalFlags": {
           "$ref": "#/$defs/CriticalFlags"

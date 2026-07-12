@@ -31,15 +31,17 @@
       "pattern": "^review-round-[a-z0-9][a-z0-9-]{0,79}$"
     },
     "ReviewerPseudonym": {
+      "description": "The reviewer-a/reviewer-b values are documentary role slots, not proof of pseudonym generation. Future participant pseudonyms and opaque references must be generated automatically and randomly, limited to one round, not derived from a name, e-mail, employee identifier, employer or HR identifier, and not reused across rounds without explicit approval. This schema does not prove those procedural properties.",
       "enum": [
         "reviewer-a",
         "reviewer-b"
       ]
     },
     "ClarificationText": {
+      "description": "Plain text only. Ne saisir aucun nom, e-mail, initiale nominative, employeur, identifiant de collaborateur, identifiant client ou tenant, dossier, import, chemin local ou réseau, URL, emplacement de stockage, référence personnelle, preuve de compétence ou contenu provenant d’une source privée. Utiliser uniquement les identifiants synthétiques et les codes fournis dans le pack. En cas de doute, arrêter la saisie et signaler l’incident sans recopier la donnée. In particular, URL, path, identity, client data and private-source content are forbidden; this documentary description does not constitute an operational content validator.",
       "type": "string",
       "minLength": 1,
-      "maxLength": 1000
+      "maxLength": 500
     },
     "Recipients": {
       "type": "array",

@@ -26,6 +26,14 @@ Forbidden in the evaluation dataset, logs, notes and reports:
 - private storage keys, signed URLs or document paths;
 - provider prompt, payload or output logs.
 
+Aucune réponse humaine n’est destinée à Git. Future response, attestation, freeze and disposition instances are données personnelles pseudonymisées, non anonymes. They remain outside the repository and may be referenced only through an opaque `custodyReference` bound to an exact-byte SHA-256.
+
+Future pseudonyms and opaque references must be generated automatically and randomly, limited to one round, not derived from a name, e-mail, employee identifier, employer or HR identifier, and not reused across rounds without explicit approval. Documentary schema patterns do not prove these properties.
+
+Real storage, jurisdiction, ACL, retention and deletion remain `NON DÉTERMINÉ / REQUIRED_BEFORE_DISTRIBUTION`. No operational content validator for personal data, private sources, URLs or paths is delivered here; it remains a future fail-closed condition.
+
+Le coordinateur confirme uniquement les contrôles de custody, d’identité d’artefact, de hash, de timestamp et de présence des déclarations requises. Il ne certifie ni l’identité juridique, ni la vérité substantielle de la réponse, ni l’absence absolue d’usage d’IA ou d’accès interdit.
+
 ## Primary business objectives
 
 | Metric | Objective | Promotion impact |
@@ -78,6 +86,7 @@ Business evaluation must not start from candidate fixture answers, offline evalu
 - comparison was performed by `blindCaseId`, not array position;
 - every exact agreement was ratified and every divergence was resolved by a distinct human adjudicator or an explicitly documented joint CPO/IA Governance decision;
 - `TAXONOMY_GAP`, `POLICY_BLOCK`, `PRECONDITION_BLOCK` and `INVALID_MODEL_OUTPUT` retained their required routing and were not converted into approximate suggestions;
+- `STALE_IMPORT` used `STALE_PRECONDITION`, while `ACCOUNT_ALREADY_AFFECTED`, `ACCOUNT_NOT_IN_LATEST_IMPORT` and `NOT_ELIGIBLE` used `PRECONDITION_NOT_MET`;
 - no stop condition remains open.
 
 The workflow states have these business meanings:
@@ -105,7 +114,7 @@ Any future authorization requires all of the following together:
 - all required validations passed;
 - all required human approvals present.
 
-The state alone is never evaluation evidence and never authorizes distribution, adjudication, promotion, provider activation or retry. Security/Privacy is `REQUIRED_BEFORE_MERGE`, and a new operational Security/Privacy confirmation is `REQUIRED_BEFORE_DISTRIBUTION`. The Draft 2020-12 engine gate is `STOP_DEPENDENCY_REQUIRED`; no library is selected or added.
+The state alone is never evaluation evidence and never authorizes distribution, adjudication, promotion, provider activation or retry. PR #99 exact-diff ratifications do not replace the remaining `corrective diff Security/Privacy review = REQUIRED_BEFORE_MERGE`, `IA Governance / fiduciary review of D/E/F = REQUIRED_BEFORE_MERGE` or `operational Security/Privacy confirmation = REQUIRED_BEFORE_DISTRIBUTION` gates. The Draft 2020-12 engine gate is `STOP_DEPENDENCY_REQUIRED`; no library is selected or added.
 
 JSON syntax and repository invariants checked; Draft 2020-12 semantic validation not performed.
 
@@ -189,4 +198,4 @@ Before this protocol can support runtime activation:
 - business evaluation results must meet the objectives above;
 - Expert Board and IA Governance must sign the result.
 
-No approval is recorded in this draft.
+No business-evaluation, golden-set, provider, collection or distribution approval is recorded by this draft.

@@ -82,6 +82,8 @@ It is not a business abstention. The visible state is `Proposition momentanémen
 | `TAXONOMY_GAP` | The business concept is established and the frozen pilot taxonomy contains zero admissible targets for that valid concept. | Do not use for provider output that names an unknown, deprecated, non-selectable or contextually inadmissible target; annotate technical failure / `INVALID_MODEL_OUTPUT`. Do not use to hide weak support for an existing target. |
 | `AMBIGUOUS_TARGET` | The business concept is established and multiple admissible targets remain plausible after evidence review. | Do not use when one admissible target is clearly better supported or when evidence is insufficient to establish candidates. |
 
+Normative order after policy, precondition and invalid-output gates: `OUT_OF_SCOPE`, then `CONFLICTING_SIGNALS`, then `INSUFFICIENT_EVIDENCE`, then calculation of admissible targets. Zero admissible targets is `TAXONOMY_GAP`; two or more is `AMBIGUOUS_TARGET` with `SUFFICIENT` evidence only; exactly one supported target is `SUGGESTION`.
+
 ## Positive and negative examples
 
 | Scenario | Correct annotation | Incorrect annotation |
@@ -112,7 +114,7 @@ Each annotated case must record:
 - policy or technical code when outcome is policy block or technical failure;
 - proposed target only when outcome is `SUGGESTION`;
 - decision tree step;
-- evidence state: sufficient, insufficient, missing, conflicting, stale/precondition or technical;
+- evidence state: `STALE_PRECONDITION` only for `STALE_IMPORT`; `PRECONDITION_NOT_MET` for `ACCOUNT_ALREADY_AFFECTED`, `ACCOUNT_NOT_IN_LATEST_IMPORT` and `NOT_ELIGIBLE`; otherwise sufficient, insufficient, missing, conflicting, policy-blocked or technical as defined by the closed matrix;
 - business concept established: true or false;
 - admissible candidate count;
 - missing signals;
@@ -129,6 +131,8 @@ Each annotated case must record:
 - adjudication status.
 
 No annotation field may contain secrets, `.env` values, tokens, credentials, DSNs, cookies, raw customer data, raw CSV, private storage keys or cross-tenant data.
+
+For `humanJustification`, `decisiveSignal`, `mainAlternativeRejected`, `reviewerQuestion`, `neutralReformulation` and `sharedResponse`: Ne saisir aucun nom, e-mail, initiale nominative, employeur, identifiant de collaborateur, identifiant client ou tenant, dossier, import, chemin local ou réseau, URL, emplacement de stockage, référence personnelle, preuve de compétence ou contenu provenant d’une source privée. Utiliser uniquement les identifiants synthétiques et les codes fournis dans le pack. En cas de doute, arrêter la saisie et signaler l’incident sans recopier la donnée.
 
 The strict blind-response artifact is intentionally narrower than this complete annotation record. A reviewer response contains only the fields authorized by `evals/mapping/reviews/042a2/reviewer-response-schema-v1.json`. Freeze metadata, comparison results, adjudication justification, timestamps, hashes and promotion evidence belong to the future human-controlled review record described below. The response schema alone must never be presented as a complete adjudication or promotion record.
 
@@ -161,10 +165,10 @@ This section is the operational protocol for collecting, freezing, comparing and
 
 These workflow states are distinct from document statuses such as `DRAFT` or `PENDING_EVIDENCE`, blind-pack statuses, and the response artifact status `DRAFT_HUMAN_REVIEW` required by the existing schema.
 
-| Workflow state | Entry condition | What it permits |
+| Workflow state | Entry condition | Potential activity only after separate authorization |
 | --- | --- | --- |
-| `PENDING_HUMAN_RESPONSES` | Initial and current state. One or both real human response sets are missing, incomplete, invalid, not independently produced or not frozen. | Distribution, independent human review, schema validation and correction by the same reviewer only. No cross-review, comparison or adjudication. |
-| `PENDING_ADJUDICATION` | Both response sets are complete, conform to the existing schema, pass the response validator against their respective committed packs, have recorded hashes and freeze timestamps, and have valid independence attestations. | Controlled comparison and human adjudication. No response may be changed in place. |
+| `PENDING_HUMAN_RESPONSES` | Initial and current state. One or both real human response sets are missing, incomplete, invalid, not independently produced or not frozen. | Nothing is currently authorized. Future distribution, review, validation or correction also requires every separate authorization conjunct. No cross-review, comparison or adjudication. |
+| `PENDING_ADJUDICATION` | Both response sets are complete, conform to the existing schema, pass the response validator against their respective committed packs, have recorded hashes and freeze timestamps, and have valid independence attestations. | Controlled comparison and human adjudication only after separate authorization. No response may be changed in place. |
 | `ADJUDICATED_NOT_GOLDEN` | Every blind case has a final human disposition: an exact A/B agreement has been ratified, or a divergence has been resolved with the required trace and short justification. All stop conditions are cleared. | Use as adjudicated review evidence only. It is explicitly not a golden set. |
 | `GOLDEN_CANDIDATE_PENDING_GOVERNANCE` | A future, separately authorized mission has assembled an evidence-linked candidate from the fully adjudicated record and all candidate checks pass. | Governance review only. No provider or runtime activation. |
 | `GOLDEN_APPROVED` | A future explicit governance gate records the required human approvals and verifies the authoritative artifact, provenance, hashes and validators. | Only the scope expressly authorized by that future gate. This state is unreachable in `042a2a6`. |
@@ -174,6 +178,7 @@ States must not be skipped. If a frozen response is reopened, replaced or fails 
 ### Roles and separation of duties
 
 - A human review coordinator controls distribution, custody, validation evidence, freezing and state transitions. The coordinator does not answer cases on behalf of a reviewer.
+- Le coordinateur confirme uniquement les contrôles de custody, d’identité d’artefact, de hash, de timestamp et de présence des déclarations requises. Il ne certifie ni l’identité juridique, ni la vérité substantielle de la réponse, ni l’absence absolue d’usage d’IA ou d’accès interdit.
 - Reviewer A is a real human and receives only `reviewer-a-blind-v1.json`, `reviewer-response-schema-v1.json` and answer-free annotation instructions.
 - Reviewer B is a real human and receives only `reviewer-b-blind-v1.json`, `reviewer-response-schema-v1.json` and answer-free annotation instructions.
 - Reviewers work independently and must not exchange preliminary or final answers before both response sets are frozen.
@@ -183,7 +188,7 @@ States must not be skipped. If a frozen response is reopened, replaced or fails 
 
 ### Blind distribution and independence controls
 
-Before each reviewer starts, the coordinator must record which committed pack and schema versions were distributed and attest that:
+Before each reviewer starts, the coordinator may only record which committed pack and schema versions were distributed and confirm the presence of the required declarations and hash-bound evidence references that state:
 
 - reviewer A received only pack A and reviewer B received only pack B;
 - neither reviewer received the other reviewer's pack or responses;
@@ -200,7 +205,9 @@ The expected future response artifacts are real files authored and returned by t
 - `reviewer-a-response-v1.json`, validated against `reviewer-a-blind-v1.json`;
 - `reviewer-b-response-v1.json`, validated against `reviewer-b-blind-v1.json`.
 
-Until both sets are frozen, they must remain in access-separated, human-controlled collection storage and must not be merged into a shared repository location visible to the other reviewer. A future authorized evidence-ingestion task may store the two frozen files together under `evals/mapping/reviews/042a2/`; this protocol does not create them.
+Aucune réponse humaine n’est destinée à Git. The response files must remain in access-separated, human-controlled custody outside the repository before and after freeze. Future instances are données personnelles pseudonymisées, non anonymes. Real storage, jurisdiction, ACL, retention and deletion remain `NON DÉTERMINÉ / REQUIRED_BEFORE_DISTRIBUTION`.
+
+Future pseudonyms and opaque references must be generated automatically and randomly, limited to one round, not derived from a name, e-mail, employee identifier, employer or HR identifier, and not reused across rounds without explicit approval. Schema patterns do not prove this procedure.
 
 Each file must conform exactly to `evals/mapping/reviews/042a2/reviewer-response-schema-v1.json`, including exactly 17 unique blind case ids and the root status as the one-element JSON array `["DRAFT_HUMAN_REVIEW"]`. No additional field, expected answer, free-text justification or adjudication content may be added to a response file.
 
@@ -209,10 +216,12 @@ The coordinator must validate in this order:
 1. Run `evals/mapping/validate-042a2-blind-review-pack.ps1` against the committed packs and schema.
 2. Confirm strict JSON Schema conformance of each response, including array and union shapes.
 3. Run `evals/mapping/validate-042a2-human-review-responses.ps1` separately for response A with pack A, then response B with pack B.
-4. Record the exact paths, SHA-256 hashes, validator results, validation timestamps, reviewer pseudonymous ids, pack hashes, schema hash and independence attestations in the human-controlled freeze record.
+4. Record an opaque `custodyReference` for each response, its exact-byte SHA-256, validator results, validation timestamps, reviewer pseudonymous references, pack hashes, schema hash and declaration references in the human-controlled freeze record. A response `custodyReference` contains no URL, path, provider, bucket, tenant or identity and is bound to the sibling exact hash.
 5. Freeze both response files as immutable inputs. A changed hash or in-place edit cancels the freeze.
 
 The PowerShell response validator is required but is not, by itself, evidence that every JSON Schema keyword was evaluated. Strict conformance to the committed schema remains mandatory. A missing, incomplete or invalid response is returned only to its originating reviewer for correction and leaves the workflow in `PENDING_HUMAN_RESPONSES`.
+
+No operational content validator for personal data, private sources, URLs or paths is delivered by this kit. That validator remains a future fail-closed condition. Without it and the storage gates above, distribution is forbidden.
 
 No comparison, opening of the opposite response set or adjudication may start until both complete response sets pass all checks and are frozen.
 
@@ -239,23 +248,14 @@ Classify each case as follows:
 
 ### Human adjudication and trace
 
-Adjudication starts only in `PENDING_ADJUDICATION`. It covers all 17 cases: agreements are explicitly ratified or reopened as divergences, and divergences are resolved by the distinct human adjudicator or the documented CPO/IA Governance decision path.
+Disposition starts only in `PENDING_ADJUDICATION` and uses exactly two closed modes:
 
-For every case, the future human-controlled comparison/adjudication record must contain at least:
+- `AGREEMENT_RATIFICATION`: `divergentFields` is absent; the exact A and B response hashes are required; `agreementConfirmed=true`; an explicit human ratifier, hash-bound approval reference, timestamp and authorized transition reference are required. No personal justification or additional free text is allowed.
+- `DIVERGENCE_ADJUDICATION`: `divergentFields` is required and non-empty; the distinct human adjudicator performs the manual decision with role separation preserved. `NON_ADJUDICABLE_STOP` remains mandatory when a safe disposition cannot be reached.
 
-- `blindCaseId`;
-- comparison classification: agreement or divergence;
-- the immutable A and B response references and hashes;
-- the compared A and B semantic values;
-- final outcome, final reason code when applicable and final target only for `SUGGESTION`;
-- final evidence state, critical flags and expected human action;
-- a short human justification;
-- for a divergence, why the non-selected annotation was rejected;
-- adjudicator pseudonymous id and role, or the named CPO/IA Governance decision path;
-- decision timestamp;
-- taxonomy, policy, technical or guide follow-up when applicable.
+For a divergence, the future human-controlled record must contain the `blindCaseId`, exact A/B custody references and hashes, every divergent field, compared semantic values, final disposition, only the minimized justification evidence required by the governed route, a pseudonymous adjudicator reference, decision timestamp, authorized transition reference and applicable follow-up. An agreement record contains none of the divergence-only or free-text fields.
 
-The global record must also contain the pack, schema and response hashes, validation evidence, freeze timestamps, independence attestations, all unresolved issues, final workflow state and the identities/roles of the humans authorizing the transition. This record is a future real human evidence artifact; `042a2a6` does not create or populate it.
+The global record must also contain pack/schema hashes, validation evidence, freeze timestamps, declaration references, unresolved issues, final workflow state and pseudonymous or opaque references to the human roles authorizing the transition. Legal identities remain outside the repository. This record is future personal data; `042a2a6` does not create or populate it.
 
 A divergence is non-adjudicable when the evidence cannot support a safe final semantic result, the required expertise is unavailable or a governance conflict remains. The workflow must stop; no approximate target, synthetic adjudication or silent majority rule is allowed.
 
@@ -303,7 +303,7 @@ The current declared state remains `PENDING_HUMAN_RESPONSES`. The baseline ledge
 
 The ledger is the canonical source of the declared workflow state, but a future authorization is always the conjunction of a valid ledger state, an authorized transition, referenced human evidence, verified hashes, passed required validations and present required human approvals. A state alone never authorizes distribution, adjudication, golden promotion, provider activation or retry.
 
-Security/Privacy is `REQUIRED_BEFORE_MERGE`, followed by a new operational Security/Privacy confirmation `REQUIRED_BEFORE_DISTRIBUTION`. Sub-deliverable 2 is `STOP_DEPENDENCY_REQUIRED`; no Draft 2020-12 engine is selected or added. JSON syntax and repository invariants checked; Draft 2020-12 semantic validation not performed.
+PR #99 technical exact-diff is `RATIFIED_WITH_NON_BLOCKING_CORRECTIONS`, and PR #99 Security/Privacy exact-diff is `RATIFIED_WITH_CONDITIONS_BEFORE_USE`. The remaining gates are `corrective diff Security/Privacy review = REQUIRED_BEFORE_MERGE`, `IA Governance / fiduciary review of D/E/F = REQUIRED_BEFORE_MERGE` and `operational Security/Privacy confirmation = REQUIRED_BEFORE_DISTRIBUTION`. These dispositions are not signatures or collection authorizations. Sub-deliverable 2 is `STOP_DEPENDENCY_REQUIRED`; no Draft 2020-12 engine is selected or added. JSON syntax and repository invariants checked; Draft 2020-12 semantic validation not performed.
 
 No response, participant registry instance, round manifest instance, attestation, freeze, clarification, adjudication dossier or golden artifact is created. The structural schemas and checker do not authorize distribution or collection.
 
