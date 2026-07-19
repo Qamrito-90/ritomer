@@ -17,6 +17,31 @@ Depuis la racine du repo :
 - `cd backend && ./gradlew -PritomerDemoSeedEnabled=true demoSeedLocal`
 - `cd backend && ./gradlew -PritomerDemoSeedEnabled=true -PritomerDemoSeedVariant=042a2a5d-mixed-v2 demoSeedLocal`
 
+## Harness local deux acteurs 043b
+
+Le runbook canonique est `runbooks/controlled-fiduciary-pilot-local-043.md`.
+
+Commandes canoniques, depuis la racine du repo :
+
+- seed opt-in : `cd backend && ./gradlew -PritomerDemoSeedEnabled=true -PritomerDemoSeedVariant=043b-two-actor-pilot demoSeedLocal` ;
+- backend loopback : `cd backend && ./gradlew bootRun --args='--spring.profiles.active=local --server.address=127.0.0.1 --server.port=8080'` ;
+- harness : `cd frontend && pnpm dev:two-actor-local`.
+
+Les valeurs de `RITOMER_SECURITY_JWT_HMAC_SECRET`, `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME` et `SPRING_DATASOURCE_PASSWORD` restent uniquement dans le shell local. Ne les placer ni dans ce runbook, ni dans Git, ni dans un fichier `.env`.
+
+## Tests PostgreSQL destructifs 043b
+
+`dbIntegrationTest` ne doit jamais reutiliser la base seed locale `/ritomer`. Les recettes `036a`, `042a2a5d-mixed-v2` et `043b-two-actor-pilot` n'autorisent pas la task de test DB.
+
+La seule cible autorisee pour la preuve 043b est une base nouvellement creee, jetable, synthetic-only, sans dump ni clone client/staging/production :
+
+- base exacte : `ritomer_043b_test` ;
+- role de login exact : `ritomer_043b_test_runner` ;
+- consentement exact : `RITOMER_DB_TEST_DESTRUCTIVE_CONSENT=TRUNCATE_RITOMER_043B_TEST` ;
+- `RITOMER_DB_TEST_PASSWORD` doit deja exister dans le shell, sans valeur documentee ou affichee.
+
+Le host loopback n'est pas une preuve de surete. La task Gradle refuse les URLs ambigues, encodees ou visant un autre nom de base. Les deux tests destructifs 043b revalident `current_database()`, `current_user` et `session_user` avant Flyway et juste avant chaque `TRUNCATE`. Stopper si la task est `SKIPPED` ou si une garde refuse.
+
 ## Seed demo local 036a
 
 Le seed demo 036a est backend-only, synthetique, tenant-scope, idempotent et desactive par defaut.
@@ -141,10 +166,10 @@ PowerShell pour un démarrage local complet :
 
 ```powershell
 cd backend
-$env:RITOMER_SECURITY_JWT_HMAC_SECRET='local-dev-only-jwt-hmac-secret-change-me'
 $env:SPRING_DATASOURCE_URL='jdbc:postgresql://localhost:5432/ritomer'
 $env:SPRING_DATASOURCE_USERNAME='ritomer'
-$env:SPRING_DATASOURCE_PASSWORD='ritomer'
+if (-not (Test-Path Env:RITOMER_SECURITY_JWT_HMAC_SECRET)) { throw 'JWT HMAC secret missing from local shell.' }
+if (-not (Test-Path Env:SPRING_DATASOURCE_PASSWORD)) { throw 'Datasource password missing from local shell.' }
 .\gradlew.bat bootRun --args="--spring.profiles.active=local"
 ```
 
@@ -218,9 +243,10 @@ PowerShell pour les tests PostgreSQL optionnels :
 ```powershell
 cd backend
 $env:RITOMER_DB_TESTS_ENABLED='true'
-$env:RITOMER_DB_TEST_JDBC_URL='jdbc:postgresql://localhost:5432/ritomer'
-$env:RITOMER_DB_TEST_USERNAME='ritomer'
-$env:RITOMER_DB_TEST_PASSWORD='ritomer'
+$env:RITOMER_DB_TEST_JDBC_URL='jdbc:postgresql://localhost:5432/ritomer_043b_test'
+$env:RITOMER_DB_TEST_USERNAME='ritomer_043b_test_runner'
+$env:RITOMER_DB_TEST_DESTRUCTIVE_CONSENT='TRUNCATE_RITOMER_043B_TEST'
+if (-not (Test-Path Env:RITOMER_DB_TEST_PASSWORD)) { throw 'DB test password missing from local shell.' }
 .\gradlew.bat dbIntegrationTest
 ```
 
@@ -244,16 +270,18 @@ PowerShell Windows validé pour lancer `dbIntegrationTest` contre le proxy :
 ```powershell
 cd backend
 $env:RITOMER_DB_TESTS_ENABLED='true'
-$env:RITOMER_DB_TEST_JDBC_URL='jdbc:postgresql://127.0.0.1:5432/ritomer'
-$env:RITOMER_DB_TEST_USERNAME='ritomer'
-$env:RITOMER_DB_TEST_PASSWORD='ritomer'
+$env:RITOMER_DB_TEST_JDBC_URL='jdbc:postgresql://127.0.0.1:5432/ritomer_043b_test'
+$env:RITOMER_DB_TEST_USERNAME='ritomer_043b_test_runner'
+$env:RITOMER_DB_TEST_DESTRUCTIVE_CONSENT='TRUNCATE_RITOMER_043B_TEST'
+if (-not (Test-Path Env:RITOMER_DB_TEST_PASSWORD)) { throw 'DB test password missing from local shell.' }
 .\gradlew.bat dbIntegrationTest
 ```
 
 Notes :
 
 - gardez `cloud-sql-proxy` actif pendant toute l'exécution du task Gradle
-- si l'environnement cible impose un autre nom de base, utilisateur ou mot de passe, adaptez uniquement les variables `RITOMER_DB_TEST_*`
+- le nom de base et le role 043b sont fixes ; ne les adaptez pas a une base ordinaire
+- la valeur du password reste exclusivement dans le shell local et n'est jamais affichee
 - la recette reste compatible avec le principe V1 : aucun Docker local requis
 
 ## Vérification locale rapide

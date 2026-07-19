@@ -4,8 +4,8 @@
 
 Active.
 
-- Current sub-deliverable: `043a` - `IMPLEMENTED_PENDING_DISTINCT_CPO_REVIEW`.
-- `043b`: `NOT_STARTED / NOT_AUTHORIZED`.
+- `043a`: `ACCEPTED_BY_DISTINCT_CPO_REVIEW`.
+- Current sub-deliverable: `043b` - `CORRECTED_PENDING_LOCAL_DEDICATED_DB_EVIDENCE`.
 - `043c`: `NOT_STARTED / NOT_AUTHORIZED`.
 - No transition between `043a`, `043b` and `043c` is automatic.
 
@@ -34,7 +34,7 @@ The first external invitation requires a new CPO decision and prior satisfaction
 
 No following spec is created automatically.
 
-Each of `043a`, `043b` and `043c` requires a distinct CPO review. `043b` also requires a prior CTO Gate. `043c` may start only after post-code validation of `043b`, the required human technical review and a new CPO decision.
+Each of `043a`, `043b` and `043c` requires a distinct CPO review. The distinct review of `043a` and the prior CTO Gate for `043b` are complete. The CTO Gate approved the local architecture with mandatory conditions `C1` to `C9`; the bounded `043b` implementation applies those conditions. `043c` may start only after post-code validation of `043b`, the required human technical and Security/Privacy reviews and a new CPO decision.
 
 ## Surface and risk
 
@@ -44,7 +44,7 @@ Each of `043a`, `043b` and `043c` requires a distinct CPO review. `043b` also re
 | `043b` | `BACKEND_DEVTOOLS_LOCAL / FRONTEND_CONTEXT / AUTH_LOCAL / TENANT` | C |
 | `043c` | `QA_MANUAL / LOCAL_RUNTIME / DOCS_GIT` | C |
 
-Only the `043a` surface is authorized by the current mission.
+The current mission authorizes only the bounded `043b` surface and its exact 17-file corrected implementation set. It does not authorize `043c`, an external participant, production authentication, a provider, an MCP, real data or a following spec.
 
 ## Sources reviewed
 
@@ -174,19 +174,25 @@ git status --short --branch --untracked-files=all
 
 ## 043b - Local two-actor pilot harness
 
-Status: `NOT_STARTED / NOT_AUTHORIZED`.
+Status: `CORRECTED_PENDING_LOCAL_DEDICATED_DB_EVIDENCE`.
+
+The state immediately before the technical pre-audit correction loop was:
+
+`IMPLEMENTED / NON_COMMITTED / BLOCKED_BY_TECHNICAL_PRE_AUDIT_CORRECTIONS / NOT_MERGE_READY`
+
+The corrected code and non-DB checks move the sub-deliverable only to `CORRECTED_PENDING_LOCAL_DEDICATED_DB_EVIDENCE`. The later state `CORRECTED_PENDING_POST_CODE_CPO_TECHNICAL_SECURITY_REVIEWS` is forbidden until both guarded PostgreSQL integration tests and a new real local smoke have succeeded with fresh evidence.
 
 ### Mandatory entry gates
 
-- `043a` accepted through its distinct CPO review.
-- CTO Gate completed before any `043b` code.
-- Exact future file set and post-code verification plan reconfirmed.
-- Frozen fixtures still match their hashes.
-- `042` remains backlog and `043` remains active.
+- `043a` accepted through its distinct CPO review: satisfied.
+- CTO Gate completed before any `043b` code: satisfied with mandatory conditions `C1` to `C9`.
+- Exact file set and post-code verification plan reconfirmed: satisfied.
+- Frozen fixtures still match their hashes: satisfied at implementation entry.
+- `042` remains backlog and `043` remains active: satisfied.
 
-### Planned outcome
+### Implemented outcome
 
-Provide a local-only, two-actor harness for the same synthetic tenant:
+The bounded implementation provides a local-only, two-actor harness for the same synthetic tenant:
 
 - one common backend on `127.0.0.1:8080`;
 - ACCOUNTANT Vite context on `127.0.0.1:5173`;
@@ -196,15 +202,65 @@ Provide a local-only, two-actor harness for the same synthetic tenant:
 - `/api/me` verification for both actors before any business action;
 - roles and tenant resolved exclusively from PostgreSQL membership, never from role or tenant claims;
 - no token in browser storage, URL, UI, shared log, command argument or repository file;
+- all-or-nothing startup, periodic post-readiness `/api/me` verification, coordinated shutdown on child exit, invalid identity, signal, uncaught error or JWT expiration;
+- redaction of both exact tokens, the exact HMAC value, Authorization headers and JWT-like strings on separate prefixed stdout/stderr readers;
 - no production authentication change, login/logout UI, role switch, tenant switch, endpoint, contract, migration or dependency.
 
-The planned implementation keeps `frontend/vite.config.ts`, `frontend/src/**`, lockfiles, production security configuration, migrations, contracts and OpenAPI unchanged.
+The implementation keeps `frontend/vite.config.ts`, `frontend/src/**`, lockfiles, production security configuration, migrations, contracts and OpenAPI unchanged.
 
-The planned harness may only support internal synthetic rehearsal. It must not invite or observe an external participant. Its implementation requires its own bounded mission, technical tests and human review of local auth, RBAC and tenant isolation.
+The opt-in seed variant is exactly `043b-two-actor-pilot`. It keeps the default `036a` seed unchanged, adds the deterministic REVIEWER and the deterministic 043b folder/import/lines/mappings, and classifies the added dataset as `HARNESS_ONLY_AUTH_RBAC_DATASET`. It pre-seeds no workpaper, document, export pack, reviewer decision, client data or other tenant. A second identical seed is a no-op with no additional audit.
+
+The dataset does not import or validate the frozen 043a fixture. It proves only local auth/RBAC/tenant harness behavior; it does not prove the complete closing path, `043c`, `R1`, `R2` or external readiness. `043c` will restart from frozen 043a fixtures in disposable database and storage environments if separately authorized.
+
+### Exact corrected implementation file set
+
+The corrected implementation is limited to these 17 files:
+
+1. `backend/build.gradle.kts`
+2. `backend/src/main/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalActivation.kt`
+3. `backend/src/main/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalService.kt`
+4. `backend/src/test/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalActivationTest.kt`
+5. `backend/src/test/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalDatasetTest.kt`
+6. `backend/src/test/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalDbIntegrationTest.kt`
+7. `backend/src/test/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalAuthMeDbIntegrationTest.kt`
+8. `backend/src/test/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalSourceGuardTest.kt`
+9. `frontend/local-two-actor-harness.mjs`
+10. `frontend/local-two-actor-harness.test.ts`
+11. `frontend/local-demo-proxy.test.ts`
+12. `frontend/package.json`
+13. `runbooks/controlled-fiduciary-pilot-local-043.md`
+14. `runbooks/local-dev.md`
+15. `specs/active/043-controlled-fiduciary-pilot-readiness-v1.md`
+16. `docs/product/v1-plan.md`
+17. `evals/mapping/validate-042a2-human-review-governance-kit.mjs`
+
+### Technical pre-audit corrections
+
+- `dbIntegrationTest` skips only while `RITOMER_DB_TESTS_ENABLED` is not `true`; once enabled it fails closed unless the URL targets the exact `ritomer_043b_test` database, the username is exactly `ritomer_043b_test_runner`, a password variable is present and the exact destructive consent is present.
+- Both destructive 043b DB test classes declare `DisposablePostgresTestDatabaseGuardInitializer`, which resolves the Spring datasource properties, checks consent before connection, executes only `select current_database(), current_user, session_user`, and refuses any identity other than the dedicated database/login/session triple before refresh and Flyway.
+- Every 043b reset repeats the same identity guard through the injected datasource immediately before `TRUNCATE`.
+- Startup `/api/me` readiness retries only connection failures, timeouts and HTTP `500..599`; all other HTTP statuses, invalid JSON, identity/tenant/role/membership mismatches, child exit and unknown failures stop on the first result. Redirects are observed without automatic following.
+- The governance checker preserves worktree 043a, worktree 043b and PR #99 modes and adds the pinned `--profile 043b --base b208658fc37956e2e55fb89dfaaaccafea87277c --head <full-sha>` commit-range mode. That mode reads file content only from the head commit and requires exactly `14M / 3A` across the closed 17 paths.
+
+### Required post-code evidence
+
+- automated backend, frontend, fixture and governance checks must be freshly executed;
+- `dbIntegrationTest` must execute against PostgreSQL, never H2, MockMvc-only or a skipped task;
+- `smoke_local_real=NOT_RUN_USER_LOCAL_REQUIRED` until the local user runs the secret-dependent smoke;
+- technical and Security/Privacy reviews are required before merge;
+- implementation and automated checks do not authorize `043c` or an external participant.
+
+If explicit PostgreSQL configuration is absent from the execution process, the result must be recorded as `ENV_BLOCKED_DB_INTEGRATION`; 043b is then implemented but neither fully post-code validated nor merge-ready.
+
+Fresh Codex evidence on `2026-07-13` records exactly that state: `dbIntegrationTest` was `SKIPPED` because the explicit PostgreSQL test variables were absent from the process, so the result is `ENV_BLOCKED_DB_INTEGRATION`, not PASS. No `.env` or secret value was read or requested. Backend unit/modulith/build checks, frontend syntax/targeted/full/lint/build checks, frozen fixture validation and the pinned historical governance validation passed.
+
+At that date, the required current-worktree governance command was also red for an explicit scope reason: the unchanged 043a validator accepted only a clean tree or its exact 14-path documentation/fixture whitelist and rejected every backend/frontend/manifest change, while that mission authorized only the exact 15-path 043b runtime set. Updating the validator would then have required a forbidden sixteenth file. This was recorded as `CHECK_BLOCKED_APPROVED_FILE_SET`, never as PASS.
+
+Those `2026-07-13` results remain dated history, including `ENV_BLOCKED_DB_INTEGRATION`, `CHECK_BLOCKED_APPROVED_FILE_SET`, the earlier `smoke_local_real=NOT_RUN_USER_LOCAL_REQUIRED` and the earlier `PASS_COMBINED_EVIDENCE`. They are not overwritten by the correction loop. The current checker now accepts exactly the corrected 17-path worktree and separately validates a simulated base-to-commit range; no DB integration test, seed, backend startup, Vite runtime or browser smoke is executed in this correction loop. Current state remains `CORRECTED_PENDING_LOCAL_DEDICATED_DB_EVIDENCE` and `NOT_MERGE_READY`.
 
 ### Stop conditions
 
-Stop and replan if implementation would require a production auth change, mint endpoint, browser-side token, JWT-controlled role/tenant, non-loopback target, migration, public API contract, dependency or modification outside the separately approved `043b` file set.
+Stop and replan if implementation would require a production auth change, mint endpoint, browser-side token, JWT-controlled role/tenant, non-loopback target, migration, public API contract, dependency or modification outside the approved `043b` file set.
 
 ## 043c - Internal rehearsal and readiness decision
 

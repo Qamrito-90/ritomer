@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:two-actor-local": "node ./local-two-actor-harness.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx",

@@ -1,6 +1,35 @@
 import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.testing.Test
 import org.gradle.kotlin.dsl.the
+import java.net.URI
+
+val DB_TESTS_ENABLED_ENV = "RITOMER_DB_TESTS_ENABLED"
+val DB_TEST_JDBC_URL_ENV = "RITOMER_DB_TEST_JDBC_URL"
+val DB_TEST_USERNAME_ENV = "RITOMER_DB_TEST_USERNAME"
+val DB_TEST_PASSWORD_ENV = "RITOMER_DB_TEST_PASSWORD"
+val DB_TEST_DESTRUCTIVE_CONSENT_ENV = "RITOMER_DB_TEST_DESTRUCTIVE_CONSENT"
+val DB_TEST_DATABASE = "ritomer_043b_test"
+val DB_TEST_USERNAME = "ritomer_043b_test_runner"
+val DB_TEST_DESTRUCTIVE_CONSENT = "TRUNCATE_RITOMER_043B_TEST"
+
+private fun isExact043bPostgresJdbcUrl(rawValue: String?): Boolean {
+  val value = rawValue ?: return false
+  if (value.isBlank() || value != value.trim() || '%' in value || '\\' in value) return false
+  if (!value.startsWith("jdbc:postgresql://")) return false
+
+  val uri = try {
+    URI(value.removePrefix("jdbc:"))
+  } catch (_: Exception) {
+    return false
+  }
+  return uri.scheme == "postgresql"
+    && !uri.host.isNullOrBlank()
+    && uri.rawUserInfo == null
+    && uri.rawQuery == null
+    && uri.rawFragment == null
+    && uri.rawPath == "/$DB_TEST_DATABASE"
+    && uri.port in -1..65535
+}
 
 plugins {
   kotlin("jvm") version "1.9.25"
@@ -94,17 +123,34 @@ tasks.register<Test>("dbIntegrationTest") {
     includeTags("db-integration")
   }
   onlyIf {
-    val enabled = System.getenv("RITOMER_DB_TESTS_ENABLED").equals("true", ignoreCase = true)
-    val urlConfigured = !System.getenv("RITOMER_DB_TEST_JDBC_URL").isNullOrBlank()
-    val usernameConfigured = !System.getenv("RITOMER_DB_TEST_USERNAME").isNullOrBlank()
-
-    if (!enabled || !urlConfigured || !usernameConfigured) {
+    val enabled = System.getenv(DB_TESTS_ENABLED_ENV).equals("true", ignoreCase = true)
+    if (!enabled) {
       logger.lifecycle(
-        "Skipping dbIntegrationTest: set RITOMER_DB_TESTS_ENABLED=true, RITOMER_DB_TEST_JDBC_URL and RITOMER_DB_TEST_USERNAME."
+        "Skipping dbIntegrationTest: set $DB_TESTS_ENABLED_ENV=true to activate the dedicated guarded database checks."
       )
     }
+    enabled
+  }
+  doFirst {
+    val jdbcUrl = System.getenv(DB_TEST_JDBC_URL_ENV)
+    val username = System.getenv(DB_TEST_USERNAME_ENV)
+    val consent = System.getenv(DB_TEST_DESTRUCTIVE_CONSENT_ENV)
+    val passwordConfigured = providers.environmentVariable(DB_TEST_PASSWORD_ENV).isPresent
 
-    enabled && urlConfigured && usernameConfigured
+    if (jdbcUrl.isNullOrBlank() || username.isNullOrBlank() || !passwordConfigured || consent.isNullOrBlank()) {
+      throw GradleException(
+        "dbIntegrationTest requires explicit URL, username, password and destructive consent environment variables."
+      )
+    }
+    if (!isExact043bPostgresJdbcUrl(jdbcUrl)) {
+      throw GradleException("dbIntegrationTest requires the exact unambiguous dedicated 043b PostgreSQL database path.")
+    }
+    if (username != DB_TEST_USERNAME) {
+      throw GradleException("dbIntegrationTest requires the exact dedicated 043b PostgreSQL login role.")
+    }
+    if (consent != DB_TEST_DESTRUCTIVE_CONSENT) {
+      throw GradleException("dbIntegrationTest requires the exact destructive-test consent value.")
+    }
   }
 }
 
