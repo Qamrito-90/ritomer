@@ -61,6 +61,20 @@ class DemoSeedLocalActivationTest {
   }
 
   @Test
+  fun `seed accepts the explicit 043b two actor pilot variant`() {
+    val activation = activation(
+      "local",
+      enabled = "true",
+      datasourceUrl = "jdbc:postgresql://127.0.0.1:5432/ritomer",
+      properties = mapOf(DEMO_SEED_VARIANT_PROPERTY to DEMO_SEED_VARIANT_043B_TWO_ACTOR_PILOT)
+    )
+
+    activation.requireEnabled()
+
+    assertThat(activation.seedVariant).isEqualTo(DemoSeedLocalVariant.TWO_ACTOR_PILOT_043B)
+  }
+
+  @Test
   fun `seed rejects unsupported variants`() {
     val activation = activation(
       "local",
@@ -73,6 +87,7 @@ class DemoSeedLocalActivationTest {
       .isInstanceOf(IllegalArgumentException::class.java)
       .hasMessageContaining(DEMO_SEED_VARIANT_PROPERTY)
       .hasMessageContaining(DEMO_SEED_VARIANT_042A2A5D_MIXED_V2)
+      .hasMessageContaining(DEMO_SEED_VARIANT_043B_TWO_ACTOR_PILOT)
   }
 
   @Test

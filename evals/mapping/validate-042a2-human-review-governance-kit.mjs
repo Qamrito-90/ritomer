@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { isDeepStrictEqual } from "node:util";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(SCRIPT_DIR, "..", "..");
@@ -40,6 +41,7 @@ const PR99_SECURITY_RATIFICATION =
   "PR #99 Security/Privacy exact-diff ratification = RATIFIED_WITH_CONDITIONS_BEFORE_USE";
 const PR99_BASE = "14b7ef952f8d9594a53e63542ee2d6d80bbcaa2f";
 const PR99_HEAD = "fd8b63d2193c4adebb5a847405d1d30c1cae9214";
+const HISTORICAL_043B_BASE = "b208658fc37956e2e55fb89dfaaaccafea87277c";
 const HISTORICAL_SPEC_042_ACTIVE_PATH = "specs/active/042-controlled-ai-mapping-runtime-pilot-v1.md";
 const CURRENT_SPEC_042_BACKLOG_PATH = "specs/backlog/042-controlled-ai-mapping-runtime-pilot-v1.md";
 const CURRENT_SPEC_043_ACTIVE_PATH = "specs/active/043-controlled-fiduciary-pilot-readiness-v1.md";
@@ -98,6 +100,61 @@ const CURRENT_043A_ALLOWED_FILE_SET = [
   CURRENT_SPEC_043_ACTIVE_PATH,
   CURRENT_SPEC_042_BACKLOG_PATH,
 ].sort();
+
+const WORKTREE_PROFILES = Object.freeze({
+  CLEAN: "CLEAN_CURRENT_STATE",
+  PILOT_043A: "WORKTREE_043A_PILOT_READINESS_FOUNDATION",
+  HARNESS_043B: "WORKTREE_043B_LOCAL_TWO_ACTOR_HARNESS",
+  INVALID: "INVALID_WORKTREE",
+});
+
+const CURRENT_043B_ALLOWED_FILE_SET = [
+  "backend/build.gradle.kts",
+  "backend/src/main/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalActivation.kt",
+  "backend/src/main/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalService.kt",
+  "backend/src/test/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalActivationTest.kt",
+  "backend/src/test/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalDatasetTest.kt",
+  "backend/src/test/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalDbIntegrationTest.kt",
+  "backend/src/test/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalAuthMeDbIntegrationTest.kt",
+  "backend/src/test/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalSourceGuardTest.kt",
+  "frontend/local-two-actor-harness.mjs",
+  "frontend/local-two-actor-harness.test.ts",
+  "frontend/local-demo-proxy.test.ts",
+  "frontend/package.json",
+  "runbooks/controlled-fiduciary-pilot-local-043.md",
+  "runbooks/local-dev.md",
+  "specs/active/043-controlled-fiduciary-pilot-readiness-v1.md",
+  "docs/product/v1-plan.md",
+  "evals/mapping/validate-042a2-human-review-governance-kit.mjs",
+].sort();
+
+const FROZEN_043A_HASHES = new Map([
+  ["fixtures/pilot/043/balance-fy2025-v1.csv", "2295b620704c2cfcdf1e37660388bd84a1d261c0b7697edf5bce21d0c04f9855"],
+  ["fixtures/pilot/043/evidence-bank-reconciliation-fy2025-v1.csv", "f5bb9a7ec0df043a8e845d10f029c2bdd6dd7ea2f62f9935f48cdc0d95339b27"],
+  ["fixtures/pilot/043/observation-template-v1.md", "c67c99fde0816cb1b25b56f34babfa5907c2189746f579fdec87c67fd8cb862e"],
+  ["fixtures/pilot/043/README.md", "3b560d25ccee6e95f7bd4e93faf8acad8307288ee1724788312c48ab7ad5ebda"],
+  ["fixtures/pilot/043/validate-043-pilot-fixtures.ps1", "95217e702a5347c8d50342646aaa11b32a2b661963f90adfd781269b8e7eb6c8"],
+]);
+
+const CURRENT_043B_RUNTIME_IMPLEMENTATION_PATHS = new Set([
+  "backend/build.gradle.kts",
+  "backend/src/main/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalActivation.kt",
+  "backend/src/main/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalService.kt",
+  "frontend/local-two-actor-harness.mjs",
+]);
+
+const CURRENT_043B_UNTRACKED_PATHS = new Set([
+  "frontend/local-two-actor-harness.mjs",
+  "frontend/local-two-actor-harness.test.ts",
+  "runbooks/controlled-fiduciary-pilot-local-043.md",
+]);
+
+const EXPECTED_043B_HISTORICAL_STATUS_BY_PATH = new Map(
+  CURRENT_043B_ALLOWED_FILE_SET.map((path) => [
+    path,
+    CURRENT_043B_UNTRACKED_PATHS.has(path) ? "A" : "M",
+  ]),
+);
 
 const CURRENT_GOVERNANCE_FILE_SET = [...new Set(EXACT_ALLOWED_FILE_SET.map((path) =>
   path === HISTORICAL_SPEC_042_ACTIVE_PATH ? CURRENT_SPEC_042_BACKLOG_PATH : path,
@@ -232,6 +289,7 @@ const EXPECTED_BASELINE = {
 
 const errors = [];
 const parsedSchemas = new Map();
+let contentCommit;
 
 function normalizePath(value) {
   return value.split(sep).join("/").replaceAll("\\", "/");
@@ -250,7 +308,21 @@ function assert(condition, message) {
 }
 
 function readText(repoPath) {
-  return readFileSync(absolutePath(repoPath), "utf8");
+  return contentCommit === undefined
+    ? readFileSync(absolutePath(repoPath), "utf8")
+    : gitOutput(["show", `${contentCommit}:${repoPath}`]);
+}
+
+function readBytes(repoPath, commit = contentCommit) {
+  return commit === undefined
+    ? readFileSync(absolutePath(repoPath))
+    : gitBytes(["show", `${commit}:${repoPath}`]);
+}
+
+function pathExists(repoPath, commit = contentCommit) {
+  return commit === undefined
+    ? existsSync(absolutePath(repoPath))
+    : gitCommandSucceeds(["cat-file", "-e", `${commit}:${repoPath}`]);
 }
 
 function parseJson(repoPath) {
@@ -270,10 +342,35 @@ function sameArray(actual, expected) {
   return actual.length === expected.length && actual.every((value, index) => value === expected[index]);
 }
 
+export function classifyCurrentWorktreeProfile(paths) {
+  if (!Array.isArray(paths) || paths.some((path) => typeof path !== "string" || path.length === 0)) {
+    return WORKTREE_PROFILES.INVALID;
+  }
+
+  const normalized = paths.map(normalizePath);
+  if (normalized.some((path) => path.length === 0) || new Set(normalized).size !== normalized.length) {
+    return WORKTREE_PROFILES.INVALID;
+  }
+  normalized.sort();
+
+  if (normalized.length === 0) return WORKTREE_PROFILES.CLEAN;
+  if (sameArray(normalized, CURRENT_043A_ALLOWED_FILE_SET)) return WORKTREE_PROFILES.PILOT_043A;
+  if (sameArray(normalized, CURRENT_043B_ALLOWED_FILE_SET)) return WORKTREE_PROFILES.HARNESS_043B;
+  return WORKTREE_PROFILES.INVALID;
+}
+
 function gitOutput(args) {
   return execFileSync("git", args, {
     cwd: REPO_ROOT,
     encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+}
+
+function gitBytes(args) {
+  return execFileSync("git", args, {
+    cwd: REPO_ROOT,
+    encoding: null,
     stdio: ["ignore", "pipe", "pipe"],
   });
 }
@@ -294,12 +391,13 @@ function gitCommandSucceeds(args) {
 function parseCliArgs(args) {
   if (args.length === 0) return { mode: "WORKTREE" };
 
+  let profile;
   let base;
   let head;
   let invalid = false;
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
-    if (argument !== "--base" && argument !== "--head") {
+    if (argument !== "--profile" && argument !== "--base" && argument !== "--head") {
       addError("unsupported_argument");
       invalid = true;
       continue;
@@ -311,7 +409,13 @@ function parseCliArgs(args) {
       continue;
     }
     index += 1;
-    if (argument === "--base") {
+    if (argument === "--profile") {
+      if (profile !== undefined) {
+        addError("--profile:duplicate_argument");
+        invalid = true;
+      }
+      profile = value;
+    } else if (argument === "--base") {
       if (base !== undefined) {
         addError("--base:duplicate_argument");
         invalid = true;
@@ -326,8 +430,16 @@ function parseCliArgs(args) {
     }
   }
 
+  if (profile !== undefined && profile !== "043b") {
+    addError("--profile:unsupported_profile");
+    invalid = true;
+  }
   if ((base === undefined) !== (head === undefined)) {
     addError("historical_mode_requires_base_and_head_together");
+    invalid = true;
+  }
+  if (profile !== undefined && (base === undefined || head === undefined)) {
+    addError("historical_profile_requires_base_and_head_pair");
     invalid = true;
   }
   if (base === undefined || head === undefined) {
@@ -344,13 +456,20 @@ function parseCliArgs(args) {
     addError("--head:lowercase_full_sha_required");
     invalid = true;
   }
-  if (base !== PR99_BASE) {
-    addError("--base:pr99_exact_base_required");
-    invalid = true;
-  }
-  if (head !== PR99_HEAD) {
-    addError("--head:pr99_exact_head_required");
-    invalid = true;
+  if (profile === "043b") {
+    if (base !== HISTORICAL_043B_BASE) {
+      addError("--base:043b_exact_base_required");
+      invalid = true;
+    }
+  } else {
+    if (base !== PR99_BASE) {
+      addError("--base:pr99_exact_base_required");
+      invalid = true;
+    }
+    if (head !== PR99_HEAD) {
+      addError("--head:pr99_exact_head_required");
+      invalid = true;
+    }
   }
   if (invalid) {
     console.log("validation_mode=INVALID_HISTORICAL_ARGUMENTS");
@@ -374,8 +493,13 @@ function parseCliArgs(args) {
   }
 
   console.log("validation_mode=BASE_TO_HEAD");
+  if (profile !== undefined) console.log(`historical_profile=${profile}`);
   console.log(`diff_base=${base}`);
   console.log(`diff_head=${head}`);
+  if (profile === "043b") {
+    console.log("historical_043b_base_pinned=YES");
+    return { mode: "HISTORICAL_043B", profile, base, head };
+  }
   console.log("historical_pr99_range_pinned=YES");
   return { mode: "HISTORICAL", base, head };
 }
@@ -395,6 +519,57 @@ function changedPaths() {
     }
   }
   return [...new Set(paths)].sort();
+}
+
+function stagedPaths() {
+  return gitOutput(["diff", "--cached", "--name-only", "-z"])
+    .split("\0")
+    .filter(Boolean)
+    .map(normalizePath)
+    .sort();
+}
+
+function currentWorktreeStatusRecords() {
+  const entries = gitOutput(["status", "--porcelain=v1", "-z", "--untracked-files=all"])
+    .split("\0")
+    .filter(Boolean);
+  const records = [];
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index];
+    const status = entry.slice(0, 2);
+    const paths = [normalizePath(entry.slice(3))];
+    if (status.includes("R") || status.includes("C")) {
+      index += 1;
+      if (entries[index]) paths.push(normalizePath(entries[index]));
+    }
+    records.push({ status, paths });
+  }
+  return records;
+}
+
+function environmentFilePaths() {
+  const environmentPathspecs = [
+    ".env",
+    ".env.*",
+    ":(glob)**/.env",
+    ":(glob)**/.env.*",
+  ];
+  const tracked = gitOutput(["ls-files", "-z", "--cached", "--", ...environmentPathspecs]);
+  const ignored = gitOutput([
+    "ls-files",
+    "-z",
+    "--others",
+    "--ignored",
+    "--exclude-standard",
+    "--",
+    ...environmentPathspecs,
+  ]);
+  return [...new Set(`${tracked}${ignored}`
+    .split("\0")
+    .filter(Boolean)
+    .map(normalizePath))]
+    .filter((path) => path !== "backend/.env.example")
+    .sort();
 }
 
 export function parseHistoricalNameStatus(rawOutput) {
@@ -452,7 +627,10 @@ export function parseHistoricalNameStatus(rawOutput) {
   return changes;
 }
 
-export function historicalChangeWhitelistViolations(changes) {
+export function historicalChangeWhitelistViolations(
+  changes,
+  expectedStatusByPath = EXPECTED_HISTORICAL_STATUS_BY_PATH,
+) {
   const violations = [];
   const seenPaths = new Set();
   for (let index = 0; index < changes.length; index += 1) {
@@ -483,7 +661,7 @@ export function historicalChangeWhitelistViolations(changes) {
       }
       if (seenPaths.has(path)) violations.push(`${path}:historical_path_repeated`);
       seenPaths.add(path);
-      const expectedStatus = EXPECTED_HISTORICAL_STATUS_BY_PATH.get(path);
+      const expectedStatus = expectedStatusByPath.get(path);
       if (expectedStatus === undefined) {
         violations.push(`${path}:historical_path_outside_whitelist`);
       } else if (change.kind !== expectedStatus) {
@@ -549,14 +727,166 @@ function historicalChangeTypeVisibilityEvidence() {
   };
 }
 
+function commitTreePaths(commit) {
+  return gitOutput(["ls-tree", "-r", "--name-only", "-z", commit])
+    .split("\0")
+    .filter(Boolean)
+    .map(normalizePath)
+    .sort();
+}
+
+function validate043bPackageJsonCommitRange(base, head) {
+  let basePackage;
+  let headPackage;
+  try {
+    basePackage = JSON.parse(gitOutput(["show", `${base}:frontend/package.json`]));
+    headPackage = JSON.parse(gitOutput(["show", `${head}:frontend/package.json`]));
+  } catch (error) {
+    addError(`frontend/package.json:043b_commit_JSON_${error.name}`);
+    return false;
+  }
+
+  const baseWithoutScripts = { ...basePackage };
+  const headWithoutScripts = { ...headPackage };
+  delete baseWithoutScripts.scripts;
+  delete headWithoutScripts.scripts;
+  const nonScriptsUnchanged = isDeepStrictEqual(headWithoutScripts, baseWithoutScripts);
+  assert(nonScriptsUnchanged, `frontend/package.json: every property outside scripts must remain structurally identical from 043b base to head`);
+
+  let dependencyGroupsUnchanged = true;
+  for (const property of [
+    "dependencies",
+    "devDependencies",
+    "peerDependencies",
+    "optionalDependencies",
+    "packageManager",
+  ]) {
+    const unchanged = isDeepStrictEqual(headPackage[property], basePackage[property]);
+    dependencyGroupsUnchanged = dependencyGroupsUnchanged && unchanged;
+    assert(unchanged, `frontend/package.json:${property} must remain structurally identical from 043b base to head`);
+  }
+
+  const baseScripts = basePackage.scripts;
+  const headScripts = headPackage.scripts;
+  const scriptsAreObjects = baseScripts !== null
+    && headScripts !== null
+    && typeof baseScripts === "object"
+    && typeof headScripts === "object"
+    && !Array.isArray(baseScripts)
+    && !Array.isArray(headScripts);
+  assert(scriptsAreObjects, `frontend/package.json:scripts must remain JSON objects in the 043b commit range`);
+  if (!scriptsAreObjects) return false;
+
+  const baseScriptNames = Object.keys(baseScripts).sort();
+  const headScriptNames = Object.keys(headScripts).sort();
+  const addedScripts = headScriptNames.filter((name) => !Object.hasOwn(baseScripts, name));
+  const removedScripts = baseScriptNames.filter((name) => !Object.hasOwn(headScripts, name));
+  const modifiedScripts = baseScriptNames.filter((name) =>
+    Object.hasOwn(headScripts, name) && headScripts[name] !== baseScripts[name]);
+  const exactAddedScript = sameArray(addedScripts, ["dev:two-actor-local"])
+    && headScripts["dev:two-actor-local"] === "node ./local-two-actor-harness.mjs";
+  const existingScriptsUnchanged = removedScripts.length === 0 && modifiedScripts.length === 0;
+  assert(exactAddedScript, `frontend/package.json: the committed 043b range must add only the exact dev:two-actor-local script`);
+  assert(existingScriptsUnchanged, `frontend/package.json: the committed 043b range must not remove or modify existing scripts`);
+
+  const lockfileUnchanged = gitCommandSucceeds(["diff", "--quiet", base, head, "--", "frontend/pnpm-lock.yaml"]);
+  assert(lockfileUnchanged, `frontend/pnpm-lock.yaml: committed 043b lockfile drift is forbidden`);
+  return nonScriptsUnchanged
+    && dependencyGroupsUnchanged
+    && exactAddedScript
+    && existingScriptsUnchanged
+    && lockfileUnchanged;
+}
+
+function validate043bHistoricalAnchors(base, head) {
+  let fixturesUnchanged = true;
+  let protectedArtifactsUnchanged = true;
+  for (const commit of [base, head]) {
+    for (const [path, expectedHash] of FROZEN_043A_HASHES) {
+      const exact = pathExists(path, commit)
+        && sha256Bytes(readBytes(path, commit)) === expectedHash;
+      fixturesUnchanged = fixturesUnchanged && exact;
+      assert(exact, `${path}: frozen 043a artifact differs at committed 043b ${commit === base ? "base" : "head"}`);
+    }
+    for (const [path, expectedHash] of PROTECTED_HASHES) {
+      const exact = pathExists(path, commit)
+        && sha256Bytes(readBytes(path, commit)) === expectedHash;
+      protectedArtifactsUnchanged = protectedArtifactsUnchanged && exact;
+      assert(exact, `${path}: protected 042 artifact differs at committed 043b ${commit === base ? "base" : "head"}`);
+    }
+  }
+  return { fixturesUnchanged, protectedArtifactsUnchanged };
+}
+
+function validate043bHistoricalRange(actual, changes, range) {
+  const exactFileSet = sameArray(actual, CURRENT_043B_ALLOWED_FILE_SET);
+  assert(exactFileSet, `base-to-head file set differs from the exact 17-path 043b whitelist`);
+
+  const whitelistViolations = historicalChangeWhitelistViolations(
+    changes,
+    EXPECTED_043B_HISTORICAL_STATUS_BY_PATH,
+  );
+  whitelistViolations.forEach(addError);
+  const statusCounts = { A: 0, M: 0, D: 0, R: 0, C: 0 };
+  for (const change of changes) statusCounts[change.kind] += 1;
+  const expectedStatusMapVerified = exactFileSet
+    && whitelistViolations.length === 0
+    && statusCounts.M === 14
+    && statusCounts.A === 3
+    && statusCounts.D === 0
+    && statusCounts.R === 0
+    && statusCounts.C === 0;
+  assert(expectedStatusMapVerified, `base-to-head statuses differ from the exact 14M/3A 043b matrix`);
+
+  const visibilityEvidence = historicalChangeTypeVisibilityEvidence();
+  assert(visibilityEvidence.changeTypesVerified, `historical 043b change-type probes failed`);
+
+  const allowedPathsPresent = CURRENT_043B_ALLOWED_FILE_SET.every((path) => pathExists(path, range.head));
+  assert(allowedPathsPresent, `every path in the closed 17-path 043b whitelist must exist in the head commit`);
+  const forbiddenSurfaceAbsent = actual.filter(is043bForbiddenSurface).length === 0;
+  assert(forbiddenSurfaceAbsent, `043b historical range changes a forbidden runtime, contract, CI, migration, lockfile or fixture surface`);
+
+  const environmentFilesAbsent = commitTreePaths(range.head)
+    .filter((path) => /(^|\/)\.env(?:\.|$)/i.test(path))
+    .filter((path) => path !== "backend/.env.example")
+    .length === 0;
+  assert(environmentFilesAbsent, `043b head commit contains a tracked .env file outside the committed example`);
+
+  const packageJsonScriptOnly = validate043bPackageJsonCommitRange(range.base, range.head);
+  const anchors = validate043bHistoricalAnchors(range.base, range.head);
+  const lifecycle = validate043bLifecycle();
+  const sensitiveRuntime = validate043bSensitiveAndRuntimeAdditions(range);
+  return {
+    historicalProfile: "043b",
+    exactFileSet,
+    expectedStatusMapVerified,
+    changeTypesVerified: visibilityEvidence.changeTypesVerified,
+    deletionsVisible: visibilityEvidence.deletionsVisible,
+    renameEndpointsVisible: visibilityEvidence.renameEndpointsVisible,
+    copyEndpointsVisible: visibilityEvidence.copyEndpointsVisible,
+    allowedPathsPresent,
+    forbiddenSurfaceAbsent,
+    environmentFilesAbsent,
+    packageJsonScriptOnly,
+    fixtures043aUnchanged: anchors.fixturesUnchanged,
+    protected042ArtifactsUnchanged: anchors.protectedArtifactsUnchanged,
+    ...lifecycle,
+    ...sensitiveRuntime,
+  };
+}
+
 function validateExactFileSet(range) {
   let historicalVerification;
-  const changes = range.mode === "HISTORICAL"
+  let worktreeVerification;
+  let worktreeProfile;
+  const changes = range.mode === "HISTORICAL" || range.mode === "HISTORICAL_043B"
     ? historicalChanges(range.base, range.head)
     : undefined;
   const actual = changes ? historicalChangedPaths(changes) : changedPaths();
 
-  if (range.mode === "HISTORICAL") {
+  if (range.mode === "HISTORICAL_043B") {
+    historicalVerification = validate043bHistoricalRange(actual, changes, range);
+  } else if (range.mode === "HISTORICAL") {
     const exact = sameArray(actual, EXACT_ALLOWED_FILE_SET);
     assert(exact, `base-to-head file set differs from the exact 19-path PR #99 whitelist`);
     console.log(`diff_file_set_verified=${exact ? "YES_19_OF_19" : `NO_${actual.length}_OF_19`}`);
@@ -587,29 +917,339 @@ function validateExactFileSet(range) {
       expectedStatusMapVerified,
     };
   } else {
-    const exactCurrentFileSet = actual.length === 0 || sameArray(actual, CURRENT_043A_ALLOWED_FILE_SET);
-    assert(exactCurrentFileSet, `worktree file set must be clean or exactly the 14-path 043a whitelist`);
-    console.log(`diff_file_set_verified=${actual.length === 0 ? "CLEAN_COMMITTED_STATE" : exactCurrentFileSet ? "YES_14_OF_14" : `NO_${actual.length}_OF_14`}`);
-    console.log(`current_043a_exact_file_set=${exactCurrentFileSet ? "YES" : "NO"}`);
+    worktreeProfile = classifyCurrentWorktreeProfile(actual);
+    if (worktreeProfile === WORKTREE_PROFILES.HARNESS_043B) {
+      worktreeVerification = validate043bWorktree(actual);
+    } else {
+      const exactCurrentFileSet = worktreeProfile === WORKTREE_PROFILES.CLEAN
+        || worktreeProfile === WORKTREE_PROFILES.PILOT_043A;
+      assert(exactCurrentFileSet, `worktree file set must be clean, exactly the 14-path 043a whitelist, or exactly the 17-path 043b whitelist`);
+      console.log(`diff_file_set_verified=${actual.length === 0 ? "CLEAN_COMMITTED_STATE" : exactCurrentFileSet ? "YES_14_OF_14" : `NO_${actual.length}_OF_14`}`);
+      console.log(`current_043a_exact_file_set=${exactCurrentFileSet ? "YES" : "NO"}`);
+      worktreeVerification = { worktreeProfile };
+    }
   }
 
   for (const path of NEW_ALLOWED) {
-    assert(existsSync(absolutePath(path)), `${path}: required new artifact missing`);
+    assert(pathExists(path), `${path}: required new artifact missing`);
   }
-  const forbiddenSurface = actual.filter((path) =>
-    /(^|\/)(backend|frontend)(\/|$)|(^|\/)contracts\/|(^|\/)(package\.json|pnpm-lock\.yaml|package-lock\.json|yarn\.lock|build\.gradle(?:\.kts)?|settings\.gradle(?:\.kts)?)$/i.test(path),
-  );
-  assert(forbiddenSurface.length === 0, `forbidden runtime, contract, manifest or lockfile surface changed`);
-  console.log(`manifest_lockfile_drift=${forbiddenSurface.length === 0 ? "NO" : "YES"}`);
-  console.log(`no_runtime_change=${forbiddenSurface.length === 0 ? "YES" : "NO"}`);
-  return historicalVerification;
+  if (range.mode === "HISTORICAL" || (range.mode === "WORKTREE" && worktreeProfile !== WORKTREE_PROFILES.HARNESS_043B)) {
+    const forbiddenSurface = actual.filter((path) =>
+      /(^|\/)(backend|frontend)(\/|$)|(^|\/)contracts\/|(^|\/)(package\.json|pnpm-lock\.yaml|package-lock\.json|yarn\.lock|build\.gradle(?:\.kts)?|settings\.gradle(?:\.kts)?)$/i.test(path),
+    );
+    assert(forbiddenSurface.length === 0, `forbidden runtime, contract, manifest or lockfile surface changed`);
+    console.log(`manifest_lockfile_drift=${forbiddenSurface.length === 0 ? "NO" : "YES"}`);
+    console.log(`no_runtime_change=${forbiddenSurface.length === 0 ? "YES" : "NO"}`);
+  }
+  return historicalVerification ?? worktreeVerification;
+}
+
+function is043bForbiddenSurface(path) {
+  return path === "frontend/vite.config.ts"
+    || path.startsWith("frontend/src/")
+    || /(^|\/)pnpm-lock\.yaml$/i.test(path)
+    || /(^|\/)SecurityConfig[^/]*$/i.test(path)
+    || /(^|\/)application[^/]*\.ya?ml$/i.test(path)
+    || /(^|\/)db\/migration\//i.test(path)
+    || path.startsWith("contracts/")
+    || path.startsWith(".github/workflows/")
+    || path.startsWith("fixtures/pilot/043/");
+}
+
+function validate043bPackageJson() {
+  let headPackage;
+  let currentPackage;
+  try {
+    headPackage = JSON.parse(gitOutput(["show", "HEAD:frontend/package.json"]));
+  } catch (error) {
+    addError(`frontend/package.json:HEAD_JSON_${error.name}`);
+    return false;
+  }
+  try {
+    currentPackage = JSON.parse(readText("frontend/package.json"));
+  } catch (error) {
+    addError(`frontend/package.json:WORKTREE_JSON_${error.name}`);
+    return false;
+  }
+
+  const headWithoutScripts = { ...headPackage };
+  const currentWithoutScripts = { ...currentPackage };
+  delete headWithoutScripts.scripts;
+  delete currentWithoutScripts.scripts;
+  const nonScriptsUnchanged = isDeepStrictEqual(currentWithoutScripts, headWithoutScripts);
+  assert(nonScriptsUnchanged, `frontend/package.json: every property outside scripts must remain structurally identical to HEAD`);
+
+  let dependencyGroupsUnchanged = true;
+  for (const property of [
+    "dependencies",
+    "devDependencies",
+    "peerDependencies",
+    "optionalDependencies",
+    "packageManager",
+  ]) {
+    const unchanged = isDeepStrictEqual(currentPackage[property], headPackage[property]);
+    dependencyGroupsUnchanged = dependencyGroupsUnchanged && unchanged;
+    assert(unchanged, `frontend/package.json:${property} must remain structurally identical to HEAD`);
+  }
+
+  const headScripts = headPackage.scripts;
+  const currentScripts = currentPackage.scripts;
+  const scriptsAreObjects = headScripts !== null
+    && currentScripts !== null
+    && typeof headScripts === "object"
+    && typeof currentScripts === "object"
+    && !Array.isArray(headScripts)
+    && !Array.isArray(currentScripts);
+  assert(scriptsAreObjects, `frontend/package.json:scripts must remain JSON objects`);
+  if (!scriptsAreObjects) return false;
+
+  const headScriptNames = Object.keys(headScripts).sort();
+  const currentScriptNames = Object.keys(currentScripts).sort();
+  const addedScripts = currentScriptNames.filter((name) => !Object.hasOwn(headScripts, name));
+  const removedScripts = headScriptNames.filter((name) => !Object.hasOwn(currentScripts, name));
+  const modifiedScripts = headScriptNames.filter((name) =>
+    Object.hasOwn(currentScripts, name) && currentScripts[name] !== headScripts[name]);
+  const exactAddedScript = sameArray(addedScripts, ["dev:two-actor-local"])
+    && currentScripts["dev:two-actor-local"] === "node ./local-two-actor-harness.mjs";
+  const existingScriptsUnchanged = removedScripts.length === 0 && modifiedScripts.length === 0;
+  assert(exactAddedScript, `frontend/package.json: dev:two-actor-local must be the sole added script with its exact command`);
+  assert(existingScriptsUnchanged, `frontend/package.json: no existing script may be removed or modified`);
+
+  const lockfileUnchanged = gitCommandSucceeds(["diff", "--quiet", "HEAD", "--", "frontend/pnpm-lock.yaml"]);
+  assert(lockfileUnchanged, `frontend/pnpm-lock.yaml: lockfile drift is forbidden`);
+  return nonScriptsUnchanged
+    && dependencyGroupsUnchanged
+    && exactAddedScript
+    && existingScriptsUnchanged
+    && lockfileUnchanged;
+}
+
+function validateFrozen043aHashes() {
+  let unchanged = true;
+  for (const [path, expectedHash] of FROZEN_043A_HASHES) {
+    const present = pathExists(path);
+    assert(present, `${path}: frozen 043a artifact missing`);
+    if (!present) {
+      unchanged = false;
+      continue;
+    }
+    const actualHash = sha256Bytes(readBytes(path));
+    unchanged = unchanged && actualHash === expectedHash;
+    assert(actualHash === expectedHash, `${path}: frozen 043a exact-byte SHA-256 mismatch`);
+  }
+  return unchanged;
+}
+
+function hasContradictory043cStatus(text) {
+  const lines = text.split(/\r?\n/);
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (!/043c/i.test(line)) continue;
+
+    const candidates = [{ text: line, requiresDeclarationSyntax: true }];
+    for (let nextIndex = index + 1; nextIndex < lines.length && nextIndex <= index + 3; nextIndex += 1) {
+      if (lines[nextIndex].trim().length === 0) continue;
+      if (/^\s*(?:status|state)\s*:/i.test(lines[nextIndex])) {
+        candidates.push({ text: lines[nextIndex], requiresDeclarationSyntax: false });
+      }
+      break;
+    }
+
+    for (const candidate of candidates) {
+      const withoutBlockedStatuses = candidate.text
+        .replace(/NOT[_ -]?STARTED/gi, "")
+        .replace(/NOT[_ -]?AUTHORIZED/gi, "");
+      const activationPresent = /\b(?:STARTED|AUTHORIZED|IMPLEMENTED|IN[_ -]?PROGRESS)\b/i
+        .test(withoutBlockedStatuses);
+      const declarationSyntaxPresent = /(?:043c.{0,60}(?::|=|\b(?:status|state|reste|remains|is|est)\b)|(?:status|state).{0,60}043c)/i
+        .test(withoutBlockedStatuses);
+      if (activationPresent && (!candidate.requiresDeclarationSyntax || declarationSyntaxPresent)) return true;
+    }
+  }
+  return false;
+}
+
+function validate043bLifecycle() {
+  const activeSpec = readText(CURRENT_SPEC_043_ACTIVE_PATH);
+  const sectionStart = activeSpec.indexOf("## 043c -");
+  const sectionEnd = sectionStart < 0 ? -1 : activeSpec.indexOf("\n## ", sectionStart + 1);
+  const section = sectionStart < 0
+    ? ""
+    : activeSpec.slice(sectionStart, sectionEnd < 0 ? activeSpec.length : sectionEnd);
+  const exactStatusLine = "Status: `NOT_STARTED / NOT_AUTHORIZED`.";
+  const statusLines = section.split(/\r?\n/).filter((line) => /^Status\s*:/i.test(line));
+  const specKeeps043cBlocked = sameArray(statusLines, [exactStatusLine]);
+  const plan = readText("docs/product/v1-plan.md");
+  const runbook = readText("runbooks/controlled-fiduciary-pilot-local-043.md");
+  const planKeeps043cBlocked = plan.includes("`043c` reste `NOT_STARTED / NOT_AUTHORIZED`");
+  const runbookKeeps043cBlocked = runbook.includes("`043c` reste `NOT_STARTED / NOT_AUTHORIZED`");
+  const contradictoryActivation = [activeSpec, plan, runbook].some(hasContradictory043cStatus);
+  const notAuthorized = specKeeps043cBlocked
+    && planKeeps043cBlocked
+    && runbookKeeps043cBlocked
+    && !contradictoryActivation;
+  assert(notAuthorized, `043c must have one canonical NOT_STARTED / NOT_AUTHORIZED status and no contradictory activation`);
+
+  const visible = worktreeVisiblePaths();
+  const futureSpecs = visible.filter((path) => {
+    const match = /^specs\/(?:active|backlog|done)\/(\d+)(?:[-_.]|$)/i.exec(path);
+    return match !== null && Number(match[1]) >= 44;
+  });
+  assert(futureSpecs.length === 0, `no spec numbered 044 or later is authorized`);
+  return { notAuthorized, futureSpecsAbsent: futureSpecs.length === 0 };
+}
+
+function validate043bSensitiveAndRuntimeAdditions(range = undefined) {
+  const addedLines = range?.mode === "HISTORICAL_043B"
+    ? parseAddedLinesFromUnifiedDiff(gitOutput([
+      "diff",
+      "--no-ext-diff",
+      "--unified=0",
+      "--no-color",
+      "--find-renames",
+      "--find-copies",
+      `${range.base}..${range.head}`,
+      "--",
+      ...CURRENT_043B_ALLOWED_FILE_SET,
+    ]))
+    : addedLinesForCurrentPaths(CURRENT_043B_ALLOWED_FILE_SET);
+  const highConfidenceSecretPatterns = [
+    { category: "provider_key_value", regex: new RegExp("sk" + "-(?:proj|svcacct)-[A-Za-z0-9_-]{12,}", "i") },
+    { category: "slack_token_value", regex: new RegExp("xox" + "[aboprs]-[A-Za-z0-9-]{12,}", "i") },
+    { category: "github_token_value", regex: new RegExp("(?:gh" + "[pousr]_|github" + "_pat_)[A-Za-z0-9_]{20,}", "i") },
+    { category: "aws_access_key_value", regex: new RegExp("AK" + "IA[0-9A-Z]{16}") },
+    { category: "private_key_value", regex: new RegExp("BEGIN" + " (?:RSA |EC )?PRIVATE" + " KEY", "i") },
+    { category: "jwt_value", regex: /\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/ },
+  ];
+  const emailPattern = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
+  const swissIbanPattern = /\bCH\d{2}(?:\s?[A-Z0-9]){17}\b/gi;
+  const privateLocationPatterns = [
+    new RegExp("[A-Za-z]:" + "\\\\(?:Users|Documents and Settings)\\\\", "i"),
+    /(?:^|[\s"'])\/(?:home|Users)\/[^\s"']+/i,
+    new RegExp("(?:^|[\\s\"'])" + "\\\\\\\\" + "[A-Za-z0-9._$-]+\\\\[A-Za-z0-9._$-]+(?:\\\\|[\\s\"']|$)", "i"),
+    new RegExp("file" + ":\\/\\/", "i"),
+  ];
+  const aiOrMcpModule = "(?:openai|@anthropic-ai|@google/generative-ai|@modelcontextprotocol(?:/[^\"']+)?|langchain|@langchain/[^\"']+)";
+  const providerOrMcpActivationPatterns = [
+    new RegExp(`^\\s*import(?:\\s+[^\"']*\\s+from\\s+|\\s*)[\"']${aiOrMcpModule}[\"']`, "i"),
+    new RegExp(`\\bimport\\s*\\(\\s*[\"']${aiOrMcpModule}[\"']`, "i"),
+    new RegExp(`\\brequire\\s*\\(\\s*[\"']${aiOrMcpModule}[\"']`, "i"),
+    new RegExp(`(?:[\"']|\\b)${aiOrMcpModule}(?:[\"']|\\b)`, "i"),
+    /^\s*import\s+(?:org\.springframework\.ai|com\.openai|com\.anthropic)\./i,
+    /\b(?:OpenAI|Anthropic|McpServer|MCPServer|StdioServerTransport|SseServerTransport|StreamableHTTPServerTransport)\s*\(/,
+    /\b(?:mcp-server|model-context-protocol|modelcontextprotocol)\b/i,
+    /\b(?:api\.openai\.com|api\.anthropic\.com|generativelanguage\.googleapis\.com)\b/i,
+  ];
+  const loopbackHttpPrefix = "http" + "://127.0.0.1";
+
+  let secretFindings = 0;
+  let personalOrRealDataFindings = 0;
+  let providerOrMcpFindings = 0;
+  for (const added of addedLines) {
+    for (const pattern of highConfidenceSecretPatterns) {
+      if (pattern.regex.test(added.text)) {
+        secretFindings += 1;
+        addError(`${added.path}:${added.line}:043b_${pattern.category}`);
+      }
+    }
+
+    const emails = added.text.match(emailPattern) ?? [];
+    for (const email of emails) {
+      const lowerEmail = email.toLowerCase();
+      if (!lowerEmail.endsWith(".invalid") && !lowerEmail.endsWith(".example") && !lowerEmail.endsWith(".test")) {
+        personalOrRealDataFindings += 1;
+        addError(`${added.path}:${added.line}:043b_personal_email_value`);
+      }
+    }
+    if ((added.text.match(swissIbanPattern) ?? []).length > 0) {
+      personalOrRealDataFindings += 1;
+      addError(`${added.path}:${added.line}:043b_swiss_iban_value`);
+    }
+    const normalizedEscapes = added.text.replaceAll("\\/", "/").replaceAll("\\\\", "\\");
+    if ([added.text, normalizedEscapes].some((text) =>
+      privateLocationPatterns.some((pattern) => pattern.test(text)))) {
+      personalOrRealDataFindings += 1;
+      addError(`${added.path}:${added.line}:043b_private_path_value`);
+    }
+
+    if (CURRENT_043B_RUNTIME_IMPLEMENTATION_PATHS.has(added.path)) {
+      for (const pattern of providerOrMcpActivationPatterns) {
+        if (pattern.test(added.text)) {
+          providerOrMcpFindings += 1;
+          addError(`${added.path}:${added.line}:043b_ai_provider_or_mcp_runtime_activation`);
+        }
+      }
+      const urls = added.text.match(/https?:\/\/[^\s"'`]+/gi) ?? [];
+      for (const urlValue of urls) {
+        if (!urlValue.startsWith(loopbackHttpPrefix)) {
+          providerOrMcpFindings += 1;
+          addError(`${added.path}:${added.line}:043b_non_loopback_runtime_url`);
+        }
+      }
+    }
+  }
+
+  return {
+    noHighConfidenceSecret: secretFindings === 0,
+    noPersonalOrRealData: personalOrRealDataFindings === 0,
+    noAiProviderOrMcpRuntime: providerOrMcpFindings === 0,
+  };
+}
+
+function validate043bWorktree(actual) {
+  const exactFileSet = sameArray(actual, CURRENT_043B_ALLOWED_FILE_SET);
+  assert(exactFileSet, `worktree file set must be exactly the closed 17-path 043b whitelist`);
+  const allowedPathsPresent = CURRENT_043B_ALLOWED_FILE_SET.every((path) => existsSync(absolutePath(path)));
+  assert(allowedPathsPresent, `every path in the closed 17-path 043b whitelist must exist in the worktree`);
+
+  const staged = stagedPaths();
+  const stagedEmpty = staged.length === 0;
+  assert(stagedEmpty, `043b worktree validation requires an empty staged index`);
+
+  const statusRecords = currentWorktreeStatusRecords();
+  const statusPaths = [...new Set(statusRecords.flatMap((record) => record.paths))].sort();
+  const modifiedCount = statusRecords.filter((record) => record.status === " M").length;
+  const untrackedCount = statusRecords.filter((record) => record.status === "??").length;
+  const statusMatrixExact = statusRecords.length === CURRENT_043B_ALLOWED_FILE_SET.length
+    && sameArray(statusPaths, CURRENT_043B_ALLOWED_FILE_SET)
+    && modifiedCount === 14
+    && untrackedCount === 3
+    && statusRecords.every((record) => record.paths.length === 1
+      && record.status === (CURRENT_043B_UNTRACKED_PATHS.has(record.paths[0]) ? "??" : " M"));
+  assert(statusMatrixExact, `043b worktree status matrix must be exactly 14 unstaged modifications and 3 untracked additions`);
+
+  const forbiddenSurface = actual.filter(is043bForbiddenSurface);
+  const forbiddenSurfaceAbsent = forbiddenSurface.length === 0;
+  assert(forbiddenSurfaceAbsent, `043b forbidden runtime, configuration, contract, CI, migration, lockfile or fixture surface changed`);
+
+  const environmentFiles = environmentFilePaths();
+  const environmentFilesAbsent = environmentFiles.length === 0;
+  assert(environmentFilesAbsent, `043b worktree contains a tracked or ignored .env file outside the committed example`);
+
+  const packageJsonScriptOnly = validate043bPackageJson();
+  const fixtures043aUnchanged = validateFrozen043aHashes();
+  const lifecycle = validate043bLifecycle();
+  const sensitiveRuntime = validate043bSensitiveAndRuntimeAdditions();
+  return {
+    worktreeProfile: WORKTREE_PROFILES.HARNESS_043B,
+    exactFileSet,
+    allowedPathsPresent,
+    stagedEmpty,
+    statusMatrixExact,
+    forbiddenSurfaceAbsent,
+    environmentFilesAbsent,
+    packageJsonScriptOnly,
+    fixtures043aUnchanged,
+    ...lifecycle,
+    ...sensitiveRuntime,
+  };
 }
 
 function validateProtectedHashesAndCases() {
   let protectedArtifactsUnchanged = true;
   let protectedCaseBytesUnchanged = true;
   for (const [path, expectedHash] of PROTECTED_HASHES) {
-    const actualHash = sha256Bytes(readFileSync(absolutePath(path)));
+    const actualHash = sha256Bytes(readBytes(path));
     if (actualHash !== expectedHash) {
       protectedArtifactsUnchanged = false;
       if (PROTECTED_CASE_ARTIFACTS.has(path)) protectedCaseBytesUnchanged = false;
@@ -996,7 +1636,7 @@ function findSchemaBranchByConst(node, propertyName, constValue) {
 }
 
 function validateLedger() {
-  const bytes = readFileSync(absolutePath(LEDGER_PATH));
+  const bytes = readBytes(LEDGER_PATH);
   assert(!(bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf), `${LEDGER_PATH}: UTF-8 BOM forbidden`);
   const text = bytes.toString("utf8");
   assert(!text.includes("\r"), `${LEDGER_PATH}: CR/CRLF forbidden; LF required`);
@@ -1326,7 +1966,7 @@ function normalizeSearchText(value) {
 }
 
 function validateRoadmap() {
-  const roadmapFilePresent = existsSync(absolutePath(ROADMAP_PATH));
+  const roadmapFilePresent = pathExists(ROADMAP_PATH);
   assert(roadmapFilePresent, `${ROADMAP_PATH}: canonical product roadmap missing`);
   console.log(`roadmap_file_present=${roadmapFilePresent ? "YES" : "NO"}`);
   if (!roadmapFilePresent) {
@@ -1394,6 +2034,7 @@ function validateRoadmap() {
 }
 
 function trackedPaths() {
+  if (contentCommit !== undefined) return commitTreePaths(contentCommit);
   return gitOutput(["ls-files", "-z"])
     .split("\0")
     .filter(Boolean)
@@ -1402,6 +2043,7 @@ function trackedPaths() {
 }
 
 function worktreeVisiblePaths() {
+  if (contentCommit !== undefined) return commitTreePaths(contentCommit);
   return gitOutput(["ls-files", "-z", "--cached", "--others", "--exclude-standard"])
     .split("\0")
     .filter(Boolean)
@@ -1494,8 +2136,12 @@ function validateNoRealInstances() {
   console.log(`spec_043_instances=${spec043Active.length + spec043OutsideActive.length}`);
   console.log(`042_backlog_only=${spec042BacklogValid && spec042ActiveOrDoneValid ? "YES" : "NO"}`);
   console.log(`043_active_only=${spec043ActiveValid && spec043OutsideActiveValid ? "YES" : "NO"}`);
-  console.log("spec_lifecycle_scope=WORKTREE_VISIBLE_TRACKED_AND_UNTRACKED");
-  console.log("repo_wide_human_instance_scope=GIT_TRACKED_FILES_ONLY");
+  console.log(contentCommit === undefined
+    ? "spec_lifecycle_scope=WORKTREE_VISIBLE_TRACKED_AND_UNTRACKED"
+    : "spec_lifecycle_scope=HEAD_COMMIT_TRACKED_ONLY");
+  console.log(contentCommit === undefined
+    ? "repo_wide_human_instance_scope=GIT_TRACKED_FILES_ONLY"
+    : "repo_wide_human_instance_scope=HEAD_COMMIT_TRACKED_ONLY");
 }
 
 function parseAddedLinesFromUnifiedDiff(diff) {
@@ -1560,6 +2206,32 @@ function addedLinesComparedToPrevious(currentPath, previousText) {
     }
   });
   return added;
+}
+
+function addedLinesForCurrentPaths(paths) {
+  const lines = parseAddedLinesFromUnifiedDiff(gitOutput([
+    "diff",
+    "--no-ext-diff",
+    "--unified=0",
+    "--no-color",
+    "--find-renames",
+    "HEAD",
+    "--",
+    ...paths,
+  ]));
+  const allowed = new Set(paths);
+  const untracked = gitOutput(["ls-files", "-z", "--others", "--exclude-standard"])
+    .split("\0")
+    .filter(Boolean)
+    .map(normalizePath)
+    .filter((path) => allowed.has(path) && existsSync(absolutePath(path)))
+    .sort();
+  for (const path of untracked) {
+    readText(path).split(/\r?\n/).forEach((text, index) => {
+      lines.push({ path, line: index + 1, text });
+    });
+  }
+  return lines;
 }
 
 function addedLinesForScan(range) {
@@ -1665,6 +2337,7 @@ function validateAddedLineHygiene(range) {
 function main() {
   const range = parseCliArgs(process.argv.slice(2));
   if (range.mode === "INVALID") return;
+  contentCommit = range.mode === "HISTORICAL_043B" ? range.head : undefined;
   const historicalVerification = validateExactFileSet(range);
   validateProtectedHashesAndCases();
   validateSchemas();
@@ -1672,16 +2345,41 @@ function main() {
   validateDocumentCoherence();
   validateRoadmap();
   validateNoRealInstances();
-  validateAddedLineHygiene(range);
+  if (range.mode !== "HISTORICAL_043B") validateAddedLineHygiene(range);
   return historicalVerification;
 }
 
 function runCli() {
-  let historicalVerification;
+  const buffer043bHistoricalOutput = process.argv.slice(2).some((value, index, args) =>
+    value === "--profile" && args[index + 1] === "043b");
+  const bufferedOutput = [];
+  const originalConsoleLog = console.log;
+  if (buffer043bHistoricalOutput) {
+    console.log = (...values) => bufferedOutput.push(values.join(" "));
+  }
+
+  let verification;
   try {
-    historicalVerification = main();
+    verification = main();
   } catch (error) {
     addError(`validator_internal_error:${error.name}`);
+  } finally {
+    console.log = originalConsoleLog;
+  }
+
+  const is043bWorktree = verification?.worktreeProfile === WORKTREE_PROFILES.HARNESS_043B;
+  const is043bHistorical = verification?.historicalProfile === "043b";
+  if (is043bWorktree) {
+    const evidenceValues = Object.entries(verification)
+      .filter(([key]) => key !== "worktreeProfile")
+      .map(([, value]) => value);
+    assert(evidenceValues.length > 0 && evidenceValues.every((value) => value === true), `043b worktree evidence is incomplete`);
+  }
+  if (is043bHistorical) {
+    const evidenceValues = Object.entries(verification)
+      .filter(([key]) => key !== "historicalProfile")
+      .map(([, value]) => value);
+    assert(evidenceValues.length > 0 && evidenceValues.every((value) => value === true), `043b historical evidence is incomplete`);
   }
 
   if (errors.length > 0) {
@@ -1689,8 +2387,40 @@ function runCli() {
     errors.forEach((error) => console.error(error));
     process.exitCode = 1;
   } else {
-    if (historicalVerification
-      && Object.values(historicalVerification).every((verified) => verified === true)) {
+    if (buffer043bHistoricalOutput) bufferedOutput.forEach((line) => console.log(line));
+    if (is043bWorktree) {
+      console.log("validation_mode=WORKTREE");
+      console.log("worktree_profile=043B_LOCAL_TWO_ACTOR_HARNESS");
+      console.log("diff_file_set_verified=YES_17_OF_17");
+      console.log("043b_runtime_scope_exact=YES");
+      console.log("043b_package_json_script_only=YES");
+      console.log("043b_forbidden_surface_drift=NO");
+      console.log("043c_not_authorized=YES");
+      console.log("043b_staged_changes=NO");
+      console.log("043b_worktree_status_map=YES_14M_3UNTRACKED");
+      console.log("043b_environment_files=NONE");
+      console.log("fixtures_043a_unchanged=YES");
+      console.log("043b_no_spec_044_plus=YES");
+      console.log("043b_no_high_confidence_secret=YES");
+      console.log("043b_no_personal_or_real_data=YES");
+      console.log("043b_no_ai_provider=YES");
+      console.log("043b_no_mcp_runtime=YES");
+      console.log("worktree_043b_profile=PASS_17_OF_17");
+    } else if (is043bHistorical) {
+      console.log("historical_043b_content_scope=HEAD_COMMIT_ONLY");
+      console.log("historical_043b_diff_file_set=YES_17_OF_17");
+      console.log("historical_043b_status_map=YES_14M_3A");
+      console.log("historical_043b_deletions=NONE");
+      console.log("historical_043b_renames=NONE");
+      console.log("historical_043b_copies=NONE");
+      console.log("historical_043b_package_json_script_only=YES");
+      console.log("historical_043b_fixtures_043a_base_and_head_unchanged=YES");
+      console.log("historical_043b_protected_042_base_and_head_unchanged=YES");
+      console.log("historical_043b_no_high_confidence_secret=YES");
+      console.log("historical_043b_no_personal_or_real_data=YES");
+      console.log("historical_043b_profile=PASS_17_OF_17");
+    } else if (verification
+      && Object.values(verification).every((verified) => verified === true)) {
       console.log("historical_change_types_verified=YES");
       console.log("historical_deletions_visible=YES");
       console.log("historical_rename_endpoints_visible=YES");

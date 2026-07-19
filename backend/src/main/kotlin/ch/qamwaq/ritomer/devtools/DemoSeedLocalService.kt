@@ -15,6 +15,8 @@ import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
+internal const val DEMO_SEED_DATASET_CLASSIFICATION_043B = "HARNESS_ONLY_AUTH_RBAC_DATASET"
+
 internal data class DemoSeedLocalResult(
   val tenantId: UUID,
   val userId: UUID,
@@ -32,7 +34,8 @@ internal data class DemoSeedLocalVariantResult(
   val closingFolderId: UUID,
   val balanceImportId: UUID,
   val balanceImportLineCount: Int,
-  val manualMappingCount: Int
+  val manualMappingCount: Int,
+  val datasetClassification: String? = null
 )
 
 @Service
@@ -51,8 +54,9 @@ internal class DemoSeedLocalService(
     var changedRows = 0
 
     val tenantId = upsertTenant(now).also { changedRows += it.changedRows }.id
-    val userId = upsertAppUser(now).also { changedRows += it.changedRows }.id
-    changedRows += upsertTenantMembership(tenantId, userId, now)
+    val accountant = DemoSeedLocalDataset.accountantActor
+    val userId = upsertAppUser(accountant, now).also { changedRows += it.changedRows }.id
+    changedRows += upsertTenantMembership(tenantId, userId, accountant, now)
     changedRows += upsertClosingFolder(tenantId, primaryFolder, now)
     changedRows += upsertBalanceImport(tenantId, userId, primaryFolder, now)
     val balanceImportId = findDemoBalanceImportId(tenantId, primaryFolder)
@@ -65,6 +69,16 @@ internal class DemoSeedLocalService(
 
     val variantResults = mutableListOf<DemoSeedLocalVariantResult>()
     if (requestedVariant != null) {
+      if (requestedVariant.enforceExactActiveRoles) {
+        changedRows += deactivateUnexpectedActiveRoles(tenantId, userId, accountant, now)
+      }
+      requestedVariant.additionalActors.forEach { actor ->
+        val actorUserId = upsertAppUser(actor, now).also { changedRows += it.changedRows }.id
+        changedRows += upsertTenantMembership(tenantId, actorUserId, actor, now)
+        if (requestedVariant.enforceExactActiveRoles) {
+          changedRows += deactivateUnexpectedActiveRoles(tenantId, actorUserId, actor, now)
+        }
+      }
       val variantFolder = requestedVariant.folderDataset
       changedRows += upsertClosingFolder(tenantId, variantFolder, now)
       changedRows += upsertBalanceImport(tenantId, userId, variantFolder, now)
@@ -80,7 +94,8 @@ internal class DemoSeedLocalService(
         closingFolderId = variantFolder.closingFolderId,
         balanceImportId = variantBalanceImportId,
         balanceImportLineCount = variantFolder.balanceLines.size,
-        manualMappingCount = variantFolder.manualMappings.size
+        manualMappingCount = variantFolder.manualMappings.size,
+        datasetClassification = requestedVariant.datasetClassification
       )
     }
 
@@ -147,14 +162,14 @@ internal class DemoSeedLocalService(
     return UpsertedId(existingId, updatedRows)
   }
 
-  private fun upsertAppUser(now: OffsetDateTime): UpsertedId {
+  private fun upsertAppUser(actor: DemoSeedLocalActorDataset, now: OffsetDateTime): UpsertedId {
     val existingId = findUuidByNaturalKey(
       """
       select id
       from app_user
       where external_subject = :externalSubject
       """.trimIndent(),
-      "externalSubject" to DemoSeedLocalDataset.userExternalSubject
+      "externalSubject" to actor.externalSubject
     )
     if (existingId == null) {
       val insertedRows = jdbcClient.sql(
@@ -163,13 +178,13 @@ internal class DemoSeedLocalService(
         values (:id, :externalSubject, :email, :displayName, 'ACTIVE', :now, :now)
         """.trimIndent()
       )
-        .param("id", DemoSeedLocalDataset.userId)
-        .param("externalSubject", DemoSeedLocalDataset.userExternalSubject)
-        .param("email", DemoSeedLocalDataset.userEmail)
-        .param("displayName", DemoSeedLocalDataset.userDisplayName)
+        .param("id", actor.userId)
+        .param("externalSubject", actor.externalSubject)
+        .param("email", actor.email)
+        .param("displayName", actor.displayName)
         .param("now", now)
         .update()
-      return UpsertedId(DemoSeedLocalDataset.userId, insertedRows)
+      return UpsertedId(actor.userId, insertedRows)
     }
 
     val updatedRows = jdbcClient.sql(
@@ -188,8 +203,8 @@ internal class DemoSeedLocalService(
       """.trimIndent()
     )
       .param("id", existingId)
-      .param("email", DemoSeedLocalDataset.userEmail)
-      .param("displayName", DemoSeedLocalDataset.userDisplayName)
+      .param("email", actor.email)
+      .param("displayName", actor.displayName)
       .param("now", now)
       .update()
     return UpsertedId(existingId, updatedRows)
@@ -198,6 +213,7 @@ internal class DemoSeedLocalService(
   private fun upsertTenantMembership(
     tenantId: UUID,
     userId: UUID,
+    actor: DemoSeedLocalActorDataset,
     now: OffsetDateTime
   ): Int =
     jdbcClient.sql(
@@ -210,10 +226,33 @@ internal class DemoSeedLocalService(
       where tenant_membership.status is distinct from 'ACTIVE'
       """.trimIndent()
     )
-      .param("id", DemoSeedLocalDataset.membershipId)
+      .param("id", actor.membershipId)
       .param("tenantId", tenantId)
       .param("userId", userId)
-      .param("roleCode", DemoSeedLocalDataset.membershipRole)
+      .param("roleCode", actor.membershipRole)
+      .param("now", now)
+      .update()
+
+  private fun deactivateUnexpectedActiveRoles(
+    tenantId: UUID,
+    userId: UUID,
+    actor: DemoSeedLocalActorDataset,
+    now: OffsetDateTime
+  ): Int =
+    jdbcClient.sql(
+      """
+      update tenant_membership
+      set status = 'INACTIVE',
+          updated_at = :now
+      where tenant_id = :tenantId
+        and user_id = :userId
+        and role_code is distinct from :expectedRole
+        and status is distinct from 'INACTIVE'
+      """.trimIndent()
+    )
+      .param("tenantId", tenantId)
+      .param("userId", userId)
+      .param("expectedRole", actor.membershipRole)
       .param("now", now)
       .update()
 
@@ -495,13 +534,15 @@ internal class DemoSeedLocalService(
       emptyMap()
     } else {
       val variant = variantResults.single()
-      mapOf(
+      mapOf<String, Any>(
         "seedVariant" to variant.variant,
         "variantClosingFolderId" to variant.closingFolderId.toString(),
         "variantBalanceImportId" to variant.balanceImportId.toString(),
         "variantBalanceImportLineCount" to variant.balanceImportLineCount,
         "variantManualMappingCount" to variant.manualMappingCount
-      )
+      ) + variant.datasetClassification?.let { classification ->
+        mapOf("dataset" to classification)
+      }.orEmpty()
     }
 
   private data class UpsertedId(
@@ -525,6 +566,15 @@ internal data class DemoManualMapping(
   val targetCode: String
 )
 
+internal data class DemoSeedLocalActorDataset(
+  val userId: UUID,
+  val externalSubject: String,
+  val email: String,
+  val displayName: String,
+  val membershipId: UUID,
+  val membershipRole: String
+)
+
 internal data class DemoSeedLocalFolderDataset(
   val closingFolderId: UUID,
   val closingFolderName: String,
@@ -543,11 +593,21 @@ internal data class DemoSeedLocalFolderDataset(
 
 internal enum class DemoSeedLocalVariant(
   val propertyValue: String,
-  val folderDataset: DemoSeedLocalFolderDataset
+  val folderDataset: DemoSeedLocalFolderDataset,
+  val additionalActors: List<DemoSeedLocalActorDataset> = emptyList(),
+  val datasetClassification: String? = null,
+  val enforceExactActiveRoles: Boolean = false
 ) {
   MIXED_V2_042A2A5D(
     propertyValue = DEMO_SEED_VARIANT_042A2A5D_MIXED_V2,
     folderDataset = DemoSeedLocalDataset.variant042a2a5dMixedV2Folder
+  ),
+  TWO_ACTOR_PILOT_043B(
+    propertyValue = DEMO_SEED_VARIANT_043B_TWO_ACTOR_PILOT,
+    folderDataset = DemoSeedLocalDataset.variant043bTwoActorPilotFolder,
+    additionalActors = listOf(DemoSeedLocalDataset.reviewer043bActor),
+    datasetClassification = DEMO_SEED_DATASET_CLASSIFICATION_043B,
+    enforceExactActiveRoles = true
   );
 
   companion object {
@@ -575,6 +635,31 @@ internal object DemoSeedLocalDataset {
 
   val membershipId: UUID = UUID.fromString("036a0000-0000-4000-8000-000000000003")
   const val membershipRole: String = "ACCOUNTANT"
+
+  val accountantActor: DemoSeedLocalActorDataset = DemoSeedLocalActorDataset(
+    userId = userId,
+    externalSubject = userExternalSubject,
+    email = userEmail,
+    displayName = userDisplayName,
+    membershipId = membershipId,
+    membershipRole = membershipRole
+  )
+
+  val reviewerUserId: UUID = UUID.fromString("043b0000-0000-4000-8000-000000000002")
+  const val reviewerExternalSubject: String = "ritomer-demo-reviewer-043b"
+  const val reviewerEmail: String = "demo.reviewer.043b@example.invalid"
+  const val reviewerDisplayName: String = "Demo Reviewer 043b"
+  val reviewerMembershipId: UUID = UUID.fromString("043b0000-0000-4000-8000-000000000003")
+  const val reviewerMembershipRole: String = "REVIEWER"
+
+  val reviewer043bActor: DemoSeedLocalActorDataset = DemoSeedLocalActorDataset(
+    userId = reviewerUserId,
+    externalSubject = reviewerExternalSubject,
+    email = reviewerEmail,
+    displayName = reviewerDisplayName,
+    membershipId = reviewerMembershipId,
+    membershipRole = reviewerMembershipRole
+  )
 
   private val periodStart = LocalDate.parse("2025-01-01")
   private val periodEnd = LocalDate.parse("2025-12-31")
@@ -674,6 +759,23 @@ internal object DemoSeedLocalDataset {
     )
   )
 
+  val variant043bTwoActorPilotFolder: DemoSeedLocalFolderDataset = DemoSeedLocalFolderDataset(
+    closingFolderId = UUID.fromString("043b0000-0000-4000-8000-000000000004"),
+    closingFolderName = "Demo Closing FY2025 043b two-actor pilot (synthetic)",
+    closingFolderExternalRef = "DEMO-043B-TWO-ACTOR-PILOT",
+    periodStartOn = periodStart,
+    periodEndOn = periodEnd,
+    balanceImportId = UUID.fromString("043b0000-0000-4000-8000-000000000005"),
+    balanceImportVersion = importVersion,
+    sourceFileName = syntheticSourceFileName,
+    balanceLines = primaryFolder.balanceLines.mapIndexed { index, line ->
+      line.copy(id = deterministic043bId(101 + index))
+    },
+    manualMappings = primaryFolder.manualMappings.mapIndexed { index, mapping ->
+      mapping.copy(id = deterministic043bId(201 + index))
+    }
+  )
+
   val variant042a2a5dMixedV2Folder: DemoSeedLocalFolderDataset = DemoSeedLocalFolderDataset(
     closingFolderId = UUID.fromString("042a2a5d-0000-4000-8000-000000000004"),
     closingFolderName = "Demo Closing FY2025 042a2a5d mixed v2 (synthetic)",
@@ -770,4 +872,7 @@ internal object DemoSeedLocalDataset {
   val totalDebit: BigDecimal = primaryFolder.totalDebit
   val totalCredit: BigDecimal = primaryFolder.totalCredit
   val manualMappings: List<DemoManualMapping> = primaryFolder.manualMappings
+
+  private fun deterministic043bId(sequence: Int): UUID =
+    UUID.fromString("043b0000-0000-4000-8000-${sequence.toString().padStart(12, '0')}")
 }

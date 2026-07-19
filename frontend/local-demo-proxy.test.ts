@@ -5,6 +5,7 @@ import { extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ProxyOptions } from "vite";
 import { describe, expect, it } from "vitest";
+import { buildChildEnvironment } from "./local-two-actor-harness.mjs";
 import { createRitomerViteConfig } from "./vite.config";
 
 type TestEnvironment = Record<string, string | undefined>;
@@ -64,6 +65,28 @@ describe("Vite local demo proxy", () => {
     expect(proxy.headers).toEqual({
       Authorization: "Bearer <opaque-shell-value>"
     });
+  });
+
+  it("accepts the exact 043b loopback target with isolated bearer values for both Vite processes", () => {
+    const accountantToken = "accountant-opaque-sentinel";
+    const reviewerToken = "reviewer-opaque-sentinel";
+    const accountantEnvironment = buildChildEnvironment({}, accountantToken, "win32");
+    const reviewerEnvironment = buildChildEnvironment({}, reviewerToken, "win32");
+
+    const accountantProxy = getApiProxy(accountantEnvironment);
+    const reviewerProxy = getApiProxy(reviewerEnvironment);
+
+    expect(accountantProxy.target).toBe("http://127.0.0.1:8080");
+    expect(reviewerProxy.target).toBe("http://127.0.0.1:8080");
+    expect(accountantProxy.headers).toEqual({
+      Authorization: `Bearer ${accountantToken}`
+    });
+    expect(reviewerProxy.headers).toEqual({
+      Authorization: `Bearer ${reviewerToken}`
+    });
+    expect(accountantProxy.headers).not.toEqual(reviewerProxy.headers);
+    expect(Object.values(accountantEnvironment)).not.toContain(reviewerToken);
+    expect(Object.values(reviewerEnvironment)).not.toContain(accountantToken);
   });
 
   it("fails fast without printing a token value when proxy auth is enabled without a token", () => {

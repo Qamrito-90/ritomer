@@ -5,6 +5,7 @@ import org.springframework.core.env.Environment
 internal const val DEMO_SEED_ENABLED_PROPERTY = "ritomer.demo.seed.enabled"
 internal const val DEMO_SEED_VARIANT_PROPERTY = "ritomer.demo.seed.variant"
 internal const val DEMO_SEED_VARIANT_042A2A5D_MIXED_V2 = "042a2a5d-mixed-v2"
+internal const val DEMO_SEED_VARIANT_043B_TWO_ACTOR_PILOT = "043b-two-actor-pilot"
 
 internal data class DemoSeedLocalActivation(
   val activeProfiles: Set<String>,
