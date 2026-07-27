@@ -73,10 +73,33 @@ Depuis la racine du repo :
 
 Variables d’environnement locales minimales :
 
-- `RITOMER_SECURITY_JWT_HMAC_SECRET=local-dev-only-jwt-hmac-secret-change-me`
+- `RITOMER_SECURITY_JWT_HMAC_SECRET` doit être fournie au runtime, sans fallback, avec une valeur CSPRNG locale d'au moins 32 octets UTF-8 ;
 - `SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/ritomer`
 - `SPRING_DATASOURCE_USERNAME=ritomer`
-- `SPRING_DATASOURCE_PASSWORD=ritomer`
+- `SPRING_DATASOURCE_PASSWORD` doit déjà exister dans le shell local ;
 - `RITOMER_DB_TESTS_ENABLED=true` pour lancer les tests PostgreSQL optionnels
-- `RITOMER_DB_TEST_JDBC_URL`, `RITOMER_DB_TEST_USERNAME`, `RITOMER_DB_TEST_PASSWORD` pour cibler une base locale ou distante
+- `RITOMER_DB_TEST_JDBC_URL`, `RITOMER_DB_TEST_USERNAME`, `RITOMER_DB_TEST_PASSWORD` pour la cible locale dédiée décrite dans le runbook 043b
 - voir aussi `backend/.env.example`
+
+Ne créer aucun fichier `.env` et ne demander ni à Codex ni à un autre outil de lire la valeur HMAC. Exemple PowerShell pour produire 32 octets CSPRNG directement dans le processus, sans afficher ni stocker la valeur :
+
+```powershell
+$jwtKeyBytes = [byte[]]::new(32)
+[System.Security.Cryptography.RandomNumberGenerator]::Fill($jwtKeyBytes)
+$env:RITOMER_SECURITY_JWT_HMAC_SECRET = [Convert]::ToBase64String($jwtKeyBytes)
+[Array]::Clear($jwtKeyBytes, 0, $jwtKeyBytes.Length)
+```
+
+## Posture locale 043b
+
+043b is a local single-operator two-role simulation.
+It validates backend RBAC behavior under two synthetic identities.
+It does not establish independent human sessions or segregation of duties.
+
+043b est une simulation locale mono-opérateur de deux rôles.
+Elle valide le comportement RBAC du backend sous deux identités synthétiques.
+Elle n'établit ni deux sessions humaines indépendantes ni une séparation des fonctions.
+
+Statut courant : `MINIMUM_VIABLE_SAFETY_IMPLEMENTED / PENDING_LOCAL_EVIDENCE / NOT_MERGE_READY`. La simulation est `LOCAL_TWO_ROLE_SIMULATION / SINGLE_OPERATOR_CAPABLE / SYNTHETIC_ONLY / LOOPBACK_ONLY / AI_REVIEWED / OWNER_RISK_ACCEPTED / NOT_PRODUCTION_AUTH / NOT_INDEPENDENT_ACTOR_BOUNDARY / NOT_PROOF_OF_SEGREGATION_OF_DUTIES / NOT_FOR_EXTERNAL_USE / NOT_FOR_REAL_DATA`. Les ports `5173` et `5174` restent deux contextes visuels, jamais une frontière d'identité.
+
+Les tests PostgreSQL destructifs utilisent exclusivement `jdbc:postgresql://127.0.0.1:5432/ritomer_043b_test` avec le rôle `ritomer_043b_test_runner`, sur un PostgreSQL local direct et des données synthétiques. Cloud SQL Proxy, tunnel SSH et port forward sont interdits pour cette preuve.

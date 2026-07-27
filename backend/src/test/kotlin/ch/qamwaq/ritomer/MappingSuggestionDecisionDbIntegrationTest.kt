@@ -1,5 +1,7 @@
 package ch.qamwaq.ritomer
 
+import ch.qamwaq.ritomer.testsupport.DisposablePostgresTestDatabase
+import ch.qamwaq.ritomer.testsupport.DisposablePostgresTestDatabaseGuardInitializer
 import java.sql.Connection
 import java.time.LocalDate
 import java.time.OffsetDateTime
@@ -17,14 +19,21 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.core.env.Environment
 import org.springframework.dao.DataAccessException
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.ActiveProfiles
+import org.springframework.test.context.ContextConfiguration
 
 @SpringBootTest
 @ActiveProfiles("dbtest")
+@ContextConfiguration(
+  initializers = [
+    DisposablePostgresTestDatabaseGuardInitializer::class
+  ]
+)
 @Tag("db-integration")
-@EnabledIfEnvironmentVariable(named = "RITOMER_DB_TESTS_ENABLED", matches = "true")
+@EnabledIfEnvironmentVariable(named = "RITOMER_DB_TESTS_ENABLED", matches = "(?i:true)")
 class MappingSuggestionDecisionDbIntegrationTest {
   @Autowired
   private lateinit var jdbcTemplate: JdbcTemplate
@@ -32,11 +41,12 @@ class MappingSuggestionDecisionDbIntegrationTest {
   @Autowired
   private lateinit var dataSource: DataSource
 
+  @Autowired
+  private lateinit var environment: Environment
+
   @BeforeEach
   fun resetDatabaseState() {
-    jdbcTemplate.execute(
-      "truncate table audit_event, mapping_suggestion_decision_request, export_pack, document_verification, document, workpaper_evidence, workpaper, manual_mapping, balance_import_line, balance_import, closing_folder, tenant_membership, app_user, tenant cascade"
-    )
+    DisposablePostgresTestDatabase.truncateAllCurrentTables(dataSource, environment)
   }
 
   @Test

@@ -19,6 +19,8 @@ export const BACKEND_HEALTH_URL = `${BACKEND_ORIGIN}/actuator/health`;
 export const JWT_TTL_SECONDS = 3600;
 
 const HMAC_SECRET_ENV = "RITOMER_SECURITY_JWT_HMAC_SECRET";
+const LEGACY_HMAC_SECRET = "local-dev-only-jwt-hmac-secret-change-me";
+const INVALID_RUNTIME_SECRET_SENTINEL = "__INVALID_RUNTIME_SECRET_REQUIRED__";
 const BACKEND_TARGET_ENV = "RITOMER_LOCAL_DEMO_BACKEND_TARGET";
 const PROXY_AUTH_ENABLED_ENV = "RITOMER_LOCAL_DEMO_PROXY_AUTH_ENABLED";
 const BEARER_TOKEN_ENV = "RITOMER_LOCAL_DEMO_BEARER_TOKEN";
@@ -158,6 +160,9 @@ export function requireHmacSecret(environment) {
 
   if (Buffer.byteLength(secret, "utf8") < 32) {
     throw failure("JWT_HMAC_SECRET_TOO_SHORT");
+  }
+  if (secret === LEGACY_HMAC_SECRET || secret === INVALID_RUNTIME_SECRET_SENTINEL) {
+    throw failure("JWT_HMAC_SECRET_PLACEHOLDER_FORBIDDEN");
   }
 
   return secret;

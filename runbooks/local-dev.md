@@ -17,9 +17,13 @@ Depuis la racine du repo :
 - `cd backend && ./gradlew -PritomerDemoSeedEnabled=true demoSeedLocal`
 - `cd backend && ./gradlew -PritomerDemoSeedEnabled=true -PritomerDemoSeedVariant=042a2a5d-mixed-v2 demoSeedLocal`
 
-## Harness local deux acteurs 043b
+## Simulation locale mono-opérateur de deux rôles 043b
 
 Le runbook canonique est `runbooks/controlled-fiduciary-pilot-local-043.md`.
+
+043b is a local single-operator two-role simulation. It validates backend RBAC behavior under two synthetic identities. It does not establish independent human sessions or segregation of duties.
+
+043b est une simulation locale mono-opérateur de deux rôles. Elle valide le comportement RBAC du backend sous deux identités synthétiques. Elle n'établit ni deux sessions humaines indépendantes ni une séparation des fonctions.
 
 Commandes canoniques, depuis la racine du repo :
 
@@ -29,18 +33,30 @@ Commandes canoniques, depuis la racine du repo :
 
 Les valeurs de `RITOMER_SECURITY_JWT_HMAC_SECRET`, `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME` et `SPRING_DATASOURCE_PASSWORD` restent uniquement dans le shell local. Ne les placer ni dans ce runbook, ni dans Git, ni dans un fichier `.env`.
 
+Le secret JWT n'a aucun fallback. L'ancien placeholder et la sentinel non fonctionnelle sont refusés. Ne jamais demander à Codex de lire la valeur. Génération CSPRNG locale sans affichage ni stockage :
+
+```powershell
+$jwtKeyBytes = [byte[]]::new(32)
+[System.Security.Cryptography.RandomNumberGenerator]::Fill($jwtKeyBytes)
+$env:RITOMER_SECURITY_JWT_HMAC_SECRET = [Convert]::ToBase64String($jwtKeyBytes)
+[Array]::Clear($jwtKeyBytes, 0, $jwtKeyBytes.Length)
+```
+
+Les ports `5173` et `5174` restent deux contextes visuels. Ils ne constituent pas une frontière d'identité.
+
 ## Tests PostgreSQL destructifs 043b
 
 `dbIntegrationTest` ne doit jamais reutiliser la base seed locale `/ritomer`. Les recettes `036a`, `042a2a5d-mixed-v2` et `043b-two-actor-pilot` n'autorisent pas la task de test DB.
 
-La seule cible autorisee pour la preuve 043b est une base nouvellement creee, jetable, synthetic-only, sans dump ni clone client/staging/production :
+La seule cible autorisee pour la preuve 043b est un PostgreSQL local direct, sans Cloud SQL Proxy, tunnel SSH ni port forward, avec une base nouvellement creee, jetable, synthetic-only, sans dump ni clone client/staging/production :
 
+- URL exacte : `jdbc:postgresql://127.0.0.1:5432/ritomer_043b_test` ;
 - base exacte : `ritomer_043b_test` ;
 - role de login exact : `ritomer_043b_test_runner` ;
 - consentement exact : `RITOMER_DB_TEST_DESTRUCTIVE_CONSENT=TRUNCATE_RITOMER_043B_TEST` ;
 - `RITOMER_DB_TEST_PASSWORD` doit deja exister dans le shell, sans valeur documentee ou affichee.
 
-Le host loopback n'est pas une preuve de surete. La task Gradle refuse les URLs ambigues, encodees ou visant un autre nom de base. Les deux tests destructifs 043b revalident `current_database()`, `current_user` et `session_user` avant Flyway et juste avant chaque `TRUNCATE`. Stopper si la task est `SKIPPED` ou si une garde refuse.
+La simple apparence loopback n'est pas une preuve de surete. Les 12 classes DB refusent toute URL autre que la valeur exacte, tout metadata/role/adresse/port/owner divergent, tout rôle privilégié ou membership privilégiée. Leur initializer valide avant Flyway ; chaque primitive revalide puis détruit sur la même connexion et transaction. Stopper si la task est `SKIPPED` ou si une garde refuse.
 
 ## Seed demo local 036a
 
@@ -77,7 +93,7 @@ try {
 
 La commande exige qu'une datasource PostgreSQL locale explicite soit visible par le guard avant le chargement du contexte Spring, via `spring.datasource.url`, `SPRING_DATASOURCE_URL` ou `RITOMER_DB_TEST_JDBC_URL`. Elle ne deduit jamais `localhost` du seul profil `local`, ne definit aucune valeur sensible et ne doit pas etre utilisee pour stocker des donnees client reelles.
 
-Pour `dbtest`, la datasource doit aussi rester locale. Une execution via `cloud-sql-proxy` liee a `127.0.0.1` est acceptee par la garde ; une URL Cloud SQL directe ou distante est refusee.
+Pour `dbtest`, la datasource doit aussi rester locale et directe. Cette recette seed historique ne constitue jamais une autorisation pour les tests destructifs 043b, dont la cible et les gardes sont strictement plus étroites.
 
 ```powershell
 Push-Location backend
@@ -243,33 +259,6 @@ PowerShell pour les tests PostgreSQL optionnels :
 ```powershell
 cd backend
 $env:RITOMER_DB_TESTS_ENABLED='true'
-$env:RITOMER_DB_TEST_JDBC_URL='jdbc:postgresql://localhost:5432/ritomer_043b_test'
-$env:RITOMER_DB_TEST_USERNAME='ritomer_043b_test_runner'
-$env:RITOMER_DB_TEST_DESTRUCTIVE_CONSENT='TRUNCATE_RITOMER_043B_TEST'
-if (-not (Test-Path Env:RITOMER_DB_TEST_PASSWORD)) { throw 'DB test password missing from local shell.' }
-.\gradlew.bat dbIntegrationTest
-```
-
-## Validation PostgreSQL réelle via cloud-sql-proxy
-
-Pré-requis minimaux :
-
-- binaire `cloud-sql-proxy` disponible localement
-- authentification GCP déjà établie pour atteindre l'instance Cloud SQL cible
-- nom d'instance au format `project:region:instance`
-
-PowerShell Windows validé pour ouvrir le proxy :
-
-```powershell
-$env:CLOUD_SQL_INSTANCE='project:region:instance'
-.\cloud-sql-proxy.exe --address 127.0.0.1 --port 5432 $env:CLOUD_SQL_INSTANCE
-```
-
-PowerShell Windows validé pour lancer `dbIntegrationTest` contre le proxy :
-
-```powershell
-cd backend
-$env:RITOMER_DB_TESTS_ENABLED='true'
 $env:RITOMER_DB_TEST_JDBC_URL='jdbc:postgresql://127.0.0.1:5432/ritomer_043b_test'
 $env:RITOMER_DB_TEST_USERNAME='ritomer_043b_test_runner'
 $env:RITOMER_DB_TEST_DESTRUCTIVE_CONSENT='TRUNCATE_RITOMER_043B_TEST'
@@ -277,12 +266,11 @@ if (-not (Test-Path Env:RITOMER_DB_TEST_PASSWORD)) { throw 'DB test password mis
 .\gradlew.bat dbIntegrationTest
 ```
 
-Notes :
+## Interdiction des intermédiaires DB pour la preuve 043b
 
-- gardez `cloud-sql-proxy` actif pendant toute l'exécution du task Gradle
-- le nom de base et le role 043b sont fixes ; ne les adaptez pas a une base ordinaire
-- la valeur du password reste exclusivement dans le shell local et n'est jamais affichee
-- la recette reste compatible avec le principe V1 : aucun Docker local requis
+Les recettes historiques via `cloud-sql-proxy`, tunnel SSH ou port forward ne sont plus autorisées pour `dbIntegrationTest`. La garde 043b exige un serveur PostgreSQL local direct observé à `127.0.0.1:5432`, la base et le rôle dédiés créés de novo, ainsi que des données exclusivement synthétiques. Aucun dump client, staging ou production ne peut être chargé.
+
+Limite résiduelle acceptée pour le local synthétique : un tunnel sophistiqué capable d'imiter toutes les observations de la garde demeure un risque opérateur. Il ne vaut aucune readiness production ou externe.
 
 ## Vérification locale rapide
 - `GET /actuator/health` doit répondre `200 OK`

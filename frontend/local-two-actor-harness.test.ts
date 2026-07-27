@@ -187,20 +187,22 @@ describe("local two-actor JWT contract", () => {
     expect(randomBytesFunction).toHaveBeenCalledTimes(2);
   });
 
-  it("rejects an absent, empty, whitespace-only, or UTF-8 value shorter than 32 bytes", () => {
+  it("rejects absent blank short legacy and sentinel secrets using UTF-8 byte length", () => {
     const cases = [
       {},
       { RITOMER_SECURITY_JWT_HMAC_SECRET: "" },
       { RITOMER_SECURITY_JWT_HMAC_SECRET: " ".repeat(32) },
       { RITOMER_SECURITY_JWT_HMAC_SECRET: "x".repeat(31) },
-      { RITOMER_SECURITY_JWT_HMAC_SECRET: "é".repeat(15) }
+      { RITOMER_SECURITY_JWT_HMAC_SECRET: "\u00e9".repeat(15) },
+      { RITOMER_SECURITY_JWT_HMAC_SECRET: "local-dev-only-jwt-hmac-secret-change-me" },
+      { RITOMER_SECURITY_JWT_HMAC_SECRET: "__INVALID_RUNTIME_SECRET_REQUIRED__" }
     ];
 
     for (const environment of cases) {
       expect(() => requireHmacSecret(environment)).toThrow();
     }
 
-    const exactlyThirtyTwoUtf8Bytes = "é".repeat(16);
+    const exactlyThirtyTwoUtf8Bytes = "\u00e9".repeat(16);
     expect(
       requireHmacSecret({ RITOMER_SECURITY_JWT_HMAC_SECRET: exactlyThirtyTwoUtf8Bytes })
     ).toBe(exactlyThirtyTwoUtf8Bytes);

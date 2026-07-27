@@ -1,5 +1,7 @@
 package ch.qamwaq.ritomer
 
+import ch.qamwaq.ritomer.testsupport.DisposablePostgresTestDatabase
+import ch.qamwaq.ritomer.testsupport.DisposablePostgresTestDatabaseGuardInitializer
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.util.UUID
@@ -14,23 +16,34 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Import
+import org.springframework.core.env.Environment
 import org.springframework.dao.DataAccessException
 import org.springframework.test.context.ActiveProfiles
+import org.springframework.test.context.ContextConfiguration
 
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("dbtest")
 @Import(WorkpapersDbIntegrationTestConfig::class)
+@ContextConfiguration(
+  initializers = [
+    DisposablePostgresTestDatabaseGuardInitializer::class
+  ]
+)
 @Tag("db-integration")
-@EnabledIfEnvironmentVariable(named = "RITOMER_DB_TESTS_ENABLED", matches = "true")
+@EnabledIfEnvironmentVariable(named = "RITOMER_DB_TESTS_ENABLED", matches = "(?i:true)")
 class ExportsDbIntegrationTest {
   @Autowired
   private lateinit var jdbcTemplate: org.springframework.jdbc.core.JdbcTemplate
 
+  @Autowired
+  private lateinit var environment: Environment
+
   @BeforeEach
   fun resetDatabaseState() {
-    jdbcTemplate.execute(
-      "truncate table audit_event, export_pack, document_verification, document, workpaper_evidence, workpaper, manual_mapping, balance_import_line, balance_import, closing_folder, tenant_membership, app_user, tenant cascade"
+    DisposablePostgresTestDatabase.truncateAllCurrentTables(
+      jdbcTemplate.dataSource ?: error("DataSource is required for guarded database reset."),
+      environment
     )
   }
 
@@ -160,15 +173,17 @@ class ExportsDbIntegrationTest {
         "delete from export_pack where id = ?",
         exportPackId
       )
-    }.isInstanceOf(DataAccessException::class.java)
+    }
+      .isInstanceOf(DataAccessException::class.java)
+      .hasMessageContaining("export_pack is immutable")
+      .hasMessageContaining("DELETE is not allowed")
   }
 
   @Test
   fun `flyway from scratch reaches v10`() {
     val dataSource = jdbcTemplate.dataSource ?: error("DataSource is required for Flyway verification.")
 
-    jdbcTemplate.execute("drop schema if exists public cascade")
-    jdbcTemplate.execute("create schema public")
+    DisposablePostgresTestDatabase.recreatePublicSchemaForFlyway(dataSource, environment)
 
     Flyway.configure()
       .dataSource(dataSource)

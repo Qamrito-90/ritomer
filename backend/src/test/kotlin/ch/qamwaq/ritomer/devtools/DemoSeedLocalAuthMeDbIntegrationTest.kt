@@ -1,6 +1,8 @@
 package ch.qamwaq.ritomer.devtools
 
 import ch.qamwaq.ritomer.shared.application.ACTIVE_TENANT_HEADER
+import ch.qamwaq.ritomer.testsupport.DisposablePostgresTestDatabase
+import ch.qamwaq.ritomer.testsupport.DisposablePostgresTestDatabaseGuardInitializer
 import ch.qamwaq.ritomer.workpapers.application.WORKPAPER_CREATED_ACTION
 import ch.qamwaq.ritomer.workpapers.application.WORKPAPER_REVIEW_STATUS_CHANGED_ACTION
 import com.fasterxml.jackson.databind.JsonNode
@@ -22,6 +24,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
+import org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrint
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.core.env.Environment
 import org.springframework.http.HttpHeaders
@@ -47,11 +50,18 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor
     "ritomer.demo.seed.variant=043b-two-actor-pilot"
   ]
 )
-@AutoConfigureMockMvc
+@AutoConfigureMockMvc(
+  print = MockMvcPrint.NONE,
+  printOnlyOnFailure = false
+)
 @ActiveProfiles("dbtest")
-@ContextConfiguration(initializers = [DisposablePostgresTestDatabaseGuardInitializer::class])
+@ContextConfiguration(
+  initializers = [
+    DisposablePostgresTestDatabaseGuardInitializer::class
+  ]
+)
 @Tag("db-integration")
-@EnabledIfEnvironmentVariable(named = "RITOMER_DB_TESTS_ENABLED", matches = "true")
+@EnabledIfEnvironmentVariable(named = "RITOMER_DB_TESTS_ENABLED", matches = "(?i:true)")
 class DemoSeedLocalAuthMeDbIntegrationTest {
   @Autowired
   private lateinit var jdbcTemplate: JdbcTemplate
@@ -70,28 +80,10 @@ class DemoSeedLocalAuthMeDbIntegrationTest {
 
   @BeforeEach
   fun resetDatabaseState() {
-    runValidatedDestructiveSetup(jdbcTemplate) {
-      jdbcTemplate.execute(
-        """
-        truncate table
-          audit_event,
-          mapping_suggestion_decision_request,
-          export_pack,
-          document_verification,
-          document,
-          workpaper_evidence,
-          workpaper,
-          manual_mapping,
-          balance_import_line,
-          balance_import,
-          closing_folder,
-          tenant_membership,
-          app_user,
-          tenant
-        cascade
-        """.trimIndent()
-      )
-    }
+    DisposablePostgresTestDatabase.truncateAllCurrentTables(
+      jdbcTemplate.dataSource ?: error("DataSource is required for guarded database reset."),
+      environment
+    )
     demoSeedLocalService.seed()
     insertPersistentLureTenantDataset()
   }

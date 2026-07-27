@@ -5,7 +5,7 @@
 Active.
 
 - `043a`: `ACCEPTED_BY_DISTINCT_CPO_REVIEW`.
-- Current sub-deliverable: `043b` - `CORRECTED_PENDING_LOCAL_DEDICATED_DB_EVIDENCE`.
+- Current sub-deliverable: `043b` - `MINIMUM_VIABLE_SAFETY_IMPLEMENTED / PENDING_LOCAL_EVIDENCE / NOT_MERGE_READY`.
 - `043c`: `NOT_STARTED / NOT_AUTHORIZED`.
 - No transition between `043a`, `043b` and `043c` is automatic.
 
@@ -17,7 +17,7 @@ Active.
 | Primary workstream | Produit fiduciaire |
 | Supporting workstream | Trust & operations |
 | Outcome | Prove that the synthetic closing workflow can be rehearsed internally in a reproducible, controlled and evidence-bearing way. |
-| Exit evidence | Frozen synthetic fixtures, deterministic validation, controlled two-actor local harness, two internal rehearsal executions and an explicit CPO readiness decision. |
+| Exit evidence | Frozen synthetic fixtures, deterministic validation, controlled single-operator two-role local simulation, two internal rehearsal executions and an explicit CPO readiness decision. |
 | Gate targeted | CPO decision on whether external-gate review may begin; never an external invitation by itself. |
 
 The canonical outcome roadmap is `docs/product/product-roadmap.md`. This spec remains the detailed source of truth for `043`.
@@ -34,17 +34,17 @@ The first external invitation requires a new CPO decision and prior satisfaction
 
 No following spec is created automatically.
 
-Each of `043a`, `043b` and `043c` requires a distinct CPO review. The distinct review of `043a` and the prior CTO Gate for `043b` are complete. The CTO Gate approved the local architecture with mandatory conditions `C1` to `C9`; the bounded `043b` implementation applies those conditions. `043c` may start only after post-code validation of `043b`, the required human technical and Security/Privacy reviews and a new CPO decision.
+Each of `043a`, `043b` and `043c` requires a distinct CPO review. The distinct review of `043a` and the prior CTO Gate for `043b` are complete. The CTO Gate approved the local architecture with conditions for local synthetic use only. `043c` may start only after future local evidence, final post-code AI reviews and a new CPO decision. Human technical and Security reviews are deferred to the external gate and become mandatory again on any external-use trigger defined below.
 
 ## Surface and risk
 
 | Sub-deliverable | Surface | Risk |
 | --- | --- | --- |
 | `043a` | `DOCS_GIT / FIXTURES_SYNTHETIQUES / GOVERNANCE_CHECKS` | B |
-| `043b` | `BACKEND_DEVTOOLS_LOCAL / FRONTEND_CONTEXT / AUTH_LOCAL / TENANT` | C |
+| `043b` | `BACKEND_LOCAL_AUTH / BACKEND_TEST_SAFETY / FRONTEND_LOCAL_HARNESS / CI_GIT / DOCS_GIT / SECURITY_DEBT_GOVERNANCE` | C for destructive PostgreSQL safety; B otherwise |
 | `043c` | `QA_MANUAL / LOCAL_RUNTIME / DOCS_GIT` | C |
 
-The current mission authorizes only the bounded `043b` surface and its exact 17-file corrected implementation set. It does not authorize `043c`, an external participant, production authentication, a provider, an MCP, real data or a following spec.
+The current mission authorizes only the bounded `043b` hotfix surface and its exact 26-path implementation set. It does not authorize `043c`, an external participant, production authentication, a provider, an MCP, real data or a following spec.
 
 ## Sources reviewed
 
@@ -154,7 +154,7 @@ No numerical performance threshold and no historical time baseline are introduce
 .\evals\mapping\validate-042a2-blind-review-pack.ps1
 node --check evals/mapping/validate-042a2-human-review-governance-kit.mjs
 node evals/mapping/validate-042a2-human-review-governance-kit.mjs
-node evals/mapping/validate-042a2-human-review-governance-kit.mjs --base 14b7ef952f8d9594a53e63542ee2d6d80bbcaa2f --head fd8b63d2193c4adebb5a847405d1d30c1cae9214
+node evals/mapping/validate-042a2-human-review-governance-kit.mjs --base 14b7ef952f8d9594a53e63542ee2d6d80bbcaa2f --head 84e9854364d5803418de658b57ba73c0586641b2
 git diff --name-status
 git diff --stat
 git diff --check
@@ -172,15 +172,107 @@ git status --short --branch --untracked-files=all
 - No runtime, provider, secret, personal data or real data is introduced.
 - The distinct CPO review is still required; successful checks do not authorize `043b`.
 
-## 043b - Local two-actor pilot harness
+## 043b - Local single-operator two-role simulation
 
-Status: `CORRECTED_PENDING_LOCAL_DEDICATED_DB_EVIDENCE`.
+Status: `MINIMUM_VIABLE_SAFETY_IMPLEMENTED / PENDING_LOCAL_EVIDENCE / NOT_MERGE_READY`.
+
+Before this hotfix, the merged implementation was classified `MERGED_WITH_KNOWN_HIGH_FINDINGS` and local use was `LOCAL_USE_PAUSED`.
+
+043b is a local single-operator two-role simulation.
+It validates backend RBAC behavior under two synthetic identities.
+It does not establish independent human sessions or segregation of duties.
+
+043b est une simulation locale mono-opérateur de deux rôles.
+Elle valide le comportement RBAC du backend sous deux identités synthétiques.
+Elle n'établit ni deux sessions humaines indépendantes ni une séparation des fonctions.
+
+Canonical classifications:
+
+- `LOCAL_TWO_ROLE_SIMULATION`;
+- `SINGLE_OPERATOR_CAPABLE`;
+- `SYNTHETIC_ONLY`;
+- `LOOPBACK_ONLY`;
+- `AI_REVIEWED`;
+- `OWNER_RISK_ACCEPTED`;
+- `NOT_PRODUCTION_AUTH`;
+- `NOT_INDEPENDENT_ACTOR_BOUNDARY`;
+- `NOT_PROOF_OF_SEGREGATION_OF_DUTIES`;
+- `NOT_FOR_EXTERNAL_USE`;
+- `NOT_FOR_REAL_DATA`.
+
+Ports `5173` and `5174` remain separate visual contexts. They are not an identity boundary.
+
+### Minimum Viable Safety hotfix file set
+
+The hotfix is closed to exactly 26 paths: 24 modified and 2 added.
+
+1. `backend/.env.example`
+2. `backend/src/main/kotlin/ch/qamwaq/ritomer/shared/infrastructure/security/SecurityConfig.kt`
+3. `backend/src/main/resources/application-local.yml`
+4. `backend/src/test/kotlin/ch/qamwaq/ritomer/BalanceImportPersistenceIntegrationTest.kt`
+5. `backend/src/test/kotlin/ch/qamwaq/ritomer/ControlsDbIntegrationTest.kt`
+6. `backend/src/test/kotlin/ch/qamwaq/ritomer/DocumentsDbIntegrationTest.kt`
+7. `backend/src/test/kotlin/ch/qamwaq/ritomer/ExportsDbIntegrationTest.kt`
+8. `backend/src/test/kotlin/ch/qamwaq/ritomer/FinancialStatementsStructuredDbIntegrationTest.kt`
+9. `backend/src/test/kotlin/ch/qamwaq/ritomer/FinancialSummaryDbIntegrationTest.kt`
+10. `backend/src/test/kotlin/ch/qamwaq/ritomer/ManualMappingPersistenceIntegrationTest.kt`
+11. `backend/src/test/kotlin/ch/qamwaq/ritomer/MappingSuggestionDecisionDbIntegrationTest.kt`
+12. `backend/src/test/kotlin/ch/qamwaq/ritomer/PersistenceFoundationIntegrationTest.kt`
+13. `backend/src/test/kotlin/ch/qamwaq/ritomer/WorkpapersDbIntegrationTest.kt`
+14. `backend/src/test/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalAuthMeDbIntegrationTest.kt`
+15. `backend/src/test/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalDbIntegrationTest.kt`
+16. `backend/src/test/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalSourceGuardTest.kt`
+17. `backend/src/test/kotlin/ch/qamwaq/ritomer/shared/infrastructure/security/SecurityConfigJwtValidationTest.kt` - added.
+18. `backend/src/test/kotlin/ch/qamwaq/ritomer/testsupport/DisposablePostgresTestDatabaseSupport.kt` - added.
+19. `frontend/local-two-actor-harness.mjs`
+20. `frontend/local-two-actor-harness.test.ts`
+21. `README.md`
+22. `docs/product/v1-plan.md`
+23. `specs/active/043-controlled-fiduciary-pilot-readiness-v1.md`
+24. `runbooks/controlled-fiduciary-pilot-local-043.md`
+25. `runbooks/local-dev.md`
+26. `evals/mapping/validate-042a2-human-review-governance-kit.mjs`
+
+The local/test/dbtest decoder accepts only HS256, requires a non-placeholder HMAC value of at least 32 UTF-8 bytes and enforces `iat`, `exp`, `exp > iat`, TTL at most 3,600 seconds, `exp > now` and `iat <= now + 60 seconds`. The non-local decoder function body, filter chain and authentication converter remain unchanged.
+
+All 12 `db-integration` classes install `DisposablePostgresTestDatabaseGuardInitializer` before Flyway and use the same guarded primitive. The sole target is a direct local PostgreSQL connection at `jdbc:postgresql://127.0.0.1:5432/ritomer_043b_test`, role and owners `ritomer_043b_test_runner`, with exact activation and consent. Validation and fixed destruction share one connection and one transaction. No Cloud SQL Proxy, SSH tunnel, port forward, client/staging/production dump or real data is allowed. A sophisticated local tunnel that impersonates the exact endpoint remains an accepted residual operator risk for synthetic local use only.
+
+Review state:
+
+- `AI_TECHNICAL_REVIEW=COMPLETED_WITH_FINDINGS`;
+- `AI_SECURITY_PRIVACY_REVIEW=COMPLETED_WITH_FINDINGS`;
+- `AI_CTO_REVIEW=COMPLETED_WITH_CONDITIONS`;
+- `OWNER_RISK_ACCEPTANCE=ACCEPTED_FOR_LOCAL_SYNTHETIC_ONLY`;
+- `HUMAN_TECHNICAL_REVIEW=DEFERRED_TO_EXTERNAL_GATE`;
+- `HUMAN_SECURITY_REVIEW=DEFERRED_TO_EXTERNAL_GATE`;
+- `REVIEW_ARTIFACT_CLASSIFICATION=AI_GENERATED_REVIEW`;
+- `REVIEW_SIGNATURE_STATUS=NOT_HUMAN_SIGNED`.
+
+Final post-code AI reviews are still pending. Only after future local evidence and those reviews may the wording become `LOCAL_SYNTHETIC_SIMULATION_VALIDATED / AI_REVIEWED / OWNER_RISK_ACCEPTED / NOT_PRODUCTION_READY / NOT_EXTERNAL_READY / NOT_SEPARATION_OF_DUTIES_PROOF`.
+
+Deferred debt, not implemented by this hotfix: two-person authentication, OIDC/SSO, MFA, independent sessions, real segregation of duties, KMS/Secret Manager, automated rotation, `jti` anti-replay, revocation, PostgreSQL RLS, global redaction, DLP, Windows Job Objects, complete process-tree termination, integrated backend lifecycle, automatic DB/role cleanup, retention policy, detailed membership audit, human review and pentest. The triggers restoring the corresponding gates are real/client data, any external user or participant, an external pilot, shared deployment, non-loopback access, production authentication or secret, first commercial use, external AI provider, exposed MCP, a claim of real segregation of duties or any external use of `043c`.
+
+| Deferred debt | External trigger requiring it |
+| --- | --- |
+| Two-person authentication, OIDC/SSO, MFA, independent sessions, real segregation of duties | Any external user/participant or pilot, production authentication, or claim of real segregation of duties |
+| KMS/Secret Manager and automated rotation | Production secret, shared deployment, or first commercial use |
+| `jti` anti-replay and revocation | External user, production authentication, or first commercial use |
+| PostgreSQL RLS | Real/client data or shared deployment |
+| Global redaction and DLP | Real/client data, external AI provider, or exposed MCP |
+| Windows Job Objects, complete process-tree termination, integrated backend lifecycle | Shared deployment or external participant |
+| Automatic DB/role cleanup and retention policy | External pilot, real/client data, or shared deployment |
+| Detailed membership audit | External user or claim of real segregation of duties |
+| Human review and pentest | External gate, production, or first commercial use |
+
+### Historical pre-hotfix record
+
+The remainder of this 043b section preserves dated pre-hotfix evidence only. It is not the current safety posture or current file set.
 
 The state immediately before the technical pre-audit correction loop was:
 
 `IMPLEMENTED / NON_COMMITTED / BLOCKED_BY_TECHNICAL_PRE_AUDIT_CORRECTIONS / NOT_MERGE_READY`
 
-The corrected code and non-DB checks move the sub-deliverable only to `CORRECTED_PENDING_LOCAL_DEDICATED_DB_EVIDENCE`. The later state `CORRECTED_PENDING_POST_CODE_CPO_TECHNICAL_SECURITY_REVIEWS` is forbidden until both guarded PostgreSQL integration tests and a new real local smoke have succeeded with fresh evidence.
+At that historical stage, the corrected code and non-DB checks moved the sub-deliverable only to `CORRECTED_PENDING_LOCAL_DEDICATED_DB_EVIDENCE`.
 
 ### Mandatory entry gates
 
@@ -256,7 +348,7 @@ Fresh Codex evidence on `2026-07-13` records exactly that state: `dbIntegrationT
 
 At that date, the required current-worktree governance command was also red for an explicit scope reason: the unchanged 043a validator accepted only a clean tree or its exact 14-path documentation/fixture whitelist and rejected every backend/frontend/manifest change, while that mission authorized only the exact 15-path 043b runtime set. Updating the validator would then have required a forbidden sixteenth file. This was recorded as `CHECK_BLOCKED_APPROVED_FILE_SET`, never as PASS.
 
-Those `2026-07-13` results remain dated history, including `ENV_BLOCKED_DB_INTEGRATION`, `CHECK_BLOCKED_APPROVED_FILE_SET`, the earlier `smoke_local_real=NOT_RUN_USER_LOCAL_REQUIRED` and the earlier `PASS_COMBINED_EVIDENCE`. They are not overwritten by the correction loop. The current checker now accepts exactly the corrected 17-path worktree and separately validates a simulated base-to-commit range; no DB integration test, seed, backend startup, Vite runtime or browser smoke is executed in this correction loop. Current state remains `CORRECTED_PENDING_LOCAL_DEDICATED_DB_EVIDENCE` and `NOT_MERGE_READY`.
+Those `2026-07-13` results remain dated history, including `ENV_BLOCKED_DB_INTEGRATION`, `CHECK_BLOCKED_APPROVED_FILE_SET`, the earlier `smoke_local_real=NOT_RUN_USER_LOCAL_REQUIRED` and the earlier `PASS_COMBINED_EVIDENCE`. They are not overwritten by the hotfix. The historical checker accepted the former 17-path worktree and its simulated base-to-commit range. The current hotfix state is defined above.
 
 ### Stop conditions
 

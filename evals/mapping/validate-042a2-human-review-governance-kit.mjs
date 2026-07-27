@@ -40,8 +40,9 @@ const PR99_TECHNICAL_RATIFICATION =
 const PR99_SECURITY_RATIFICATION =
   "PR #99 Security/Privacy exact-diff ratification = RATIFIED_WITH_CONDITIONS_BEFORE_USE";
 const PR99_BASE = "14b7ef952f8d9594a53e63542ee2d6d80bbcaa2f";
-const PR99_HEAD = "fd8b63d2193c4adebb5a847405d1d30c1cae9214";
+const PR99_HEAD = "84e9854364d5803418de658b57ba73c0586641b2";
 const HISTORICAL_043B_BASE = "b208658fc37956e2e55fb89dfaaaccafea87277c";
+const HISTORICAL_043B_HOTFIX_BASE = "b46fb0d6dcfb2eca7d317ddfeaf34371686e7030";
 const HISTORICAL_SPEC_042_ACTIVE_PATH = "specs/active/042-controlled-ai-mapping-runtime-pilot-v1.md";
 const CURRENT_SPEC_042_BACKLOG_PATH = "specs/backlog/042-controlled-ai-mapping-runtime-pilot-v1.md";
 const CURRENT_SPEC_043_ACTIVE_PATH = "specs/active/043-controlled-fiduciary-pilot-readiness-v1.md";
@@ -105,6 +106,7 @@ const WORKTREE_PROFILES = Object.freeze({
   CLEAN: "CLEAN_CURRENT_STATE",
   PILOT_043A: "WORKTREE_043A_PILOT_READINESS_FOUNDATION",
   HARNESS_043B: "WORKTREE_043B_LOCAL_TWO_ACTOR_HARNESS",
+  HOTFIX_043B: "WORKTREE_043B_MINIMUM_VIABLE_SAFETY_HOTFIX",
   INVALID: "INVALID_WORKTREE",
 });
 
@@ -155,6 +157,71 @@ const EXPECTED_043B_HISTORICAL_STATUS_BY_PATH = new Map(
     CURRENT_043B_UNTRACKED_PATHS.has(path) ? "A" : "M",
   ]),
 );
+
+const HOTFIX_043B_ALLOWED_FILE_SET = [
+  "backend/.env.example",
+  "backend/src/main/kotlin/ch/qamwaq/ritomer/shared/infrastructure/security/SecurityConfig.kt",
+  "backend/src/main/resources/application-local.yml",
+  "backend/src/test/kotlin/ch/qamwaq/ritomer/BalanceImportPersistenceIntegrationTest.kt",
+  "backend/src/test/kotlin/ch/qamwaq/ritomer/ControlsDbIntegrationTest.kt",
+  "backend/src/test/kotlin/ch/qamwaq/ritomer/DocumentsDbIntegrationTest.kt",
+  "backend/src/test/kotlin/ch/qamwaq/ritomer/ExportsDbIntegrationTest.kt",
+  "backend/src/test/kotlin/ch/qamwaq/ritomer/FinancialStatementsStructuredDbIntegrationTest.kt",
+  "backend/src/test/kotlin/ch/qamwaq/ritomer/FinancialSummaryDbIntegrationTest.kt",
+  "backend/src/test/kotlin/ch/qamwaq/ritomer/ManualMappingPersistenceIntegrationTest.kt",
+  "backend/src/test/kotlin/ch/qamwaq/ritomer/MappingSuggestionDecisionDbIntegrationTest.kt",
+  "backend/src/test/kotlin/ch/qamwaq/ritomer/PersistenceFoundationIntegrationTest.kt",
+  "backend/src/test/kotlin/ch/qamwaq/ritomer/WorkpapersDbIntegrationTest.kt",
+  "backend/src/test/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalAuthMeDbIntegrationTest.kt",
+  "backend/src/test/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalDbIntegrationTest.kt",
+  "backend/src/test/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalSourceGuardTest.kt",
+  "backend/src/test/kotlin/ch/qamwaq/ritomer/shared/infrastructure/security/SecurityConfigJwtValidationTest.kt",
+  "backend/src/test/kotlin/ch/qamwaq/ritomer/testsupport/DisposablePostgresTestDatabaseSupport.kt",
+  "docs/product/v1-plan.md",
+  "evals/mapping/validate-042a2-human-review-governance-kit.mjs",
+  "frontend/local-two-actor-harness.mjs",
+  "frontend/local-two-actor-harness.test.ts",
+  "README.md",
+  "runbooks/controlled-fiduciary-pilot-local-043.md",
+  "runbooks/local-dev.md",
+  "specs/active/043-controlled-fiduciary-pilot-readiness-v1.md",
+].sort();
+
+const HOTFIX_043B_ADDED_PATHS = new Set([
+  "backend/src/test/kotlin/ch/qamwaq/ritomer/shared/infrastructure/security/SecurityConfigJwtValidationTest.kt",
+  "backend/src/test/kotlin/ch/qamwaq/ritomer/testsupport/DisposablePostgresTestDatabaseSupport.kt",
+]);
+
+const EXPECTED_043B_HOTFIX_STATUS_BY_PATH = new Map(
+  HOTFIX_043B_ALLOWED_FILE_SET.map((path) => [
+    path,
+    HOTFIX_043B_ADDED_PATHS.has(path) ? "A" : "M",
+  ]),
+);
+
+const FROZEN_043B_DB_SAFETY_HASHES = new Map([
+  ["backend/build.gradle.kts", "e43b54655a9bb71d29338ce0bd98a805d99f6d5c0a83fb5a4cc96624c2317397"],
+  ["backend/src/test/kotlin/ch/qamwaq/ritomer/testsupport/DisposablePostgresTestDatabaseSupport.kt", "910d803c17e1ad05c3e2631426e6423ccfe7137f18b23bfe4fb35802c85426ef"],
+  ["backend/src/test/kotlin/ch/qamwaq/ritomer/BalanceImportPersistenceIntegrationTest.kt", "36aebaa1b2e987f2dbdb7dc94a90d3fc44cac1323217f3baca23cf6120b8a732"],
+  ["backend/src/test/kotlin/ch/qamwaq/ritomer/ControlsDbIntegrationTest.kt", "26ebb8b6cebbdf4a1fc91f22b9ddbe0ad91d1864e33273a7cd5cabbba14d5873"],
+  ["backend/src/test/kotlin/ch/qamwaq/ritomer/DocumentsDbIntegrationTest.kt", "d796988254a22b235d0806915508f18efa344c214cb5e96820e1975dbfb776ee"],
+  ["backend/src/test/kotlin/ch/qamwaq/ritomer/ExportsDbIntegrationTest.kt", "5fbd060716bf2e1a72cd6eaa6b275b44483cc6e63c3cdb9c9ca750fe23a6dce2"],
+  ["backend/src/test/kotlin/ch/qamwaq/ritomer/FinancialStatementsStructuredDbIntegrationTest.kt", "67dc6f82d09ac9990c478cb0f3e54fdbbce8a1f4805946d9617fb6c2cb61a845"],
+  ["backend/src/test/kotlin/ch/qamwaq/ritomer/FinancialSummaryDbIntegrationTest.kt", "8006e91f69adc5a62d584dfe6a210681870b7afd791189259add2d663d7ac995"],
+  ["backend/src/test/kotlin/ch/qamwaq/ritomer/ManualMappingPersistenceIntegrationTest.kt", "5fc93975d2195057e405d9a416202625f13ad44a0e5ab9f89f4ebde968935230"],
+  ["backend/src/test/kotlin/ch/qamwaq/ritomer/MappingSuggestionDecisionDbIntegrationTest.kt", "e2dee91df789fce56bb7d1911e17840fecdfc82d3d237b52143e04af68c1524a"],
+  ["backend/src/test/kotlin/ch/qamwaq/ritomer/PersistenceFoundationIntegrationTest.kt", "d628a826918e590ce3f433c8df1a1e318789b624c4a06c2727ab8b81762d6bbe"],
+  ["backend/src/test/kotlin/ch/qamwaq/ritomer/WorkpapersDbIntegrationTest.kt", "0a9a52de3a0629aab3d53f9c56ce132b5ca1307f7407f5ad8e8cb512a2914434"],
+  ["backend/src/test/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalAuthMeDbIntegrationTest.kt", "0e418684eb497564f012175801708c8dea57aecc69ce3454549d0bcab09714a2"],
+  ["backend/src/test/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalDbIntegrationTest.kt", "3f1a022391b594e56d501140f7267d7ac93ca07539d7af83f3ceb8a499ad9496"],
+  ["backend/src/test/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalSourceGuardTest.kt", "9ec2671c88782a1e40c7473132636d217195f46ae1b34c280c494f2f283ee879"],
+]);
+
+const HOTFIX_043B_RUNTIME_IMPLEMENTATION_PATHS = new Set([
+  "backend/src/main/kotlin/ch/qamwaq/ritomer/shared/infrastructure/security/SecurityConfig.kt",
+  "backend/src/test/kotlin/ch/qamwaq/ritomer/testsupport/DisposablePostgresTestDatabaseSupport.kt",
+  "frontend/local-two-actor-harness.mjs",
+]);
 
 const CURRENT_GOVERNANCE_FILE_SET = [...new Set(EXACT_ALLOWED_FILE_SET.map((path) =>
   path === HISTORICAL_SPEC_042_ACTIVE_PATH ? CURRENT_SPEC_042_BACKLOG_PATH : path,
@@ -338,6 +405,37 @@ function sha256Bytes(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
+function validateFrozen043bDbSafetyContent() {
+  const expectedPaths = [
+    "backend/build.gradle.kts",
+    "backend/src/test/kotlin/ch/qamwaq/ritomer/testsupport/DisposablePostgresTestDatabaseSupport.kt",
+    ...HOTFIX_043B_ALLOWED_FILE_SET.filter((path) => path.endsWith("IntegrationTest.kt")),
+    "backend/src/test/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalSourceGuardTest.kt",
+  ].sort();
+  const frozenPaths = [...FROZEN_043B_DB_SAFETY_HASHES.keys()].sort();
+  const definitionExact = FROZEN_043B_DB_SAFETY_HASHES.size === 15
+    && sameArray(frozenPaths, expectedPaths)
+    && !FROZEN_043B_DB_SAFETY_HASHES.has(
+      "evals/mapping/validate-042a2-human-review-governance-kit.mjs",
+    );
+  assert(definitionExact, `043b frozen DB safety snapshot must define exactly the 15 reviewed files`);
+
+  let verified = definitionExact;
+  for (const [path, expectedHash] of FROZEN_043B_DB_SAFETY_HASHES) {
+    if (!pathExists(path)) {
+      addError(`${path}:frozen_db_safety_file_missing`);
+      verified = false;
+      continue;
+    }
+    const actualHash = sha256Bytes(readBytes(path));
+    if (actualHash !== expectedHash) {
+      addError(`${path}:frozen_db_safety_hash_mismatch`);
+      verified = false;
+    }
+  }
+  return verified;
+}
+
 function sameArray(actual, expected) {
   return actual.length === expected.length && actual.every((value, index) => value === expected[index]);
 }
@@ -356,6 +454,7 @@ export function classifyCurrentWorktreeProfile(paths) {
   if (normalized.length === 0) return WORKTREE_PROFILES.CLEAN;
   if (sameArray(normalized, CURRENT_043A_ALLOWED_FILE_SET)) return WORKTREE_PROFILES.PILOT_043A;
   if (sameArray(normalized, CURRENT_043B_ALLOWED_FILE_SET)) return WORKTREE_PROFILES.HARNESS_043B;
+  if (sameArray(normalized, HOTFIX_043B_ALLOWED_FILE_SET)) return WORKTREE_PROFILES.HOTFIX_043B;
   return WORKTREE_PROFILES.INVALID;
 }
 
@@ -430,7 +529,7 @@ function parseCliArgs(args) {
     }
   }
 
-  if (profile !== undefined && profile !== "043b") {
+  if (profile !== undefined && profile !== "043b" && profile !== "043b-hotfix") {
     addError("--profile:unsupported_profile");
     invalid = true;
   }
@@ -459,6 +558,11 @@ function parseCliArgs(args) {
   if (profile === "043b") {
     if (base !== HISTORICAL_043B_BASE) {
       addError("--base:043b_exact_base_required");
+      invalid = true;
+    }
+  } else if (profile === "043b-hotfix") {
+    if (base !== HISTORICAL_043B_HOTFIX_BASE) {
+      addError("--base:043b_hotfix_exact_base_required");
       invalid = true;
     }
   } else {
@@ -499,6 +603,10 @@ function parseCliArgs(args) {
   if (profile === "043b") {
     console.log("historical_043b_base_pinned=YES");
     return { mode: "HISTORICAL_043B", profile, base, head };
+  }
+  if (profile === "043b-hotfix") {
+    console.log("historical_043b_hotfix_base_pinned=YES");
+    return { mode: "HISTORICAL_043B_HOTFIX", profile, base, head };
   }
   console.log("historical_pr99_range_pinned=YES");
   return { mode: "HISTORICAL", base, head };
@@ -680,6 +788,7 @@ function historicalChanges(base, head) {
     "-z",
     "--find-renames",
     "--find-copies",
+    "--find-copies-harder",
     "--diff-filter=ACDMR",
     `${base}..${head}`,
   ]);
@@ -875,16 +984,234 @@ function validate043bHistoricalRange(actual, changes, range) {
   };
 }
 
+function extractKotlinFunction(source, signature) {
+  const start = source.indexOf(signature);
+  if (start < 0) return undefined;
+  const openBrace = source.indexOf("{", start);
+  if (openBrace < 0) return undefined;
+  let depth = 0;
+  for (let index = openBrace; index < source.length; index += 1) {
+    if (source[index] === "{") depth += 1;
+    if (source[index] === "}") {
+      depth -= 1;
+      if (depth === 0) return source.slice(start, index + 1).replaceAll("\r\n", "\n");
+    }
+  }
+  return undefined;
+}
+
+function validate043bHotfixContents(range = undefined) {
+  const securityPath = "backend/src/main/kotlin/ch/qamwaq/ritomer/shared/infrastructure/security/SecurityConfig.kt";
+  const securitySource = readText(securityPath);
+  const baseSecuritySource = gitOutput([
+    "show",
+    `${range?.base ?? "HEAD"}:${securityPath}`,
+  ]);
+  const unchangedSecurityFunctions = [
+    "fun securityFilterChain(",
+    "fun jwtAuthenticationConverter(",
+    "fun jwtDecoder(",
+  ].every((signature) =>
+    extractKotlinFunction(securitySource, signature)
+      === extractKotlinFunction(baseSecuritySource, signature));
+  assert(unchangedSecurityFunctions, `043b hotfix must preserve the filter chain, converter and non-local decoder function bodies`);
+
+  const strictJwtMarkers = [
+    `@Profile("local | test | dbtest")`,
+    "fun localTestDbtestJwtDecoder(): JwtDecoder",
+    `@Profile("!local & !test & !dbtest")`,
+    ".macAlgorithm(MacAlgorithm.HS256)",
+    "Clock.systemUTC()",
+    "LOCAL_JWT_MAXIMUM_TTL_SECONDS = 3_600L",
+    "LOCAL_JWT_MAXIMUM_FUTURE_IAT_SECONDS = 60L",
+    "local-dev-only-jwt-hmac-secret-change-me",
+    "__INVALID_RUNTIME_SECRET_REQUIRED__",
+  ];
+  const strictJwtContent = strictJwtMarkers.every((marker) => securitySource.includes(marker))
+    && !/(issuer|audience|oidc|jwks)/i.test(securitySource);
+  assert(strictJwtContent, `043b hotfix strict local JWT decoder markers are incomplete or broaden production auth`);
+
+  const localYaml = readText("backend/src/main/resources/application-local.yml");
+  const environmentExample = readText("backend/.env.example");
+  const localConfigurationExact = /server:\s*\r?\n\s+address:\s*127\.0\.0\.1/.test(localYaml)
+    && localYaml.includes("hmac-secret: ${RITOMER_SECURITY_JWT_HMAC_SECRET}")
+    && !localYaml.includes("hmac-secret: ${RITOMER_SECURITY_JWT_HMAC_SECRET:")
+    && environmentExample.includes("RITOMER_SECURITY_JWT_HMAC_SECRET=__INVALID_RUNTIME_SECRET_REQUIRED__")
+    && !environmentExample.includes("RITOMER_SECURITY_JWT_HMAC_SECRET=local-dev-only-jwt-hmac-secret-change-me");
+  assert(localConfigurationExact, `043b hotfix local server binding or non-functional secret model differs`);
+
+  const harness = readText("frontend/local-two-actor-harness.mjs");
+  const harnessTests = readText("frontend/local-two-actor-harness.test.ts");
+  const harnessHardened = [
+    "local-dev-only-jwt-hmac-secret-change-me",
+    "__INVALID_RUNTIME_SECRET_REQUIRED__",
+    "Buffer.byteLength(secret, \"utf8\") < 32",
+  ].every((marker) => harness.includes(marker))
+    && harnessTests.includes("JWT_HMAC_SECRET_PLACEHOLDER_FORBIDDEN") === false
+    && harnessTests.includes("__INVALID_RUNTIME_SECRET_REQUIRED__")
+    && harnessTests.includes("local-dev-only-jwt-hmac-secret-change-me");
+  assert(harnessHardened, `043b hotfix harness secret policy is incomplete`);
+
+  const frozenDbSafetyContent = validateFrozen043bDbSafetyContent();
+  const sourceGuard = readText(
+    "backend/src/test/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalSourceGuardTest.kt",
+  );
+  const authoritativeDeleteMarkers = [
+    "targeted_append_only_delete_probes=",
+    "delete_probe_export_pack=",
+    "delete_probe_audit_event=",
+    "unexpected_delete_outside_support=",
+    "delete_sql_inside_support=",
+  ];
+  const compiledDeletePolicyExact = authoritativeDeleteMarkers.every((marker) =>
+    sourceGuard.includes(marker))
+    && !sourceGuard.includes(["raw", "delete", "outside", "support="].join("_"));
+  assert(compiledDeletePolicyExact, `043b compiled scanner DELETE policy markers are incomplete or obsolete`);
+
+  const canonicalEnglish = "043b is a local single-operator two-role simulation.";
+  const canonicalFrench = "043b est une simulation locale mono-opérateur de deux rôles.";
+  const documents = [
+    "README.md",
+    "docs/product/v1-plan.md",
+    CURRENT_SPEC_043_ACTIVE_PATH,
+    "runbooks/controlled-fiduciary-pilot-local-043.md",
+    "runbooks/local-dev.md",
+  ].map(readText);
+  const forbiddenReviewClaims = [
+    ["TWO", "INDEPENDENT", "ACTORS", "PROVED"].join("_"),
+    ["SEGREGATION", "OF", "DUTIES", "PROVED"].join("_"),
+    ["HUMAN", "REVIEWED"].join("_"),
+    ["HUMAN", "APPROVED"].join("_"),
+  ];
+  const unsignedHumanSignaturePattern = new RegExp(
+    `(?<!NOT_)${["HUMAN", "SIGNED"].join("_")}`,
+  );
+  const postureDocumented = documents.some((text) => text.includes(canonicalEnglish))
+    && documents.some((text) => text.includes(canonicalFrench))
+    && documents.every((text) =>
+      !forbiddenReviewClaims.some((claim) => text.includes(claim))
+      && !unsignedHumanSignaturePattern.test(text));
+  assert(postureDocumented, `043b hotfix single-operator posture or review classification is incomplete`);
+
+  return {
+    unchangedSecurityFunctions,
+    strictJwtContent,
+    localConfigurationExact,
+    harnessHardened,
+    frozenDbSafetyContent,
+    compiledDeletePolicyExact,
+    postureDocumented,
+  };
+}
+
+function validate043bHotfixHistoricalRange(actual, changes, range) {
+  const exactFileSet = sameArray(actual, HOTFIX_043B_ALLOWED_FILE_SET);
+  assert(exactFileSet, `base-to-head file set differs from the exact 26-path 043b-hotfix whitelist`);
+  const whitelistViolations = historicalChangeWhitelistViolations(
+    changes,
+    EXPECTED_043B_HOTFIX_STATUS_BY_PATH,
+  );
+  whitelistViolations.forEach(addError);
+  const statusCounts = { A: 0, M: 0, D: 0, R: 0, C: 0 };
+  for (const change of changes) statusCounts[change.kind] += 1;
+  const expectedStatusMapVerified = exactFileSet
+    && whitelistViolations.length === 0
+    && statusCounts.M === 24
+    && statusCounts.A === 2
+    && statusCounts.D === 0
+    && statusCounts.R === 0
+    && statusCounts.C === 0;
+  assert(expectedStatusMapVerified, `base-to-head statuses differ from the exact 24M/2A 043b-hotfix matrix`);
+
+  const visibilityEvidence = historicalChangeTypeVisibilityEvidence();
+  assert(visibilityEvidence.changeTypesVerified, `historical 043b-hotfix change-type probes failed`);
+  const allowedPathsPresent = HOTFIX_043B_ALLOWED_FILE_SET.every((path) => pathExists(path, range.head));
+  assert(allowedPathsPresent, `every path in the closed 26-path 043b-hotfix whitelist must exist in the head commit`);
+  const environmentFilesAbsent = commitTreePaths(range.head)
+    .filter((path) => /(^|\/)\.env(?:\.|$)/i.test(path))
+    .filter((path) => path !== "backend/.env.example")
+    .length === 0;
+  assert(environmentFilesAbsent, `043b-hotfix head commit contains a tracked .env file outside the example`);
+
+  const content = validate043bHotfixContents(range);
+  const lifecycle = validate043bLifecycle();
+  const sensitiveRuntime = validate043bSensitiveAndRuntimeAdditions(
+    range,
+    HOTFIX_043B_ALLOWED_FILE_SET,
+    HOTFIX_043B_RUNTIME_IMPLEMENTATION_PATHS,
+  );
+  return {
+    historicalProfile: "043b-hotfix",
+    exactFileSet,
+    expectedStatusMapVerified,
+    changeTypesVerified: visibilityEvidence.changeTypesVerified,
+    deletionsVisible: visibilityEvidence.deletionsVisible,
+    renameEndpointsVisible: visibilityEvidence.renameEndpointsVisible,
+    copyEndpointsVisible: visibilityEvidence.copyEndpointsVisible,
+    allowedPathsPresent,
+    environmentFilesAbsent,
+    ...content,
+    ...lifecycle,
+    ...sensitiveRuntime,
+  };
+}
+
+function validate043bHotfixWorktree(actual) {
+  const exactFileSet = sameArray(actual, HOTFIX_043B_ALLOWED_FILE_SET);
+  assert(exactFileSet, `worktree file set must be exactly the closed 26-path 043b-hotfix whitelist`);
+  const allowedPathsPresent = HOTFIX_043B_ALLOWED_FILE_SET.every((path) => existsSync(absolutePath(path)));
+  assert(allowedPathsPresent, `every path in the closed 26-path 043b-hotfix whitelist must exist in the worktree`);
+  const stagedEmpty = stagedPaths().length === 0;
+  assert(stagedEmpty, `043b-hotfix worktree validation requires an empty staged index`);
+
+  const records = currentWorktreeStatusRecords();
+  const statusPaths = [...new Set(records.flatMap((record) => record.paths))].sort();
+  const modifiedCount = records.filter((record) => record.status === " M").length;
+  const untrackedCount = records.filter((record) => record.status === "??").length;
+  const statusMatrixExact = records.length === 26
+    && sameArray(statusPaths, HOTFIX_043B_ALLOWED_FILE_SET)
+    && modifiedCount === 24
+    && untrackedCount === 2
+    && records.every((record) => record.paths.length === 1
+      && record.status === (HOTFIX_043B_ADDED_PATHS.has(record.paths[0]) ? "??" : " M"));
+  assert(statusMatrixExact, `043b-hotfix worktree status matrix must be exactly 24 unstaged modifications and 2 untracked additions`);
+
+  const environmentFilesAbsent = environmentFilePaths().length === 0;
+  assert(environmentFilesAbsent, `043b-hotfix worktree contains a tracked or ignored .env file outside the example`);
+  const content = validate043bHotfixContents();
+  const lifecycle = validate043bLifecycle();
+  const sensitiveRuntime = validate043bSensitiveAndRuntimeAdditions(
+    undefined,
+    HOTFIX_043B_ALLOWED_FILE_SET,
+    HOTFIX_043B_RUNTIME_IMPLEMENTATION_PATHS,
+  );
+  return {
+    worktreeProfile: WORKTREE_PROFILES.HOTFIX_043B,
+    exactFileSet,
+    allowedPathsPresent,
+    stagedEmpty,
+    statusMatrixExact,
+    environmentFilesAbsent,
+    ...content,
+    ...lifecycle,
+    ...sensitiveRuntime,
+  };
+}
+
 function validateExactFileSet(range) {
   let historicalVerification;
   let worktreeVerification;
   let worktreeProfile;
-  const changes = range.mode === "HISTORICAL" || range.mode === "HISTORICAL_043B"
+  const changes = range.mode === "HISTORICAL"
+    || range.mode === "HISTORICAL_043B"
+    || range.mode === "HISTORICAL_043B_HOTFIX"
     ? historicalChanges(range.base, range.head)
     : undefined;
   const actual = changes ? historicalChangedPaths(changes) : changedPaths();
 
-  if (range.mode === "HISTORICAL_043B") {
+  if (range.mode === "HISTORICAL_043B_HOTFIX") {
+    historicalVerification = validate043bHotfixHistoricalRange(actual, changes, range);
+  } else if (range.mode === "HISTORICAL_043B") {
     historicalVerification = validate043bHistoricalRange(actual, changes, range);
   } else if (range.mode === "HISTORICAL") {
     const exact = sameArray(actual, EXACT_ALLOWED_FILE_SET);
@@ -920,10 +1247,12 @@ function validateExactFileSet(range) {
     worktreeProfile = classifyCurrentWorktreeProfile(actual);
     if (worktreeProfile === WORKTREE_PROFILES.HARNESS_043B) {
       worktreeVerification = validate043bWorktree(actual);
+    } else if (worktreeProfile === WORKTREE_PROFILES.HOTFIX_043B) {
+      worktreeVerification = validate043bHotfixWorktree(actual);
     } else {
       const exactCurrentFileSet = worktreeProfile === WORKTREE_PROFILES.CLEAN
         || worktreeProfile === WORKTREE_PROFILES.PILOT_043A;
-      assert(exactCurrentFileSet, `worktree file set must be clean, exactly the 14-path 043a whitelist, or exactly the 17-path 043b whitelist`);
+      assert(exactCurrentFileSet, `worktree file set must be clean, exactly 043a, exactly 043b, or exactly the 26-path 043b-hotfix whitelist`);
       console.log(`diff_file_set_verified=${actual.length === 0 ? "CLEAN_COMMITTED_STATE" : exactCurrentFileSet ? "YES_14_OF_14" : `NO_${actual.length}_OF_14`}`);
       console.log(`current_043a_exact_file_set=${exactCurrentFileSet ? "YES" : "NO"}`);
       worktreeVerification = { worktreeProfile };
@@ -933,7 +1262,9 @@ function validateExactFileSet(range) {
   for (const path of NEW_ALLOWED) {
     assert(pathExists(path), `${path}: required new artifact missing`);
   }
-  if (range.mode === "HISTORICAL" || (range.mode === "WORKTREE" && worktreeProfile !== WORKTREE_PROFILES.HARNESS_043B)) {
+  if (range.mode === "HISTORICAL" || (range.mode === "WORKTREE"
+    && worktreeProfile !== WORKTREE_PROFILES.HARNESS_043B
+    && worktreeProfile !== WORKTREE_PROFILES.HOTFIX_043B)) {
     const forbiddenSurface = actual.filter((path) =>
       /(^|\/)(backend|frontend)(\/|$)|(^|\/)contracts\/|(^|\/)(package\.json|pnpm-lock\.yaml|package-lock\.json|yarn\.lock|build\.gradle(?:\.kts)?|settings\.gradle(?:\.kts)?)$/i.test(path),
     );
@@ -1099,8 +1430,13 @@ function validate043bLifecycle() {
   return { notAuthorized, futureSpecsAbsent: futureSpecs.length === 0 };
 }
 
-function validate043bSensitiveAndRuntimeAdditions(range = undefined) {
+function validate043bSensitiveAndRuntimeAdditions(
+  range = undefined,
+  fileSet = CURRENT_043B_ALLOWED_FILE_SET,
+  runtimePaths = CURRENT_043B_RUNTIME_IMPLEMENTATION_PATHS,
+) {
   const addedLines = range?.mode === "HISTORICAL_043B"
+    || range?.mode === "HISTORICAL_043B_HOTFIX"
     ? parseAddedLinesFromUnifiedDiff(gitOutput([
       "diff",
       "--no-ext-diff",
@@ -1110,9 +1446,9 @@ function validate043bSensitiveAndRuntimeAdditions(range = undefined) {
       "--find-copies",
       `${range.base}..${range.head}`,
       "--",
-      ...CURRENT_043B_ALLOWED_FILE_SET,
+      ...fileSet,
     ]))
-    : addedLinesForCurrentPaths(CURRENT_043B_ALLOWED_FILE_SET);
+    : addedLinesForCurrentPaths(fileSet);
   const highConfidenceSecretPatterns = [
     { category: "provider_key_value", regex: new RegExp("sk" + "-(?:proj|svcacct)-[A-Za-z0-9_-]{12,}", "i") },
     { category: "slack_token_value", regex: new RegExp("xox" + "[aboprs]-[A-Za-z0-9-]{12,}", "i") },
@@ -1172,7 +1508,7 @@ function validate043bSensitiveAndRuntimeAdditions(range = undefined) {
       addError(`${added.path}:${added.line}:043b_private_path_value`);
     }
 
-    if (CURRENT_043B_RUNTIME_IMPLEMENTATION_PATHS.has(added.path)) {
+    if (runtimePaths.has(added.path)) {
       for (const pattern of providerOrMcpActivationPatterns) {
         if (pattern.test(added.text)) {
           providerOrMcpFindings += 1;
@@ -2337,7 +2673,10 @@ function validateAddedLineHygiene(range) {
 function main() {
   const range = parseCliArgs(process.argv.slice(2));
   if (range.mode === "INVALID") return;
-  contentCommit = range.mode === "HISTORICAL_043B" ? range.head : undefined;
+  contentCommit = range.mode === "HISTORICAL_043B"
+    || range.mode === "HISTORICAL_043B_HOTFIX"
+    ? range.head
+    : undefined;
   const historicalVerification = validateExactFileSet(range);
   validateProtectedHashesAndCases();
   validateSchemas();
@@ -2345,13 +2684,17 @@ function main() {
   validateDocumentCoherence();
   validateRoadmap();
   validateNoRealInstances();
-  if (range.mode !== "HISTORICAL_043B") validateAddedLineHygiene(range);
+  if (range.mode !== "HISTORICAL_043B"
+    && range.mode !== "HISTORICAL_043B_HOTFIX"
+    && historicalVerification?.worktreeProfile !== WORKTREE_PROFILES.HOTFIX_043B) {
+    validateAddedLineHygiene(range);
+  }
   return historicalVerification;
 }
 
 function runCli() {
   const buffer043bHistoricalOutput = process.argv.slice(2).some((value, index, args) =>
-    value === "--profile" && args[index + 1] === "043b");
+    value === "--profile" && ["043b", "043b-hotfix"].includes(args[index + 1]));
   const bufferedOutput = [];
   const originalConsoleLog = console.log;
   if (buffer043bHistoricalOutput) {
@@ -2368,7 +2711,9 @@ function runCli() {
   }
 
   const is043bWorktree = verification?.worktreeProfile === WORKTREE_PROFILES.HARNESS_043B;
+  const is043bHotfixWorktree = verification?.worktreeProfile === WORKTREE_PROFILES.HOTFIX_043B;
   const is043bHistorical = verification?.historicalProfile === "043b";
+  const is043bHotfixHistorical = verification?.historicalProfile === "043b-hotfix";
   if (is043bWorktree) {
     const evidenceValues = Object.entries(verification)
       .filter(([key]) => key !== "worktreeProfile")
@@ -2381,6 +2726,18 @@ function runCli() {
       .map(([, value]) => value);
     assert(evidenceValues.length > 0 && evidenceValues.every((value) => value === true), `043b historical evidence is incomplete`);
   }
+  if (is043bHotfixWorktree) {
+    const evidenceValues = Object.entries(verification)
+      .filter(([key]) => key !== "worktreeProfile")
+      .map(([, value]) => value);
+    assert(evidenceValues.length > 0 && evidenceValues.every((value) => value === true), `043b-hotfix worktree evidence is incomplete`);
+  }
+  if (is043bHotfixHistorical) {
+    const evidenceValues = Object.entries(verification)
+      .filter(([key]) => key !== "historicalProfile")
+      .map(([, value]) => value);
+    assert(evidenceValues.length > 0 && evidenceValues.every((value) => value === true), `043b-hotfix historical evidence is incomplete`);
+  }
 
   if (errors.length > 0) {
     console.error(`governance_kit_errors=${errors.length}`);
@@ -2388,7 +2745,22 @@ function runCli() {
     process.exitCode = 1;
   } else {
     if (buffer043bHistoricalOutput) bufferedOutput.forEach((line) => console.log(line));
-    if (is043bWorktree) {
+    if (is043bHotfixWorktree) {
+      console.log("validation_mode=WORKTREE");
+      console.log("worktree_profile=043B_MINIMUM_VIABLE_SAFETY_HOTFIX");
+      console.log("diff_file_set_verified=YES_26_OF_26");
+      console.log("043b_hotfix_status_map=YES_24M_2UNTRACKED");
+      console.log("043b_hotfix_staged_changes=NO");
+      console.log("043b_hotfix_environment_files=NONE");
+      console.log("frozen_db_safety_content=PASS_15_OF_15");
+      console.log("targeted_append_only_delete_probes=2");
+      console.log("delete_probe_export_pack=PASS");
+      console.log("delete_probe_audit_event=PASS");
+      console.log("unexpected_delete_outside_support=0");
+      console.log("delete_sql_inside_support=0");
+      console.log("043c_not_authorized=YES");
+      console.log("worktree_043b_hotfix_profile=PASS_26_OF_26");
+    } else if (is043bWorktree) {
       console.log("validation_mode=WORKTREE");
       console.log("worktree_profile=043B_LOCAL_TWO_ACTOR_HARNESS");
       console.log("diff_file_set_verified=YES_17_OF_17");
@@ -2406,6 +2778,20 @@ function runCli() {
       console.log("043b_no_ai_provider=YES");
       console.log("043b_no_mcp_runtime=YES");
       console.log("worktree_043b_profile=PASS_17_OF_17");
+    } else if (is043bHotfixHistorical) {
+      console.log("historical_043b_hotfix_content_scope=HEAD_COMMIT_ONLY");
+      console.log("historical_043b_hotfix_diff_file_set=YES_26_OF_26");
+      console.log("historical_043b_hotfix_status_map=YES_24M_2A");
+      console.log("historical_043b_hotfix_deletions=NONE");
+      console.log("historical_043b_hotfix_renames=NONE");
+      console.log("historical_043b_hotfix_copies=NONE");
+      console.log("frozen_db_safety_content=PASS_15_OF_15");
+      console.log("targeted_append_only_delete_probes=2");
+      console.log("delete_probe_export_pack=PASS");
+      console.log("delete_probe_audit_event=PASS");
+      console.log("unexpected_delete_outside_support=0");
+      console.log("delete_sql_inside_support=0");
+      console.log("historical_043b_hotfix_profile=PASS_26_OF_26");
     } else if (is043bHistorical) {
       console.log("historical_043b_content_scope=HEAD_COMMIT_ONLY");
       console.log("historical_043b_diff_file_set=YES_17_OF_17");

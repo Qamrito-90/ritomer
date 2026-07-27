@@ -1,3 +1,6 @@
+server:
+  address: 127.0.0.1
+
 spring:
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/ritomer}
@@ -7,7 +10,7 @@ spring:
 ritomer:
   security:
     jwt:
-      hmac-secret: ${RITOMER_SECURITY_JWT_HMAC_SECRET:local-dev-only-jwt-hmac-secret-change-me}
+      hmac-secret: ${RITOMER_SECURITY_JWT_HMAC_SECRET}
   workpapers:
     documents:
       storage:
