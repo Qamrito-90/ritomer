@@ -1,8 +1,16 @@
-# Harness local deux acteurs 043b
+# Simulation locale mono-opérateur de deux rôles 043b
 
 ## Statut et limite de preuve
 
-Le harness `043b` est un outil local, synthetique et strictement interne. Son dataset est classe :
+043b is a local single-operator two-role simulation.
+It validates backend RBAC behavior under two synthetic identities.
+It does not establish independent human sessions or segregation of duties.
+
+043b est une simulation locale mono-opérateur de deux rôles.
+Elle valide le comportement RBAC du backend sous deux identités synthétiques.
+Elle n'établit ni deux sessions humaines indépendantes ni une séparation des fonctions.
+
+Le harness `043b` est un outil local, synthetique et strictement interne, utilisable par un seul opérateur qui contrôle volontairement les deux rôles. Son dataset est classe :
 
 `HARNESS_ONLY_AUTH_RBAC_DATASET`
 
@@ -19,7 +27,9 @@ Le smoke runtime reel n'est pas execute par Codex, car le secret JWT et les cred
 
 `smoke_local_real=NOT_RUN_USER_LOCAL_REQUIRED`
 
-Etat corrige courant : `CORRECTED_PENDING_LOCAL_DEDICATED_DB_EVIDENCE`. Cet etat reste `NOT_MERGE_READY` et ne vaut ni revue post-code complete, ni autorisation `043c`.
+Avant le hotfix, le merge était `MERGED_WITH_KNOWN_HIGH_FINDINGS` et l'usage local `LOCAL_USE_PAUSED`. État courant : `MINIMUM_VIABLE_SAFETY_IMPLEMENTED / PENDING_LOCAL_EVIDENCE / NOT_MERGE_READY`. Il ne vaut ni review IA finale post-code, ni preuve de sessions humaines indépendantes, ni autorisation `043c`.
+
+Classifications : `LOCAL_TWO_ROLE_SIMULATION / SINGLE_OPERATOR_CAPABLE / SYNTHETIC_ONLY / LOOPBACK_ONLY / AI_REVIEWED / OWNER_RISK_ACCEPTED / NOT_PRODUCTION_AUTH / NOT_INDEPENDENT_ACTOR_BOUNDARY / NOT_PROOF_OF_SEGREGATION_OF_DUTIES / NOT_FOR_EXTERNAL_USE / NOT_FOR_REAL_DATA`.
 
 ## Architecture locale fermee
 
@@ -35,6 +45,8 @@ Le launcher refuse toute autre target backend, tout host autre que `127.0.0.1`, 
 
 Les deux JWT ont une duree exacte de 3 600 secondes. Ils restent uniquement dans le processus parent et dans l'environnement minimal du Vite correspondant. Le navigateur ne recoit aucun bearer. Aucune regeneration ni aucun refresh n'existe ; l'expiration arrete les deux Vite et impose un redemarrage complet du harness.
 
+Les ports `5173` et `5174` sont uniquement deux contextes visuels. Ils ne constituent pas une frontière d'identité ni deux sessions humaines indépendantes.
+
 ## Variables locales requises
 
 Ne stocker aucune valeur dans Git, un fichier `.env`, le navigateur, une URL, un runbook ou une sortie partagee.
@@ -48,6 +60,15 @@ Noms utilises par le backend et le seed :
 
 Le harness lit uniquement `RITOMER_SECURITY_JWT_HMAC_SECRET`. La valeur doit etre non vide et representer au moins 32 octets UTF-8. Il n'existe aucun fallback, aucune constante de secret et aucune lecture de fichier.
 
+L'ancien fallback et la sentinel `__INVALID_RUNTIME_SECRET_REQUIRED__` sont toujours refusés. Ne créer aucun `.env`, ne jamais documenter de valeur statique et ne jamais demander à Codex de lire la valeur. Pour créer 32 octets CSPRNG directement dans le shell sans les afficher ni les stocker :
+
+```powershell
+$jwtKeyBytes = [byte[]]::new(32)
+[System.Security.Cryptography.RandomNumberGenerator]::Fill($jwtKeyBytes)
+$env:RITOMER_SECURITY_JWT_HMAC_SECRET = [Convert]::ToBase64String($jwtKeyBytes)
+[Array]::Clear($jwtKeyBytes, 0, $jwtKeyBytes.Length)
+```
+
 Le harness construit lui-meme les trois variables de chaque enfant Vite :
 
 - `RITOMER_LOCAL_DEMO_BACKEND_TARGET` avec la target fixe `http://127.0.0.1:8080` ;
@@ -58,7 +79,7 @@ Le secret HMAC et le token de l'autre acteur sont absents de chaque enfant.
 
 ## Base PostgreSQL jetable obligatoire pour les tests destructifs
 
-`dbIntegrationTest` est autorise uniquement contre une base nouvellement creee pour cette preuve, nommee exactement `ritomer_043b_test`, avec le role de login dedie `ritomer_043b_test_runner`.
+`dbIntegrationTest` est autorise uniquement contre PostgreSQL local direct, via l'URL exacte `jdbc:postgresql://127.0.0.1:5432/ritomer_043b_test`, sur une base nouvellement creee pour cette preuve, nommee exactement `ritomer_043b_test`, avec le role de login dedie `ritomer_043b_test_runner`.
 
 La base doit etre :
 
@@ -67,16 +88,21 @@ La base doit etre :
 - vide avant Flyway, hors schema cree par la suite de test ;
 - sans dump, clone, snapshot ou restauration d'une base client, pilote, staging ou production ;
 - sans donnee client ou participant reel.
+- sans Cloud SQL Proxy, tunnel SSH, port forward ni autre intermédiaire réseau.
 
 Variables obligatoires :
 
 - `RITOMER_DB_TESTS_ENABLED=true` ;
-- `RITOMER_DB_TEST_JDBC_URL` avec un chemin de base exact `/ritomer_043b_test` ;
+- `RITOMER_DB_TEST_JDBC_URL=jdbc:postgresql://127.0.0.1:5432/ritomer_043b_test` exactement ;
 - `RITOMER_DB_TEST_USERNAME=ritomer_043b_test_runner` ;
 - `RITOMER_DB_TEST_PASSWORD`, definie uniquement dans le shell local, sans valeur reproduite dans ce runbook ;
 - `RITOMER_DB_TEST_DESTRUCTIVE_CONSENT=TRUNCATE_RITOMER_043B_TEST`.
 
-`localhost` ou `127.0.0.1` ne constitue jamais a lui seul une preuve de surete. La task Gradle valide le nom de base, le role et le consentement, puis chaque classe 043b revalide `current_database()`, `current_user` et `session_user` avant Flyway et juste avant chaque `TRUNCATE`.
+`localhost`, `::1`, `0.0.0.0`, une query, un fragment, un userinfo, un encodage, un paramètre JDBC supplémentaire, un autre port ou une adresse distante sont refusés. Les 12 classes DB valident avant Flyway puis, sur la même connexion que la destruction, `DatabaseMetaData.url`, `DatabaseMetaData.userName`, `current_database()`, `current_user`, `session_user`, `inet_server_addr()`, `inet_server_port()`, les cinq privilèges dangereux, les memberships privilégiées et les propriétaires de la base et du schéma `public`.
+
+Le login/current/session role, le propriétaire de la base et le propriétaire du schéma `public` doivent tous être exactement `ritomer_043b_test_runner`. La validation complète précède tout SQL destructif ; validation et destruction partagent une seule connexion et une seule transaction, avec un commit sur succès ou un rollback sur échec, sans retry.
+
+Limite opérateur acceptée : un tunnel local sophistiqué capable d'imiter toutes les observations pourrait contourner l'intention du contrôle. Ce risque résiduel est accepté uniquement pour ce périmètre local synthétique et ne rend pas l'usage externe acceptable.
 
 Les recettes seed locales visant `/ritomer`, y compris `036a`, `042a2a5d-mixed-v2` et `043b-two-actor-pilot`, n'autorisent jamais `dbIntegrationTest`. Ne reutiliser ni leur base, ni leur role. Stopper immediatement si la task est `SKIPPED`, si la garde refuse la connexion ou l'identite, ou si la base/role dedies ne peuvent pas etre prouves. Ne jamais contourner la garde depuis l'IDE.
 
@@ -300,10 +326,12 @@ try {
 
 Historique conserve du `2026-07-13` : `ENV_BLOCKED_DB_INTEGRATION`, car la task avait ete `SKIPPED` en l'absence de configuration PostgreSQL de test explicite. Le validateur 043a avait aussi produit `CHECK_BLOCKED_APPROVED_FILE_SET` parce que son ancienne whitelist ne couvrait pas la surface runtime alors autorisee. Le smoke etait `NOT_RUN`, tandis que les checks sans DB constituaient le `PASS_COMBINED_EVIDENCE` anterieur. Ces preuves datees ne sont pas reecrites.
 
-Etat apres les corrections et checks sans DB du `2026-07-16` : `CORRECTED_PENDING_LOCAL_DEDICATED_DB_EVIDENCE`. Le checker accepte le worktree exact de 17 chemins et son mode historique 043b valide un base-to-commit simule. `dbIntegrationTest`, le seed reel, `bootRun`, Vite reel et le smoke navigateur restent non executes pendant cette boucle. Ne declarer `CORRECTED_PENDING_POST_CODE_CPO_TECHNICAL_SECURITY_REVIEWS` qu'apres les tests DB gardes et un nouveau smoke reel.
+État après le hotfix et les checks sans DB : `MINIMUM_VIABLE_SAFETY_IMPLEMENTED / PENDING_LOCAL_EVIDENCE / NOT_MERGE_READY`. Le checker accepte le worktree exact de 26 chemins et son mode historique `043b-hotfix` valide une matrice `24M/2A` en lisant exclusivement le head. `dbIntegrationTest`, le seed reel, `bootRun`, Vite reel et le smoke navigateur restent non executes pendant cette boucle.
 
 ## Responsabilite locale et revue
 
 L'utilisateur local est seul responsable de la creation, de la robustesse, de la garde et de la rotation des passwords/credentials PostgreSQL et du secret HMAC. Ces valeurs ne doivent jamais etre collees dans ChatGPT/Codex, Git, un ticket, un screenshot, une capture reseau ou un resultat de smoke partage.
 
-Avant merge, une revue technique humaine et une revue Security/Privacy doivent verifier l'auth locale, la redaction, le lifecycle des processus, le RBAC, l'audit et l'isolation tenant. Elles n'autorisent ni `043c`, ni participant externe, ni auth de production, ni provider, ni MCP.
+Statuts courants : `AI_TECHNICAL_REVIEW=COMPLETED_WITH_FINDINGS`, `AI_SECURITY_PRIVACY_REVIEW=COMPLETED_WITH_FINDINGS`, `AI_CTO_REVIEW=COMPLETED_WITH_CONDITIONS`, `OWNER_RISK_ACCEPTANCE=ACCEPTED_FOR_LOCAL_SYNTHETIC_ONLY`, `HUMAN_TECHNICAL_REVIEW=DEFERRED_TO_EXTERNAL_GATE`, `HUMAN_SECURITY_REVIEW=DEFERRED_TO_EXTERNAL_GATE`, `REVIEW_ARTIFACT_CLASSIFICATION=AI_GENERATED_REVIEW`, `REVIEW_SIGNATURE_STATUS=NOT_HUMAN_SIGNED`.
+
+Les gates humains redeviennent obligatoires dès qu'une donnée réelle/client, un utilisateur ou participant externe, un pilote externe, un déploiement partagé, un accès non-loopback, une authentification ou un secret de production, une première utilisation commerciale, un provider IA externe, un MCP exposé, une affirmation de vraie séparation des fonctions ou un usage externe de `043c` entre dans le périmètre. Ils n'autorisent jamais implicitement `043c`, un participant externe, une auth de production, un provider ou un MCP.

@@ -19,6 +19,8 @@ import ch.qamwaq.ritomer.identity.domain.TenantRole
 import ch.qamwaq.ritomer.shared.application.AuditCorrelationContext
 import ch.qamwaq.ritomer.shared.application.AuditTrail
 import ch.qamwaq.ritomer.shared.application.AppendAuditEventCommand
+import ch.qamwaq.ritomer.testsupport.DisposablePostgresTestDatabase
+import ch.qamwaq.ritomer.testsupport.DisposablePostgresTestDatabaseGuardInitializer
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import org.assertj.core.api.Assertions.assertThat
@@ -29,18 +31,28 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.core.env.Environment
 import org.springframework.dao.DataAccessException
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.ActiveProfiles
+import org.springframework.test.context.ContextConfiguration
 import java.util.UUID
 
 @SpringBootTest
 @ActiveProfiles("dbtest")
+@ContextConfiguration(
+  initializers = [
+    DisposablePostgresTestDatabaseGuardInitializer::class
+  ]
+)
 @Tag("db-integration")
-@EnabledIfEnvironmentVariable(named = "RITOMER_DB_TESTS_ENABLED", matches = "true")
+@EnabledIfEnvironmentVariable(named = "RITOMER_DB_TESTS_ENABLED", matches = "(?i:true)")
 class PersistenceFoundationIntegrationTest {
   @Autowired
   private lateinit var jdbcTemplate: JdbcTemplate
+
+  @Autowired
+  private lateinit var environment: Environment
 
   @Autowired
   private lateinit var appUserRepository: AppUserRepository
@@ -59,7 +71,10 @@ class PersistenceFoundationIntegrationTest {
 
   @BeforeEach
   fun resetDatabaseState() {
-    jdbcTemplate.execute("truncate table audit_event, closing_folder, tenant_membership, app_user, tenant cascade")
+    DisposablePostgresTestDatabase.truncateAllCurrentTables(
+      jdbcTemplate.dataSource ?: error("DataSource is required for guarded database reset."),
+      environment
+    )
   }
 
   @Test

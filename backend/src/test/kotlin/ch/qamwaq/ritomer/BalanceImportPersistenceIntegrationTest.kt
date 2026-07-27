@@ -6,6 +6,8 @@ import ch.qamwaq.ritomer.imports.application.BALANCE_IMPORT_CREATED_ACTION
 import ch.qamwaq.ritomer.imports.application.BalanceImportBadRequestException
 import ch.qamwaq.ritomer.imports.application.BalanceImportRepository
 import ch.qamwaq.ritomer.imports.application.BalanceImportService
+import ch.qamwaq.ritomer.testsupport.DisposablePostgresTestDatabase
+import ch.qamwaq.ritomer.testsupport.DisposablePostgresTestDatabaseGuardInitializer
 import java.nio.charset.StandardCharsets
 import java.time.LocalDate
 import java.time.OffsetDateTime
@@ -18,18 +20,28 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.core.env.Environment
 import org.springframework.dao.DataAccessException
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.mock.web.MockMultipartFile
 import org.springframework.test.context.ActiveProfiles
+import org.springframework.test.context.ContextConfiguration
 
 @SpringBootTest
 @ActiveProfiles("dbtest")
+@ContextConfiguration(
+  initializers = [
+    DisposablePostgresTestDatabaseGuardInitializer::class
+  ]
+)
 @Tag("db-integration")
-@EnabledIfEnvironmentVariable(named = "RITOMER_DB_TESTS_ENABLED", matches = "true")
+@EnabledIfEnvironmentVariable(named = "RITOMER_DB_TESTS_ENABLED", matches = "(?i:true)")
 class BalanceImportPersistenceIntegrationTest {
   @Autowired
   private lateinit var jdbcTemplate: JdbcTemplate
+
+  @Autowired
+  private lateinit var environment: Environment
 
   @Autowired
   private lateinit var appUserRepository: AppUserRepository
@@ -42,7 +54,10 @@ class BalanceImportPersistenceIntegrationTest {
 
   @BeforeEach
   fun resetDatabaseState() {
-    jdbcTemplate.execute("truncate table audit_event, balance_import_line, balance_import, closing_folder, tenant_membership, app_user, tenant cascade")
+    DisposablePostgresTestDatabase.truncateAllCurrentTables(
+      jdbcTemplate.dataSource ?: error("DataSource is required for guarded database reset."),
+      environment
+    )
   }
 
   @Test

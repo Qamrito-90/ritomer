@@ -1,5 +1,7 @@
 package ch.qamwaq.ritomer
 
+import ch.qamwaq.ritomer.testsupport.DisposablePostgresTestDatabase
+import ch.qamwaq.ritomer.testsupport.DisposablePostgresTestDatabaseGuardInitializer
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.util.UUID
@@ -11,28 +13,39 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.core.env.Environment
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt
 import org.springframework.test.context.ActiveProfiles
+import org.springframework.test.context.ContextConfiguration
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("dbtest")
+@ContextConfiguration(
+  initializers = [
+    DisposablePostgresTestDatabaseGuardInitializer::class
+  ]
+)
 @Tag("db-integration")
-@EnabledIfEnvironmentVariable(named = "RITOMER_DB_TESTS_ENABLED", matches = "true")
+@EnabledIfEnvironmentVariable(named = "RITOMER_DB_TESTS_ENABLED", matches = "(?i:true)")
 class FinancialStatementsStructuredDbIntegrationTest {
   @Autowired
   private lateinit var jdbcTemplate: JdbcTemplate
+
+  @Autowired
+  private lateinit var environment: Environment
 
   @Autowired
   private lateinit var mockMvc: MockMvc
 
   @BeforeEach
   fun resetDatabaseState() {
-    jdbcTemplate.execute(
-      "truncate table audit_event, manual_mapping, balance_import_line, balance_import, closing_folder, tenant_membership, app_user, tenant cascade"
+    DisposablePostgresTestDatabase.truncateAllCurrentTables(
+      jdbcTemplate.dataSource ?: error("DataSource is required for guarded database reset."),
+      environment
     )
   }
 

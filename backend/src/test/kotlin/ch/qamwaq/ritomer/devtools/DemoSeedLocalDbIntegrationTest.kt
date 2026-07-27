@@ -5,6 +5,8 @@ import ch.qamwaq.ritomer.identity.application.TenantMembershipRepository
 import ch.qamwaq.ritomer.imports.application.BalanceImportRepository
 import ch.qamwaq.ritomer.mapping.application.ManualMappingRepository
 import ch.qamwaq.ritomer.mapping.application.ManualMappingTargetCatalog
+import ch.qamwaq.ritomer.testsupport.DisposablePostgresTestDatabase
+import ch.qamwaq.ritomer.testsupport.DisposablePostgresTestDatabaseGuardInitializer
 import java.math.BigDecimal
 import java.util.UUID
 import org.assertj.core.api.Assertions.assertThat
@@ -22,9 +24,13 @@ import org.springframework.test.context.ContextConfiguration
 
 @SpringBootTest(properties = ["ritomer.demo.seed.enabled=true"])
 @ActiveProfiles("dbtest")
-@ContextConfiguration(initializers = [DisposablePostgresTestDatabaseGuardInitializer::class])
+@ContextConfiguration(
+  initializers = [
+    DisposablePostgresTestDatabaseGuardInitializer::class
+  ]
+)
 @Tag("db-integration")
-@EnabledIfEnvironmentVariable(named = "RITOMER_DB_TESTS_ENABLED", matches = "true")
+@EnabledIfEnvironmentVariable(named = "RITOMER_DB_TESTS_ENABLED", matches = "(?i:true)")
 class DemoSeedLocalDbIntegrationTest {
   @Autowired
   private lateinit var jdbcTemplate: JdbcTemplate
@@ -53,28 +59,10 @@ class DemoSeedLocalDbIntegrationTest {
   @BeforeEach
   fun resetDatabaseState() {
     environment.propertySources.remove(VARIANT_PROPERTY_SOURCE_NAME)
-    runValidatedDestructiveSetup(jdbcTemplate) {
-      jdbcTemplate.execute(
-        """
-        truncate table
-          audit_event,
-          mapping_suggestion_decision_request,
-          export_pack,
-          document_verification,
-          document,
-          workpaper_evidence,
-          workpaper,
-          manual_mapping,
-          balance_import_line,
-          balance_import,
-          closing_folder,
-          tenant_membership,
-          app_user,
-          tenant
-        cascade
-        """.trimIndent()
-      )
-    }
+    DisposablePostgresTestDatabase.truncateAllCurrentTables(
+      jdbcTemplate.dataSource ?: error("DataSource is required for guarded database reset."),
+      environment
+    )
   }
 
   @Test
