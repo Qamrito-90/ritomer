@@ -100,6 +100,10 @@ It does not establish independent human sessions or segregation of duties.
 Elle valide le comportement RBAC du backend sous deux identités synthétiques.
 Elle n'établit ni deux sessions humaines indépendantes ni une séparation des fonctions.
 
-Statut courant : `MINIMUM_VIABLE_SAFETY_IMPLEMENTED / PENDING_LOCAL_EVIDENCE / NOT_MERGE_READY`. La simulation est `LOCAL_TWO_ROLE_SIMULATION / SINGLE_OPERATOR_CAPABLE / SYNTHETIC_ONLY / LOOPBACK_ONLY / AI_REVIEWED / OWNER_RISK_ACCEPTED / NOT_PRODUCTION_AUTH / NOT_INDEPENDENT_ACTOR_BOUNDARY / NOT_PROOF_OF_SEGREGATION_OF_DUTIES / NOT_FOR_EXTERNAL_USE / NOT_FOR_REAL_DATA`. Les ports `5173` et `5174` restent deux contextes visuels, jamais une frontière d'identité.
+Statut courant : `LOCAL_SYNTHETIC_SIMULATION_VALIDATED / MERGED / AI_REVIEWED / OWNER_RISK_ACCEPTED_FOR_LOCAL_SYNTHETIC_ONLY / NOT_HUMAN_SIGNED / NOT_PRODUCTION_READY / NOT_EXTERNAL_READY / NOT_SEPARATION_OF_DUTIES_PROOF`. La simulation reste `LOCAL_TWO_ROLE_SIMULATION / SINGLE_OPERATOR_CAPABLE / SYNTHETIC_ONLY / LOOPBACK_ONLY / NOT_PRODUCTION_AUTH / NOT_INDEPENDENT_ACTOR_BOUNDARY / NOT_PROOF_OF_SEGREGATION_OF_DUTIES / NOT_FOR_EXTERNAL_USE / NOT_FOR_REAL_DATA`. Les ports `5173` et `5174` restent deux contextes visuels, jamais une frontière d'identité.
+
+Clôture factuelle du `2026-07-27` : preuves PostgreSQL dédiées, smoke local deux acteurs, contrôle navigateur sans exposition d'un header d'authentification ni JWT détecté dans les surfaces navigateur, Backend CI, Frontend CI, cleanup, merge de la PR `#103` et vérification post-merge : `PASS`.
+
+`043c` reste `NOT_STARTED / NOT_AUTHORIZED`.
 
 Les tests PostgreSQL destructifs utilisent exclusivement `jdbc:postgresql://127.0.0.1:5432/ritomer_043b_test` avec le rôle `ritomer_043b_test_runner`, sur un PostgreSQL local direct et des données synthétiques. Cloud SQL Proxy, tunnel SSH et port forward sont interdits pour cette preuve.
