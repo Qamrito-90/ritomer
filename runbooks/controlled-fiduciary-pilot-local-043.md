@@ -23,13 +23,21 @@ Il sert uniquement a prouver localement l'authentification JWT, la resolution Po
 
 `043c` reste `NOT_STARTED / NOT_AUTHORIZED`. Il repartira des fixtures gelees `043a` dans une base et un stockage jetables, apres les revues et autorisations distinctes requises.
 
-Le smoke runtime reel n'est pas execute par Codex, car le secret JWT et les credentials PostgreSQL restent sous la responsabilite de l'utilisateur local :
+Le smoke runtime reel a ete execute par l'utilisateur local contre une base jetable fraiche. Codex ne l'a jamais execute et n'a lu aucun secret ; les credentials PostgreSQL, le secret HMAC et les JWT sont restes hors de Git, du chat et des preuves partagees.
 
-`smoke_local_real=NOT_RUN_USER_LOCAL_REQUIRED`
+`smoke_local_real=PASS_FRESH_DISPOSABLE_DB`
 
-Avant le hotfix, le merge était `MERGED_WITH_KNOWN_HIGH_FINDINGS` et l'usage local `LOCAL_USE_PAUSED`. État courant : `MINIMUM_VIABLE_SAFETY_IMPLEMENTED / PENDING_LOCAL_EVIDENCE / NOT_MERGE_READY`. Il ne vaut ni review IA finale post-code, ni preuve de sessions humaines indépendantes, ni autorisation `043c`.
+Etat courant au `2026-07-27` : `LOCAL_SYNTHETIC_SIMULATION_VALIDATED / MERGED / AI_REVIEWED / OWNER_RISK_ACCEPTED_FOR_LOCAL_SYNTHETIC_ONLY / NOT_HUMAN_SIGNED / NOT_PRODUCTION_READY / NOT_EXTERNAL_READY / NOT_SEPARATION_OF_DUTIES_PROOF`.
 
-Classifications : `LOCAL_TWO_ROLE_SIMULATION / SINGLE_OPERATOR_CAPABLE / SYNTHETIC_ONLY / LOOPBACK_ONLY / AI_REVIEWED / OWNER_RISK_ACCEPTED / NOT_PRODUCTION_AUTH / NOT_INDEPENDENT_ACTOR_BOUNDARY / NOT_PROOF_OF_SEGREGATION_OF_DUTIES / NOT_FOR_EXTERNAL_USE / NOT_FOR_REAL_DATA`.
+Preuves de fermeture : PR `#103` mergee ; Backend CI et Frontend CI `PASS` ; PostgreSQL dedie, smoke deux roles, matrice RBAC et controle navigateur `PASS` ; `browserAuthorizationHeaderVisible=NO` ; `browserJwtSurfaceDetected=NO` ; cleanup runtime, base et role `PASS` ; verification post-merge `PASS`.
+
+Les revues finales AI Technical et AI Security/Privacy sont `PASS`. L'artefact reste `AI_GENERATED_REVIEW / NOT_HUMAN_SIGNED` ; les revues techniques et Security humaines restent differees au gate externe.
+
+La presente section est l'unique source du statut courant apres le `2026-07-27`. Les mentions `PENDING_LOCAL_EVIDENCE`, `NOT_MERGE_READY`, `smoke_local_real=NOT_RUN_USER_LOCAL_REQUIRED` et le libelle historique `Statuts courants` conserves plus bas decrivent exclusivement les etats pre-fermeture des `2026-07-13` et `2026-07-22` ; ils ne qualifient plus l'etat courant.
+
+Historique pre-hotfix conserve : le merge etait `MERGED_WITH_KNOWN_HIGH_FINDINGS` et l'usage local `LOCAL_USE_PAUSED`.
+
+Classifications detaillees : `LOCAL_TWO_ROLE_SIMULATION / SINGLE_OPERATOR_CAPABLE / SYNTHETIC_ONLY / LOOPBACK_ONLY / NOT_PRODUCTION_AUTH / NOT_INDEPENDENT_ACTOR_BOUNDARY / NOT_PROOF_OF_SEGREGATION_OF_DUTIES / NOT_FOR_EXTERNAL_USE / NOT_FOR_REAL_DATA`.
 
 ## Architecture locale fermee
 

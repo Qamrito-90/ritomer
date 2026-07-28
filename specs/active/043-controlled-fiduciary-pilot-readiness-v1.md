@@ -5,8 +5,9 @@
 Active.
 
 - `043a`: `ACCEPTED_BY_DISTINCT_CPO_REVIEW`.
-- Current sub-deliverable: `043b` - `MINIMUM_VIABLE_SAFETY_IMPLEMENTED / PENDING_LOCAL_EVIDENCE / NOT_MERGE_READY`.
+- `043b`: `LOCAL_SYNTHETIC_SIMULATION_VALIDATED / MERGED / AI_REVIEWED / OWNER_RISK_ACCEPTED_FOR_LOCAL_SYNTHETIC_ONLY / NOT_HUMAN_SIGNED / NOT_PRODUCTION_READY / NOT_EXTERNAL_READY / NOT_SEPARATION_OF_DUTIES_PROOF`.
 - `043c`: `NOT_STARTED / NOT_AUTHORIZED`.
+- Current sub-deliverable: `NONE`.
 - No transition between `043a`, `043b` and `043c` is automatic.
 
 ## Roadmap declaration
@@ -34,7 +35,7 @@ The first external invitation requires a new CPO decision and prior satisfaction
 
 No following spec is created automatically.
 
-Each of `043a`, `043b` and `043c` requires a distinct CPO review. The distinct review of `043a` and the prior CTO Gate for `043b` are complete. The CTO Gate approved the local architecture with conditions for local synthetic use only. `043c` may start only after future local evidence, final post-code AI reviews and a new CPO decision. Human technical and Security reviews are deferred to the external gate and become mandatory again on any external-use trigger defined below.
+Each of `043a`, `043b` and `043c` requires a distinct CPO review. The distinct review of `043a` and the prior CTO Gate for `043b` are complete. The CTO Gate approved the local architecture with conditions for local synthetic use only. The local evidence and final post-code AI reviews for `043b` are complete. `043c` may start only after a new, distinct CPO decision and reconfirmation of the disposable database/storage protocol. Human technical and Security reviews are deferred to the external gate and become mandatory again on any external-use trigger defined below.
 
 ## Surface and risk
 
@@ -44,7 +45,7 @@ Each of `043a`, `043b` and `043c` requires a distinct CPO review. The distinct r
 | `043b` | `BACKEND_LOCAL_AUTH / BACKEND_TEST_SAFETY / FRONTEND_LOCAL_HARNESS / CI_GIT / DOCS_GIT / SECURITY_DEBT_GOVERNANCE` | C for destructive PostgreSQL safety; B otherwise |
 | `043c` | `QA_MANUAL / LOCAL_RUNTIME / DOCS_GIT` | C |
 
-The current mission authorizes only the bounded `043b` hotfix surface and its exact 26-path implementation set. It does not authorize `043c`, an external participant, production authentication, a provider, an MCP, real data or a following spec.
+The merged `043b` hotfix remained bounded to its exact 26-path implementation set. This post-merge closure is documentary-only in the four authorized living documents; it does not authorize `043c`, an external participant, production authentication, a provider, an MCP, real data or a following spec.
 
 ## Sources reviewed
 
@@ -174,7 +175,7 @@ git status --short --branch --untracked-files=all
 
 ## 043b - Local single-operator two-role simulation
 
-Status: `MINIMUM_VIABLE_SAFETY_IMPLEMENTED / PENDING_LOCAL_EVIDENCE / NOT_MERGE_READY`.
+Status: `LOCAL_SYNTHETIC_SIMULATION_VALIDATED / MERGED / AI_REVIEWED / OWNER_RISK_ACCEPTED_FOR_LOCAL_SYNTHETIC_ONLY / NOT_HUMAN_SIGNED / NOT_PRODUCTION_READY / NOT_EXTERNAL_READY / NOT_SEPARATION_OF_DUTIES_PROOF`.
 
 Before this hotfix, the merged implementation was classified `MERGED_WITH_KNOWN_HIGH_FINDINGS` and local use was `LOCAL_USE_PAUSED`.
 
@@ -192,8 +193,6 @@ Canonical classifications:
 - `SINGLE_OPERATOR_CAPABLE`;
 - `SYNTHETIC_ONLY`;
 - `LOOPBACK_ONLY`;
-- `AI_REVIEWED`;
-- `OWNER_RISK_ACCEPTED`;
 - `NOT_PRODUCTION_AUTH`;
 - `NOT_INDEPENDENT_ACTOR_BOUNDARY`;
 - `NOT_PROOF_OF_SEGREGATION_OF_DUTIES`;
@@ -239,8 +238,8 @@ All 12 `db-integration` classes install `DisposablePostgresTestDatabaseGuardInit
 
 Review state:
 
-- `AI_TECHNICAL_REVIEW=COMPLETED_WITH_FINDINGS`;
-- `AI_SECURITY_PRIVACY_REVIEW=COMPLETED_WITH_FINDINGS`;
+- `FINAL_AI_TECHNICAL_REVIEW=PASS`;
+- `FINAL_AI_SECURITY_PRIVACY_REVIEW=PASS`;
 - `AI_CTO_REVIEW=COMPLETED_WITH_CONDITIONS`;
 - `OWNER_RISK_ACCEPTANCE=ACCEPTED_FOR_LOCAL_SYNTHETIC_ONLY`;
 - `HUMAN_TECHNICAL_REVIEW=DEFERRED_TO_EXTERNAL_GATE`;
@@ -248,7 +247,30 @@ Review state:
 - `REVIEW_ARTIFACT_CLASSIFICATION=AI_GENERATED_REVIEW`;
 - `REVIEW_SIGNATURE_STATUS=NOT_HUMAN_SIGNED`.
 
-Final post-code AI reviews are still pending. Only after future local evidence and those reviews may the wording become `LOCAL_SYNTHETIC_SIMULATION_VALIDATED / AI_REVIEWED / OWNER_RISK_ACCEPTED / NOT_PRODUCTION_READY / NOT_EXTERNAL_READY / NOT_SEPARATION_OF_DUTIES_PROOF`.
+No human review is claimed complete. The final state remains limited to a local synthetic single-operator simulation and does not establish production readiness, external readiness or segregation of duties.
+
+### Final closure evidence — 2026-07-27
+
+This evidence closes only the local synthetic `043b` simulation. It authorizes neither `043c`, `R1`, `R2`, external use, production authentication nor real data.
+
+| Surface | Sanitized final evidence |
+| --- | --- |
+| Git and CI | PR `#103`; `baseCommit=b46fb0d6dcfb2eca7d317ddfeaf34371686e7030`; `sourceCommit=13b297a6d4c6bb0ccd0d9ffb2052314275c7e273`; `mergeCommit=a484cd321066e65839aaa9d2b899db4620461f93`; `changedPaths=26`; `matrix=24M / 2A`; `sourceMergeTreeIdentity=PASS`; Backend CI `PASS`; Frontend CI `PASS`. |
+| PostgreSQL | `dedicatedDatabase=ritomer_043b_test`; `dedicatedRole=ritomer_043b_test_runner`; `targetedDbIntegrationTests=8 PASS_EXECUTED`; `fullDbIntegrationTests=48 PASS_EXECUTED`; `dbIntegrationClasses=12`; `databaseAndRoleCleanup=PASS`. |
+| Runtime and browser | `backendLoopback=PASS_127_0_0_1_8080`; `accountantProxy=PASS_127_0_0_1_5173`; `reviewerProxy=PASS_127_0_0_1_5174`; `sameTenant=PASS`; `distinctRoles=PASS`; `rbacMatrix=PASS`; `browserAuthorizationHeaderVisible=NO`; `browserJwtSurfaceDetected=NO` for HTML, URL, `localStorage`, `sessionStorage` and cookies; `coordinatedShutdown=PASS`; `runtimeCleanup=PASS`; `realSmoke=PASS_FRESH_DISPOSABLE_DB`, executed by the local user, never by Codex. |
+| Post-merge baseline | `mainAlignedWithOrigin=PASS`; `worktreeClean=PASS`; `sourceMergeTreeIdentity=PASS`; `postMergeVerification=PASS`. |
+| Reviews | Final AI Technical Review `PASS`; Final AI Security/Privacy Review `PASS`; `OWNER_RISK_ACCEPTANCE=ACCEPTED_FOR_LOCAL_SYNTHETIC_ONLY`; `AI_GENERATED_REVIEW`; `NOT_HUMAN_SIGNED`; human reviews deferred to the external gate. |
+
+### Required post-code evidence
+
+- Backend and frontend checks: `SATISFIED`, including Backend CI `PASS` and Frontend CI `PASS`.
+- Real PostgreSQL evidence: `SATISFIED` on the dedicated disposable database and role.
+- Targeted and full `dbIntegrationTest`: `SATISFIED`, respectively `8 PASS_EXECUTED` and `48 PASS_EXECUTED` across `12` classes.
+- Local-user smoke: `SATISFIED`, `smoke_local_real=PASS_FRESH_DISPOSABLE_DB`.
+- Final AI Technical and AI Security/Privacy reviews: `SATISFIED / PASS`; the artifacts remain `AI_GENERATED_REVIEW / NOT_HUMAN_SIGNED`.
+- Merge and CI: `SATISFIED`, PR `#103` merged and both CI rails `PASS`.
+- Post-merge verification: `SATISFIED`, including aligned `main`, clean pre-edit worktree and identical source/merge trees.
+- These satisfied requirements do not authorize `043c` or an external participant.
 
 Deferred debt, not implemented by this hotfix: two-person authentication, OIDC/SSO, MFA, independent sessions, real segregation of duties, KMS/Secret Manager, automated rotation, `jti` anti-replay, revocation, PostgreSQL RLS, global redaction, DLP, Windows Job Objects, complete process-tree termination, integrated backend lifecycle, automatic DB/role cleanup, retention policy, detailed membership audit, human review and pentest. The triggers restoring the corresponding gates are real/client data, any external user or participant, an external pilot, shared deployment, non-loopback access, production authentication or secret, first commercial use, external AI provider, exposed MCP, a claim of real segregation of duties or any external use of `043c`.
 
@@ -334,7 +356,7 @@ The corrected implementation is limited to these 17 files:
 - Startup `/api/me` readiness retries only connection failures, timeouts and HTTP `500..599`; all other HTTP statuses, invalid JSON, identity/tenant/role/membership mismatches, child exit and unknown failures stop on the first result. Redirects are observed without automatic following.
 - The governance checker preserves worktree 043a, worktree 043b and PR #99 modes and adds the pinned `--profile 043b --base b208658fc37956e2e55fb89dfaaaccafea87277c --head <full-sha>` commit-range mode. That mode reads file content only from the head commit and requires exactly `14M / 3A` across the closed 17 paths.
 
-### Required post-code evidence
+### Historical required post-code evidence
 
 - automated backend, frontend, fixture and governance checks must be freshly executed;
 - `dbIntegrationTest` must execute against PostgreSQL, never H2, MockMvc-only or a skipped task;
@@ -360,10 +382,13 @@ Status: `NOT_STARTED / NOT_AUTHORIZED`.
 
 ### Mandatory entry gates
 
-- Post-code `043b` checks are green.
-- Human technical review of local auth, RBAC and tenant separation is complete.
-- A distinct post-`043b` CPO review authorizes `043c`.
-- The internal protocol and disposable data/storage controls are reconfirmed.
+- `043b` Final AI Technical Review is `PASS`.
+- `043b` Final AI Security/Privacy Review is `PASS`.
+- Owner risk acceptance is limited to local synthetic use.
+- Human technical and Security reviews have not occurred; they remain deferred to the external gate and become mandatory again on any external-use trigger.
+- A distinct post-`043b` CPO decision is still required before `043c`.
+- The internal protocol and disposable database/storage controls must be reconfirmed before `R1`.
+- Until both remaining entry conditions are satisfied, `043c` remains `NOT_STARTED / NOT_AUTHORIZED`; neither `R1` nor `R2` may begin.
 
 ### Planned protocol
 
