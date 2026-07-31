@@ -6,8 +6,8 @@ Active.
 
 - `043a`: `ACCEPTED_BY_DISTINCT_CPO_REVIEW`.
 - `043b`: `LOCAL_SYNTHETIC_SIMULATION_VALIDATED / MERGED / AI_REVIEWED / OWNER_RISK_ACCEPTED_FOR_LOCAL_SYNTHETIC_ONLY / NOT_HUMAN_SIGNED / NOT_PRODUCTION_READY / NOT_EXTERNAL_READY / NOT_SEPARATION_OF_DUTIES_PROOF`.
-- `043c`: `NOT_STARTED / NOT_AUTHORIZED`.
-- Current sub-deliverable: `NONE`.
+- `043c`: `PREPARATORY_IMPLEMENTED_PENDING_POST_CODE_CPO / EXECUTION_NOT_AUTHORIZED / R1_NOT_STARTED_NOT_AUTHORIZED / R2_NOT_STARTED_NOT_AUTHORIZED`.
+- Current sub-deliverable: `043c preparatory implementation`.
 - No transition between `043a`, `043b` and `043c` is automatic.
 
 ## Roadmap declaration
@@ -18,7 +18,7 @@ Active.
 | Primary workstream | Produit fiduciaire |
 | Supporting workstream | Trust & operations |
 | Outcome | Prove that the synthetic closing workflow can be rehearsed internally in a reproducible, controlled and evidence-bearing way. |
-| Exit evidence | Frozen synthetic fixtures, deterministic validation, controlled single-operator two-role local simulation, two internal rehearsal executions and an explicit CPO readiness decision. |
+| Exit evidence | Frozen synthetic fixtures, deterministic validation, controlled single-operator two-role local simulation, then either two complete internal rehearsals for F1 or a cleanup-backed stop after R1/R2 for F2/F3, always with an explicit CPO decision. |
 | Gate targeted | CPO decision on whether external-gate review may begin; never an external invitation by itself. |
 
 The canonical outcome roadmap is `docs/product/product-roadmap.md`. This spec remains the detailed source of truth for `043`.
@@ -27,7 +27,7 @@ The canonical outcome roadmap is `docs/product/product-roadmap.md`. This spec re
 
 `043` prepares only level A readiness.
 
-In `043c`, that readiness is tested through two executions, `R1` and `R2`, of one strictly internal rehearsal protocol.
+In `043c`, the F1 path is tested through two complete executions, `R1` and `R2`, of one strictly internal rehearsal protocol. A cleanup-backed interrupted or incomplete run may instead terminate through the human F2/F3 path; it never authorizes the following run.
 
 `043` invites no external fiduciary. `043` collects no real participant observation.
 
@@ -35,7 +35,7 @@ The first external invitation requires a new CPO decision and prior satisfaction
 
 No following spec is created automatically.
 
-Each of `043a`, `043b` and `043c` requires a distinct CPO review. The distinct review of `043a` and the prior CTO Gate for `043b` are complete. The CTO Gate approved the local architecture with conditions for local synthetic use only. The local evidence and final post-code AI reviews for `043b` are complete. `043c` may start only after a new, distinct CPO decision and reconfirmation of the disposable database/storage protocol. Human technical and Security reviews are deferred to the external gate and become mandatory again on any external-use trigger defined below.
+Each of `043a`, `043b` and `043c` requires a distinct CPO review. The distinct review of `043a` and the prior CTO Gate for `043b` are complete. The CTO Gate approved the local architecture with conditions for local synthetic use only. The local evidence and final post-code AI reviews for `043b` are complete. The distinct CPO decision authorizing only the exact `043c` preparatory implementation is now recorded; the durable state is S2. A separate post-code CPO review, a new CTO Gate, protocol/commit freeze, `PreparationPreflight` and a run-specific CPO decision remain mandatory before R1. Human technical and Security reviews are deferred to the external gate and become mandatory again on any external-use trigger defined below.
 
 ## Surface and risk
 
@@ -43,7 +43,8 @@ Each of `043a`, `043b` and `043c` requires a distinct CPO review. The distinct r
 | --- | --- | --- |
 | `043a` | `DOCS_GIT / FIXTURES_SYNTHETIQUES / GOVERNANCE_CHECKS` | B |
 | `043b` | `BACKEND_LOCAL_AUTH / BACKEND_TEST_SAFETY / FRONTEND_LOCAL_HARNESS / CI_GIT / DOCS_GIT / SECURITY_DEBT_GOVERNANCE` | C for destructive PostgreSQL safety; B otherwise |
-| `043c` | `QA_MANUAL / LOCAL_RUNTIME / DOCS_GIT` | C |
+| `043c` preparation | `DOCS_GIT / GOVERNANCE_CHECKS` | B |
+| `043c` R1/R2, not authorized by this increment | `QA_MANUAL / LOCAL_RUNTIME / DOCS_GIT` | C |
 
 The merged `043b` hotfix remained bounded to its exact 26-path implementation set. This post-merge closure is documentary-only in the four authorized living documents; it does not authorize `043c`, an external participant, production authentication, a provider, an MCP, real data or a following spec.
 
@@ -378,7 +379,122 @@ Stop and replan if implementation would require a production auth change, mint e
 
 ## 043c - Internal rehearsal and readiness decision
 
-Status: `NOT_STARTED / NOT_AUTHORIZED`.
+Status: `PREPARATORY_IMPLEMENTED_PENDING_POST_CODE_CPO / EXECUTION_NOT_AUTHORIZED / R1_NOT_STARTED_NOT_AUTHORIZED / R2_NOT_STARTED_NOT_AUTHORIZED`.
+
+Current preparatory durable baseline:
+
+`S2 = 043C_PREPARATORY_IMPLEMENTED_PENDING_POST_CODE_CPO`
+
+The durable truth is always the last valid record of the generic ledger. The three records materialized by this preparatory worktree are the exact S0/S1/S2 baseline; future governed transitions append one record at a time without rewriting this section outside the marked ledger block.
+
+The CPO decision represented by this increment grants only:
+
+- `CPO_043C_PLAN_AUTHORIZATION=GRANTED`;
+- `CPO_043C_PREPARATORY_IMPLEMENTATION_AUTHORIZATION=GRANTED`.
+
+It does not grant:
+
+- `043C_EXECUTION_AUTHORIZATION=NOT_GRANTED`;
+- `R1_ONLY`;
+- `R2_ONLY`;
+- external use, real data, production or any following spec.
+
+No S3, S4, S5, S6, S7, S8, S9, S10 or terminal record is materialized by this increment.
+
+### Exact preparatory file set
+
+The preparatory implementation is closed to exactly four paths:
+
+1. `M specs/active/043-controlled-fiduciary-pilot-readiness-v1.md`
+2. `M runbooks/controlled-fiduciary-pilot-local-043.md`
+3. `M evals/mapping/validate-042a2-human-review-governance-kit.mjs`
+4. `?? runbooks/validate-controlled-fiduciary-pilot-043c-state.ps1` (`A` only in a future committed historical range)
+
+The exact current worktree matrix is `3M / 1UNTRACKED` with an empty index; its future committed historical matrix would be `3M / 1A / 0D / 0R / 0C`. No backend, frontend, contract, migration, fixture, policy, dependency, manifest, lockfile, `.env`, `docs/product/v1-plan.md` or spec `044+` is part of this increment.
+
+### Durable state ledger
+
+The ledger is append-only at the documentary governance level. Generic validation accepts every valid machine prefix ending at S0, S1, S2, S3, S4, S7, S10 or one unique F1/F2/F3 terminal. Each JSONL record contains exactly sixteen fields in the fixed order shown by the records below. `resourceTargetSha256` is forbidden in this durable block.
+
+<!-- 043C_DURABLE_STATE_LEDGER_BEGIN -->
+{"schemaVersion":1,"sequence":0,"state":"043C_PLAN_HARDENED_IMPLEMENTATION_NOT_AUTHORIZED","previousState":null,"recordedAtUtc":"2026-07-29T14:43:47.532Z","recordedByRole":"CPO","authorityType":"CPO_PLAN_HARDENING_DECISION","authorityRef":"043c-plan-hardened-v1","protocolId":null,"protocolSha256":null,"frozenCommit":null,"r1Authorized":false,"r2Authorized":false,"completedRun":null,"evidenceSha256":null,"cpoOutcome":null}
+{"schemaVersion":1,"sequence":1,"state":"043C_PREPARATORY_IMPLEMENTATION_AUTHORIZED","previousState":"043C_PLAN_HARDENED_IMPLEMENTATION_NOT_AUTHORIZED","recordedAtUtc":"2026-07-29T14:43:47.658Z","recordedByRole":"CPO","authorityType":"CPO_PREPARATORY_IMPLEMENTATION_DECISION","authorityRef":"043c-preparatory-implementation-authorized-v1","protocolId":null,"protocolSha256":null,"frozenCommit":null,"r1Authorized":false,"r2Authorized":false,"completedRun":null,"evidenceSha256":null,"cpoOutcome":null}
+{"schemaVersion":1,"sequence":2,"state":"043C_PREPARATORY_IMPLEMENTED_PENDING_POST_CODE_CPO","previousState":"043C_PREPARATORY_IMPLEMENTATION_AUTHORIZED","recordedAtUtc":"2026-07-29T14:43:47.692Z","recordedByRole":"PREPARATION_OWNER","authorityType":"PREPARATORY_IMPLEMENTATION_EVIDENCE","authorityRef":"043c-preparatory-implementation-evidence-v1","protocolId":"043c-internal-rehearsal-v1","protocolSha256":"7e5430a63c0b94a3643beffef08b47bf60870ce17b73e453991de978cbf30fe4","frozenCommit":null,"r1Authorized":false,"r2Authorized":false,"completedRun":null,"evidenceSha256":null,"cpoOutcome":null}
+<!-- 043C_DURABLE_STATE_LEDGER_END -->
+
+The S2 `protocolSha256` is calculated on the exact UTF-8/LF bytes between the unique protocol markers in `runbooks/controlled-fiduciary-pilot-local-043.md`. It is not calculated on a normalized or reserialized string.
+
+Durable records use only these roles:
+
+- `CPO`;
+- `PREPARATION_OWNER`;
+- `CTO`;
+- `COORDINATOR_043C`.
+
+They use only these authority types:
+
+- `CPO_PLAN_HARDENING_DECISION`;
+- `CPO_PREPARATORY_IMPLEMENTATION_DECISION`;
+- `PREPARATORY_IMPLEMENTATION_EVIDENCE`;
+- `CPO_POST_CODE_REVIEW`;
+- `CTO_GATE`;
+- `R1_CLEANUP_EVIDENCE`;
+- `R2_CLEANUP_EVIDENCE`;
+- `CPO_FINAL_DECISION`.
+
+The closed state/role/authority matrix is:
+
+| Durable state | Role | Authority |
+| --- | --- | --- |
+| S0 | `CPO` | `CPO_PLAN_HARDENING_DECISION` |
+| S1 | `CPO` | `CPO_PREPARATORY_IMPLEMENTATION_DECISION` |
+| S2 | `PREPARATION_OWNER` | `PREPARATORY_IMPLEMENTATION_EVIDENCE` |
+| S3 | `CPO` | `CPO_POST_CODE_REVIEW` |
+| S4 | `CTO` | `CTO_GATE` |
+| S7 | `COORDINATOR_043C` | `R1_CLEANUP_EVIDENCE` |
+| S10 | `COORDINATOR_043C` | `R2_CLEANUP_EVIDENCE` |
+| F1/F2/F3 | `CPO` | `CPO_FINAL_DECISION` |
+
+Every `authorityRef` must match `^043c-[a-z0-9][a-z0-9-]{6,95}$` and contain no identity, path, URL, secret or business data.
+
+Ledger invariants:
+
+- `sequence` starts at zero and increases by exactly one.
+- `recordedAtUtc` uses strict UTC milliseconds and increases strictly.
+- S0/S1 have null protocol id/hash; S2 and later bind the one protocol id/hash.
+- `frozenCommit` stays null through S3 and is mandatory from S4.
+- `S4_FROZEN_COMMIT_BINDING=TRANSITION_BASE_EXACT`.
+- For a historical S3→S4 `043c-transition`, the appended S4 record must bind `frozenCommit` to the exact transition `range.base`; for the uncommitted worktree transition, it must bind `frozenCommit` to the exact current `HEAD`.
+- Any arbitrary SHA is rejected, and every transition after S4 preserves the exact S4 `frozenCommit`.
+- `r1Authorized` and `r2Authorized` stay false in every durable record because active run authorizations are local only.
+- `previousState` is the exact transition source. S7 therefore names S6 and S10 names S9 even though those sources are local.
+- S7 has `completedRun=R1` for a complete R1 and `null` for an interrupted R1.
+- S10 has `completedRun=R2` for a complete R2 and `R1` for an interrupted R2.
+- F1 requires `completedRun=R2`; F2/F3 preserve the last factually completed run.
+- `evidenceSha256` is null through S4 and mandatory from S7.
+- `cpoOutcome` is null through S10 and equals the exact terminal outcome at F1/F2/F3.
+- S10 is receivable only after a durable S7 with `completedRun=R1`; its declared `previousState` remains the local source S9.
+- F2/F3 name their immediately preceding S7 or S10 source checkpoint exactly in `previousState` and copy both `completedRun` and `evidenceSha256` from it.
+- A terminal is unique, last and has no outgoing state.
+
+### Closed ledger validation profiles
+
+The current `WORKTREE_043C_PREPARATORY` profile remains exact and unchanged:
+
+- exactly the four preparatory paths;
+- exactly three ledger records with last state S2;
+- empty index and exact `3M/1UNTRACKED`.
+
+The future `WORKTREE_043C_DURABLE_TRANSITION` profile is closed to:
+
+- only `M specs/active/043-controlled-fiduciary-pilot-readiness-v1.md`;
+- empty index, no untracked path and no spec `044+`;
+- exactly one JSONL record appended;
+- zero prior-record modification or deletion;
+- zero byte changed outside the marked ledger block;
+- an allowed source/target transition with no local-only durable state.
+
+The historical `043c-transition` profile verifies one direct single-parent `base→head` commit with exactly `1 M` on this spec and the same one-record append-only proof.
 
 ### Mandatory entry gates
 
@@ -386,23 +502,115 @@ Status: `NOT_STARTED / NOT_AUTHORIZED`.
 - `043b` Final AI Security/Privacy Review is `PASS`.
 - Owner risk acceptance is limited to local synthetic use.
 - Human technical and Security reviews have not occurred; they remain deferred to the external gate and become mandatory again on any external-use trigger.
-- A distinct post-`043b` CPO decision is still required before `043c`.
-- The internal protocol and disposable database/storage controls must be reconfirmed before `R1`.
-- Until both remaining entry conditions are satisfied, `043c` remains `NOT_STARTED / NOT_AUTHORIZED`; neither `R1` nor `R2` may begin.
+- The distinct CPO decision for preparatory implementation is satisfied.
+- A distinct CPO post-code review of the exact four-path diff is still required for S2 to S3.
+- A new CTO Gate must bind the protocol hash and future frozen commit before S3 to S4.
+- `PreparationPreflight` must succeed from S4 before a distinct CPO `R1_ONLY` decision may create local S5.
+- Neither R1 nor R2 may begin from S2.
 
-### Planned protocol
+### Exact state machine and gates
 
-Run two executions, `R1` and `R2`, of the same strictly internal synthetic rehearsal. Each covers context, balance import, manual mapping, workpaper/evidence preparation, maker-to-reviewer handoff, reviewer verification, audit-ready export and usefulness assessment.
+| ID | Exact state | Storage |
+| --- | --- | --- |
+| S0 | `043C_PLAN_HARDENED_IMPLEMENTATION_NOT_AUTHORIZED` | durable |
+| S1 | `043C_PREPARATORY_IMPLEMENTATION_AUTHORIZED` | durable |
+| S2 | `043C_PREPARATORY_IMPLEMENTED_PENDING_POST_CODE_CPO` | durable |
+| S3 | `043C_POST_CODE_CPO_PASS_PENDING_CTO` | durable |
+| S4 | `043C_PROTOCOL_FROZEN_READY_FOR_R1_DECISION` | durable |
+| S5 | `R1_ONLY_AUTHORIZED_NOT_STARTED` | local only |
+| S6 | `R1_STARTED_CLEANUP_NOT_VALIDATED` | local only |
+| S7 | `R1_CLEANUP_VALIDATED_READY_FOR_R2_DECISION` | durable |
+| S8 | `R2_ONLY_AUTHORIZED_NOT_STARTED` | local only |
+| S9 | `R2_STARTED_CLEANUP_NOT_VALIDATED` | local only |
+| S10 | `R2_CLEANUP_VALIDATED_READY_FOR_FINAL_CPO_DECISION` | durable |
+| F1 | `GO_TO_EXTERNAL_GATE_REVIEW` | durable terminal |
+| F2 | `NO_GO` | durable terminal |
+| F3 | `INCONCLUSIVE` | durable terminal |
+
+There is no S11. S5/S6/S8/S9 are forbidden as durable Git records.
+
+The complete gate sequence is:
+
+1. S0→S1: CPO preparatory implementation decision.
+2. S1→S2: exact `3M/1A` diff and preparatory checks.
+3. S2→S3: human CPO post-code review.
+4. S3→S4: CTO Gate on diff, protocol, hash and frozen commit.
+5. S4→S5: successful `PreparationPreflight`, then CPO `R1_ONLY`.
+6. S5→S6: operator provisioning, successful `PreR1`, then atomic local state.
+7. S6→S7: T15 and verified R1 cleanup, whether the run was complete or aborted.
+8. S7→S8: only after complete R1, R1 audit `15/0/0`, `completedRun=R1` and a separate CPO `R2_ONLY`.
+9. S7→F2/F3: separate human CPO decision after verified R1 cleanup; F1 is forbidden from S7.
+10. S8→S9: operator provisioning, successful `PreR2`, then atomic local state.
+11. S9→S10: T15 and verified R2 cleanup, whether the run was complete or aborted.
+12. S10→F1/F2/F3: separate human CPO decision; F1 additionally requires both runs complete and both audits `15/0/0`.
+
+Post-cleanup success and business success are separate facts. `PostR1Cleanup` and `PostR2Cleanup` return exactly one of:
+
+- `CLEANUP_VERIFIED_RUN_COMPLETE`;
+- `CLEANUP_VERIFIED_RUN_ABORTED`.
+
+A verified aborted R1 reaches S7 with `completedRun=null`, blocks S8, and permits only F2/F3. A verified aborted R2 reaches S10 with `completedRun=R1`, blocks F1, and permits F2/F3.
+
+If T15 is interrupted, the state remains S6 or S9. No durable checkpoint or terminal is recorded. The operator resumes the same T15 under the same run and authorization; that continuation is not a new run or a second business T15.
+
+`POST_R2_COMPLETE_R1_PRECONDITION=REQUIRED`. `PostR2Cleanup` cumulatively requires durable S7, local S9, valid bindings, valid R1 evidence, valid R2 evidence, `completedRun=R1`, R1 outcome `COMPLETED`, R1 missing count `0`, R1 unexpected count `0`, and both R1/R2 resource targets absent. A forged S9 snapshot cannot compensate for an aborted or incomplete R1. R2 itself may be `COMPLETED` or `ABORTED`.
+
+### Frozen protocol and local schemas
+
+The complete canonical protocol, T00–T15, exact audit matrix and full multiset SQL are frozen in `runbooks/controlled-fiduciary-pilot-local-043.md` under `protocolId=043c-internal-rehearsal-v1`.
+
+At the S3→S4 boundary, `S4_FROZEN_COMMIT_BINDING=TRANSITION_BASE_EXACT`: an uncommitted worktree S4 record binds the exact current `HEAD`, while a historical one-commit `043c-transition` binds the exact direct parent `range.base`. After that transition commit, the bound value is a strict ancestor of `HEAD` and remains byte-for-byte stable in every future record. The worktree is clean and every descendant commit through `HEAD` must be linear and modify only the spec 043 by one valid ledger-record append. Clean means both an empty porcelain status and no tracked index entry carrying `assume-unchanged`, `skip-worktree` or any unexpected `git ls-files -v` tag. The validator checks every commit so a forbidden runtime or documentation change followed by a revert is still rejected. The protocol blocks in `frozenCommit`, `HEAD` and the clean worktree are byte-identical, and no spec byte outside the ledger may change.
+
+The read-only validator has exactly six modes:
+
+- `SelfTest`;
+- `PreparationPreflight`;
+- `PreR1`;
+- `PostR1Cleanup`;
+- `PreR2`;
+- `PostR2Cleanup`.
+
+The future local files are documented and validated but are not created by this increment:
+
+- `authorization.json`: exactly nine fields;
+- `state/active-state.json`: exactly nine fields;
+- `runs/R1/evidence-summary.json` and `runs/R2/evidence-summary.json`: exactly fourteen fields.
+
+`resourceTargetSha256` is bound to a deterministic 180-byte UTF-8/LF descriptor per run. `ABORT_START_CONVENTION=NULL_ONLY_BEFORE_OR_AT_T00`: an `ABORTED` proof may keep `runStartedAtUtc=null` only when `lastCompletedTask` is `null` or `T00`; a non-null start is mandatory from `T01` onward. `runEndedAtUtc` and the abort reason remain mandatory. A `COMPLETED` proof requires a non-null start and `lastCompletedTask=T14`; T00 is never a completed run. An aborted proof keeps `expectedBusinessEventCount=15`, a missing count from 0 to 15 and a non-negative unexpected count from the final read-only snapshot; those counters never upgrade `ABORTED` to business success.
+
+The PostgreSQL proof is deliberately cluster-level, not application readiness. For each R1/R2 runner it requires LOGIN, no SUPERUSER/CREATEDB/CREATEROLE/REPLICATION/BYPASSRLS, zero explicit membership and exact database ownership. The sole catalogue authentication channel is operator-managed PostgreSQL 17 Windows SSPI with fixed non-privileged reader `ritomer_043c_catalog_reader`, `require_auth=sspi`, `--no-password`, no credential and no fallback. `PreR1` and `PreR2` separately require `ApplicationReadiness=EXACT_STATE_PROVEN`; because no exact post-Flyway/seed application state is currently normalized, the current adapter fixes it to `NOT_PROVEN` and both modes remain fail-closed.
+
+`LOCAL_APPLICATION_DATA_ROOT_POLICY=WINDOWS_FIXED_LOCAL_ONLY`. `%LOCALAPPDATA%` must be a non-empty, fully qualified canonical Windows `X:\...` path whose known root has `DriveType=Fixed`. UNC paths, a network share, a mapped network drive, a device path, URI paths, root-relative paths, drive-relative paths and other relative paths are rejected. Any network redirection fails closed; no automatic override exists. This policy is validated before any resource-state, storage or JSON read. Storage validation then covers every existing component from the approved `LocalApplicationData` root through `Ritomer/043c/<protocolId>/runtime/R1|R2/storage`. Every component must be the canonical directory under its approved parent and must not be a reparse point, junction or symlink. An absent target is `ABSENT` only when its existing parent chain is safe; an unsafe parent produces `OTHER`.
+
+SEC-043C-005 étend la même règle fail-closed à `authorization.json`, `state\active-state.json`, `runs\R1\evidence-summary.json` et `runs\R2\evidence-summary.json`. `LOCAL_ARTIFACT_PATH_CONFINEMENT=STORAGE_AND_FOUR_JSON_ARTIFACTS` signifie que le storage, chacun de ces quatre artefacts, tous leurs parents existants et les fichiers finaux eux-mêmes doivent rester sur leur chemin canonique exact sous la racine `LocalApplicationData` approuvée. Aucun parent ni fichier final ne peut être une junction, un symlink, un reparse point ou une résolution extérieure à cette racine. Une absence n'est recevable que si toute la chaîne parente existante est canonique, accessible et sûre ; un parent fichier, inaccessible, reparse ou extérieur fait échouer le contrôle.
+
+### Internal rehearsal boundary
+
+The F1 path runs two executions, `R1` and `R2`, of the same strictly internal synthetic rehearsal. Each covers context, balance import, manual mapping, workpaper/evidence preparation, maker-to-reviewer handoff, reviewer verification, audit-ready export and usefulness assessment.
 
 Each execution uses a separate disposable database and storage root. `R2` cannot begin until `R1` cleanup is proved. The canonical database, real customer data and external participants are forbidden. Runtime secrets remain local and must never enter Git, chat, logs or the observation template.
 
-The only allowed CPO outcomes are:
+`CHECK_FINAL_CPO` is human-only, is not a T task and is not a validator mode. It may run from S7 for F2/F3 or from S10 for F1/F2/F3. The only allowed outcomes are:
 
 - `GO_TO_EXTERNAL_GATE_REVIEW`;
 - `NO_GO`;
 - `INCONCLUSIVE`.
 
-`GO_TO_EXTERNAL_GATE_REVIEW` does not authorize an invitation, collection, real data or a following spec. With `INCONCLUSIVE`, `043` remains active. A future closure may move `043` to Done only with evidence from both executions or an explicit `NO_GO`; it creates no next spec.
+`GO_TO_EXTERNAL_GATE_REVIEW` does not authorize an invitation, collection, real data or a following spec. F3 is terminal for this protocol instance; any new attempt requires a new governed decision/protocol. A future closure may move `043` to Done only on an explicit terminal decision, and it creates no next spec.
+
+### Preparatory acceptance
+
+- The worktree contains exactly the four authorized paths with matrix `3M/1UNTRACKED` and an empty index.
+- The durable block contains exactly S0, S1 and S2 with sixteen fields each.
+- The S2 protocol hash matches the unique runbook block byte for byte.
+- The PowerShell validator is statically read-only and its `SelfTest` is fully in-memory with exactly `91/91/0` probes.
+- The checker accepts `WORKTREE_043C_PREPARATORY`, preserves all earlier profiles, adds historical `043c-preparation` pinned to base `1ecddd81e255bc049558e5f90bf65db394558d67`, and defines the future closed worktree/historical `043c-transition` profiles.
+- The checker and validator buffer success output; no final line contains `PASS` when an error exists.
+- Frozen fixture validation, allowed syntax/parsing checks, worktree checker and historical profiles are green.
+- The real historical `043c-preparation` base→head check remains `NOT_RUN_NO_COMMIT_BY_SCOPE` because this increment creates no commit.
+- No runtime, PostgreSQL, psql, Flyway, backend, Vite, browser, seed, smoke, R1 or R2 is executed.
+- S2 still requires CPO post-code review and CTO Gate before any run-specific authorization.
+- The catalogue result is cluster-level only, the SSPI contract is fail-closed, every runner has zero explicit membership, every storage ancestor is checked, and PreR1/PreR2 remain blocked until a separately governed exact application-readiness proof exists.
 
 ## Gates before any external invitation
 
