@@ -215,3 +215,62 @@ try {
 - Ne pas coder l’IA en texte libre si un JSON Schema existe.
 - Ne pas casser un contrat existant sans mise à jour explicite.
 - Ne pas utiliser des données d’un tenant dans le contexte IA d’un autre tenant.
+
+## Autonomous GitHub delivery
+
+When a mission contains an explicit delivery authorization, Codex owns the
+mechanical Git and GitHub delivery loop.
+
+Authorization markers:
+
+- Risk A or B:
+  `DELIVERY_AUTHORIZED=YES` authorizes branch, commit, push, pull request,
+  required-check monitoring, squash merge and post-merge verification.
+
+- Risk C:
+  `DELIVERY_AUTHORIZED=YES` authorizes branch, commit, push and pull-request
+  creation.
+  `MERGE_AUTHORIZED=YES` is additionally required before merge.
+
+Mandatory delivery sequence:
+
+1. Verify a clean local worktree and an exact synchronized main baseline.
+2. Create one dedicated branch.
+3. Modify only the authorized file-set.
+4. Run all checks required by the declared surface and risk.
+5. Stop on any failed, skipped, stale, missing or indeterminate required check.
+6. Create the reviewed commit or commits allowed by the mission.
+7. Push without force.
+8. Generate the pull-request title and complete body from the Fresh Evidence
+   Pack.
+9. Create the pull request using GitHub CLI.
+10. Verify base branch, head branch, reviewed head SHA, file-set and diff.
+11. Wait for all required GitHub checks.
+12. Merge exclusively with squash.
+13. Always use `--match-head-commit` with the exact reviewed head SHA.
+14. Never use `--admin`, merge commits, rebase merge, direct push to main,
+    force-push or protection bypass.
+15. Delete the source branch after merge.
+16. Synchronize main with `--ff-only`.
+17. Verify the final commit, parent count, tree, file-set, tests and clean
+    repository.
+18. Produce a post-merge Fresh Evidence Pack.
+
+Pull-request bodies must include:
+
+- objective;
+- exact scope and file-set;
+- material diff summary;
+- checks executed and results;
+- risks and residual limitations;
+- explicit non-authorizations;
+- reviewed head SHA;
+- required merge method;
+- post-merge verification expectations.
+
+The AI reviews remain classified as AI-generated and must never be described
+as human signatures or real segregation of duties.
+
+If GitHub CLI, authentication, permissions, required checks or repository
+rules are unavailable, stop explicitly rather than falling back to manual
+merge or an unsafe method.
