@@ -56,6 +56,32 @@ Verdicts post-code autorisés :
 
 Les risques résiduels non bloquants doivent être listés séparément. Ils ne créent pas de verdict supplémentaire.
 
+## Review verdict versus delivery authorization
+
+`FEU VERT` juge le diff et les preuves disponibles. Seul, ce verdict ne constitue pas une autorisation de delivery et ne remplace aucun marqueur d'autorisation.
+
+- Pour un risque A ou B, `DELIVERY_AUTHORIZED=YES` autorise la boucle complète jusqu'à la vérification post-merge.
+- Pour un risque C, `DELIVERY_AUTHORIZED=YES` autorise la branche, les modifications, le commit, le push et la création de la pull request ; `MERGE_AUTHORIZED=YES` est requis séparément avant le merge.
+- Une review IA reste générée par l'IA et ne doit jamais être présentée comme une signature humaine.
+- L'absence d'approbation humaine obligatoire dans GitHub ne constitue ni une review humaine ni une séparation des fonctions.
+
+Avant le merge, vérifier :
+
+- le head SHA exact revu ;
+- le file-set et le diff exacts ;
+- tous les required checks présents et verts ;
+- le squash uniquement avec `--match-head-commit` sur le head SHA revu ;
+- l'absence de dérive incompatible de `main`.
+
+Après le merge, vérifier :
+
+- le commit final mono-parent ;
+- la cohérence du tree source avec le tree final ;
+- le diff final exact ;
+- `main` synchronisée ;
+- le worktree et l'index propres, sans fichier non suivi ;
+- la branche source supprimée.
+
 ## Checklists par surface
 
 | Surface | Points à vérifier |

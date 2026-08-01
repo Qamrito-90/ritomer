@@ -111,7 +111,7 @@ git --no-pager diff
 git status --short
 ```
 
-Pas de tests runtime sauf si la documentation modifie une commande, une règle de delivery, une CI, un contrat ou une décision durable.
+Pas de tests runtime locaux par défaut. Ajouter des checks runtime seulement si un artefact exécutable, une commande, une CI ou un contrat est concrètement impacté, puis justifier le choix dans le Fresh Evidence Pack.
 
 ## CI/Git
 
@@ -123,6 +123,26 @@ Pour `.github/workflows/*` :
 - vérifier absence de secrets en clair ;
 - vérifier cohérence entre commandes CI et commandes locales ;
 - après push, vérifier le run GitHub Actions si applicable.
+
+## GitHub required checks and autonomous merge
+
+Sur `main`, les required checks courants sont :
+
+- `Backend CI` ;
+- `Frontend CI`.
+
+Une pull request n'est pas verte si un required check est absent, skipped de manière non autorisée, stale, cancelled, failed, timed out, action required ou indeterminate. Codex doit attendre leur état final via GitHub CLI.
+
+Le merge autonome utilise exclusivement squash et `--match-head-commit` avec le head SHA exact revu. Aucun required check ne doit être contourné avec `--admin`.
+
+Tout renommage de `Backend CI` ou `Frontend CI` exige une tâche `CI/GIT` autorisée mettant à jour simultanément :
+
+- le workflow concerné ;
+- le ruleset GitHub ;
+- `TESTING_STRATEGY.md` ;
+- toute documentation directement impactée.
+
+Un changement docs-only peut ne nécessiter aucun test runtime local. Les required checks GitHub restent obligatoires tant que le ruleset les exige.
 
 ## Matrice de décision
 

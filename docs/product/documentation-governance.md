@@ -17,6 +17,10 @@ Faire du repo la documentation vivante du projet, tout en reservant les document
 ### Gouvernance et regles permanentes
 
 - `AGENTS.md`
+- `CODE_REVIEW.md`
+- `TESTING_STRATEGY.md`
+- `RISK_REGISTER.md`
+- `.github/pull_request_template.md`
 - `README.md`
 - `docs/product/documentation-governance.md`
 
@@ -65,6 +69,14 @@ Ces documents orientent la direction cible et les patterns. Ils ne doivent pas e
 - `docs/archive/*`
 
 Ces documents sont des snapshots, des handoffs ou des traces d'alignement. Ils ne sont pas la source de verite vivante par defaut.
+
+## Preuves de delivery et documentation vivante
+
+- La description de PR et le Fresh Evidence Pack sont des artefacts de preuve et de tracabilite.
+- Codex genere la description de PR a partir du Fresh Evidence Pack ; aucun des deux ne remplace la documentation vivante du repo ni ne devient une seconde source de verite.
+- Toute decision durable doit etre inscrite avant le merge dans les artefacts canoniques impactes.
+- L'automatisation de la PR et du merge ne supprime pas l'obligation d'une mise a jour documentaire minimale et proportionnee.
+- Les fichiers temporaires crees pour une description de PR ou un snapshot de delivery restent hors du repo.
 
 ## Role des documents Word
 
