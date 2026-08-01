@@ -34,10 +34,12 @@ Ne pas surclasser automatiquement en `C` une spec purement wording, documentatio
 | Contrats API | B | à surveiller | OpenAPI, path, payload, erreur, compatibilité frontend/backend | contrat mis à jour, producteurs/consommateurs alignés ; monter en C si breaking ou sensible | non par défaut |
 | Documents / workpapers / exports sensibles | C | à surveiller | upload, download, stockage, vérification, stale/current, ZIP export, accès à une preuve, visibilité client, donnée financière | backend-only si requis, pas de signed URL publique, idempotence, distinction current/stale/archive, tests adaptés | oui |
 | IA evidence-first / human-in-the-loop | C | à surveiller | modèle, prompt, schema, retrieval, suggestion IA | JSON Schema, preuves obligatoires, validation humaine, feature flag, evals, logs | oui |
-| CI / qualité | B | mitigé | workflow, test, lint, build, permissions | pas de secret, commandes cohérentes, checks adaptés au risque | non par défaut |
+| CI / qualité / Git / GitHub delivery | B par défaut ; C selon signal | mitigé | modification bornée de CI/Git ou de documentation de delivery ; monter en C pour ruleset, bypass actor, permissions administrateur, méthode de merge, required checks, force-push, suppression de `main`, déploiement ou production | PR obligatoire, squash uniquement, historique linéaire, required checks verts, head SHA exact, aucun bypass, aucun push direct sur `main`, aucun force-push, vérification post-merge | non par défaut en B ; oui en C |
 | Documentation désynchronisée | B | à surveiller | spec close, décision durable, contrat ou présent modifié | mise à jour minimale des docs vivantes impactées | non par défaut |
 | Nouvelle dépendance | C | à surveiller | librairie, plugin build, SDK, runtime externe | justification, périmètre limité, lockfile cohérent, tests adaptés | oui |
 | Production / déploiement | C | non déterminé | Cloud Run, Cloud SQL, secrets, région, rollback, CI de déploiement | runbook/CI explicite, aucun secret en clair, revue avant merge | oui |
+
+Les décisions CPO/CTO et les marqueurs d'autorisation de delivery ne constituent ni des reviews humaines GitHub ni une preuve de séparation des fonctions.
 
 ## Utilisation dans la boucle
 
