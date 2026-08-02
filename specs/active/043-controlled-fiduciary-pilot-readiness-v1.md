@@ -6,8 +6,13 @@ Active.
 
 - `043a`: `ACCEPTED_BY_DISTINCT_CPO_REVIEW`.
 - `043b`: `LOCAL_SYNTHETIC_SIMULATION_VALIDATED / MERGED / AI_REVIEWED / OWNER_RISK_ACCEPTED_FOR_LOCAL_SYNTHETIC_ONLY / NOT_HUMAN_SIGNED / NOT_PRODUCTION_READY / NOT_EXTERNAL_READY / NOT_SEPARATION_OF_DUTIES_PROOF`.
-- `043c`: `PREPARATORY_IMPLEMENTED_PENDING_POST_CODE_CPO / EXECUTION_NOT_AUTHORIZED / R1_NOT_STARTED_NOT_AUTHORIZED / R2_NOT_STARTED_NOT_AUTHORIZED`.
-- Current sub-deliverable: `043c preparatory implementation`.
+- `043c v1` historical, quarantined and non-current:
+  `PREPARATORY_IMPLEMENTED_PENDING_POST_CODE_CPO / EXECUTION_NOT_AUTHORIZED /
+  R1_NOT_STARTED_NOT_AUTHORIZED / R2_NOT_STARTED_NOT_AUTHORIZED`.
+- `043c v2` current: `D0-D2 / P0_LOCAL_IMPLEMENTATION /
+  IMPLEMENTED_PENDING_P0_DELIVERY / NOT_EXECUTABLE`.
+- Current sub-deliverable: `043c v2 P0 local implementation`, risk C, exactly
+  eight authorized paths (`4M/4A` after commit).
 - No transition between `043a`, `043b` and `043c` is automatic.
 
 ## Roadmap declaration
@@ -35,7 +40,7 @@ The first external invitation requires a new CPO decision and prior satisfaction
 
 No following spec is created automatically.
 
-Each of `043a`, `043b` and `043c` requires a distinct CPO review. The distinct review of `043a` and the prior CTO Gate for `043b` are complete. The CTO Gate approved the local architecture with conditions for local synthetic use only. The local evidence and final post-code AI reviews for `043b` are complete. The distinct CPO decision authorizing only the exact `043c` preparatory implementation is now recorded; the durable state is S2. A separate post-code CPO review, a new CTO Gate, protocol/commit freeze, `PreparationPreflight` and a run-specific CPO decision remain mandatory before R1. Human technical and Security reviews are deferred to the external gate and become mandatory again on any external-use trigger defined below.
+Each of `043a`, `043b` and `043c` requires a distinct CPO review. The distinct review of `043a` and the prior CTO Gate for `043b` are complete. The CTO Gate approved the local architecture with conditions for local synthetic use only. The local evidence and final post-code AI reviews for `043b` are complete. The former `043c` preparatory decision and S2 baseline are historical v1 facts only. The current v2 authority consists of D0, D1 and the P0 implementation evidence D2; it authorizes only the exact eight-path local implementation, never delivery or execution. A separate post-code CPO review, delivery authority, reviews on one exact head, merge authority, recovery selection, qualification and CTO Freeze Gate D5 remain mandatory before any run-specific authority. Human technical and Security reviews are deferred to the external gate and become mandatory again on any external-use trigger defined below.
 
 ## Surface and risk
 
@@ -43,8 +48,9 @@ Each of `043a`, `043b` and `043c` requires a distinct CPO review. The distinct r
 | --- | --- | --- |
 | `043a` | `DOCS_GIT / FIXTURES_SYNTHETIQUES / GOVERNANCE_CHECKS` | B |
 | `043b` | `BACKEND_LOCAL_AUTH / BACKEND_TEST_SAFETY / FRONTEND_LOCAL_HARNESS / CI_GIT / DOCS_GIT / SECURITY_DEBT_GOVERNANCE` | C for destructive PostgreSQL safety; B otherwise |
-| `043c` preparation | `DOCS_GIT / GOVERNANCE_CHECKS` | B |
-| `043c` R1/R2, not authorized by this increment | `QA_MANUAL / LOCAL_RUNTIME / DOCS_GIT` | C |
+| `043c` preparation v1, historical and non-current | `DOCS_GIT / GOVERNANCE_CHECKS` | B (historical) |
+| `043c` v2 P0, current | `DOCS_GIT / GOVERNANCE_CHECKS` | C |
+| `043c` v2 R1/R2, not authorized by this increment | `QA_MANUAL / LOCAL_RUNTIME / DOCS_GIT` | C |
 
 The merged `043b` hotfix remained bounded to its exact 26-path implementation set. This post-merge closure is documentary-only in the four authorized living documents; it does not authorize `043c`, an external participant, production authentication, a provider, an MCP, real data or a following spec.
 
@@ -377,15 +383,22 @@ Those `2026-07-13` results remain dated history, including `ENV_BLOCKED_DB_INTEG
 
 Stop and replan if implementation would require a production auth change, mint endpoint, browser-side token, JWT-controlled role/tenant, non-loopback target, migration, public API contract, dependency or modification outside the approved `043b` file set.
 
-## 043c - Internal rehearsal and readiness decision
+## 043c v1 - Historical quarantined rehearsal protocol
 
-Status: `PREPARATORY_IMPLEMENTED_PENDING_POST_CODE_CPO / EXECUTION_NOT_AUTHORIZED / R1_NOT_STARTED_NOT_AUTHORIZED / R2_NOT_STARTED_NOT_AUTHORIZED`.
+Everything from this heading through "Historical v1 preparatory acceptance" is
+frozen historical v1 truth, not the current 043c state or Definition of Done.
 
-Current preparatory durable baseline:
+Historical v1 status, non-current:
+`PREPARATORY_IMPLEMENTED_PENDING_POST_CODE_CPO / EXECUTION_NOT_AUTHORIZED /
+R1_NOT_STARTED_NOT_AUTHORIZED / R2_NOT_STARTED_NOT_AUTHORIZED`.
+
+Historical v1 preparatory durable baseline, non-current:
 
 `S2 = 043C_PREPARATORY_IMPLEMENTED_PENDING_POST_CODE_CPO`
 
-The durable truth is always the last valid record of the generic ledger. The three records materialized by this preparatory worktree are the exact S0/S1/S2 baseline; future governed transitions append one record at a time without rewriting this section outside the marked ledger block.
+For v1 forensic replay only, the durable truth is the last valid record of its
+generic ledger. Its S0-S4 records are quarantined evidence and never compete
+with the current v2 D0-D2 ledger.
 
 The CPO decision represented by this increment grants only:
 
@@ -401,16 +414,20 @@ It does not grant:
 
 No S3, S4, S5, S6, S7, S8, S9, S10 or terminal record is materialized by this increment.
 
-### Exact preparatory file set
+### Historical v1 preparatory file set - non-current
 
-The preparatory implementation is closed to exactly four paths:
+The historical v1 preparatory implementation was closed to exactly four paths:
 
 1. `M specs/active/043-controlled-fiduciary-pilot-readiness-v1.md`
 2. `M runbooks/controlled-fiduciary-pilot-local-043.md`
 3. `M evals/mapping/validate-042a2-human-review-governance-kit.mjs`
 4. `?? runbooks/validate-controlled-fiduciary-pilot-043c-state.ps1` (`A` only in a future committed historical range)
 
-The exact current worktree matrix is `3M / 1UNTRACKED` with an empty index; its future committed historical matrix would be `3M / 1A / 0D / 0R / 0C`. No backend, frontend, contract, migration, fixture, policy, dependency, manifest, lockfile, `.env`, `docs/product/v1-plan.md` or spec `044+` is part of this increment.
+The historical v1 worktree matrix was `3M / 1UNTRACKED` with an empty index;
+its committed historical matrix was `3M / 1A / 0D / 0R / 0C`. These values
+are not current acceptance criteria. No backend, frontend, contract, migration,
+fixture, policy, dependency, manifest, lockfile, `.env`,
+`docs/product/v1-plan.md` or spec `044+` belonged to that historical increment.
 
 ### Durable state ledger
 
@@ -479,9 +496,10 @@ Ledger invariants:
 - F2/F3 name their immediately preceding S7 or S10 source checkpoint exactly in `previousState` and copy both `completedRun` and `evidenceSha256` from it.
 - A terminal is unique, last and has no outgoing state.
 
-### Closed ledger validation profiles
+### Historical v1 closed ledger validation profiles - non-current
 
-The current `WORKTREE_043C_PREPARATORY` profile remains exact and unchanged:
+The historical `WORKTREE_043C_PREPARATORY` profile remains available only for
+forensic replay:
 
 - exactly the four preparatory paths;
 - exactly three ledger records with last state S2;
@@ -498,19 +516,19 @@ The future `WORKTREE_043C_DURABLE_TRANSITION` profile is closed to:
 
 The historical `043c-transition` profile verifies one direct single-parent `base→head` commit with exactly `1 M` on this spec and the same one-record append-only proof.
 
-### Mandatory entry gates
+### Historical v1 mandatory entry gates - non-current
 
 - `043b` Final AI Technical Review is `PASS`.
 - `043b` Final AI Security/Privacy Review is `PASS`.
 - Owner risk acceptance is limited to local synthetic use.
 - Human technical and Security reviews have not occurred; they remain deferred to the external gate and become mandatory again on any external-use trigger.
-- The distinct CPO decision for preparatory implementation is satisfied.
-- A distinct CPO post-code review of the exact four-path diff is still required for S2 to S3.
+- The historical distinct CPO decision for v1 preparatory implementation was satisfied.
+- The historical v1 path required a distinct CPO post-code review of its exact four-path diff for S2 to S3; no v2 authority is derived from it.
 - A new CTO Gate must bind the protocol hash and future frozen commit before S3 to S4.
 - `PreparationPreflight` must succeed from S4 before a distinct CPO `R1_ONLY` decision may create local S5.
 - Neither R1 nor R2 may begin from S2.
 
-### Exact state machine and gates
+### Historical v1 exact state machine and gates - non-current
 
 | ID | Exact state | Storage |
 | --- | --- | --- |
@@ -534,7 +552,7 @@ There is no S11. S5/S6/S8/S9 are forbidden as durable Git records.
 The complete gate sequence is:
 
 1. S0→S1: CPO preparatory implementation decision.
-2. S1→S2: exact `3M/1A` diff and preparatory checks.
+2. S1→S2: historical exact `3M/1A` diff and preparatory checks.
 3. S2→S3: human CPO post-code review.
 4. S3→S4: CTO Gate on diff, protocol, hash and frozen commit.
 5. S4→S5: successful `PreparationPreflight`, then CPO `R1_ONLY`.
@@ -557,7 +575,7 @@ If T15 is interrupted, the state remains S6 or S9. No durable checkpoint or term
 
 `POST_R2_COMPLETE_R1_PRECONDITION=REQUIRED`. `PostR2Cleanup` cumulatively requires durable S7, local S9, valid bindings, valid R1 evidence, valid R2 evidence, `completedRun=R1`, R1 outcome `COMPLETED`, R1 missing count `0`, R1 unexpected count `0`, and both R1/R2 resource targets absent. A forged S9 snapshot cannot compensate for an aborted or incomplete R1. R2 itself may be `COMPLETED` or `ABORTED`.
 
-### Frozen protocol and local schemas
+### Historical v1 frozen protocol and local schemas - non-current
 
 The complete canonical protocol, T00–T15, exact audit matrix and full multiset SQL are frozen in `runbooks/controlled-fiduciary-pilot-local-043.md` under `protocolId=043c-internal-rehearsal-v1`.
 
@@ -600,9 +618,10 @@ Each execution uses a separate disposable database and storage root. `R2` cannot
 
 `GO_TO_EXTERNAL_GATE_REVIEW` does not authorize an invitation, collection, real data or a following spec. F3 is terminal for this protocol instance; any new attempt requires a new governed decision/protocol. A future closure may move `043` to Done only on an explicit terminal decision, and it creates no next spec.
 
-### Preparatory acceptance
+### Historical v1 preparatory acceptance - non-current
 
-- The worktree contains exactly the four authorized paths with matrix `3M/1UNTRACKED` and an empty index.
+- The historical worktree contained exactly the four v1-authorized paths with
+  matrix `3M/1UNTRACKED` and an empty index; this is not the v2 P0 file-set.
 - The durable block contains exactly S0, S1 and S2 with sixteen fields each.
 - The S2 protocol hash matches the unique runbook block byte for byte.
 - The PowerShell validator is statically read-only and its `SelfTest` is fully in-memory with exactly `91/91/0` probes.
@@ -613,6 +632,306 @@ Each execution uses a separate disposable database and storage root. `R2` cannot
 - No runtime, PostgreSQL, psql, Flyway, backend, Vite, browser, seed, smoke, R1 or R2 is executed.
 - S2 still requires CPO post-code review and CTO Gate before any run-specific authorization.
 - The catalogue result is cluster-level only, the SSPI contract is fail-closed, every runner has zero explicit membership, every storage ancestor is checked, and PreR1/PreR2 remain blocked until a separately governed exact application-readiness proof exists.
+
+### 043c v2 — récupération versionnée append-only
+
+#### Vérité courante P0 v2
+
+La vérité courante de ce sous-livrable est exclusivement v2 : risque C,
+`P0_LOCAL_IMPLEMENTATION / D0-D2 / IMPLEMENTED_PENDING_P0_DELIVERY /
+NOT_EXECUTABLE`. Elle remplace comme vérité d'exécution les anciens statuts,
+matrices et critères d'acceptation v1, qui restent seulement forensiques.
+
+Le file-set P0 est fermé à exactement huit chemins :
+
+1. `M specs/active/043-controlled-fiduciary-pilot-readiness-v1.md`
+2. `M runbooks/controlled-fiduciary-pilot-local-043.md`
+3. `M docs/product/v1-plan.md`
+4. `M runbooks/validate-controlled-fiduciary-pilot-043c-state.ps1`
+5. `A runbooks/controlled-fiduciary-pilot-local-043c-v2.md`
+6. `A evals/pilot/043c/recovery-ledger-v2.jsonl`
+7. `A evals/pilot/043c/validate-recovery-v2.mjs`
+8. `A runbooks/validate-controlled-fiduciary-pilot-043c-v2-state.ps1`
+
+Le worktree attendu est `4M/4UNTRACKED` avec index vide ; la plage historique
+P0 attendue sera `4M/4A/0D/0R/0C`. Aucun neuvième chemin, commit, push, PR,
+qualification, runtime, PostgreSQL, secret, donnée réelle ou livraison n'est
+autorisé par D0-D2.
+
+#### Autorité courante et quarantaine v1
+
+Le protocole et le ledger v1 sont désormais une provenance historique
+quarantainée. Ils restent byte-identiques et ne sont plus exécutables ni
+transitionnables :
+
+- protocole v1 : `41438` octets, SHA-256
+  `7e5430a63c0b94a3643beffef08b47bf60870ce17b73e453991de978cbf30fe4` ;
+- ledger v1 : `2645` octets, SHA-256
+  `c0d574832011332c75860d7caef1441aeb6ae94edf61e218502049be32b92b77` ;
+- SQL T14 : `11324` octets, SHA-256
+  `4e3539099197c4152e46756fb202233869698434a5505034d1fa071901184745` ;
+- `V1_EXECUTION=PERMANENTLY_NOT_AUTHORIZED` ;
+- `V1_FURTHER_LEDGER_TRANSITIONS=FORBIDDEN` ;
+- `NO_FALLBACK_V1=YES`.
+
+Les décisions CPO D0 et D1 sont distinctes et non déductibles l'une de
+l'autre :
+
+- D0 : `043c-v2-d0-plan-hardening-decision`, autorité survenue le
+  `2026-08-01T23:42:26.302Z` ;
+- D1 : `043c-v2-d1-implementation-authorization`, autorité survenue le
+  `2026-08-02T04:43:41.000Z`.
+
+D1 autorise seulement l'implémentation locale P0 et ses checks. Toutes les
+autorisations d'exécution restent fausses. `DELIVERY_AUTHORIZED` et
+`MERGE_AUTHORIZED` restent des décisions externes au ledger et valent `NO`.
+
+#### Incident et sélection immuables
+
+Le bloc suivant est une photographie PLAN_ONLY historique. Son unique ligne
+JSON est UTF-8 strict sans BOM, LF-only, avec ordre de propriétés fermé. Son
+SHA-256 couvre la ligne JSON et son LF terminal, marqueurs exclus.
+
+<!-- 043C_V2_INCIDENT_SELECTION_BEGIN -->
+{"schemaVersion":2,"recordType":"043C_V2_INCIDENT_SELECTION","incidentId":"043c-v1-pr107-freeze-linearity-incident","primaryIncident":{"pullRequest":107,"createdAtUtc":"2026-07-31T21:56:31.000Z","mergedAtUtc":"2026-08-01T04:29:18.000Z","requiredMergeMethod":"SQUASH","requiredFinalParentCount":1,"baseCommit":"046aa64e05eeb280833d7c7ef9d3161a64b73af4","baseParentCount":2,"baseParents":["534226772508e9f2998bdbad0cd786a468ebff33","84406bb54de796821709f84c05da5bb826dde3bb"],"baseTree":"e21f5e44fd88dd6c1b69ea758f28b0ecc6c04d1e","sourceCommit":"a0686605f47d8e4b373173731330f66dd14901ce","sourceParentCount":1,"sourceParents":["046aa64e05eeb280833d7c7ef9d3161a64b73af4"],"sourceTree":"5ccbde08508092b684943959ce52c80f0e672296","mergeCommit":"27f230d8f641dcda89821e1b9d15434149741f84","mergeParentCount":2,"mergeParents":["046aa64e05eeb280833d7c7ef9d3161a64b73af4","a0686605f47d8e4b373173731330f66dd14901ce"],"mergeTree":"5ccbde08508092b684943959ce52c80f0e672296","actualMergeMethod":"MERGE_COMMIT","sourceMergeTreeIdentical":true},"forensicPrecedent":{"pullRequest":106,"createdAtUtc":"2026-07-31T13:21:30.000Z","mergedAtUtc":"2026-07-31T13:40:51.000Z","requiredMergeMethod":null,"baseCommit":"534226772508e9f2998bdbad0cd786a468ebff33","baseParentCount":2,"baseParents":["1ecddd81e255bc049558e5f90bf65db394558d67","4f8cfed4347cfbe2de64fecc54490eac09fc9bd7"],"baseTree":"7f13f26fcb0d01632e3f57eeb2fc4d3a03c6416c","sourceCommit":"84406bb54de796821709f84c05da5bb826dde3bb","sourceParentCount":1,"sourceParents":["534226772508e9f2998bdbad0cd786a468ebff33"],"sourceTree":"e21f5e44fd88dd6c1b69ea758f28b0ecc6c04d1e","mergeCommit":"046aa64e05eeb280833d7c7ef9d3161a64b73af4","mergeParentCount":2,"mergeParents":["534226772508e9f2998bdbad0cd786a468ebff33","84406bb54de796821709f84c05da5bb826dde3bb"],"mergeTree":"e21f5e44fd88dd6c1b69ea758f28b0ecc6c04d1e","actualMergeMethod":"MERGE_COMMIT","sourceMergeTreeIdentical":true},"cause":{"primary":"PR107_MERGED_WITH_TWO_PARENTS_DESPITE_SQUASH_SINGLE_PARENT_CONTRACT","protocolEffect":"V1_FROZEN_DESCENDANT_LINEARITY_BROKEN","subsequent":"POST_S4_NON_LEDGER_COMMITS_BREAK_V1_DESCENDANT_FILE_SET","firstViolatingCommit":"27f230d8f641dcda89821e1b9d15434149741f84","subsequentViolatingCommits":["dfeef921136eafa26d0b0e9c2cc7a299edb740a7","798f3bc03dc7351691dcfcd9f1025b51809cec67"],"mergeCommand":"NON_DETERMINED"},"v1":{"protocolId":"043c-internal-rehearsal-v1","protocolBytes":41438,"protocolSha256":"7e5430a63c0b94a3643beffef08b47bf60870ce17b73e453991de978cbf30fe4","ledgerBytes":2645,"ledgerSha256":"c0d574832011332c75860d7caef1441aeb6ae94edf61e218502049be32b92b77","frozenCommit":"046aa64e05eeb280833d7c7ef9d3161a64b73af4","lastDurableState":"043C_PROTOCOL_FROZEN_READY_FOR_R1_DECISION","status":"QUARANTINED_PERMANENTLY_NOT_AUTHORIZED","furtherLedgerTransitions":"FORBIDDEN","bytePreservation":"REQUIRED"},"selection":{"decision":"CONTINUE_SIMPLIFIED_043C_V2","status":"PLAN_ONLY_SELECTED_NOT_EXECUTABLE","selectedProtocolId":"043c-internal-rehearsal-v2","currentProtocolId":"043c-internal-rehearsal-v1","executableProtocolId":null,"runtimeV1Import":"FORBIDDEN","runtimeV1Selection":"FORBIDDEN","fallbackV1":"FORBIDDEN"},"authorizations":{"implementationAuthorized":false,"deliveryAuthorized":false,"mergeAuthorized":false,"v1ExecutionAuthorized":false,"v2ExecutionAuthorized":false,"r1Authorized":false,"r2Authorized":false,"externalUseAuthorized":false,"realDataAuthorized":false,"productionAuthorized":false},"integrity":{"algorithm":"SHA-256","coverage":"UTF8_LF_JSON_LINE_WITH_TERMINAL_LF_EXCLUDING_MARKERS","immutability":"BYTE_IDENTICAL_AFTER_FIRST_MERGE","futureCorrection":"NEW_VERSIONED_PROTOCOL_AND_LEDGER_WITH_CPO_SCOPE_EXCEPTION"}}
+<!-- 043C_V2_INCIDENT_SELECTION_END -->
+
+La ligne fait exactement `3680` octets LF inclus et porte le SHA-256
+`1419edb3f46c1472f7333b0a8970fb3897f5f534693229ce123dc9b53eb9ea8b`.
+Ses booléens `implementationAuthorized=false`, `deliveryAuthorized=false` et
+`mergeAuthorized=false` décrivent la sélection PLAN_ONLY historique, jamais
+l'autorité courante après D1. La hiérarchie normative est :
+
+1. bloc incident/sélection = provenance historique figée ;
+2. dernier record valide du ledger v2 = état durable courant ;
+3. delivery et merge = décisions externes liées à un head/base précis.
+
+#### Protocole v2
+
+Le protocole autonome utilise `protocolId=043c-internal-rehearsal-v2` et les
+marqueurs `<!-- 043C_PROTOCOL_V2_BEGIN -->` et
+`<!-- 043C_PROTOCOL_V2_END -->`. `protocolSha256` est calculé sur les octets
+UTF-8 stricts après le LF du marqueur BEGIN et avant le premier octet du
+marqueur END ; le dernier octet couvert est l'unique LF terminal. BOM, CR,
+normalisation et re-sérialisation sont interdits.
+
+#### Contrat du ledger v2
+
+<!-- 043C_RECOVERY_LEDGER_V2_CONTRACT_BEGIN -->
+
+Le ledger `evals/pilot/043c/recovery-ledger-v2.jsonl` est UTF-8 strict sans
+BOM, LF-only, sans ligne vide, avec une ligne JSON minifiée par record, premier
+octet `{`, dernier octet LF et taille totale maximale de `65536` octets. Chaque
+record possède exactement ces vingt-trois propriétés dans cet ordre :
+
+1. `schemaVersion`
+2. `ledgerId`
+3. `sequence`
+4. `decisionId`
+5. `state`
+6. `previousState`
+7. `previousRecordSha256`
+8. `recordedAtUtc`
+9. `authorityOccurredAtUtc`
+10. `recordedByRole`
+11. `authorityType`
+12. `authorityRef`
+13. `incidentId`
+14. `incidentSha256`
+15. `protocolId`
+16. `protocolSha256`
+17. `qualificationSha256`
+18. `frozenCommit`
+19. `completedRun`
+20. `evidenceSha256`
+21. `cpoOutcome`
+22. `reviewRefs`
+23. `authorizations`
+
+`schemaVersion` est l'entier `2`; `ledgerId` vaut
+`043c-recovery-ledger-v2`; `decisionId` est une chaîne unique et immuable de
+pattern `^(?:D[0-7]|F[1-3])$`. `authorityRef` respecte
+`^043c-v2-(?:d[0-7]|f[1-3])-[a-z0-9](?:[a-z0-9-]{5,78}[a-z0-9])$`.
+Les timestamps sont strictement `yyyy-MM-ddTHH:mm:ss.fffZ`,
+`authorityOccurredAtUtc <= recordedAtUtc`, et `recordedAtUtc` croît
+strictement. `sequence` commence à zéro et égale l'index physique.
+`previousRecordSha256` est nul seulement en D0, puis vaut le SHA-256 de la
+ligne précédente LF inclus. `previousState` est nul seulement en D0, puis
+reprend l'état durable précédent exact.
+
+| ID | Seq. | Etat | Précédent | Rôle | authorityType | authorityRef |
+|---|---:|---|---|---|---|---|
+| D0 | 0 | `043C_V2_PLAN_HARDENED_IMPLEMENTATION_NOT_AUTHORIZED` | null | `CPO` | `CPO_PLAN_HARDENING_DECISION` | `043c-v2-d0-plan-hardening-decision` |
+| D1 | 1 | `043C_V2_IMPLEMENTATION_AUTHORIZED_NOT_STARTED` | D0 | `CPO` | `CPO_IMPLEMENTATION_AUTHORIZATION` | `043c-v2-d1-implementation-authorization` |
+| D2 | 2 | `043C_V2_IMPLEMENTED_PENDING_P0_DELIVERY` | D1 | `PREPARATION_OWNER` | `P0_IMPLEMENTATION_EVIDENCE` | `043c-v2-d2-implementation-evidence` |
+| D3 | 3 | `043C_V2_P0_DELIVERED_PENDING_RECOVERY_SELECTION` | D2 | `RECOVERY_COORDINATOR_043C` | `P0_POST_MERGE_EVIDENCE` | `043c-v2-d3-p0-post-merge-evidence` |
+| D4 | 4 | `043C_V2_RECOVERY_SELECTED_PENDING_CTO_FREEZE` | D3 | `CPO` | `CPO_RECOVERY_SELECTION_DECISION` | `043c-v2-d4-recovery-selection-decision` |
+| D5 | 5 | `043C_V2_PROTOCOL_FROZEN_READY_FOR_R1_DECISION` | D4 | `CTO` | `CTO_FREEZE_GATE_D5` | `043c-v2-d5-cto-freeze-gate` |
+| D6 | 6 | `043C_V2_R1_CLEANUP_VALIDATED_READY_FOR_R2_DECISION` | D5 | `COORDINATOR_043C` | `R1_CLEANUP_EVIDENCE` | `043c-v2-d6-r1-cleanup-evidence` |
+| D7 | 7 | `043C_V2_R2_CLEANUP_VALIDATED_READY_FOR_FINAL_CPO_DECISION` | D6 | `COORDINATOR_043C` | `R2_CLEANUP_EVIDENCE` | `043c-v2-d7-r2-cleanup-evidence` |
+| F1 | 8 | `GO_TO_EXTERNAL_GATE_REVIEW` | D7 | `CPO` | `CPO_FINAL_DECISION` | `043c-v2-f1-cpo-final-go-external-gate-review` |
+| F2 | 7 ou 8 | `NO_GO` | D6 ou D7 | `CPO` | `CPO_FINAL_DECISION` | `043c-v2-f2-cpo-final-no-go` |
+| F3 | 7 ou 8 | `INCONCLUSIVE` | D6 ou D7 | `CPO` | `CPO_FINAL_DECISION` | `043c-v2-f3-cpo-final-inconclusive` |
+
+Nullabilité et bindings fermés :
+
+- D0/D1 : protocole, qualification, gel, completed run, evidence, outcome et
+  reviews sont nuls ;
+- D2 : `protocolId`/`protocolSha256` requis ; qualification, gel, completed
+  run, evidence, outcome et reviews nuls ;
+- D3/D4 : protocole/hash/reviews requis ; qualification, gel, completed run,
+  evidence et outcome nuls ;
+- D5 : protocole/hash/reviews/qualification/gel requis ; completed run,
+  evidence et outcome nuls ;
+- D6 : evidence R1 requise ; `completedRun=R1` seulement si R1 est complet,
+  sinon null ; outcome nul ;
+- D7 exige D6 complet ; `completedRun=R2` si R2 est complet, sinon `R1` ;
+  evidence D7 requise ; outcome nul ;
+- F1 exige D7 complet et deux audits `15/0/0` ; F2/F3 partent de D6 ou D7 ;
+  tous copient exactement le dernier completed run et evidence durables ;
+- `cpoOutcome` est nul D0-D7, puis égale exactement l'état terminal ;
+- un terminal est physiquement dernier et interdit tout append ultérieur.
+
+Le libellé durable D6 contient `READY_FOR_R2_DECISION` parce qu'il désigne un
+checkpoint de cleanup, pas une autorisation R2. Si R1 est `ABORTED`, D6 porte
+`completedRun=null`, interdit tous les modes R2 et permet uniquement F2/F3.
+
+`incidentId` et `incidentSha256` sont non nuls et stables sur tous les records.
+`protocolId` et `protocolSha256` sont stables dès D2,
+`qualificationSha256` et `frozenCommit` dès D5. `frozenCommit` est le commit
+D4 exact, jamais le merge P0.
+
+`reviewRefs` est null D0-D2, puis possède exactement, dans cet ordre :
+
+1. `p0ReviewedHead`
+2. `p0ReviewedTree`
+3. `cpoPostCodeReviewRef`
+4. `aiTechnicalReviewRef`
+5. `aiSecurityPrivacyReviewRef`
+6. `ctoTechnicalGateRef`
+7. `cpoPreMergeReviewRef`
+8. `p0MergeCommit`
+9. `p0MergeTree`
+
+Les quatre valeurs Git sont des SHA-1 lowercase. Si `H=p0ReviewedHead`,
+`T=tree(H)` et `M=p0MergeCommit`, alors `M != H`, `M` est mono-parent sur la
+base P0, `p0ReviewedTree=p0MergeTree=T`, et le merge utilise le head H exact.
+Les cinq références valent respectivement
+`043c-v2-p0-cpo-post-code-review-pass-<H>`,
+`043c-v2-p0-ai-technical-review-pass-<H>`,
+`043c-v2-p0-ai-security-privacy-review-pass-<H>`,
+`043c-v2-p0-cto-technical-gate-pass-<H>` et
+`043c-v2-p0-cpo-pre-merge-review-pass-<H>`. Elles restent byte-identiques dès
+D3. Les reviews IA restent `AI_GENERATED / NOT_HUMAN_SIGNED`.
+
+`authorizations` est toujours non nul et contient exactement, dans cet ordre,
+sept booléens tous faux : `v1ExecutionAuthorized`, `v2ExecutionAuthorized`,
+`r1Authorized`, `r2Authorized`, `externalUseAuthorized`,
+`realDataAuthorized`, `productionAuthorized`. Les propriétés Git ou
+d'implémentation/delivery/merge sont interdites dans le ledger.
+
+<!-- 043C_RECOVERY_LEDGER_V2_CONTRACT_END -->
+
+#### Canonicalisation et schémas locaux v2
+
+La canonicalisation C043C impose UTF-8 strict sans BOM, NFC, JSON minifié,
+ordre déclaré, aucune propriété dupliquée/supplémentaire, aucune whitespace
+hors chaîne, entiers décimaux sans zéro initial, montants chaînes à deux
+décimales, une ligne avec LF terminal, aucun CR, maximum `65536` octets et
+SHA-256 lowercase sur les octets exacts LF inclus.
+
+`authorization.json` possède exactement : `schemaVersion`, `run`, `decision`,
+`authorizedAtUtc`, `authorityRef`, `protocolId`, `protocolSha256`,
+`frozenCommit`, `qualificationSha256`, `resourceTargetSha256`. Tous sont non
+nuls. `run=R1|R2`, `decision=R1_ONLY|R2_ONLY`; R1 exige D5, R2 exige D6 avec
+R1 `COMPLETED` et `15/0/0`.
+
+`state/active-state.json` possède exactement : `schemaVersion`, `state`,
+`run`, `recordedAtUtc`, `authorityRef`, `protocolId`, `protocolSha256`,
+`frozenCommit`, `qualificationSha256`, `resourceTargetSha256`. Ses états sont
+`R1_ONLY_AUTHORIZED_NOT_STARTED`, `R1_STARTED_CLEANUP_NOT_VALIDATED`,
+`R2_ONLY_AUTHORIZED_NOT_STARTED`, `R2_STARTED_CLEANUP_NOT_VALIDATED`.
+Les bindings copient byte pour byte l'autorisation ; le passage STARTED est
+atomique immédiatement avant T00.
+
+Chaque `runs/R1|R2/evidence-summary.json` possède exactement :
+`schemaVersion`, `run`, `outcome`, `lastCompletedTask`, `abortReasonCode`,
+`runStartedAtUtc`, `runEndedAtUtc`, `protocolId`, `protocolSha256`,
+`frozenCommit`, `resourceTargetSha256`, `expectedBusinessEventCount`,
+`missingExpectedBusinessEventCount`, `unexpectedBusinessEventCount`,
+`auditProjectionSha256`, `businessStateSha256`, `evidenceContentSha256`,
+`qualificationSha256`. `COMPLETED` exige T14, raison null, timestamps non nuls
+et `15/0/0`. `ABORTED` exige une raison fermée ; le début peut être nul
+seulement avant ou à T00 ; la fin et les compteurs factuels sont obligatoires.
+
+Le manifeste hors Git
+`%LOCALAPPDATA%\Ritomer\043c\043c-internal-rehearsal-v2\qualification\qualification.json`
+possède exactement : `schemaVersion`, `qualificationId`, `ledgerId`,
+`incidentId`, `incidentSha256`, `protocolId`, `protocolSha256`,
+`frozenCommit`, `reviewRefs`, `qClosed`, `qualifications`, `qualifiedAtUtc`,
+`qualifiedByRole`. Les sept objets Q1-Q7 ordonnés possèdent `qId`, `qClosed`,
+`nominal`, `nominalSha256`, `mutant`, `mutantSha256`, `errorCode`, `reviewRef`.
+Tous doivent être complets, revus et verts ; le fichier entier LF inclus donne
+`qualificationSha256`, nul D0-D4 puis stable dès D5.
+
+#### Hashes de preuve
+
+`auditProjectionSha256` couvre l'objet C043C ordonné `schemaVersion`, `run`,
+`outcome`, `lastCompletedTask`, `runStartedAtUtc`, `runEndedAtUtc`, `tenantId`,
+`accountantUserId`, `reviewerUserId`, `slots`, les trois compteurs. Les quinze
+slots ordonnés couvrent `slot`, `action`, `resourceType`, `accountCode`,
+`targetCode`, `matchStatus`, `resourceId`, `occurredAtUtc`, `actorUserId`,
+`actorSubjectSha256`, `actorRole`, `requestIdSha256`, `metadataSha256` depuis
+le dernier snapshot PostgreSQL `REPEATABLE READ READ ONLY` avant T15.
+
+`businessStateSha256` couvre l'objet ordonné `schemaVersion`, `run`, `outcome`,
+`lastCompletedTask`, les trois identités, `closingFolder`, `balanceImport`,
+`mappings`, `workpaper`, `document`, `exportPack`,
+`minimalAnnexVerified`, `usefulnessAssessmentCompleted`, avec les sous-objets,
+constantes T04-T14 et sept mappings exacts du protocole.
+
+`evidenceContentSha256` couvre les dix-sept autres propriétés du résumé dans
+leur ordre, LF inclus. Le hash du fichier couvre ensuite les dix-huit
+propriétés, LF inclus. D6 lie le hash exact du fichier R1. D7 lie le SHA-256 de
+l'index ASCII exact de 136 octets `R1=<sha256-r1>\nR2=<sha256-r2>\n`. Un
+terminal copie le dernier `evidenceSha256` durable.
+
+#### Invariants, qualifications et livraison
+
+Les invariants permanents sont exactement : `043C2-I01` octets v1/incident et
+temporalité ; `043C2-I02` vingt-trois champs/ordre/decisionId ; `043C2-I03`
+tuple autorité, reviews et autorisations ; `043C2-I04` transitions et chaîne
+SHA ; `043C2-I05` CLI fermée et aucun fallback ; `043C2-I06` file-set P0 exact ;
+`043C2-I07` même H/T pour les cinq reviews ; `043C2-I08` D3 puis D4 unitaires ;
+`043C2-I09` D5/qualification/gel D4 ; `043C2-I10` descendants protégés et
+ledger append-only ; `043C2-I11` squash mono-parent/tree identique ;
+`043C2-I12` replay PR106/PR107 ; `043C2-I13` racine Fixed et handles confinés ;
+`043C2-I14` schémas 10/10/18/18, taille et TOCTOU ; `043C2-I15` tous les
+hashes de preuve et D6/D7 ; `043C2-I16` v1 SelfTest seulement ; `043C2-I17`
+gates/read-only v2 ; `043C2-I18` PostgreSQL 17/SSPI/reader minimal ;
+`043C2-I19` Flyway/seed/readiness exacte ; `043C2-I20` cleanup et R1 complet
+avant R2. Node prouve I01-I12 `12/12/0`, PowerShell I13-I20 `8/8/0`, union
+`20/20/0`. Aucun SelfTest ne ferme une qualification.
+
+Q1-Q7 restent des preuves réelles séparées : Q1 volume Fixed/final path ; Q2
+`65536` accepté et `65537` rejeté ; Q3 UNC/mapped/device/reparse/escape rejeté ;
+Q4 mutation concurrente détectée ; Q5 PostgreSQL 17/SSPI/reader exact ; Q6
+Flyway/seed donnant `EXACT_STATE_PROVEN` ; Q7 projections et chaîne de hashes.
+Leurs mutants échouent respectivement avec
+`043C_V2_Q1_FINAL_PATH_MISMATCH`, `043C_V2_Q2_ARTIFACT_SIZE_EXCEEDED`,
+`043C_V2_Q3_PATH_CONFINEMENT_VIOLATION`,
+`043C_V2_Q4_CONCURRENT_MUTATION_DETECTED`,
+`043C_V2_Q5_CATALOG_READER_PROFILE_INVALID`,
+`043C_V2_Q6_APPLICATION_READINESS_NOT_EXACT` et
+`043C_V2_Q7_EVIDENCE_HASH_BINDING_INVALID`.
+
+La séquence de livraison est fermée : P0 implémente les huit chemins et D0-D2,
+checks locaux puis review CPO, delivery séparée, cinq reviews/gates sur le même
+head et squash autorisé séparément ; P1 append D3 seul après preuve post-merge
+P0 ; P2 append D4 seul après décision CPO ; P3 exige Q1-Q7 verts, CTO Freeze
+Gate sur la base D4 exacte et append D5 seul. `CTO TECHNICAL GATE P0` ne vaut
+jamais `CTO FREEZE GATE D5`. Aucun état, completed run, frozen commit ou
+autorisation n'est repris automatiquement d'une version ou phase antérieure.
 
 ## Gates before any external invitation
 

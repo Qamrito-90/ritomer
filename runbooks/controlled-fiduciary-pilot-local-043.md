@@ -361,6 +361,31 @@ Cette matérialisation n'autorise aucune exécution. Les statuts d'exécution re
 - `REAL_DATA=NOT_AUTHORIZED` ;
 - `PRODUCTION=NOT_AUTHORIZED`.
 
+## Quarantaine permanente du protocole v1
+
+`V1_EXECUTION=PERMANENTLY_NOT_AUTHORIZED`
+
+Le protocole et le ledger `043c` v1 sont conservés uniquement comme provenance
+historique byte-identique. Ils ne sont plus sélectionnables pour une exécution,
+ne reçoivent plus aucune transition et ne constituent jamais un fallback.
+
+Le seul protocole courant sélectionné pour la récupération est documenté dans
+`runbooks/controlled-fiduciary-pilot-local-043c-v2.md`. Cette sélection ne le rend
+pas exécutable : son exécution, `Qualification`, `PreparationPreflight`, `R1`,
+`R2`, tout accès externe, toute donnée réelle et toute production restent
+non autorisés jusqu'aux décisions et gates v2 explicites.
+
+Tous les modes externes du validateur v1 doivent échouer avant toute I/O avec :
+
+```text
+V1_EXECUTION=PERMANENTLY_NOT_AUTHORIZED
+V2_VALIDATOR_REQUIRED=YES
+```
+
+`SelfTest` v1 reste le seul mode autorisé, strictement synthétique et en mémoire.
+Aucun import, dot-sourcing, appel ou réemploi runtime du validateur v1 par v2
+n'est permis.
+
 Le bloc ci-dessous est l'unique protocole `043c` version 1. Son digest n'est pas écrit dans le bloc afin d'éviter toute auto-référence. Il est calculé sur les octets exacts situés après le LF du marqueur de début et avant le marqueur de fin ; le dernier octet du blob ainsi extrait est donc l'unique LF terminal du protocole.
 
 <!-- 043C_PROTOCOL_V1_BEGIN -->

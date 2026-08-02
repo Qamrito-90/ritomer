@@ -14,6 +14,24 @@ param(
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
+if (-not [string]::Equals(
+  $Mode,
+  'SelfTest',
+  [System.StringComparison]::Ordinal
+)) {
+  Write-Output "mode=$Mode"
+  Write-Output 'verdict=FAIL'
+  Write-Output 'cleanupDisposition=NONE'
+  Write-Output 'checksSucceeded=false'
+  Write-Output 'errorCount=1'
+  Write-Output 'errorCode=E_V1_EXTERNAL_MODE_PERMANENTLY_DISABLED'
+  Write-Output 'V1_EXECUTION=PERMANENTLY_NOT_AUTHORIZED'
+  Write-Output 'V2_VALIDATOR_REQUIRED=YES'
+  Write-Output 'externalAccessPerformed=false'
+  Write-Output 'stateWritePerformed=false'
+  exit 40
+}
+
 $script:ProtocolId = '043c-internal-rehearsal-v1'
 $script:ProtocolBegin = '<!-- 043C_PROTOCOL_V1_BEGIN -->'
 $script:ProtocolEnd = '<!-- 043C_PROTOCOL_V1_END -->'
@@ -4904,15 +4922,18 @@ if (@($MyInvocation.UnboundArguments).Count -ne 0) {
     $topLevelLines = @(Format-BufferedOutput -SelectedMode $Mode -Success $false)
   }
 } else {
-  try {
-    $externalResult = Invoke-ExternalMode -SelectedMode $Mode
-    $topLevelSuccess = $externalResult.Valid
-    $topLevelLines = @(Format-BufferedOutput -SelectedMode $Mode `
-      -Success $externalResult.Valid `
-      -CleanupDisposition $externalResult.CleanupDisposition)
-  } catch {
-    $topLevelLines = @(Format-BufferedOutput -SelectedMode $Mode -Success $false)
-  }
+  $topLevelLines = @(
+    "mode=$Mode"
+    'verdict=FAIL'
+    'cleanupDisposition=NONE'
+    'checksSucceeded=false'
+    'errorCount=1'
+    'errorCode=E_V1_EXTERNAL_MODE_PERMANENTLY_DISABLED'
+    'V1_EXECUTION=PERMANENTLY_NOT_AUTHORIZED'
+    'V2_VALIDATOR_REQUIRED=YES'
+    'externalAccessPerformed=false'
+    'stateWritePerformed=false'
+  )
 }
 
 foreach ($line in $topLevelLines) {
