@@ -10,9 +10,11 @@ Les commandes locales doivent rester compatibles PowerShell. Ne pas utiliser `&&
 
 ## Niveaux de risque
 
-- A - Faible risque : docs-only, typo, wording, petite correction non fonctionnelle.
+- A - Faible risque : documentation simple, typo, wording, petite correction non fonctionnelle.
 - B - Standard : frontend standard, endpoint simple, workflow limité, CI simple.
-- C - Critique : authentification, autorisation, séparation tenant, DB/migration, audit, données sensibles, règle métier critique, finalisation, suppression, architecture.
+- C - Critique : authentification, autorisation, séparation tenant, DB/migration, audit, données sensibles, règle métier critique, finalisation, suppression, architecture, production ou modification permanente de la gouvernance de review, autorisation, merge ou exécution.
+
+`RISK_REGISTER.md` et la gouvernance active désignée par `docs/governance/ai-first/README.md` portent la classification complète. Cette stratégie en projette uniquement les checks.
 
 ## Backend
 
@@ -99,21 +101,22 @@ try {
 }
 ```
 
-Ne pas imposer `dbIntegrationTest` aux changements docs-only, frontend-only ou backend sans persistance.
+Ne pas imposer `dbIntegrationTest` aux changements `DOCS`, `FRONTEND` ou `BACKEND` sans persistance.
 
-## Docs-only
+## Documentation (`DOCS`)
 
 Checks minimaux depuis la racine du repo :
 
 ```powershell
 git --no-pager diff --stat
 git --no-pager diff
+git diff --check
 git status --short
 ```
 
-Pas de tests runtime locaux par défaut. Ajouter des checks runtime seulement si un artefact exécutable, une commande, une CI ou un contrat est concrètement impacté, puis justifier le choix dans le Fresh Evidence Pack.
+Pas de tests runtime locaux par défaut. Ajouter des checks runtime seulement si un artefact exécutable, une commande, une CI ou un contrat est concrètement impacté, puis justifier le choix dans le Fresh Evidence Pack. Pour une gouvernance documentaire, ajouter des validations déterministes du file-set, des liens, de l’unicité d’activation, de l’encodage et du vocabulaire actif.
 
-## CI/Git
+## `CI_GIT` et `GITHUB_GOVERNANCE`
 
 Pour `.github/workflows/*` :
 
@@ -126,38 +129,38 @@ Pour `.github/workflows/*` :
 
 ## GitHub required checks and autonomous merge
 
-Sur `main`, les required checks courants sont :
+Sur `main`, les workflows courants et leurs jobs/required status contexts sont :
 
-- `Backend CI` ;
-- `Frontend CI`.
+- workflow `Backend CI` → job/context `backend` ;
+- workflow `Frontend CI` → job/context `frontend`.
 
 Une pull request n'est pas verte si un required check est absent, skipped de manière non autorisée, stale, cancelled, failed, timed out, action required ou indeterminate. Codex doit attendre leur état final via GitHub CLI.
 
 Le merge autonome utilise exclusivement squash et `--match-head-commit` avec le head SHA exact revu. Aucun required check ne doit être contourné avec `--admin`.
 
-Tout renommage de `Backend CI` ou `Frontend CI` exige une tâche `CI/GIT` autorisée mettant à jour simultanément :
+Tout renommage d’un workflow, d’un job ou d’un required status context exige une tâche `CI_GIT` / `GITHUB_GOVERNANCE` autorisée. Revalider ce qui change réellement et mettre à jour simultanément, lorsque applicable :
 
 - le workflow concerné ;
 - le ruleset GitHub ;
 - `TESTING_STRATEGY.md` ;
 - toute documentation directement impactée.
 
-Un changement docs-only peut ne nécessiter aucun test runtime local. Les required checks GitHub restent obligatoires tant que le ruleset les exige.
+Un changement `DOCS` peut ne nécessiter aucun test runtime local. Les required checks GitHub restent obligatoires tant que le ruleset les exige.
 
 ## Matrice de décision
 
-| Surface | Checks minimaux | Checks renforcés | Revue humaine technique |
+| Surface | Checks minimaux | Checks renforcés | Contrôles de review |
 |---|---|---|---|
-| DOCS_ONLY | Checks Docs-only. | Checks runtime seulement si une commande, CI, contrat ou règle exécutable change. | Oui si gouvernance, architecture, sécurité, production ou règle critique change. |
-| BACKEND | Tests backend. | Build backend ; vérification Modulith si frontières touchées ; tests ciblés selon module. | Oui si auth, autorisation, tenant, audit, données sensibles ou règle métier critique. |
-| FRONTEND | Tests frontend CI ; lint frontend. | Build frontend ; tests ciblés UX/API si workflow ou contrat consommé change. | Oui si workflow critique, données sensibles ou action irréversible. |
-| DB/MIGRATION | Tests backend pertinents. | `dbIntegrationTest` avec PostgreSQL explicite ; build backend si comportement applicatif impacté. | Oui, toujours recommandée. |
-| CONTRACTS/API | Diff contrat ; tests des producteurs ou consommateurs concernés. | Backend et/ou frontend selon contrat impacté ; build de la surface concernée. | Oui si changement breaking, auth, tenant ou payload critique. |
-| CI/GIT | Revue du workflow, triggers, permissions, absence de secrets et cohérence des commandes. | Checks locaux correspondant au workflow modifié ; vérifier GitHub Actions après push si applicable. | Oui si secrets, permissions, production, déploiement ou protection de branche. |
-| FULLSTACK | Checks backend et frontend pertinents. | Builds backend et frontend ; DB opt-in si persistance impactée. | Oui si surface C ou changement transverse. |
+| `DOCS` | Checks documentaires. | Checks runtime seulement si une commande, CI, contrat ou règle exécutable change. | Reviewer Codex séparé si la doctrine C l’exige ; expertise humaine externe évaluée séparément. |
+| `BACKEND` | Tests backend. | Build backend ; vérification Modulith si frontières touchées ; tests ciblés selon module. | Selon risque et doctrine active. |
+| `FRONTEND` | Tests frontend CI ; lint frontend. | Build frontend ; tests ciblés UX/API si workflow ou contrat consommé change. | Selon risque et doctrine active. |
+| `DB` | Tests backend pertinents. | `dbIntegrationTest` avec PostgreSQL explicite ; build backend si comportement applicatif impacté. | Reviewer séparé selon l’étape ; expertise externe non automatique. |
+| `CONTRACTS` | Diff contrat ; tests des producteurs ou consommateurs concernés. | Backend et/ou frontend selon contrat impacté ; build de la surface concernée. | Selon caractère breaking ou sensible. |
+| `CI_GIT` / `GITHUB_GOVERNANCE` | Revue du workflow, triggers, permissions, absence de secrets et cohérence des commandes. | Checks locaux correspondant au workflow modifié ; vérifier GitHub Actions après push si applicable. | Reviewer séparé aux étapes C prévues par la doctrine ; expertise externe évaluée selon ses déclencheurs fermés. |
+| `FULLSTACK` | Checks backend et frontend pertinents. | Builds backend et frontend ; DB opt-in si persistance impactée. | Selon risque et doctrine active. |
 
 ## Fresh Evidence Pack
 
-Reporter les checks réellement exécutés et leurs résultats dans le Fresh Evidence Pack final, conformément à `AGENTS.md`.
+Reporter les checks réellement exécutés et leurs résultats dans le Fresh Evidence Pack final unique, conformément à `AGENTS.md` : `LITE` pour A, `STANDARD` pour B et `FULL` pour C.
 
 Si un check pertinent n’est pas exécuté, indiquer pourquoi.

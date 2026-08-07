@@ -3,15 +3,9 @@
 Ce dépôt sert à construire une plateforme SaaS suisse de closing comptable, multi-tenant, audit-ready, avec une UX premium et une IA evidence-first.
 
 ## Lecture recommandée pour Codex
-1. `AGENTS.md`
-2. `docs/vision/ux.md`
-3. `docs/vision/architecture.md`
-4. `docs/vision/ai-native.md`
-5. `docs/product/v1-plan.md`
-6. `docs/product/product-roadmap.md`
-7. `docs/adr/*.md`
-8. `specs/active/<feature>.md` de la mission courante
-9. `contracts/*` impactés par la mission
+
+`AGENTS.md` définit l'ordre canonique de lecture du dépôt ; le suivre pour toute mission.
+Pour la gouvernance du développement assisté par IA, consulter l'index actif `docs/governance/ai-first/README.md`.
 
 Référence UI documentaire : `docs/ui/ui-foundations-v1.md`
 
@@ -25,6 +19,7 @@ Le produit repose sur 3 couches complémentaires :
 - `AGENTS.md` : règles permanentes pour Codex
 - `backend/` : backend Kotlin/Spring Boot (source de vérité technique)
 - `frontend/` : frontend local
+- `docs/governance/ai-first/` : index, prompts de review et rôles de gouvernance du développement assisté par IA
 - `docs/vision/` : North Star UX, architecture et IA
 - `docs/ui/` : source de vérité documentaire UI
 - `docs/playbooks/` : patterns d’exécution et garde-fous
@@ -37,7 +32,7 @@ Le produit repose sur 3 couches complémentaires :
 - `contracts/` : contrats techniques source de vérité
 - `evals/` : qualité IA
 - `fixtures/` : fixtures synthétiques gelées, versionnées et validées pour les répétitions contrôlées
-- `prompts/` : prompts et garde-fous versionnés
+- `prompts/` : prompts, guardrails et contrats du produit ou de son runtime IA
 - `knowledge/` : politique de retrieval / RAG
 - `runbooks/` : exploitation et incidents
 - `policies/` : sécurité, privacy, règles IA
