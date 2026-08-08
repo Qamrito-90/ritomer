@@ -10,11 +10,8 @@ Les commandes locales doivent rester compatibles PowerShell. Ne pas utiliser `&&
 
 ## Niveaux de risque
 
-- A - Faible risque : documentation simple, typo, wording, petite correction non fonctionnelle.
-- B - Standard : frontend standard, endpoint simple, workflow limité, CI simple.
-- C - Critique : authentification, autorisation, séparation tenant, DB/migration, audit, données sensibles, règle métier critique, finalisation, suppression, architecture, production ou modification permanente de la gouvernance de review, autorisation, merge ou exécution.
-
-`RISK_REGISTER.md` et la gouvernance active désignée par `docs/governance/ai-first/README.md` portent la classification complète. Cette stratégie en projette uniquement les checks.
+La classification `A`, `B`, `C` ou `NON DÉTERMINÉ` est déterminée exclusivement par `RISK_REGISTER.md`.
+Cette stratégie ne définit ni ne réinterprète les critères de classification ; elle projette uniquement la classe déjà établie vers les checks.
 
 ## Backend
 

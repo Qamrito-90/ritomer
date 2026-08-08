@@ -2,6 +2,8 @@
 
 Si un champ n’est pas applicable, écrire `AUCUN`.
 Si une information n’est pas déterminée, écrire `NON DÉTERMINÉ`.
+`PENDING` est autorisé uniquement pour une étape future explicitement attendue après la création de la PR.
+Pour un risque C, les champs requis relatifs aux checks, au Reviewer exact-head, à l’Owner Decision et à l’autorisation de merge doivent être finalisés avant le merge. Un champ owner réellement non applicable reste `AUCUN` ou `NON_APPLICABLE`, jamais artificiellement obligatoire.
 
 ## Résumé
 
@@ -77,6 +79,9 @@ Les sections précédentes font partie du Fresh Evidence Pack final et ne sont p
 - [ ] Pas de dérive hors mission
 - [ ] Checks locaux adaptés à la surface et au risque ; checks non exécutés justifiés
 - [ ] Required contexts `backend` et `frontend` présents et verts quand le ruleset les exige
+- [ ] Corps final de PR synchronisé après checks, review exact-head, décision owner et autorisation de merge applicables
+- [ ] Aucun `PENDING` requis ne subsiste avant le merge
+- [ ] Head SHA inchangé pendant la synchronisation finale du corps de PR
 - [ ] Documentation vivante, specs, contrats ou runbooks mis à jour si nécessaire
 - [ ] Review IA jamais présentée comme signature humaine ou preuve de séparation des fonctions
 - [ ] Pour C, Reviewer séparé, Owner Decision Record et autorisation de merge portent sur le même head SHA exact

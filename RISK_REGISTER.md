@@ -4,7 +4,11 @@
 
 Ce registre sert à classer le risque d’une spec avant exécution.
 
-Il complète `AGENTS.md`, `TESTING_STRATEGY.md` et `CODE_REVIEW.md`. Il ne les remplace pas.
+`RISK_REGISTER.md` est l’unique autorité normative pour les critères et les déclencheurs qui déterminent les classes `A`, `B`, `C` et `NON DÉTERMINÉ`.
+
+- `AGENTS.md` définit les conséquences de la classe retenue : boucle, profondeur de preuve, gates et autorisations.
+- `TESTING_STRATEGY.md` projette la classe déjà établie vers les checks.
+- Les prompts et rôles appliquent ces critères aux faits et peuvent challenger cette application, sans créer de critère concurrent ni de taxonomie parallèle.
 
 Il doit rester court, vivant et opérationnel. Il ne prouve pas que le code est correct : il aide à choisir la bonne boucle de plan, tests, review et Fresh Evidence Pack.
 

@@ -147,6 +147,8 @@ Les preuves techniques sous-jacentes restent complètes et accessibles aux revie
 
 ### 3. Boucles par risque
 
+La classe `A`, `B`, `C` ou `NON DÉTERMINÉ` est déterminée exclusivement par les critères et déclencheurs de `RISK_REGISTER.md`. Cette section définit uniquement la boucle, la profondeur de preuve, les gates et les autorisations qui découlent de la classe retenue. `TESTING_STRATEGY.md` détermine les checks. Aucun prompt, rôle ou checklist ne peut inventer, supprimer ou remplacer un critère, ni reclasser selon une taxonomie parallèle ; ils peuvent seulement challenger l’application des critères aux faits.
+
 - **Risque A** — Builder → self-check → CPO → delivery proportionnée.
 - **Risque B** — Builder → preuves `STANDARD` → CPO. Un Reviewer séparé intervient seulement sur un déclencheur concret.
 - **Risque C** — Builder → preuves `FULL` et artefacts exacts → CPO
@@ -452,25 +454,50 @@ Mandatory delivery sequence:
     authorization and requires a new review; an exact match may continue to
     push without a second owner decision or delivery-authorization record.
 11. Push without force.
-12. Generate the pull-request title and complete body from the Fresh Evidence
-   Pack.
+12. Generate the pull-request title and initial body from the evidence currently
+    available. Mark any unavailable final required checks, exact-head review,
+    owner decision and merge authorization explicitly as `PENDING`. This
+    initial body is never the final Fresh Evidence Pack.
 13. Create the pull request using GitHub CLI.
-14. Verify base branch, head branch, reviewed head SHA, file-set and diff.
+14. Verify base branch, head branch, reviewed head SHA, file-set, diff and the
+    read-back identity of the initial body.
 15. Wait for all required GitHub checks.
 16. For risk C, obtain the separate read-only review, applicable owner decision
     and merge authorization on the same exact head SHA.
-17. Merge exclusively with squash.
-18. Always use `--match-head-commit` with the exact reviewed head SHA.
-19. Never use `--admin`, merge commits, rebase merge, direct push to main,
+17. After the checks, synchronize the final pull-request body exactly once from
+    evidence bound to the same head SHA. For risk C, this is the first
+    GitHub-mutating operation of the authorized merge goal and occurs only after
+    the separate review, CPO challenge, applicable owner decision and
+    `MERGE_AUTHORIZED=YES`. Replace every applicable `PENDING` with the exact
+    result and include final checks, the Reviewer report and its AI
+    classifications, the applicable `OWNER_DECISION_RECORD`, the merge
+    `AUTHORIZATION_RECORD` and residual risks.
+18. Verify that the pull request and its head SHA were unchanged before and
+    after the final-body update, and verify the body by read-back. If the update
+    or verification fails, stop and do not merge.
+19. Merge exclusively with squash.
+20. Always use `--match-head-commit` with the exact reviewed head SHA.
+21. Never use `--admin`, merge commits, rebase merge, direct push to main,
     force-push or protection bypass.
-20. Delete the source branch after merge.
-21. Synchronize main with `--ff-only`.
-22. Verify the final commit, parent count, tree, file-set, tests and clean
+22. Delete the source branch after merge.
+23. Synchronize main with `--ff-only`.
+24. Verify the final commit, parent count, tree, file-set, tests and clean
     repository.
-23. Report `DELIVERY_COMPLETE=YES` only when the complete delivery is freshly
+25. Report `DELIVERY_COMPLETE=YES` only when the complete delivery is freshly
     verified.
 
+The initial pull-request body is a lifecycle snapshot, not the final Fresh
+Evidence Pack. The synchronized final body is the durable GitHub pre-merge
+trace.
+
 Pull-request bodies must include:
+
+- at creation, future facts may be `PENDING` only when they are explicitly
+  expected after pull-request creation;
+- before a risk-C merge, no required check, separate review, owner decision or
+  merge-authorization field remains `PENDING`;
+- the synchronized final body is bound to the same head SHA as the review,
+  owner decision and merge authorization;
 
 - objective;
 - exact scope and file-set;

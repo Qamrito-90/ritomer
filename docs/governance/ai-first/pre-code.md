@@ -109,9 +109,9 @@ Pour le contrôle de dérive, couvre seulement les familles pertinentes :
 Une dérive doit être nommée, classée et ramenée à la plus petite correction robuste.
 
 ## Risque et proportionnalité
-- Challenge `RISK_ANNOUNCED` avec les faits ; conserve la classe la plus élevée réellement touchée.
-- Si le risque reste `NON_DÉTERMINÉ` sur une matière potentiellement sensible, clarifie ou classe en C avant toute autorisation.
-- Choisis la boucle, le niveau de preuve et les checks selon la doctrine active et `TESTING_STRATEGY.md`.
+- Détermine la classe finale exclusivement en appliquant aux faits les critères et déclencheurs de `RISK_REGISTER.md`.
+- Challenge l’application de ces critères à `RISK_ANNOUNCED`, sans en inventer, en supprimer ou en remplacer.
+- Choisis ensuite la boucle, la profondeur de preuve, les gates et les autorisations via `AGENTS.md`, puis les checks via `TESTING_STRATEGY.md`.
 - Ne demande pas `FULL` pour A ou B sans déclencheur concret.
 - Ne demande pas tous les tests si des checks ciblés et proportionnés prouvent la surface.
 - Pour `EXECUTION_PLANNING`, exige artefact, environnement, commande, rollback, preuve et condition de stop exacts.

@@ -69,6 +69,10 @@ Avant le merge, vérifier :
 - le head SHA exact revu ;
 - le file-set et le diff exacts ;
 - tous les required checks présents et verts ;
+- le corps final de PR synchronisé sur le même head SHA ;
+- les résultats des required checks, la review séparée, la décision owner applicable et `MERGE_AUTHORIZED` présents ;
+- aucun `PENDING` requis ne subsiste ;
+- tout échec de synchronisation ou de vérification du corps bloque le merge ;
 - le squash uniquement avec `--match-head-commit` sur le head SHA revu ;
 - l'absence de dérive incompatible de `main`.
 
