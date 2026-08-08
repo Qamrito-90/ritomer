@@ -17,12 +17,30 @@ Faire du repo la documentation vivante du projet, tout en reservant les document
 ### Gouvernance et regles permanentes
 
 - `AGENTS.md`
+- `docs/governance/ai-first/README.md` — index unique d'activation de la gouvernance du developpement assiste par IA
+- `docs/governance/ai-first/pre-code.md`
+- `docs/governance/ai-first/post-code.md`
+- `docs/governance/ai-first/role-cpo.md`
+- `docs/governance/ai-first/role-cto.md`
+- `docs/governance/ai-first/role-co-fiduciaire.md`
+- `docs/governance/ai-first/role-expert-board.md`
 - `CODE_REVIEW.md`
 - `TESTING_STRATEGY.md`
 - `RISK_REGISTER.md`
 - `.github/pull_request_template.md`
 - `README.md`
 - `docs/product/documentation-governance.md`
+
+L'index `docs/governance/ai-first/README.md` designe exclusivement les prompts et roles actifs. Pour la doctrine de workflow, la precedence est :
+
+```text
+AGENTS.md — doctrine commune
+→ prompts actifs
+→ roles actifs
+→ projections et checklists du repository
+```
+
+`CODE_REVIEW.md`, `TESTING_STRATEGY.md`, `RISK_REGISTER.md` et `.github/pull_request_template.md` restent des projections courtes. Ils ne redefinissent ni les statuts techniques, ni les decisions owner, ni les autorisations. Les faits observables du repository, de GitHub, des artefacts exacts et des sorties fraiches priment toujours sur ces documents.
 
 ### Synthese canonique du present
 
@@ -52,10 +70,12 @@ Ils doivent rester alignes sur les artefacts vivants plus detailles du repo et n
 ### Verite IA du present
 
 - `contracts/ai/*`
-- `prompts/*`
+- `prompts/*` — prompts, guardrails et contrats du produit ou de son runtime IA
 - `evals/*`
 - `knowledge/*`
 - les ADR, specs, contrats et runbooks qui cadrent le comportement IA reel
+
+`docs/governance/ai-first/` gouverne le developpement assiste par IA ; il ne remplace pas `prompts/*` et n'active aucun comportement IA du produit.
 
 ### North Star et bibliotheques de patterns
 
@@ -72,7 +92,7 @@ Ces documents sont des snapshots, des handoffs ou des traces d'alignement. Ils n
 
 ## Preuves de delivery et documentation vivante
 
-- La description de PR et le Fresh Evidence Pack sont des artefacts de preuve et de tracabilite.
+- La description de PR et le Fresh Evidence Pack proportionne (`LITE`, `STANDARD` ou `FULL`) sont des artefacts de preuve et de tracabilite.
 - Codex genere la description de PR a partir du Fresh Evidence Pack ; aucun des deux ne remplace la documentation vivante du repo ni ne devient une seconde source de verite.
 - Toute decision durable doit etre inscrite avant le merge dans les artefacts canoniques impactes.
 - L'automatisation de la PR et du merge ne supprime pas l'obligation d'une mise a jour documentaire minimale et proportionnee.
@@ -135,6 +155,8 @@ Ne mettre a jour ces documents que si leur verite propre change reellement :
 - les Word dans `docs/reference-word/*` si une tache explicite de realignement documentaire ou de snapshot externe est demandee
 - `docs/archive/*` si un handoff, une archive ou un document supersede doit etre fige
 - `AGENTS.md` si une regle permanente de gouvernance, de delivery ou de qualite change
+
+Les preuves, snapshots, handoffs, statuts et documents historiques ne sont jamais reecrits retroactivement pour adopter une gouvernance plus recente, sauf tache explicite de realignement historique.
 
 ## Workflow documentaire recommande
 
