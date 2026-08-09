@@ -99,6 +99,6 @@ Statut courant : `LOCAL_SYNTHETIC_SIMULATION_VALIDATED / MERGED / AI_REVIEWED / 
 
 Clôture factuelle du `2026-07-27` : preuves PostgreSQL dédiées, smoke local deux acteurs, contrôle navigateur sans exposition d'un header d'authentification ni JWT détecté dans les surfaces navigateur, Backend CI, Frontend CI, cleanup, merge de la PR `#103` et vérification post-merge : `PASS`.
 
-`043c` reste `NOT_STARTED / NOT_AUTHORIZED`.
+`043c simplified rehearsal defined; execution not authorized; R1/R2 not started`.
 
 Les tests PostgreSQL destructifs utilisent exclusivement `jdbc:postgresql://127.0.0.1:5432/ritomer_043b_test` avec le rôle `ritomer_043b_test_runner`, sur un PostgreSQL local direct et des données synthétiques. Cloud SQL Proxy, tunnel SSH et port forward sont interdits pour cette preuve.

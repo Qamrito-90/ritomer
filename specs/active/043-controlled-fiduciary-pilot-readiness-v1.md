@@ -6,8 +6,8 @@ Active.
 
 - `043a`: `ACCEPTED_BY_DISTINCT_CPO_REVIEW`.
 - `043b`: `LOCAL_SYNTHETIC_SIMULATION_VALIDATED / MERGED / AI_REVIEWED / OWNER_RISK_ACCEPTED_FOR_LOCAL_SYNTHETIC_ONLY / NOT_HUMAN_SIGNED / NOT_PRODUCTION_READY / NOT_EXTERNAL_READY / NOT_SEPARATION_OF_DUTIES_PROOF`.
-- `043c`: `PREPARATORY_IMPLEMENTED_PENDING_POST_CODE_CPO / EXECUTION_NOT_AUTHORIZED / R1_NOT_STARTED_NOT_AUTHORIZED / R2_NOT_STARTED_NOT_AUTHORIZED`.
-- Current sub-deliverable: `043c preparatory implementation`.
+- `043c`: `043C_SIMPLIFIED_REHEARSAL_DEFINED / EXECUTION_NOT_AUTHORIZED / R1_NOT_STARTED / R2_NOT_STARTED / V1_AUTHORITY_RAIL_SUPERSEDED_NOT_EXECUTABLE`.
+- Current sub-deliverable: 043c simplified rehearsal definition; execution planning remains blocked until the exact fresh-run commands and feasibility evidence are separately reviewed.
 - No transition between `043a`, `043b` and `043c` is automatic.
 
 ## Roadmap declaration
@@ -18,7 +18,7 @@ Active.
 | Primary workstream | Produit fiduciaire |
 | Supporting workstream | Trust & operations |
 | Outcome | Prove that the synthetic closing workflow can be rehearsed internally in a reproducible, controlled and evidence-bearing way. |
-| Exit evidence | Frozen synthetic fixtures, deterministic validation, controlled single-operator two-role local simulation, then either two complete internal rehearsals for F1 or a cleanup-backed stop after R1/R2 for F2/F3, always with an explicit CPO decision. |
+| Exit evidence | Frozen synthetic fixtures, controlled single-operator two-role local simulation, then two complete internal rehearsals on fresh disposable resources with exact `15/0/0` audit, hashed per-run evidence and cleanup proved before R2 and after R2, always followed by an explicit terminal decision. |
 | Gate targeted | CPO decision on whether external-gate review may begin; never an external invitation by itself. |
 
 The canonical outcome roadmap is `docs/product/product-roadmap.md`. This spec remains the detailed source of truth for `043`.
@@ -27,7 +27,7 @@ The canonical outcome roadmap is `docs/product/product-roadmap.md`. This spec re
 
 `043` prepares only level A readiness.
 
-In `043c`, the F1 path is tested through two complete executions, `R1` and `R2`, of one strictly internal rehearsal protocol. A cleanup-backed interrupted or incomplete run may instead terminate through the human F2/F3 path; it never authorizes the following run.
+In `043c`, the only active path is a simplified, strictly internal rehearsal of T00-T15 on frozen synthetic data. R1 and R2 each have one attempt, use fresh disposable resources, require distinct sensitive-execution authorizations and remain unstarted and unauthorized.
 
 `043` invites no external fiduciary. `043` collects no real participant observation.
 
@@ -35,7 +35,7 @@ The first external invitation requires a new CPO decision and prior satisfaction
 
 No following spec is created automatically.
 
-Each of `043a`, `043b` and `043c` requires a distinct CPO review. The distinct review of `043a` and the prior CTO Gate for `043b` are complete. The CTO Gate approved the local architecture with conditions for local synthetic use only. The local evidence and final post-code AI reviews for `043b` are complete. The distinct CPO decision authorizing only the exact `043c` preparatory implementation is now recorded; the durable state is S2. A separate post-code CPO review, a new CTO Gate, protocol/commit freeze, `PreparationPreflight` and a run-specific CPO decision remain mandatory before R1. Human technical and Security reviews are deferred to the external gate and become mandatory again on any external-use trigger defined below.
+Each of `043a`, `043b` and `043c` requires a distinct CPO review. The distinct review of `043a` and the prior CTO Gate for `043b` are complete. The CTO Gate approved the local architecture with conditions for local synthetic use only. The local evidence and final post-code AI reviews for `043b` are complete. Owner decision `RITOMER-043C-REBASELINE-20260808-01` selects the simplified trajectory. This specification authorizes neither R1 nor R2 execution and opens no external gate; every future execution requires a separate pre-execution review and an exact sensitive-execution authorization. Human technical and Security reviews remain deferred to the external gate and become mandatory again on any external-use trigger defined below.
 
 ## Surface and risk
 
@@ -43,10 +43,10 @@ Each of `043a`, `043b` and `043c` requires a distinct CPO review. The distinct r
 | --- | --- | --- |
 | `043a` | `DOCS_GIT / FIXTURES_SYNTHETIQUES / GOVERNANCE_CHECKS` | B |
 | `043b` | `BACKEND_LOCAL_AUTH / BACKEND_TEST_SAFETY / FRONTEND_LOCAL_HARNESS / CI_GIT / DOCS_GIT / SECURITY_DEBT_GOVERNANCE` | C for destructive PostgreSQL safety; B otherwise |
-| `043c` preparation | `DOCS_GIT / GOVERNANCE_CHECKS` | B |
+| `043c` simplified rebaseline | `DOCS / CI_GIT / QA_MANUAL` | C because it changes durable review and execution governance |
 | `043c` R1/R2, not authorized by this increment | `QA_MANUAL / LOCAL_RUNTIME / DOCS_GIT` | C |
 
-The merged `043b` hotfix remained bounded to its exact 26-path implementation set. This post-merge closure is documentary-only in the four authorized living documents; it does not authorize `043c`, an external participant, production authentication, a provider, an MCP, real data or a following spec.
+The merged `043b` hotfix remains bounded to its exact 26-path implementation set. This local rebaseline changes exactly five tracked files, deletes one tracked v1 validator and adds no tracked path. It authorizes no rehearsal, external participant, production authentication, provider, MCP, real data or following spec.
 
 ## Sources reviewed
 
@@ -377,6 +377,121 @@ Those `2026-07-13` results remain dated history, including `ENV_BLOCKED_DB_INTEG
 
 Stop and replan if implementation would require a production auth change, mint endpoint, browser-side token, JWT-controlled role/tenant, non-loopback target, migration, public API contract, dependency or modification outside the approved `043b` file set.
 
+## 043c - Simplified internal rehearsal definition (active)
+
+Status: `043C_SIMPLIFIED_REHEARSAL_DEFINED / EXECUTION_NOT_AUTHORIZED / R1_NOT_STARTED / R2_NOT_STARTED / V1_AUTHORITY_RAIL_SUPERSEDED_NOT_EXECUTABLE`.
+
+### Exclusive outcome
+
+`043c` now has exactly one active outcome:
+
+```text
+Prouver, sur données synthétiques gelées et ressources locales fraîches,
+que le parcours T00–T15 peut être exécuté deux fois de manière contrôlée,
+tenant-scoped, observable, mesurable et nettoyable, avant toute décision
+d’accès à un gate externe.
+```
+
+This rebaseline defines the rehearsal only. It does not prove feasibility of a fresh run, authorize execution, start R1 or R2, open an external gate or authorize an invitation.
+
+### Owner decision, forensic provenance and cycle limits
+
+- Owner decision: `RITOMER-043C-REBASELINE-20260808-01`, decision `SIMPLIFY`.
+- Baseline main preserved as forensic provenance: `5e7ec1a6cf908bf5587248d94bd4db2d1e36370c`.
+- Rejected PR #110 head preserved as forensic history: `8691275d64294b181c5be8ae340f0cd4e34f1a19`.
+- Package V3 SHA-256 preserved as forensic history: `698b328db5cb43a7662f3856ef60a970eefa7fdeeae5c498d41e72bea3906e8f`.
+- Exact rebaseline change matrix against that baseline: `5M / 0A / 1D / 0R / 0C`.
+
+```text
+MAX_MAJOR_CYCLES_TOTAL=3
+MAJOR_CYCLE_1=SIMPLIFICATION_IMPLEMENTATION_AND_DELIVERY
+MAJOR_CYCLE_2=R1_SINGLE_ATTEMPT
+MAJOR_CYCLE_3=R2_SINGLE_ATTEMPT
+MAX_IMPLEMENTATION_HEADS=2
+MAX_R1_ATTEMPTS=1
+MAX_R2_ATTEMPTS=1
+NO_FOURTH_CYCLE=YES
+```
+
+The three major cycles form a static total ceiling, not a remaining-cycle counter. Implementation, delivery and review records, including the iterations or implementation heads actually consumed, are preserved in the applicable Evidence Packs and pull requests, not as current state in this specification.
+
+### Minimum evidence contract
+
+Every future authorized R1/R2 cycle must cumulatively prove all of the following. Per-run items apply separately to each run that crosses the exact attempt boundary defined below; cycle-level cleanup and terminal-decision items apply at the last factually reachable stop:
+
+- the frozen synthetic fixtures and their exact published byte sizes and SHA-256 values;
+- `SYNTHETIC_ONLY` and `LOOPBACK_ONLY`, with no real or external data;
+- one exact tenant shared by the two logical roles `ACCOUNTANT` and `REVIEWER`;
+- a single-operator-capable two-role simulation, never a claim of independent human sessions or real segregation of duties;
+- one complete T00-T15 path;
+- exact audit result `15 expected / 0 missing / 0 unexpected`;
+- the export or final result already provided by the existing path;
+- usefulness measurement and a sanitized observation;
+- fresh disposable resource identities fixed separately for the run;
+- absence of the prior run's resources before R2, plus verified cleanup after R2;
+- one sanitized evidence summary per run, hashed over its exact bytes;
+- human selection of exactly one terminal outcome: `GO_TO_EXTERNAL_GATE_REVIEW`, `NO_GO` or `INCONCLUSIVE`.
+
+The detailed operational checklist and the exact T00-T15/audit mapping live only in `runbooks/controlled-fiduciary-pilot-local-043.md`. No new runtime, service, dependency, fixture, contract, migration, validator, ledger, manifest or tracked authority artifact is introduced.
+
+### Exact run-attempt boundary
+
+```text
+RUN_ATTEMPT_START
+=
+PRE_EXECUTION_REVIEW=PASS
+AND
+SENSITIVE_EXECUTION_AUTHORIZED=YES
+  bound to the exact run, runId, tenantId, environment and command
+AND
+all run preflight checks are PASS
+AND
+fresh disposable resource identities are fixed and recorded
+AND
+the first T00 action is engaged.
+```
+
+This boundary has the following closed consequences:
+
+1. A preparation failure before the boundary is `PRE_EXECUTION_PREFLIGHT_FAILURE`. It consumes no R1/R2 attempt, forbids T00 and requires a new review whenever a material condition changes.
+2. At the boundary, the exact sensitive-execution authorization is consumed.
+3. After the boundary, every failure, stop or incomplete result consumes the run's single attempt.
+4. No silent retry, opportunistic reset or second attempt of the same run is permitted.
+5. R1 must reach T15, produce its hashed evidence and complete cleanup before R2 can become eligible.
+6. Incomplete R1, incomplete cleanup or an audit other than `15/0/0` sets `R2_AUTHORIZED=NO`, forbids `GO_TO_EXTERNAL_GATE_REVIEW` and ends the cycle in `INCONCLUSIVE` or `NO_GO`.
+7. Incomplete R2, incomplete cleanup or an audit other than `15/0/0` permits no third run and ends in `INCONCLUSIVE` or `NO_GO`.
+8. R1 and R2 each require a distinct sensitive `AUTHORIZATION_RECORD`.
+9. This rebaseline emits neither record and executes neither run.
+
+### Superseded v1 authority material
+
+The S0-S10/F1-F3 append-to-Git authority rail and every v1 proof attached to it are `HISTORICAL / SUPERSEDED / NOT_EXECUTABLE`. The v1 material remains available through the protected block below and Git history. The rejected v2 trajectory remains available only through Git, PR #110 and package V3. None of this material is selectable, required or executable by the active contract.
+
+The rejected head and trajectory of PR #110, together with package V3, are evidence only. The package classification is:
+
+```text
+FORENSIC_ONLY
+NOT_EXECUTED
+SUPERSEDED_BY_SIMPLIFY_DECISION
+PACKAGE_V4_FORBIDDEN
+```
+
+The former signer-account, CNG, certificate, RSA-PSS, CA0, signed-receipt, replay-reservation, authority-hold/recovery, authority-manifest and operational PowerShell package mechanisms are outside the active trajectory. The deleted v1 validator has no replacement. Git and PR #110 preserve their history.
+
+The active control effect is:
+
+```text
+TRACKED_CONTROL_FILES_DELTA=-1
+NET_LINE_REDUCTION_REQUIRED=YES
+```
+
+### Historical v1 protected block
+
+<!-- 043C_V1_HISTORICAL_BEGIN -->
+> `HISTORICAL / SUPERSEDED / NOT_EXECUTABLE`
+>
+> The following v1 block is preserved byte-for-byte from `origin/main` for forensic continuity. Any use of “current”, any S0-S4 record, hash, commit, decision, profile, validator command or gate inside the block describes the superseded v1 rail only and has no authority in the simplified trajectory.
+
 ## 043c - Internal rehearsal and readiness decision
 
 Status: `PREPARATORY_IMPLEMENTED_PENDING_POST_CODE_CPO / EXECUTION_NOT_AUTHORIZED / R1_NOT_STARTED_NOT_AUTHORIZED / R2_NOT_STARTED_NOT_AUTHORIZED`.
@@ -613,6 +728,8 @@ Each execution uses a separate disposable database and storage root. `R2` cannot
 - No runtime, PostgreSQL, psql, Flyway, backend, Vite, browser, seed, smoke, R1 or R2 is executed.
 - S2 still requires CPO post-code review and CTO Gate before any run-specific authorization.
 - The catalogue result is cluster-level only, the SSPI contract is fail-closed, every runner has zero explicit membership, every storage ancestor is checked, and PreR1/PreR2 remain blocked until a separately governed exact application-readiness proof exists.
+
+<!-- 043C_V1_HISTORICAL_END -->
 
 ## Gates before any external invitation
 
