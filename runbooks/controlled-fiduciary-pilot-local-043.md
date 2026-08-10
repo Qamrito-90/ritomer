@@ -367,7 +367,7 @@ tenant-scoped, observable, mesurable et nettoyable, avant toute décision
 d’accès à un gate externe.
 ```
 
-Ce runbook définit une checklist. Il n'autorise aucune exécution, invitation, donnée réelle, cible non-loopback, production ou spec suivante.
+Ce runbook documente le contrat opérationnel de l'orchestrateur minimal sélectionné. L'existence de ce code n'autorise aucune exécution, invitation, donnée réelle, cible non-loopback, production ou spec suivante.
 
 ## Limites fermées
 
@@ -387,37 +387,108 @@ NO_FOURTH_CYCLE=YES
 - La simulation reste mono-opérateur-capable et ne prouve ni sessions humaines indépendantes ni séparation réelle des fonctions.
 - Chaque run utilise des identités de ressources fraîches et jetables.
 - L'ancien rail v1 est `HISTORICAL / SUPERSEDED / NOT_EXECUTABLE` et n'est ni sélectionnable ni requis ici.
-- Aucun nouveau fichier suivi, validateur, ledger, manifeste, package, service ou dépendance n'est requis.
+- Le mécanisme sélectionné est plafonné aux quatre chemins exacts de la spec : les deux fichiers MJS, ce runbook et la spec active. Aucun cinquième chemin, backend, frontend, contrat, migration, dépendance, service, ledger, manifeste ou rail d'autorité n'en fait partie.
+- Le package V3 reste `FORENSIC_ONLY / NOT_EXECUTED / SUPERSEDED_BY_SIMPLIFY_DECISION` ; son exécution, sa réutilisation, son rebase et tout usage comme autorité sont interdits.
 
-## Commandes de futur run encore bloquantes
+## Interface future de l'orchestrateur minimal
 
-Le repository prouve les capacités métier et les checks listés plus bas, mais il ne porte pas encore une commande exacte et revue qui provisionne, lance, exécute et nettoie un run 043c frais de bout en bout.
+L'interface possède exactement deux verbes : `propose`, strictement read-only, et `run`, chemin sensible futur. Le point d'entrée local câble uniquement le provider read-only de `propose`. Aucun provider sensible réel n'est câblé dans cette implémentation : un appel direct de `run` refuse avant lecture de secret ou I/O sensible avec le code stable `REAL_RUN_ADAPTERS_UNAVAILABLE`. La logique `run` est testée uniquement par injection d'adapters in-memory ; une review, une validation réelle et un provider sensible exact constitueraient un changement matériel avant toute autorisation.
 
 ```text
-FRESH_RESOURCE_PROVISIONING_COMMAND=NON DÉTERMINÉ
-RUNTIME_START_COMMAND=NON DÉTERMINÉ
-T00_T15_EXECUTION_COMMAND=NON DÉTERMINÉ
-CLEANUP_COMMAND=NON DÉTERMINÉ
+PROPOSE_COMMAND=PROPOSE_VERB
+FRESH_RESOURCE_PROVISIONING_COMMAND=RUN_COMMAND / PHASE_PROVISION
+RUNTIME_START_COMMAND=RUN_COMMAND / PHASE_RUNTIME
+T00_T15_EXECUTION_COMMAND=RUN_COMMAND / PHASE_T00_T15
+CLEANUP_COMMAND=RUN_COMMAND / PHASE_CLEANUP_OR_IDENTICAL_REENTRY
 ```
 
-Ces quatre valeurs sont bloquantes pour toute future `PRE_EXECUTION_REVIEW`. Elles devront être résolues à partir de commandes et capacités déjà présentes dans le repository, sans inventer de runtime, script, dépendance ou septième chemin dans cette rebaseline.
+Une invocation `run` possède seule la chaîne indivisible `PHASE_PREFLIGHT → PHASE_PROVISION → PHASE_RUNTIME → PHASE_T00_T15 → PHASE_AUDIT → PHASE_EVIDENCE → PHASE_CLEANUP`. Aucune phase n'est sélectionnable séparément. Une réentrée portant un state exactement lié route uniquement vers `RECOVERY_CLEANUP_ONLY`, sans reprise métier. Il n'existe aucun flag `--phase`, `--force`, `--yes` ou `--ignore-*`.
+
+Le working directory exact est la racine du repository. Les arguments PowerShell restent séparés, sans commande assemblée en chaîne, backtick ou `Invoke-Expression`. Le handoff R1 est distinct du handoff R2.
+
+Le seul appel local actuellement câblé est la proposition read-only R1 ; sa sortie fournit directement le `runId`, le `proposalSha256` et le head à lier aux records futurs :
+
+```powershell
+$gitExe = (Get-Command git -CommandType Application -ErrorAction Stop).Source
+$nodeExe = (Get-Command node -CommandType Application -ErrorAction Stop).Source
+$repositoryRoot = (& $gitExe rev-parse --show-toplevel).Trim()
+if ($LASTEXITCODE -ne 0) { throw 'REPOSITORY_ROOT_RESOLUTION_FAILED' }
+$orchestrator = Join-Path $repositoryRoot 'runbooks\invoke-controlled-fiduciary-pilot-043c.mjs'
+Push-Location -LiteralPath $repositoryRoot
+try {
+  $r1ProposalJson = (& $nodeExe $orchestrator propose --run R1 | Out-String).Trim()
+  if ($LASTEXITCODE -ne 0) { throw '043C_PROPOSE_R1_FAILED' }
+  $r1Proposal = $r1ProposalJson | ConvertFrom-Json
+  $r1RunId = [string]$r1Proposal.proposal.runId
+  $r1ProposalSha256 = [string]$r1Proposal.proposalSha256
+  $r1HeadSha = [string]$r1Proposal.proposal.head
+} finally {
+  Pop-Location
+}
+```
+
+Après création et review séparées des records R1 exacts, chacun de leurs chemins locaux absolus et chacun de leurs hashes seraient transmis explicitement avec la proposition exacte. Le binding et le recovery-state n'en conservent que les SHA-256 de chemin non réversibles, jamais les chemins privés bruts. Le template contractuel futur ci-dessous n'est pas exécutable avec le provider read-only actuel et ne constitue aucune autorisation :
+
+```powershell
+$r1ReviewRecordPath = [Environment]::GetEnvironmentVariable('RITOMER_043C_PRE_EXECUTION_REVIEW_RECORD_PATH')
+$r1AuthorizationRecordPath = [Environment]::GetEnvironmentVariable('RITOMER_043C_SENSITIVE_AUTHORIZATION_RECORD_PATH')
+if ([string]::IsNullOrWhiteSpace($r1ReviewRecordPath) -or [string]::IsNullOrWhiteSpace($r1AuthorizationRecordPath)) { throw '043C_R1_RECORD_PATH_MISSING' }
+$r1ReviewSha256 = (Get-FileHash -LiteralPath $r1ReviewRecordPath -Algorithm SHA256).Hash.ToLowerInvariant()
+$r1AuthorizationSha256 = (Get-FileHash -LiteralPath $r1AuthorizationRecordPath -Algorithm SHA256).Hash.ToLowerInvariant()
+& $nodeExe $orchestrator run --run R1 --run-id $r1RunId --tenant-id '036a0000-0000-4000-8000-000000000001' --environment 'LOCAL_SYNTHETIC_LOOPBACK' --proposal-sha256 $r1ProposalSha256 --pre-execution-review-record-path $r1ReviewRecordPath --pre-execution-review-sha256 $r1ReviewSha256 --sensitive-authorization-record-path $r1AuthorizationRecordPath --sensitive-authorization-sha256 $r1AuthorizationSha256 --repository 'Qamrito-90/ritomer' --head $r1HeadSha --protocol-version '1' --schema-version '043c-run-summary-v1'
+if ($LASTEXITCODE -ne 0) { throw '043C_RUN_R1_FAILED_OR_NOT_AUTHORIZED' }
+```
+
+R2 ne peut être proposé qu'après preuve durable de R1 complet, audit `15/0/0`, cleanup complet et ressources R1 absentes. Il utilise un nouveau runId, une nouvelle proposition et des records distincts :
+
+```powershell
+$r2ProposalJson = (& $nodeExe $orchestrator propose --run R2 --prior-run-id $r1RunId | Out-String).Trim()
+if ($LASTEXITCODE -ne 0) { throw '043C_PROPOSE_R2_FAILED' }
+$r2Proposal = $r2ProposalJson | ConvertFrom-Json
+$r2RunId = [string]$r2Proposal.proposal.runId
+$r2ProposalSha256 = [string]$r2Proposal.proposalSha256
+$r2HeadSha = [string]$r2Proposal.proposal.head
+$r2ReviewRecordPath = [Environment]::GetEnvironmentVariable('RITOMER_043C_PRE_EXECUTION_REVIEW_RECORD_PATH')
+$r2AuthorizationRecordPath = [Environment]::GetEnvironmentVariable('RITOMER_043C_SENSITIVE_AUTHORIZATION_RECORD_PATH')
+if ([string]::IsNullOrWhiteSpace($r2ReviewRecordPath) -or [string]::IsNullOrWhiteSpace($r2AuthorizationRecordPath)) { throw '043C_R2_RECORD_PATH_MISSING' }
+$r2ReviewSha256 = (Get-FileHash -LiteralPath $r2ReviewRecordPath -Algorithm SHA256).Hash.ToLowerInvariant()
+$r2AuthorizationSha256 = (Get-FileHash -LiteralPath $r2AuthorizationRecordPath -Algorithm SHA256).Hash.ToLowerInvariant()
+& $nodeExe $orchestrator run --run R2 --run-id $r2RunId --prior-run-id $r1RunId --tenant-id '036a0000-0000-4000-8000-000000000001' --environment 'LOCAL_SYNTHETIC_LOOPBACK' --proposal-sha256 $r2ProposalSha256 --pre-execution-review-record-path $r2ReviewRecordPath --pre-execution-review-sha256 $r2ReviewSha256 --sensitive-authorization-record-path $r2AuthorizationRecordPath --sensitive-authorization-sha256 $r2AuthorizationSha256 --repository 'Qamrito-90/ritomer' --head $r2HeadSha --protocol-version '1' --schema-version '043c-run-summary-v1'
+if ($LASTEXITCODE -ne 0) { throw '043C_RUN_R2_FAILED_OR_NOT_AUTHORIZED' }
+```
+
+Les seules variables locales futures sont nommées ci-dessous ; leurs valeurs ne sont jamais documentées, loguées ou copiées dans une preuve partageable :
+
+```text
+RITOMER_043C_PG_ADMIN_USER
+RITOMER_043C_PG_ADMIN_PASSFILE
+RITOMER_SECURITY_JWT_HMAC_SECRET
+RITOMER_043C_PRE_EXECUTION_REVIEW_RECORD_PATH
+RITOMER_043C_SENSITIVE_AUTHORIZATION_RECORD_PATH
+```
+
+Les branches de preflight sont exclusives :
+
+- `INITIAL_RUN_PREFLIGHT` : aucun recovery-state valide ; DB, rôle, `runtimeRoot` et `evidenceRoot` dérivés absents ; ports `8080/5173/5174` libres ; toute présence est une collision qui n'est ni adoptée, ni mutée, ni supprimée.
+- `RECOVERY_PREFLIGHT` : recovery-state canonique exactement lié au même orchestrateur, head, protocole, run, runId, priorRunId, tenant, binding et dérivations ; seul `RECOVERY_CLEANUP_ONLY` peut continuer. State absent, malformé, incomplet, étranger, divergent ou déjà nettoyé : refus sans mutation ni suppression.
 
 ## Checklist pré-exécution
 
 Avant le premier geste T00 du run concerné, vérifier cumulativement :
 
-1. la review post-code de cette rebaseline est recevable ;
-2. `PRE_EXECUTION_REVIEW=PASS` sur l'environnement et la commande exacts ;
-3. un `AUTHORIZATION_RECORD` sensible distinct lie le run, `runId`, `tenantId`, l'environnement et la commande exacts ;
-4. les quatre commandes encore non déterminées ci-dessus sont devenues exactes et prouvées sans élargissement de scope ;
-5. toutes les cibles réseau sont loopback-only et toutes les données sont synthetic-only ;
-6. `ACCOUNTANT` et `REVIEWER` résolvent le même tenant exact ;
-7. les identités des ressources fraîches et jetables sont fixées et enregistrées ;
-8. les ressources de ce run sont propres et celles du run précédent sont absentes ;
-9. les deux fixtures gelées passent leur validation exacte ;
-10. aucun secret, donnée réelle, participant externe ou doute cross-tenant n'apparaît.
+1. une review IA technique indépendante, read-only, porte sur le head exact et le file-set exact ;
+2. une validation séparée en environnement réel porte sur l'artefact, le head, l'environnement, les outils, les records et la commande exacts ;
+3. une review courante `PRE_EXECUTION_REVIEW=PASS` est liée à ses octets canoniques, à son ID, au SHA-256 non réversible de son chemin exact, à son SHA-256 exact, au proposal/command binding canonique exact et à `environmentBindingSha256` ;
+4. un `AUTHORIZATION_RECORD` sensible distinct, encore `YES`, run-scoped et non consommé est lié de la même manière au même proposal, à la même commande, aux mêmes run/`runId`/`priorRunId`, `tenantId`, environnement, repository, head et `environmentBindingSha256`, ainsi qu'aux `preExecutionReviewRecordId`, `preExecutionReviewPathSha256` et `preExecutionReviewSha256` exacts ;
+5. le parsing canonique, les hashes des records, leur binding commun et la liaison autorisation→review concordent fail-closed ;
+6. toutes les cibles réseau sont loopback-only et toutes les données sont synthetic-only ;
+7. `ACCOUNTANT` et `REVIEWER` résolvent le même tenant exact ;
+8. les identités et marqueurs des ressources fraîches et jetables sont fixés ;
+9. `INITIAL_RUN_PREFLIGHT` ou `RECOVERY_PREFLIGHT`, jamais les deux, réussit ;
+10. les deux fixtures gelées passent leur validation exacte ;
+11. aucun secret, donnée réelle, participant externe ou doute cross-tenant n'apparaît.
 
-Commande existante autorisée pour le point 9 :
+Commande existante autorisée pour le point 10 :
 
 ```powershell
 .\fixtures\pilot\043\validate-043-pilot-fixtures.ps1
@@ -428,7 +499,7 @@ Attendus exacts :
 - `balance-fy2025-v1.csv` : 359 octets, SHA-256 `2295b620704c2cfcdf1e37660388bd84a1d261c0b7697edf5bce21d0c04f9855` ;
 - `evidence-bank-reconciliation-fy2025-v1.csv` : 184 octets, SHA-256 `f5bb9a7ec0df043a8e845d10f029c2bdd6dd7ea2f62f9935f48cdc0d95339b27`.
 
-Tout échec avant la frontière ci-dessous est `PRE_EXECUTION_PREFLIGHT_FAILURE`. Il ne consomme aucune tentative, interdit T00 et impose une nouvelle review si une condition matérielle change.
+Tout échec avant la frontière ci-dessous est `PRE_EXECUTION_PREFLIGHT_FAILURE`. Il ne consomme aucune tentative, interdit T00 et impose une nouvelle review si une condition matérielle change. Le franchissement de T00 exige d'un futur provider sensible une seule opération critique all-or-none sur deux entrées séparées : la review courante et l'autorisation sensible encore `YES`, chacune liée à ses octets canoniques, à son ID, au SHA-256 non réversible de son chemin exact et à son SHA-256 exact. Les deux records portent les mêmes proposal, commande, run, `runId`, `priorRunId`, `tenantId`, environnement, repository, head et `environmentBindingSha256` ; l'autorisation porte en plus les `preExecutionReviewRecordId`, `preExecutionReviewPathSha256` et `preExecutionReviewSha256` exacts. Dans cette même opération, le provider relit la review à son chemin exact, compare ses octets byte-for-byte aux octets revus, recalcule son SHA-256, parse son schéma canonique, exige son `status=PASS` courant et revalide son tuple et son binding d'environnement ; il relit et consomme l'autorisation exacte encore `YES`, vérifie sa liaison à la review, persiste le recovery-state engagé et réclame le slot global dont l'identité canonique porte `repository`, `head`, `evidenceBaseSha256` et `runSlot` (`R1` ou `R2`). La preuve retournée doit être vérifiée par l'orchestrateur et répéter l'ID, le path hash, le SHA et le PASS courants de la review, les identités et hashes de l'autorisation consommée, le binding d'environnement, l'identité du slot global, le `runSlot` et `evidenceBaseSha256`. Toute divergence avant commit laisse T00 non engagé, l'autorisation non consommée et le slot non réclamé, avec zéro HTTP métier ; toute divergence de preuve après commit conserve la tentative et l'autorisation consommées et le slot réclamé, interdit tout HTTP métier et route seulement vers cleanup/recovery.
 
 ## Frontière exacte d'une tentative
 
@@ -447,28 +518,42 @@ AND
 the first T00 action is engaged.
 ```
 
-À cette frontière, l'autorisation sensible exacte est consommée. Après cette frontière, tout échec, arrêt ou résultat incomplet consomme l'unique tentative du run. Aucun retry silencieux, reset opportuniste ou seconde tentative du même run n'est permis.
+À cette frontière, la review courante est encore `PASS` et sa preuve exacte est vérifiée, l'autorisation sensible exacte est consommée, le recovery-state est engagé et le slot global scopé est réclamé. Après cette frontière, tout échec, arrêt ou résultat incomplet consomme l'unique tentative du run. Aucun retry silencieux, reset opportuniste ou seconde tentative du même run n'est permis.
 
 ## Parcours T00-T15
 
-| Tâche | Preuve minimale |
+Convention HTTP fermée : `ACCOUNTANT=http://127.0.0.1:5173`, `REVIEWER=http://127.0.0.1:5174`, tenant `036a0000-0000-4000-8000-000000000001`, `X-Request-Id=<runId>-<suffixe exact>`. L'orchestrateur n'ajoute jamais `Authorization`. Les requêtes JSON utilisent `Accept: application/json` et `Content-Type: application/json`. Les multiparts laissent `FormData` produire seul le `Content-Type`. T03 omet `X-Tenant-Id`. Le téléchargement T14 est l'unique exception `Accept: application/zip`.
+
+| Tâche | Contrat et preuve minimale |
 | --- | --- |
-| T00 | Engager le run autorisé et capturer `runId`, `tenantId`, environnement, commande et instant de départ. |
-| T01 | Confirmer les ressources fraîches, jetables et propres à ce run. |
-| T02 | Revalider les deux fixtures gelées, leurs tailles et leurs SHA-256. |
-| T03 | Prouver `ACCOUNTANT` et `REVIEWER` dans le même tenant, sans prétention de séparation humaine réelle. |
-| T04 | Créer un nouveau dossier synthétique propre au run. |
-| T05 | Importer la balance gelée et confirmer 7 lignes, débits/crédits `149000.00`. |
-| T06 | Créer exactement les sept mappings du parcours existant. |
-| T07 | Lire readiness, contrôles, synthèses et previews sans audit de lecture inattendu. |
-| T08 | Créer le workpaper `BS.ASSET.CURRENT_SECTION` en `DRAFT`. |
-| T09 | Uploader la preuve synthétique gelée et capturer son résultat. |
-| T10 | Passer le workpaper à `READY_FOR_REVIEW`. |
-| T11 | Effectuer le handoff logique vers `REVIEWER`, sans mutation supplémentaire. |
-| T12 | Passer le document de `UNVERIFIED` à `VERIFIED`. |
-| T13 | Passer le workpaper de `READY_FOR_REVIEW` à `REVIEWED`. |
-| T14 | Produire l'export ou résultat final du parcours existant, mesurer l'utilité et figer le snapshot audit. |
-| T15 | Arrêter le runtime, nettoyer les ressources exactes, prouver leur absence, puis finaliser, sceller et hasher le résumé de preuve. |
+| T00 | Engagement atomique all-or-none : relecture et revalidation de la review courante exacte encore `PASS`, consommation de l'autorisation exacte liée, persistance du recovery-state engagé, réclamation du slot global scopé par `repository`/`head`/`evidenceBaseSha256`/`runSlot`, puis vérification de la preuve exacte ; aucun HTTP. |
+| T01 | Confirmer DB, rôle, storage et processus frais, exacts, marqués et enregistrés. |
+| T02 | Revalider la balance `359` octets / `2295b620…f9855` et la preuve `184` octets / `f5bb9a7e…39b27`. |
+| T03 | GET ACCOUNTANT puis REVIEWER `/api/me`, suffixes `T03-ACCOUNTANT-ME` et `T03-REVIEWER-ME`, sans tenant header ; sujets, users, rôles singleton et tenant commun exacts. |
+| T04 | ACCOUNTANT POST `/api/closing-folders`, suffixe `T04-CREATE-FOLDER`, dossier `043c <runId> synthetic FY2025`, période 2025, `externalRef=043c-<runId>` ; exiger `201`, UUID, tenant et `DRAFT`. |
+| T05 | Multipart balance, suffixe `T05-IMPORT-BALANCE`, fichier gelé seul ; exiger `201`, version `1`, `rowCount=7`, débits/crédits API `"149000"`, diff `null/7/0/0`. |
+| T06 | Sept PUT `/mappings/manual`, suffixes `T06-MAP-1000` à `T06-MAP-4000`, chacun strictement `201`, puis GET suffixe `T06-READ-MAPPINGS` ; taxonomy `2`, import `1`, lignes/mappings `7`, résumé `7/7/0`. |
+| T07 | Quatre GET ACCOUNTANT avec suffixes exacts `T07-CONTROLS`, `T07-FINANCIAL-SUMMARY`, `T07-FINANCIAL-STATEMENTS`, `T07-WORKPAPERS` ; readiness `READY`, deux contrôles `PASS`, actifs `137000`, passifs `29000`, equity `30000`, résultat `78000`, revenus `90000`, charges `12000`, cinq anchors à workpaper nul. |
+| T08 | PUT workpaper `BS.ASSET.CURRENT_SECTION`, suffixe `T08-CREATE-WORKPAPER`, note `Synthetic 043c bank reconciliation <runId>`, `DRAFT`, `evidences=[]` ; exiger `201`, basis `1/2`. |
+| T09 | Multipart suffixe `T09-UPLOAD-DOCUMENT`, parties dans l'ordre fichier preuve, `sourceLabel=Ritomer internal synthetic fixture 043`, `documentDate=2025-12-31` ; exiger `201`, taille/hash exacts et `UNVERIFIED`. |
+| T10 | Même PUT/note/evidences, suffixe `T10-READY-WORKPAPER`, `READY_FOR_REVIEW` ; exiger `200`, même ID et transition réelle depuis `DRAFT`. |
+| T11 | REVIEWER GET workpapers, suffixe `T11-REVIEWER-WORKPAPERS` ; workpaper prêt, document `UNVERIFIED`, compteurs `5/1/1/0/0/4`, aucune mutation. |
+| T12 | REVIEWER POST document verification, suffixe `T12-VERIFY-DOCUMENT`, body `VERIFIED/comment:null` ; même document, reviewer exact et transition réelle. |
+| T13 | REVIEWER POST workpaper review, suffixe `T13-REVIEW-WORKPAPER`, body `REVIEWED/comment:null` ; même workpaper, document `VERIFIED`, reviewer exact et transition réelle. |
+| T14 | ACCOUNTANT POST export, suffixe `T14-CREATE-EXPORT`, `Idempotency-Key=<runId>-T14-EXPORT`, strictement `201`, basis `1/2`; GET content suffixe `T14-DOWNLOAD-EXPORT`, ZIP/longueur/checksum, `Cache-Control: private, no-store`. Mesure fermée : `usefulnessScore` entier `1..5` et `observationCode` parmi `NO_FRICTION`, `MINOR_FRICTION`, `MAJOR_FRICTION`, `BLOCKING_FRICTION`, sans texte libre. |
+| T15 | Snapshot audit, arrêt, conservation de l'export sanitizé, cleanup exact, absences, résumé final et SHA-256. |
+
+Mappings exacts :
+
+```text
+1000 -> BS.ASSET.CASH_AND_EQUIVALENTS
+1100 -> BS.ASSET.TRADE_RECEIVABLES
+1200 -> BS.ASSET.PREPAIDS_AND_OTHER_CURRENT
+2000 -> BS.LIABILITY.TRADE_PAYABLES
+2800 -> BS.EQUITY.RETAINED_EARNINGS
+3000 -> PL.REVENUE.OPERATING_REVENUE
+4000 -> PL.EXPENSE.OTHER_OPERATING_EXPENSES
+```
 
 R1 doit atteindre T15, produire son résumé hashé et terminer son cleanup avant que R2 puisse devenir éligible.
 
@@ -488,24 +573,69 @@ R1 doit atteindre T15, produire son résumé hashé et terminer son cleanup avan
 
 Résultat nominal obligatoire : `15 expected / 0 missing / 0 unexpected`.
 
-Un événement manquant, inattendu, étranger au tenant/run ou produit par une lecture rend le run incomplet.
+La comparaison est un multiset équivalent à `EXCEPT ALL`, jamais un count ou un set. Elle couvre tenant, user, subject, rôle singleton, request ID, action, type et identité de ressource. Les sept UUID de mapping sont normalisés uniquement après jointure read-only exacte avec `manual_mapping`, le folder, le tenant, l'account et la target. Le filtre couvre tout le namespace `<runId>-` sans préfiltrage tenant : doublon, parasite, mauvais tenant, mauvais acteur, mauvais couple request/action ou ressource étrangère devient `unexpected`.
+
+Sortie nominale fermée : `15 expected / 0 missing / 0 unexpected / 15 actual / PASS_15_EXPECTED_0_MISSING_0_UNEXPECTED`. Toute autre sortie rend le run incomplet.
 
 ## Résumé de preuve et mesure d'utilité
 
-Chaque run produit hors Git un résumé sanitizé qui contient au minimum :
+Chaque run produit hors Git uniquement :
 
-- le run, `runId`, `tenantId` et les deux rôles logiques ;
-- les hashes des fixtures et le résultat de chaque tâche T00-T15 ;
-- les identités des ressources fraîches, sans secret ;
-- les compteurs audit exacts ;
-- l'identité de l'export ou résultat final sans donnée réelle ;
-- les mesures d'utilité et l'observation sanitizée ;
-- le résultat du cleanup ;
-- le statut `COMPLETED` ou `INCOMPLETE` et la cause fermée.
+```text
+evidenceRoot/
+  recovery-state.json
+  export-pack.zip
+  run-summary.json
+  run-summary.json.sha256
+```
 
-Après finalisation du résumé, calculer le SHA-256 de ses octets exacts et enregistrer ce digest séparément dans le dossier de preuve hors Git. Le digest ne fait pas partie des octets qu'il couvre.
+L'ordre top-level du résumé est fermé :
 
-Le hash ne remplace ni la preuve source ni la revue humaine. Aucun chemin utilisateur privé, secret, credential ou donnée réelle n'entre dans le résumé partageable.
+```text
+schemaVersion
+protocolId
+run
+runId
+tenantId
+environment
+commandEvidence
+reviewEvidence
+authorizationEvidence
+resources
+actors
+fixtures
+runAttempt
+tasks
+audit
+export
+usefulness
+cleanup
+status
+failureCode
+startedAtUtc
+endedAtUtc
+```
+
+Le JSON compact UTF-8 sans BOM porte un seul LF final, des timestamps UTC à la milliseconde, les tâches T00–T15 dans l'ordre, les décimaux métier sous forme de chaînes et uniquement les statuts `PASS|FAIL|NOT_REACHED` et résultats `COMPLETED|INCOMPLETE|PRE_EXECUTION_PREFLIGHT_FAILURE`. Il est reparsé et deep-comparé avant persistance. `run-summary.json.sha256` vaut exactement `<64hex>  run-summary.json\n`.
+
+Le hash ne remplace ni la preuve source ni la review. Aucun chemin utilisateur privé, secret, token, password, JWT, contenu de passfile, credential ou donnée réelle n'entre dans le résumé partageable. Ce dossier éphémère n'est ni un ledger, ni un manifeste permanent, ni une autorité.
+
+## Cleanup et recovery exacts
+
+Ordre fermé :
+
+1. `harness.shutdown()` et libération de `5173/5174` ;
+2. arrêt leaf-first du tree backend/Gradle exact et libération de `8080` ;
+3. conservation de l'export et des preuves sanitizées ;
+4. revalidation canonique/reparse puis suppression de la seule feuille `runtimeRoot` exacte ;
+5. exigence de zéro session DB, sans terminaison forcée ;
+6. suppression de la DB exacte sous le rôle owner exact ;
+7. révocation de la membership puis suppression du rôle exact ;
+8. preuve catalogue DB/rôle absents ;
+9. preuve storage absent et ports libres ;
+10. résumé/checksum durables, puis suppression du recovery-state uniquement si le cleanup est complet.
+
+Le state write-ahead est durable avant la première mutation et avant chaque mutation via `pendingOperation`. Une ressource exacte déjà absente est idempotente ; owner, commentaire, membership, marqueur, PID/start time/exécutable/commande ou chemin divergent est préservé et provoque `CLEANUP_STATUS=PARTIAL`, exit non nul et `R2_AUTHORIZED=NO`. Une session résiduelle n'est jamais tuée. Une réentrée identique poursuit seulement ce cleanup borné ; elle ne reprend aucune tâche métier.
 
 ## Passage R1 vers R2
 
@@ -527,4 +657,4 @@ Arrêter sans engager T00 si une autorisation, identité de run/tenant, commande
 
 Après engagement de T00, arrêter le travail métier, consommer la tentative, conserver la cause et aller au cleanup contrôlé si une donnée réelle, une cible non-loopback, une fuite cross-tenant ou un secret apparaît, si une tâche dévie, si l'audit n'est plus prouvable, si le résultat final n'est pas scellable ou si le cleanup exact ne peut pas être prouvé.
 
-Cette rebaseline n'exécute ni R1 ni R2 et n'émet aucune autorisation sensible.
+L'existence de l'orchestrateur et ses tests statiques/in-memory n'exécutent ni n'autorisent R1 ou R2 et n'émettent aucune autorisation sensible.

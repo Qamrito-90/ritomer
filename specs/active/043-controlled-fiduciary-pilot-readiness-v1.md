@@ -7,7 +7,7 @@ Active.
 - `043a`: `ACCEPTED_BY_DISTINCT_CPO_REVIEW`.
 - `043b`: `LOCAL_SYNTHETIC_SIMULATION_VALIDATED / MERGED / AI_REVIEWED / OWNER_RISK_ACCEPTED_FOR_LOCAL_SYNTHETIC_ONLY / NOT_HUMAN_SIGNED / NOT_PRODUCTION_READY / NOT_EXTERNAL_READY / NOT_SEPARATION_OF_DUTIES_PROOF`.
 - `043c`: `043C_SIMPLIFIED_REHEARSAL_DEFINED / EXECUTION_NOT_AUTHORIZED / R1_NOT_STARTED / R2_NOT_STARTED / V1_AUTHORITY_RAIL_SUPERSEDED_NOT_EXECUTABLE`.
-- Current sub-deliverable: 043c simplified rehearsal definition; execution planning remains blocked until the exact fresh-run commands and feasibility evidence are separately reviewed.
+- Selected 043c mechanism: the closed four-path minimal Node MJS orchestrator contract defined below; its implementation does not authorize execution.
 - No transition between `043a`, `043b` and `043c` is automatic.
 
 ## Roadmap declaration
@@ -415,6 +415,29 @@ NO_FOURTH_CYCLE=YES
 
 The three major cycles form a static total ceiling, not a remaining-cycle counter. Implementation, delivery and review records, including the iterations or implementation heads actually consumed, are preserved in the applicable Evidence Packs and pull requests, not as current state in this specification.
 
+### Selected minimal orchestrator contract
+
+The selected implementation mechanism for `043c` is the minimal Node MJS orchestrator `runbooks/invoke-controlled-fiduciary-pilot-043c.mjs` and its dedicated `node:test` contract `runbooks/invoke-controlled-fiduciary-pilot-043c.test.mjs`. Its implementation is capped at exactly four paths:
+
+1. `runbooks/invoke-controlled-fiduciary-pilot-043c.mjs`;
+2. `runbooks/invoke-controlled-fiduciary-pilot-043c.test.mjs`;
+3. `runbooks/controlled-fiduciary-pilot-local-043.md`;
+4. `specs/active/043-controlled-fiduciary-pilot-readiness-v1.md`.
+
+No fifth path, backend, frontend, contract, migration, dependency, service, workflow, permanent ledger, manifest or authority rail belongs to this mechanism.
+
+The interface has exactly two verbs: read-only `propose` and future sensitive `run`. `run` owns `PHASE_PREFLIGHT`, `PHASE_PROVISION`, `PHASE_RUNTIME`, `PHASE_T00_T15`, `PHASE_AUDIT`, `PHASE_EVIDENCE` and `PHASE_CLEANUP`; an exact valid recovery state permits only `RECOVERY_CLEANUP_ONLY`, never business resumption.
+
+The future `run` interface requires the absolute local path and SHA-256 of the pre-execution review record and sensitive-authorization record as separate explicit inputs. Each exact canonical-JSON record is bound by its byte-exact content, exact SHA-256, exact record ID and SHA-256 of its exact path; only that non-reversible path hash may enter binding, recovery or shareable evidence, never the raw private path.
+
+Both records bind the same proposal, proposed command, run, runId, priorRunId, tenantId, environment, repository, head and `environmentBindingSha256`. The authorization additionally binds the exact review through `preExecutionReviewRecordId`, `preExecutionReviewPathSha256` and `preExecutionReviewSha256`.
+
+This implementation wires a concrete read-only provider only for `propose`. The direct sensitive path refuses before secret access or sensitive I/O with `REAL_RUN_ADAPTERS_UNAVAILABLE`; `run` behavior is exercised only through injected in-memory adapters. Wiring and validating a real sensitive provider is a material future change and requires the independent review and real-environment validation below.
+
+Implementation and static/in-memory mock tests do not prove real PostgreSQL behavior, Windows process or environment behavior, T00-T15, the exact audit multiset, evidence persistence or cleanup. They do not change `EXECUTION_NOT_AUTHORIZED`, `R1_NOT_STARTED` or `R2_NOT_STARTED`.
+
+Before any sensitive-execution authorization, the exact implementation head requires an independent read-only AI technical review, and the exact artifact, head, environment and command require separate real-environment validation. Any material change invalidates those proofs.
+
 ### Minimum evidence contract
 
 Every future authorized R1/R2 cycle must cumulatively prove all of the following. Per-run items apply separately to each run that crosses the exact attempt boundary defined below; cycle-level cleanup and terminal-decision items apply at the last factually reachable stop:
@@ -432,7 +455,7 @@ Every future authorized R1/R2 cycle must cumulatively prove all of the following
 - one sanitized evidence summary per run, hashed over its exact bytes;
 - human selection of exactly one terminal outcome: `GO_TO_EXTERNAL_GATE_REVIEW`, `NO_GO` or `INCONCLUSIVE`.
 
-The detailed operational checklist and the exact T00-T15/audit mapping live only in `runbooks/controlled-fiduciary-pilot-local-043.md`. No new runtime, service, dependency, fixture, contract, migration, validator, ledger, manifest or tracked authority artifact is introduced.
+The detailed operational checklist and the exact T00-T15/audit mapping live only in `runbooks/controlled-fiduciary-pilot-local-043.md`. The selected mechanism introduces no application service, dependency, fixture, contract, migration, ledger, manifest, tracked authority artifact, backend or frontend change.
 
 ### Exact run-attempt boundary
 
@@ -454,7 +477,7 @@ the first T00 action is engaged.
 This boundary has the following closed consequences:
 
 1. A preparation failure before the boundary is `PRE_EXECUTION_PREFLIGHT_FAILURE`. It consumes no R1/R2 attempt, forbids T00 and requires a new review whenever a material condition changes.
-2. At the boundary, the exact sensitive-execution authorization is consumed.
+2. At the boundary, one all-or-none critical engagement operation must reread the review at its exact current path, compare its current bytes byte-for-byte with the reviewed canonical bytes, recalculate its SHA-256, parse its canonical schema, require current `status=PASS`, and revalidate its full proposal/command/run/runId/priorRunId/tenantId/environment/repository/head tuple plus `environmentBindingSha256`; in the same operation it must reread and consume the exact still-`YES` authorization, verify its common environment and exact review ID/path-hash/SHA binding, persist the engaged recovery state, and claim the global slot canonically identified by `{repository, head, evidenceBaseSha256, runSlot}` with `runSlot` exactly `R1` or `R2`. Its proof must echo, and the orchestrator must verify before any business HTTP, the current review PASS plus exact ID/path hash/SHA, the consumed authorization identity and prior/consumed hashes, the proposal/command/binding hashes, the environment binding, global-slot identity, run slot and evidence-base hash. Any review divergence before commit leaves T00 unengaged, the authorization unconsumed, the slot unclaimed and business HTTP at zero. If engagement committed but its returned proof diverges, the attempt and authorization remain consumed and the slot remains claimed; the orchestrator fails closed before business HTTP and permits only cleanup/recovery.
 3. After the boundary, every failure, stop or incomplete result consumes the run's single attempt.
 4. No silent retry, opportunistic reset or second attempt of the same run is permitted.
 5. R1 must reach T15, produce its hashed evidence and complete cleanup before R2 can become eligible.
