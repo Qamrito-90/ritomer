@@ -74,14 +74,48 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `specs/done/041-internal-poc-blockers-ux-readiness-v1.md`
 
 ### Active
-- `specs/active/043-controlled-fiduciary-pilot-readiness-v1.md`
+
+- AUCUNE spec active.
+
+### Clôturé terminalement / résultat inconclusif
+
+- `specs/done/043-controlled-fiduciary-pilot-readiness-v1.md` — `DONE_TERMINALLY_CLOSED / STOPPED_INCONCLUSIVE / SUCCESSFULLY_DELIVERED=NO`.
+- `043a` demeure livré.
+- `043b` demeure `LOCAL_SYNTHETIC_SIMULATION_VALIDATED`, uniquement sur données synthétiques locales et sans preuve de séparation réelle des fonctions.
+- `043c` s’est terminé par `STOP_AND_RECORD_INCONCLUSIVE`. R1 et R2 n’ont jamais été exécutés et la préparation externe n’a pas été prouvée.
+- La PR #114 a été fermée sans merge. Son head et sa branche sont forensiques uniquement ; l’implémentation rejetée est `NOT_EXECUTABLE` et ne doit pas être reprise.
+- Le classement sous `specs/done/` signifie, pour 043 uniquement, `TERMINALLY_CLOSED_NOT_SUCCESSFULLY_DELIVERED`. Il ne place pas 043 parmi les livraisons réussies et ne redéfinit pas la sémantique des autres specs Done.
+
+```text
+043_FINAL_STATUS=STOPPED_INCONCLUSIVE
+043C_R1_EXECUTED=NO
+043C_R2_EXECUTED=NO
+043C_EXTERNAL_READINESS_PROVED=NO
+043C_MUST_NOT_RESUME=YES
+
+NEXT_PRODUCT_DIRECTION=PHASE_1_DESIGN_PARTNER_READINESS
+CURRENT_AUTHORIZATION=DOCS_ONLY_PREPARATION
+
+PHASE_1_PUBLICATION_AUTHORIZED=NO
+PHASE_1_OUTREACH_AUTHORIZED=NO
+PHASE_1_INTERVIEW_AUTHORIZED=NO
+PHASE_1_COLLECTION_AUTHORIZED=NO
+PHASE_1_EXTERNAL_ACCESS_AUTHORIZED=NO
+PHASE_1_REAL_DATA_AUTHORIZED=NO
+PHASE_1_RUNTIME_AUTHORIZED=NO
+```
+
+Aucune nouvelle spec n’est créée ou numérotée par cette direction.
 
 ### Backlog
 
 - `specs/backlog/042-controlled-ai-mapping-runtime-pilot-v1.md` - pause `PAUSED_BY_SEPARATE_CPO_DECISION`, jamais Done, preuves et blocages integralement conserves.
 
-### Sequencing courant 043
+### Snapshot historique du sequencing 043 avant clôture
 
+Le bloc suivant conserve la chronologie pré-clôture. Ses états « courants », prochaines actions, commandes et gates 043c sont historiques, sans autorité actuelle, et ne doivent pas être exécutés ou repris.
+
+<!-- 043_V1_PLAN_HISTORICAL_BEGIN -->
 - `043a` livre uniquement la foundation documentaire, les fixtures synthetiques gelees, leur validation, l'adaptation du checker et la roadmap canonique. Surface `DOCS_GIT / FIXTURES_SYNTHETIQUES / GOVERNANCE_CHECKS`, risque B.
 - La revue CPO distincte de `043a` et le CTO Gate pre-code de `043b` sont satisfaits. Le CTO Gate approuve l'architecture locale avec les conditions obligatoires `C1` a `C9`.
 - Etat courant de `043b`, ferme documentairement le `2026-07-27` : `LOCAL_SYNTHETIC_SIMULATION_VALIDATED / MERGED / AI_REVIEWED / OWNER_RISK_ACCEPTED_FOR_LOCAL_SYNTHETIC_ONLY / NOT_HUMAN_SIGNED / NOT_PRODUCTION_READY / NOT_EXTERNAL_READY / NOT_SEPARATION_OF_DUTIES_PROOF`.
@@ -104,6 +138,8 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - La premiere invitation exige une nouvelle decision CPO ainsi que les gates fiduciaire et Security/Privacy. `GO_TO_EXTERNAL_GATE_REVIEW` ne vaut ni invitation ni collecte.
 - Aucune spec suivante n'est creee automatiquement.
 
+<!-- 043_V1_PLAN_HISTORICAL_END -->
+
 ### Rappels historiques et preuves 042 conservees
 
 - `042-controlled-ai-mapping-runtime-pilot-v1` etait active pendant les increments ci-dessous en SPEC_CREATION DOCS_ONLY, avec une surface `BACKEND_RUNTIME_INTERNE / EVALS` strictement limitee a `042a2a3`, puis `CONTRACTS / BACKEND_RUNTIME_INTERNE / FRONTEND_CONSUMER` pour `042a2a4`, puis `BACKEND_RUNTIME_LOCAL / CONTRACTS / DOCS_GIT` pour `042a2a5a`, `FRONTEND / DOCS_GIT` pour `042a2a5b`, `042a2a5c` et `042a2a5e`, `BACKEND_RUNTIME_LOCAL / DOCS_GIT` pour `042a2a5d`, `DOCS_ONLY / AI_GOVERNANCE / FIDUCIARY_GOVERNANCE` pour `042a2a6`, et `DOCS_GIT / EVALS / AI_GOVERNANCE / FIDUCIARY_GOVERNANCE / SECURITY_PRIVACY` strictement non operationnelle pour `042a2a6a`, afin de cadrer le premier pilote IA runtime reel strictement limite aux suggestions de mapping sur dossier demo synthetique. `042a1` ajoute uniquement un gate pack draft de gouvernance/readiness (`PENDING_EVIDENCE` ou `DRAFT`) avant tout code provider `042b`. `042a2a1` ajoute uniquement un semantic readiness pack draft avant tout contrat `mapping-suggestion-v2`; `042a2a1b` durcit ce pack et ajoute le manifeste draft de perimetre pilote, avec records `DRAFT` ou `PENDING_EVIDENCE`, sans runtime, provider, backend, frontend, DB/migration, OpenAPI, CI, contrat, prompt runtime, golden set, validator, secret, `.env`, appel reseau IA, production, donnee cliente reelle ou spec `043`. `042a2a2a` ajoute uniquement un snapshot taxonomie candidat minimal, une projection demo synthetique de-mappee et leur validator deterministe, tous `CANDIDATE / PENDING_EVIDENCE / NOT_AUTHORITATIVE`, sans golden set approuve, contrat, provider, runtime, prompt, secret, `.env`, appel IA ou spec `043`. Le pack de cas candidats `042a2` ajoute `candidate-semantic-cases-v1.json`, `candidate-policy-fault-cases-v1.json` et `validate-042a2-candidate-cases.ps1`, tous `CANDIDATE / PENDING_DOUBLE_REVIEW / NOT_GOLDEN / NOT_AUTHORITATIVE`, sans contrat, provider, runtime, prompt, backend/frontend, DB/migration, OpenAPI, secret, `.env`, appel IA ou spec `043`. Le pack de double revue aveugle `042a2` ajoute deux paquets independants, un schema de reponse strict, un builder et un validator, tous `BLIND_REVIEW_INPUT / PENDING_INDEPENDENT_REVIEW / NOT_GOLDEN / NOT_AUTHORITATIVE`, sans reponses humaines, adjudication, promotion golden set, contrat, provider, runtime, prompt, backend/frontend, DB/migration, OpenAPI, secret, `.env`, appel IA ou spec `043`. `042a2a3` ajoute un moteur offline Kotlin interne dans `mapping.application`, des providers de test fake/fault et une task Gradle `offlineMappingEval042a2` pour executer les 17 cas sans reseau, avec rapport `CANDIDATE_EVAL / NOT_GOLDEN / NOT_AUTHORITATIVE / NOT_MODEL_QUALITY`, sans provider reel, endpoint, OpenAPI, DB/migration, contrat public, secret, `.env`, production ou spec `043`. `042a2a4` ajoute uniquement le contrat normalise `mapping-suggestion-v2` a scope strict, l'OpenAPI v2 contract-only avec `paths: {}` et `taxonomyHash`, un corpus contractuel partage, un transformer offline backend avec fingerprint reserve aux suggestions et un parser Zod frontend strict, sans provider reel, endpoint actif, controller, wiring Spring, DB/migration, ecran, auto-apply, bulk apply, secret, `.env`, appel reseau IA, production ou spec `043`. `042a2a5a` expose uniquement `GET /api/closing-folders/{closingFolderId}/mappings/suggestions-v2` en backend local read-only, profile `local` + flag default-off, allowlist demo synthetique immutable, sans provider reel, reseau IA, secret, DB/migration, decision, audit de decision, bascule v1, auto-apply, bulk apply, production ou spec `043`.
@@ -121,7 +157,8 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `036-local-integrated-demo-real-backend-seed-v1` est livre : 036a a livre une commande backend de seed demo dev-only PostgreSQL local, default off, fail-fast hors `local`/`test`/`dbtest`, sans secret commite, sans donnees client reelles, sans bypass auth, sans IA runtime, sans GraphQL et sans Docker impose ; 036b a livre un smoke backend `dbIntegrationTest` de vraie validation JWT sur `/api/me` et tenant membership ; 036c a livre un proxy Vite dev-only `/api` vers backend local avec injection bearer optionnelle strictement cote serveur Vite et shell local, sans token navigateur, sans backend runtime durable et sans auth frontend durable. Aucun endpoint de mint token, aucune commande JWT, aucun backend runtime durable supplementaire, aucun OpenAPI, aucune migration DB, aucune IA runtime et aucun GraphQL ne sont ajoutes par la cloture 036.
 - `040-internal-poc-global-smoke-v1` est cloturee en verdict `PARTIEL` : dossier demo ouvert, frontend `/api/me` via proxy `200`, backend `/api/me` direct sans JWT `401`, cockpit/import/suggestions/previews/export/annexe globalement atteignables, aucun token ni secret observe, mais parcours non comprehensible en 10 minutes, statut cockpit insuffisamment clair, mapping trop dense, rubriques Preuves trop anglo-techniques, montants Import trop bruts, libelles techniques residuels, header `Authorization` non verifie explicitement, absence IA runtime non verifiee explicitement et health backend direct non prouve dans ce bloc.
 - `041-internal-poc-blockers-ux-readiness-v1` est cloturee en `PASS global` pour readiness POC interne : `041a` a rendu le statut cockpit plus explicite et les montants Import lisibles en CHF ; `041b` a rendu le mapping plus premium, calme, scannable et responsive ; `041c` a rendu les rubriques Justifications / Preuves plus francaises, metier et actionnables ; `041d` a documente l'hygiene reseau, l'absence de fuite bearer observee et l'absence d'appel IA externe observe. Le smoke global final documente backend health `200`, `/api/me` direct sans JWT `401`, `/api/me` via Vite `200`, parcours compris en moins de 10 minutes, aucune friction majeure restante et produit suffisamment robuste/professionnel pour poursuivre vers le POC. Dettes non bloquantes : accents/typographie encore perfectibles, certaines cibles Mapping encore partiellement anglophones, design premium final encore ameliorable et warning Vite chunk `> 500 kB` non bloquant. Aucun runtime, backend, DB/migration, OpenAPI, auth/JWT/proxy, nouvelle mutation, nouveau endpoint, IA runtime, GraphQL, export officiel, annexe legale finale, promesse CO/statutaire, secret, `.env`, token, credential ou spec `042` n'est introduit par cette cloture documentaire.
-- Rappel de sequencing courant : `041` reste Done / `PASS global`; `042` est uniquement en backlog avec `PAUSED_BY_SEPARATE_CPO_DECISION`; `043` est la seule spec active; `043a` est acceptee, `043b` est `LOCAL_SYNTHETIC_SIMULATION_VALIDATED / MERGED / AI_REVIEWED / OWNER_RISK_ACCEPTED_FOR_LOCAL_SYNTHETIC_ONLY / NOT_HUMAN_SIGNED / NOT_PRODUCTION_READY / NOT_EXTERNAL_READY / NOT_SEPARATION_OF_DUTIES_PROOF`, et `043c` est `043C_SIMPLIFIED_REHEARSAL_DEFINED / EXECUTION_NOT_AUTHORIZED / R1_NOT_STARTED / R2_NOT_STARTED / V1_AUTHORITY_RAIL_SUPERSEDED_NOT_EXECUTABLE`.
+- `041` reste Done / `PASS global`.
+- Rappel de sequencing courant : `042` reste uniquement en backlog avec `PAUSED_BY_SEPARATE_CPO_DECISION`; `043` est terminalement close avec `STOPPED_INCONCLUSIVE / SUCCESSFULLY_DELIVERED=NO`, `043a` livré, `043b` validé en simulation locale synthétique, `043c` arrêté, R1/R2 non exécutés et reprise interdite. La seule direction suivante est `PHASE_1_DESIGN_PARTNER_READINESS` sous `DOCS_ONLY_PREPARATION`.
 - Rappel de cloture `039` : aucun backend, aucune DB/migration, aucun OpenAPI, aucune auth/JWT/proxy, aucune IA runtime, aucun GraphQL, aucune nouvelle mutation, aucun nouveau seed, aucune nouvelle donnee demo, aucune CI et aucun secret/token/credential/valeur `.env` ne sont ajoutes par cette cloture documentaire. La dette residuelle de jugement global a ete traitee par le smoke `040`, cloture en `PARTIEL`, et les blockers POC sont maintenant cadres par `041`.
 
 ### Decisions figees
@@ -184,6 +221,6 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - Les lectures `GET` sur `controls`, `financial-summary`, `financial-statements-structured`, `workpapers` et `minimal-annex` n'ecrivent aucun `audit_event`.
 - Les tests PostgreSQL reels restent opt-in via `dbIntegrationTest`, sans Docker local requis.
 
-### Validation PostgreSQL reelle locale
-- Pour les 12 classes `dbIntegrationTest`, la seule recette 043b autorisee vise un PostgreSQL local direct a `jdbc:postgresql://127.0.0.1:5432/ritomer_043b_test`, sans cloud-sql-proxy, tunnel SSH ni port forward, avec base et role crees de novo et donnees synthetiques uniquement.
+### Validation PostgreSQL reelle locale — preuve historique 043b
+- Pour les 12 classes `dbIntegrationTest`, la recette historique 043b a visé un PostgreSQL local direct à `jdbc:postgresql://127.0.0.1:5432/ritomer_043b_test`, sans cloud-sql-proxy, tunnel SSH ni port forward, avec base et rôle créés de novo et données synthétiques uniquement. Cette preuve n’autorise aucune nouvelle exécution 043.
 - Reference d'execution : `runbooks/local-dev.md`.

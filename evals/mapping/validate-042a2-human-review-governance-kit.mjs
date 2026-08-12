@@ -45,7 +45,7 @@ const HISTORICAL_043B_BASE = "b208658fc37956e2e55fb89dfaaaccafea87277c";
 const HISTORICAL_043B_HOTFIX_BASE = "b46fb0d6dcfb2eca7d317ddfeaf34371686e7030";
 const HISTORICAL_SPEC_042_ACTIVE_PATH = "specs/active/042-controlled-ai-mapping-runtime-pilot-v1.md";
 const CURRENT_SPEC_042_BACKLOG_PATH = "specs/backlog/042-controlled-ai-mapping-runtime-pilot-v1.md";
-const CURRENT_SPEC_043_ACTIVE_PATH = "specs/active/043-controlled-fiduciary-pilot-readiness-v1.md";
+const CURRENT_SPEC_043_DONE_PATH = "specs/done/043-controlled-fiduciary-pilot-readiness-v1.md";
 const ROADMAP_PATH = "docs/product/product-roadmap.md";
 const GOVERNANCE_STATUSES = [
   "DRAFT",
@@ -98,7 +98,7 @@ const CURRENT_043A_ALLOWED_FILE_SET = [
   "fixtures/pilot/043/validate-043-pilot-fixtures.ps1",
   "policies/ai-mapping-pilot-scope-manifest-042a2.md",
   HISTORICAL_SPEC_042_ACTIVE_PATH,
-  CURRENT_SPEC_043_ACTIVE_PATH,
+  CURRENT_SPEC_043_DONE_PATH,
   CURRENT_SPEC_042_BACKLOG_PATH,
 ].sort();
 
@@ -107,6 +107,7 @@ const WORKTREE_PROFILES = Object.freeze({
   PILOT_043A: "WORKTREE_043A_PILOT_READINESS_FOUNDATION",
   HARNESS_043B: "WORKTREE_043B_LOCAL_TWO_ACTOR_HARNESS",
   HOTFIX_043B: "WORKTREE_043B_MINIMUM_VIABLE_SAFETY_HOTFIX",
+  TERMINAL_CLOSURE_043: "WORKTREE_043_TERMINAL_DOCUMENTARY_CLOSURE",
   INVALID: "INVALID_WORKTREE",
 });
 
@@ -222,6 +223,56 @@ const HOTFIX_043B_RUNTIME_IMPLEMENTATION_PATHS = new Set([
   "backend/src/test/kotlin/ch/qamwaq/ritomer/testsupport/DisposablePostgresTestDatabaseSupport.kt",
   "frontend/local-two-actor-harness.mjs",
 ]);
+
+const HISTORICAL_SPEC_043_ACTIVE_PATH = CURRENT_043B_ALLOWED_FILE_SET.find((path) =>
+  /^specs\/active\/043(?:[-_.]|$)/i.test(path));
+
+const TERMINAL_043_CLOSURE_MODIFIED_PATHS = [
+  "README.md",
+  ROADMAP_PATH,
+  "docs/product/v1-plan.md",
+  "evals/mapping/README.md",
+  "evals/mapping/validate-042a2-human-review-governance-kit.mjs",
+  "policies/ai-mapping-pilot-scope-manifest-042a2.md",
+  "runbooks/controlled-fiduciary-pilot-local-043.md",
+].sort();
+
+const TERMINAL_043_CLOSURE_PHYSICAL_FILE_SET = [
+  ...TERMINAL_043_CLOSURE_MODIFIED_PATHS,
+  HISTORICAL_SPEC_043_ACTIVE_PATH,
+  CURRENT_SPEC_043_DONE_PATH,
+].sort();
+
+const EXPECTED_TERMINAL_043_WORKTREE_STATUS_BY_PATH = new Map([
+  ...TERMINAL_043_CLOSURE_MODIFIED_PATHS.map((path) => [path, " M"]),
+  [HISTORICAL_SPEC_043_ACTIVE_PATH, " D"],
+  [CURRENT_SPEC_043_DONE_PATH, "??"],
+]);
+
+const TERMINAL_043_PROTECTED_BLOCK_SHA256 =
+  "f5874d4cf71fe37fbc62cf42007b7e6b811ebf45dcb265ab3839231efb5a214a";
+const TERMINAL_043_PROTECTED_BLOCK_SIZE = 19_856;
+const TERMINAL_043_HISTORY_MARKERS = new Map([
+  [CURRENT_SPEC_043_DONE_PATH, ["<!-- 043_TERMINAL_HISTORICAL_BEGIN -->", "<!-- 043_TERMINAL_HISTORICAL_END -->"]],
+  ["docs/product/v1-plan.md", ["<!-- 043_V1_PLAN_HISTORICAL_BEGIN -->", "<!-- 043_V1_PLAN_HISTORICAL_END -->"]],
+  ["README.md", ["<!-- README_043_HISTORICAL_BEGIN -->", "<!-- README_043_HISTORICAL_END -->"]],
+  ["runbooks/controlled-fiduciary-pilot-local-043.md", ["<!-- 043_RUNBOOK_HISTORICAL_BEGIN -->", "<!-- 043_RUNBOOK_HISTORICAL_END -->"]],
+]);
+const TERMINAL_043_HISTORY_PAYLOADS = new Map([
+  [CURRENT_SPEC_043_DONE_PATH, [55_009, "86ede4799e5fe56e18ec1463f5df682fcae234fe2109ce6447c10c70a19903bf"]],
+  ["docs/product/v1-plan.md", [7_181, "fb25a4e7ef753ea3b3c52262b5ca2d3691f703e4e0d7315559d6b8ca282e7feb"]],
+  ["README.md", [1_694, "7678e52734846232bf334a07db6df414621df0660dda23bf7ad3fcc969997303"]],
+  ["runbooks/controlled-fiduciary-pilot-local-043.md", [28_387, "d1b876158f3e58d7dbc081f2e3ec8ed9a0c06227a7c9fe806d4e200a2dcd4d98"]],
+]);
+const PHASE_1_EXTERNAL_AUTHORIZATION_TOKENS = [
+  "PHASE_1_PUBLICATION_AUTHORIZED=NO",
+  "PHASE_1_OUTREACH_AUTHORIZED=NO",
+  "PHASE_1_INTERVIEW_AUTHORIZED=NO",
+  "PHASE_1_COLLECTION_AUTHORIZED=NO",
+  "PHASE_1_EXTERNAL_ACCESS_AUTHORIZED=NO",
+  "PHASE_1_REAL_DATA_AUTHORIZED=NO",
+  "PHASE_1_RUNTIME_AUTHORIZED=NO",
+];
 
 const CURRENT_GOVERNANCE_FILE_SET = [...new Set(EXACT_ALLOWED_FILE_SET.map((path) =>
   path === HISTORICAL_SPEC_042_ACTIVE_PATH ? CURRENT_SPEC_042_BACKLOG_PATH : path,
@@ -440,6 +491,335 @@ function sameArray(actual, expected) {
   return actual.length === expected.length && actual.every((value, index) => value === expected[index]);
 }
 
+function countOccurrences(text, needle) {
+  if (needle.length === 0) return 0;
+  let count = 0;
+  let offset = 0;
+  while (true) {
+    const index = text.indexOf(needle, offset);
+    if (index < 0) return count;
+    count += 1;
+    offset = index + needle.length;
+  }
+}
+
+function boundedText(text, startMarker, endMarker, label) {
+  const start = text.indexOf(startMarker);
+  const end = start < 0 ? -1 : text.indexOf(endMarker, start + startMarker.length);
+  const markersExact = start >= 0 && end > start;
+  assert(markersExact, `${label}: exact bounded section markers missing or out of order`);
+  return markersExact ? text.slice(start, end + endMarker.length) : "";
+}
+
+function stripHistorical043Region(path, text) {
+  const markers = TERMINAL_043_HISTORY_MARKERS.get(path);
+  if (markers === undefined) return text;
+  const [beginMarker, endMarker] = markers;
+  const begin = text.indexOf(beginMarker);
+  const end = begin < 0 ? -1 : text.indexOf(endMarker, begin + beginMarker.length);
+  const markersExact = begin >= 0
+    && end > begin
+    && text.indexOf(beginMarker, begin + beginMarker.length) < 0
+    && text.indexOf(endMarker, end + endMarker.length) < 0;
+  assert(markersExact, `${path}: terminal historical boundary must occur exactly once`);
+  if (markersExact) {
+    const afterBegin = begin + beginMarker.length;
+    const payloadStart = text.startsWith("\r\n", afterBegin)
+      ? afterBegin + 2
+      : text[afterBegin] === "\n" ? afterBegin + 1 : afterBegin;
+    const payload = Buffer.from(text.slice(payloadStart, end), "utf8");
+    const [expectedSize, expectedSha256] = TERMINAL_043_HISTORY_PAYLOADS.get(path);
+    assert(
+      payload.length === expectedSize && sha256Bytes(payload) === expectedSha256,
+      `${path}: terminal historical payload exact-byte mismatch`,
+    );
+  }
+  return markersExact ? `${text.slice(0, begin)}${text.slice(end + endMarker.length)}` : text;
+}
+
+function assertTextTokens(path, text, tokens) {
+  for (const token of tokens) {
+    assert(text.includes(token), `${path}: required terminal token ${token} missing`);
+  }
+}
+
+function current043LivingDocuments() {
+  const paths = [
+    CURRENT_SPEC_043_DONE_PATH,
+    "docs/product/v1-plan.md",
+    ROADMAP_PATH,
+    "README.md",
+    "runbooks/controlled-fiduciary-pilot-local-043.md",
+    "evals/mapping/README.md",
+    "policies/ai-mapping-pilot-scope-manifest-042a2.md",
+  ];
+  return new Map(paths.map((path) => {
+    const text = readText(path);
+    return [path, stripHistorical043Region(path, text)];
+  }));
+}
+
+function validate043ProtectedHistoricalBlock() {
+  const bytes = readBytes(CURRENT_SPEC_043_DONE_PATH);
+  const beginMarker = Buffer.from("<!-- 043C_V1_HISTORICAL_BEGIN -->", "utf8");
+  const endMarker = Buffer.from("<!-- 043C_V1_HISTORICAL_END -->", "utf8");
+  const begin = bytes.indexOf(beginMarker);
+  const end = begin < 0 ? -1 : bytes.indexOf(endMarker, begin + beginMarker.length);
+  let endExclusive = end < 0 ? -1 : end + endMarker.length;
+  if (endExclusive >= 0 && bytes[endExclusive] === 13 && bytes[endExclusive + 1] === 10) {
+    endExclusive += 2;
+  } else if (endExclusive >= 0 && bytes[endExclusive] === 10) {
+    endExclusive += 1;
+  }
+  const markersExact = begin >= 0
+    && end > begin
+    && bytes.indexOf(beginMarker, begin + beginMarker.length) < 0
+    && bytes.indexOf(endMarker, end + endMarker.length) < 0;
+  assert(markersExact, `${CURRENT_SPEC_043_DONE_PATH}: protected 043c v1 markers must occur exactly once`);
+  if (!markersExact) return false;
+  const block = bytes.subarray(begin, endExclusive);
+  const exact = block.length === TERMINAL_043_PROTECTED_BLOCK_SIZE
+    && sha256Bytes(block) === TERMINAL_043_PROTECTED_BLOCK_SHA256;
+  assert(exact, `${CURRENT_SPEC_043_DONE_PATH}: protected 043c v1 historical block exact-byte mismatch`);
+  return exact;
+}
+
+function validate043HistoricalReferenceAllowlist() {
+  const oldPath = HISTORICAL_SPEC_043_ACTIVE_PATH;
+  const visible = worktreeVisiblePaths();
+  const occurrencesByPath = new Map();
+  for (const path of visible) {
+    const count = countOccurrences(readBytes(path).toString("utf8"), oldPath);
+    if (count > 0) occurrencesByPath.set(path, count);
+  }
+
+  const checkerPath = "evals/mapping/validate-042a2-human-review-governance-kit.mjs";
+  const checker = readText(checkerPath);
+  const current043bFileSet = boundedText(
+    checker,
+    "const CURRENT_043B_ALLOWED_FILE_SET = [",
+    "const FROZEN_043A_HASHES = new Map([",
+    `${checkerPath}: historical 043b file set`,
+  );
+  const hotfix043bFileSet = boundedText(
+    checker,
+    "const HOTFIX_043B_ALLOWED_FILE_SET = [",
+    "const HOTFIX_043B_ADDED_PATHS = new Set([",
+    `${checkerPath}: historical 043b-hotfix file set`,
+  );
+  const checkerReferencesExact = countOccurrences(checker, oldPath) === 2
+    && countOccurrences(current043bFileSet, oldPath) === 1
+    && countOccurrences(hotfix043bFileSet, oldPath) === 1;
+  assert(checkerReferencesExact, `${checkerPath}: old active 043 path must occur only in the two exact historical profile file sets`);
+
+  const spec = readText(CURRENT_SPEC_043_DONE_PATH);
+  const historical043a = boundedText(
+    spec,
+    "## 043a - Pilot readiness foundation",
+    "## 043b - Local single-operator two-role simulation",
+    `${CURRENT_SPEC_043_DONE_PATH}: historical 043a section`,
+  );
+  const historical043b = boundedText(
+    spec,
+    "## 043b - Local single-operator two-role simulation",
+    "## 043c - Simplified internal rehearsal definition (active)",
+    `${CURRENT_SPEC_043_DONE_PATH}: historical 043b section`,
+  );
+  const protected043c = boundedText(
+    spec,
+    "<!-- 043C_V1_HISTORICAL_BEGIN -->",
+    "<!-- 043C_V1_HISTORICAL_END -->",
+    `${CURRENT_SPEC_043_DONE_PATH}: protected 043c v1 block`,
+  );
+  const specReferencesExact = countOccurrences(spec, oldPath) === 5
+    && countOccurrences(historical043a, oldPath) === 1
+    && countOccurrences(historical043b, oldPath) === 2
+    && countOccurrences(protected043c, oldPath) === 2;
+  assert(specReferencesExact, `${CURRENT_SPEC_043_DONE_PATH}: old active 043 path must remain in exactly five historical file-set references`);
+
+  const allowedPathsOnly = occurrencesByPath.size === 2
+    && occurrencesByPath.get(checkerPath) === 2
+    && occurrencesByPath.get(CURRENT_SPEC_043_DONE_PATH) === 5;
+  assert(allowedPathsOnly, `old active 043 path exists outside the exact seven-reference historical allowlist`);
+  return checkerReferencesExact && specReferencesExact && allowedPathsOnly;
+}
+
+function current043ForbiddenClassificationLines(documents) {
+  const findings = [];
+  const entityPattern = /(?:\b043\b|\b043c\b|phase\s*0|pr\s*#?\s*114|orchestrator)/i;
+  const forbiddenPattern = /\b(?:PASS|READY|EXECUTABLE|MERGEABLE|RESUMABLE)\b|\bSUCCESSFULLY_DELIVERED\b/i;
+  for (const [path, text] of documents) {
+    text.split(/\r?\n/).forEach((line, index) => {
+      if (!entityPattern.test(line)) return;
+      const withoutNegativeClassifications = line
+        .replace(/\b(?:NOT|NON)[_ -](?:PASS|READY|EXECUTABLE|MERGEABLE|RESUMABLE|SUCCESSFULLY_DELIVERED)\b/gi, "")
+        .replace(/SUCCESSFULLY_DELIVERED\s*=\s*NO/gi, "")
+        .replace(/(?:aucun|no)\s+(?:resultat\s+)?(?:complet\s+)?(?:positif|PASS)/gi, "");
+      if (forbiddenPattern.test(withoutNegativeClassifications)) {
+        findings.push(`${path}:${index + 1}`);
+      }
+    });
+  }
+  return findings;
+}
+
+function current043ActionReferences(documents) {
+  const patterns = [
+    /Current sub-deliverable/i,
+    /043c simplified rehearsal defined/i,
+    /\bonly active path\b/i,
+    /\bexactly one active outcome\b/i,
+    /\bcommandes? de futur run\b/i,
+    /\btout futur run\b/i,
+    /\bexecution planning remains blocked\b/i,
+    /(?:\bprochaine action\b.{0,100}\b043c\b|\b043c\b.{0,100}\bprochaine action\b)/i,
+    /(?:\bnext\s+(?:action|step)\b|\bprochaine\s+(?:action|étape|etape)\b).{0,120}\b(?:043c|R1|R2|T00|execut(?:e|er|ion))\b/i,
+    /(?:\bspec\s+`?043`?.{0,60}\b(?:est|is)\b.{0,30}\bactive\b|\b043\b.{0,60}\bonly active spec\b)/i,
+  ];
+  const findings = [];
+  for (const [path, text] of documents) {
+    text.split(/\r?\n/).forEach((line, index) => {
+      if (patterns.some((pattern) => pattern.test(line))) findings.push(`${path}:${index + 1}`);
+    });
+  }
+  return findings;
+}
+
+function validate043TerminalDocumentation() {
+  const documents = current043LivingDocuments();
+  const spec = documents.get(CURRENT_SPEC_043_DONE_PATH);
+  const terminalPreamble = [
+    "STATUS=DONE_TERMINALLY_CLOSED",
+    "FINAL_RESULT=STOPPED_INCONCLUSIVE",
+    "SUCCESSFULLY_DELIVERED=NO",
+    "R1_EXECUTED=NO",
+    "R2_EXECUTED=NO",
+    "EXTERNAL_READINESS_PROVED=NO",
+    "MUST_NOT_RESUME=YES",
+  ].join("\n");
+  assert(
+    spec.indexOf(terminalPreamble) >= 0 && spec.indexOf(terminalPreamble) < 256,
+    `${CURRENT_SPEC_043_DONE_PATH}: exact terminal status block must occur at the beginning`,
+  );
+  assertTextTokens(CURRENT_SPEC_043_DONE_PATH, spec, [
+    "STATUS=DONE_TERMINALLY_CLOSED",
+    "FINAL_RESULT=STOPPED_INCONCLUSIVE",
+    "SUCCESSFULLY_DELIVERED=NO",
+    "R1_EXECUTED=NO",
+    "R2_EXECUTED=NO",
+    "EXTERNAL_READINESS_PROVED=NO",
+    "MUST_NOT_RESUME=YES",
+    "043_FINAL_STATUS=STOPPED_INCONCLUSIVE",
+    "043A=DELIVERED",
+    "043B=LOCAL_SYNTHETIC_SIMULATION_VALIDATED",
+    "043C_R1_EXECUTED=NO",
+    "043C_R2_EXECUTED=NO",
+    "043C_EXTERNAL_READINESS_PROVED=NO",
+    "043C_MUST_NOT_RESUME=YES",
+    "PR_114=CLOSED_WITHOUT_MERGE",
+    "PR_114_HEAD=FORENSIC_ONLY",
+    "PR_114_BRANCH=FORENSIC_ONLY",
+    "PR_114_IMPLEMENTATION=NOT_EXECUTABLE",
+    "TERMINALLY_CLOSED_NOT_SUCCESSFULLY_DELIVERED",
+  ]);
+  assert(spec.includes("pour 043"), `${CURRENT_SPEC_043_DONE_PATH}: done semantics must remain scoped to 043 only`);
+
+  assertTextTokens("docs/product/v1-plan.md", documents.get("docs/product/v1-plan.md"), [
+    CURRENT_SPEC_043_DONE_PATH,
+    "043_FINAL_STATUS=STOPPED_INCONCLUSIVE",
+    "043C_R1_EXECUTED=NO",
+    "043C_R2_EXECUTED=NO",
+    "043C_EXTERNAL_READINESS_PROVED=NO",
+    "043C_MUST_NOT_RESUME=YES",
+    "TERMINALLY_CLOSED_NOT_SUCCESSFULLY_DELIVERED",
+  ]);
+  assert(documents.get("docs/product/v1-plan.md").includes("pour 043 uniquement"), `docs/product/v1-plan.md: done semantics must remain scoped to 043 only`);
+  assertTextTokens(ROADMAP_PATH, documents.get(ROADMAP_PATH), [
+    CURRENT_SPEC_043_DONE_PATH,
+    "043c",
+    "R1/R2",
+  ]);
+  assertTextTokens("README.md", documents.get("README.md"), [
+    "043=TERMINALLY_CLOSED_STOPPED_INCONCLUSIVE",
+    "043C_R1_R2=NOT_EXECUTED",
+    "PR114=FORENSIC_ONLY",
+    "NEXT_DIRECTION=PHASE_1_DESIGN_PARTNER_READINESS_DOCS_ONLY",
+    CURRENT_SPEC_043_DONE_PATH,
+  ]);
+  assertTextTokens("runbooks/controlled-fiduciary-pilot-local-043.md", documents.get("runbooks/controlled-fiduciary-pilot-local-043.md"), [
+    "RUNBOOK_STATUS=HISTORICAL_STOPPED_INCONCLUSIVE_NOT_EXECUTABLE",
+    "CURRENT_USE=FORENSIC_REFERENCE_ONLY",
+    "043C_MUST_NOT_RESUME=YES",
+    "R1_EXECUTED=NO",
+    "R2_EXECUTED=NO",
+  ]);
+  assertTextTokens("evals/mapping/README.md", documents.get("evals/mapping/README.md"), [
+    CURRENT_SPEC_043_DONE_PATH,
+    "spec `043` est terminalement close et inconclusive",
+    "STOPPED_INCONCLUSIVE / SUCCESSFULLY_DELIVERED=NO",
+  ]);
+  assertTextTokens("policies/ai-mapping-pilot-scope-manifest-042a2.md", documents.get("policies/ai-mapping-pilot-scope-manifest-042a2.md"), [
+    CURRENT_SPEC_043_DONE_PATH,
+    "terminally closed readiness spec",
+    "STOPPED_INCONCLUSIVE / SUCCESSFULLY_DELIVERED=NO",
+  ]);
+
+  const directionSurfaces = [...documents].filter(([, text]) =>
+    text.includes("NEXT_PRODUCT_DIRECTION=PHASE_1_DESIGN_PARTNER_READINESS"));
+  assert(directionSurfaces.length === 4, `terminal 043 direction must be stated on exactly four living surfaces`);
+  for (const [path, text] of directionSurfaces) {
+    assertTextTokens(path, text, [
+      "CURRENT_AUTHORIZATION=DOCS_ONLY_PREPARATION",
+      ...PHASE_1_EXTERNAL_AUTHORIZATION_TOKENS,
+    ]);
+  }
+  const phase1ExternalAuthorization = [...documents].some(([, text]) =>
+    /PHASE_1_(?:PUBLICATION|OUTREACH|INTERVIEW|COLLECTION|EXTERNAL_ACCESS|REAL_DATA|RUNTIME)_AUTHORIZED\s*=\s*YES/i.test(text));
+  assert(!phase1ExternalAuthorization, `Phase 1 external or runtime authorization must remain NO`);
+
+  const forbiddenStructuredStates = [...documents].some(([, text]) =>
+    /(?:SUCCESSFULLY_DELIVERED|R1_EXECUTED|R2_EXECUTED)\s*=\s*YES|(?:MUST_NOT_RESUME|043C_MUST_NOT_RESUME)\s*=\s*NO|(?:STATUS|FINAL_RESULT)\s*=\s*(?:PASS|READY|EXECUTABLE|MERGEABLE|RESUMABLE|SUCCESSFULLY_DELIVERED)/i.test(text));
+  assert(!forbiddenStructuredStates, `terminal 043 structured state contains a contradictory positive authorization or delivery`);
+  const globalDoneReinterpretation = [...documents].some(([, text]) =>
+    text.split(/\r?\n/).some((line) => {
+      const terminalMeaning = /\b(?:terminal(?:ly|e|es|ement)?|inconclus(?:ive|if|ifs|ives)?|not\s+successfully\s+delivered|non\s+livr(?:e|é|ee|ée|es|és)?)\b/i;
+      const universalDoneSubject = /\b(?:all|every)\s+(?:specs?|specifications?)\b|\b(?:toutes?|chaque)\s+(?:les\s+)?specs?\b/i;
+      const genericDoneSubject = /\b(?:specs\/done|specs\s+done|repertoire\s+done|répertoire\s+done)\b/i;
+      const explicitlyScopedTo043 = /(?:pour|for)\s+043\b|specs\/done\/043[-_.]/i;
+      return terminalMeaning.test(line)
+        && (universalDoneSubject.test(line)
+          || (genericDoneSubject.test(line) && !explicitlyScopedTo043.test(line)));
+    }));
+  assert(!globalDoneReinterpretation, `terminal 043 closure must not reinterpret other specs under done`);
+  const classificationDocuments = new Map(documents);
+  const planForClassification = classificationDocuments.get("docs/product/v1-plan.md");
+  const historical042Start = planForClassification.indexOf("### Rappels historiques et preuves 042 conservees");
+  const historical042End = planForClassification.indexOf("### Decisions figees", historical042Start + 1);
+  const historical042Bounded = historical042Start >= 0 && historical042End > historical042Start;
+  assert(historical042Bounded, `docs/product/v1-plan.md: historical 042 section boundary missing`);
+  if (historical042Bounded) {
+    classificationDocuments.set(
+      "docs/product/v1-plan.md",
+      `${planForClassification.slice(0, historical042Start)}${planForClassification.slice(historical042End)}`,
+    );
+  }
+  const forbiddenClassificationLines = current043ForbiddenClassificationLines(classificationDocuments);
+  assert(forbiddenClassificationLines.length === 0, `terminal 043 current text contains a forbidden positive classification at ${forbiddenClassificationLines.join(",")}`);
+  const actionReferences = current043ActionReferences(classificationDocuments);
+  assert(actionReferences.length === 0, `terminal 043 current text contains an active 043c action at ${actionReferences.join(",")}`);
+
+  const protectedHistoryExact = validate043ProtectedHistoricalBlock();
+  const historicalReferencesExact = validate043HistoricalReferenceAllowlist();
+  return {
+    terminalStatus: spec.includes("FINAL_RESULT=STOPPED_INCONCLUSIVE"),
+    doneSemantics: spec.includes("TERMINALLY_CLOSED_NOT_SUCCESSFULLY_DELIVERED")
+      && spec.includes("pour 043"),
+    currentActionReferences: actionReferences.length,
+    protectedHistoryExact,
+    historicalReferencesExact,
+  };
+}
+
 export function classifyCurrentWorktreeProfile(paths) {
   if (!Array.isArray(paths) || paths.some((path) => typeof path !== "string" || path.length === 0)) {
     return WORKTREE_PROFILES.INVALID;
@@ -455,6 +835,9 @@ export function classifyCurrentWorktreeProfile(paths) {
   if (sameArray(normalized, CURRENT_043A_ALLOWED_FILE_SET)) return WORKTREE_PROFILES.PILOT_043A;
   if (sameArray(normalized, CURRENT_043B_ALLOWED_FILE_SET)) return WORKTREE_PROFILES.HARNESS_043B;
   if (sameArray(normalized, HOTFIX_043B_ALLOWED_FILE_SET)) return WORKTREE_PROFILES.HOTFIX_043B;
+  if (sameArray(normalized, TERMINAL_043_CLOSURE_PHYSICAL_FILE_SET)) {
+    return WORKTREE_PROFILES.TERMINAL_CLOSURE_043;
+  }
   return WORKTREE_PROFILES.INVALID;
 }
 
@@ -1073,7 +1456,7 @@ function validate043bHotfixContents(range = undefined) {
   const documents = [
     "README.md",
     "docs/product/v1-plan.md",
-    CURRENT_SPEC_043_ACTIVE_PATH,
+    HISTORICAL_SPEC_043_ACTIVE_PATH,
     "runbooks/controlled-fiduciary-pilot-local-043.md",
     "runbooks/local-dev.md",
   ].map(readText);
@@ -1198,6 +1581,41 @@ function validate043bHotfixWorktree(actual) {
   };
 }
 
+function validate043TerminalClosureWorktree(actual) {
+  const exactFileSet = sameArray(actual, TERMINAL_043_CLOSURE_PHYSICAL_FILE_SET);
+  assert(exactFileSet, `terminal 043 worktree file set must be exactly the nine physical endpoints for 1R/7M`);
+
+  const stagedEmpty = stagedPaths().length === 0;
+  assert(stagedEmpty, `terminal 043 worktree validation requires an empty real Git index`);
+
+  const records = currentWorktreeStatusRecords();
+  const statusPaths = [...new Set(records.flatMap((record) => record.paths))].sort();
+  const modifiedCount = records.filter((record) => record.status === " M").length;
+  const deletedCount = records.filter((record) => record.status === " D").length;
+  const untrackedCount = records.filter((record) => record.status === "??").length;
+  const statusMatrixExact = records.length === 9
+    && sameArray(statusPaths, TERMINAL_043_CLOSURE_PHYSICAL_FILE_SET)
+    && modifiedCount === 7
+    && deletedCount === 1
+    && untrackedCount === 1
+    && records.every((record) => record.paths.length === 1
+      && record.status === EXPECTED_TERMINAL_043_WORKTREE_STATUS_BY_PATH.get(record.paths[0]));
+  assert(statusMatrixExact, `terminal 043 worktree status matrix must be exactly 7 unstaged modifications, 1 unstaged deletion and 1 untracked destination`);
+
+  const sourceAbsent = !existsSync(absolutePath(HISTORICAL_SPEC_043_ACTIVE_PATH));
+  const destinationPresent = existsSync(absolutePath(CURRENT_SPEC_043_DONE_PATH));
+  assert(sourceAbsent, `${HISTORICAL_SPEC_043_ACTIVE_PATH}: terminal rename source must be absent`);
+  assert(destinationPresent, `${CURRENT_SPEC_043_DONE_PATH}: terminal rename destination must be present`);
+  return {
+    worktreeProfile: WORKTREE_PROFILES.TERMINAL_CLOSURE_043,
+    exactFileSet,
+    stagedEmpty,
+    statusMatrixExact,
+    sourceAbsent,
+    destinationPresent,
+  };
+}
+
 function validateExactFileSet(range) {
   let historicalVerification;
   let worktreeVerification;
@@ -1249,10 +1667,12 @@ function validateExactFileSet(range) {
       worktreeVerification = validate043bWorktree(actual);
     } else if (worktreeProfile === WORKTREE_PROFILES.HOTFIX_043B) {
       worktreeVerification = validate043bHotfixWorktree(actual);
+    } else if (worktreeProfile === WORKTREE_PROFILES.TERMINAL_CLOSURE_043) {
+      worktreeVerification = validate043TerminalClosureWorktree(actual);
     } else {
       const exactCurrentFileSet = worktreeProfile === WORKTREE_PROFILES.CLEAN
         || worktreeProfile === WORKTREE_PROFILES.PILOT_043A;
-      assert(exactCurrentFileSet, `worktree file set must be clean, exactly 043a, exactly 043b, or exactly the 26-path 043b-hotfix whitelist`);
+      assert(exactCurrentFileSet, `worktree file set must be clean, exactly 043a, exactly 043b, exactly the 26-path 043b-hotfix whitelist, or exactly the terminal 043 closure`);
       console.log(`diff_file_set_verified=${actual.length === 0 ? "CLEAN_COMMITTED_STATE" : exactCurrentFileSet ? "YES_14_OF_14" : `NO_${actual.length}_OF_14`}`);
       console.log(`current_043a_exact_file_set=${exactCurrentFileSet ? "YES" : "NO"}`);
       worktreeVerification = { worktreeProfile };
@@ -1401,7 +1821,7 @@ function hasContradictory043cStatus(text) {
 }
 
 function validate043bLifecycle() {
-  const activeSpec = readText(CURRENT_SPEC_043_ACTIVE_PATH);
+  const activeSpec = readText(HISTORICAL_SPEC_043_ACTIVE_PATH);
   const sectionStart = activeSpec.indexOf("## 043c -");
   const sectionEnd = sectionStart < 0 ? -1 : activeSpec.indexOf("\n## ", sectionStart + 1);
   const section = sectionStart < 0
@@ -2155,9 +2575,12 @@ function validateDocumentCoherence() {
     "retry_remaining=0",
     "fallback=FORBIDDEN",
   ]);
+  const historical043Content = contentCommit !== undefined;
   assertTokens("evals/mapping/README.md", [
     "spec `042` est en backlog",
-    "spec `043` est active",
+    historical043Content
+      ? "spec `043` est active"
+      : "spec `043` est terminalement close et inconclusive",
     "provider_runtime=STILL_BLOCKED",
     "adapter_provider=NOT_AUTHORIZED",
     "retry_remaining=0",
@@ -2165,7 +2588,7 @@ function validateDocumentCoherence() {
   ]);
   assertTokens("policies/ai-mapping-pilot-scope-manifest-042a2.md", [
     CURRENT_SPEC_042_BACKLOG_PATH,
-    CURRENT_SPEC_043_ACTIVE_PATH,
+    historical043Content ? HISTORICAL_SPEC_043_ACTIVE_PATH : CURRENT_SPEC_043_DONE_PATH,
   ]);
 
   const reviewerInstructionsPath = "evals/mapping/reviews/042a2/reviewer-instructions-v1.md";
@@ -2426,14 +2849,34 @@ function validateNoRealInstances() {
   const spec042ActiveOrDone = visible.filter((path) => /^specs\/(?:active|done)\/042(?:[-_.]|$)/i.test(path));
   const spec043Active = visible.filter((path) => /^specs\/active\/043(?:[-_.]|$)/i.test(path));
   const spec043OutsideActive = visible.filter((path) => /^specs\/(?:backlog|done)\/043(?:[-_.]|$)/i.test(path));
+  const spec043Done = visible.filter((path) => /^specs\/done\/043(?:[-_.]|$)/i.test(path));
+  const spec043Backlog = visible.filter((path) => /^specs\/backlog\/043(?:[-_.]|$)/i.test(path));
+  const spec043Anywhere = visible.filter((path) => /^specs\/(?:[^/]+\/)*043(?:[-_.]|$)/i.test(path));
   const spec042BacklogValid = spec042Backlog.length === 1 && spec042Backlog[0] === CURRENT_SPEC_042_BACKLOG_PATH;
   const spec042ActiveOrDoneValid = spec042ActiveOrDone.length === 0;
-  const spec043ActiveValid = spec043Active.length === 1 && spec043Active[0] === CURRENT_SPEC_043_ACTIVE_PATH;
-  const spec043OutsideActiveValid = spec043OutsideActive.length === 0;
   assert(spec042BacklogValid, `current lifecycle must contain exactly one backlog spec 042 at the canonical path`);
   assert(spec042ActiveOrDoneValid, `current lifecycle must contain no active or done spec 042`);
-  assert(spec043ActiveValid, `current lifecycle must contain exactly one active spec 043 at the canonical path`);
-  assert(spec043OutsideActiveValid, `current lifecycle must contain no backlog or done spec 043`);
+  const historical043Content = contentCommit !== undefined;
+  let terminalDocumentation;
+  let spec043ActiveValid;
+  let spec043OutsideActiveValid;
+  if (historical043Content) {
+    spec043ActiveValid = spec043Active.length === 1
+      && spec043Active[0] === HISTORICAL_SPEC_043_ACTIVE_PATH;
+    spec043OutsideActiveValid = spec043OutsideActive.length === 0;
+    assert(spec043ActiveValid, `historical lifecycle must contain exactly one active spec 043 at the canonical path`);
+    assert(spec043OutsideActiveValid, `historical lifecycle must contain no backlog or done spec 043`);
+  } else {
+    const spec043DoneValid = spec043Done.length === 1
+      && spec043Done[0] === CURRENT_SPEC_043_DONE_PATH;
+    const spec043Unique = spec043Anywhere.length === 1
+      && spec043Anywhere[0] === CURRENT_SPEC_043_DONE_PATH;
+    assert(spec043Active.length === 0, `current terminal lifecycle must contain no active spec 043`);
+    assert(spec043Backlog.length === 0, `current terminal lifecycle must contain no backlog spec 043`);
+    assert(spec043DoneValid, `current terminal lifecycle must contain exactly one done spec 043 at the canonical path`);
+    assert(spec043Unique, `current terminal lifecycle must contain no second spec 043 elsewhere`);
+    terminalDocumentation = validate043TerminalDocumentation();
+  }
 
   const humanFilenamePattern = /(?:reviewer|human-review).*(?:response|attestation)|(?:response|attestation).*(?:reviewer|human-review)|(?:review|human).*(?:freeze|clarification)|(?:freeze|clarification).*(?:review|human)|participant.*registry|registry.*participant|adjudication.*dossier|dossier.*adjudication|review-round.*manifest|manifest.*review-round/i;
   for (const path of tracked) {
@@ -2467,11 +2910,21 @@ function validateNoRealInstances() {
   console.log(`golden_set_042a2_instances=${promoted042a2.length}`);
   console.log(`spec_042_backlog_instances=${spec042Backlog.length}`);
   console.log(`spec_042_active_or_done_instances=${spec042ActiveOrDone.length}`);
-  console.log(`spec_043_active_instances=${spec043Active.length}`);
-  console.log(`spec_043_outside_active_instances=${spec043OutsideActive.length}`);
-  console.log(`spec_043_instances=${spec043Active.length + spec043OutsideActive.length}`);
-  console.log(`042_backlog_only=${spec042BacklogValid && spec042ActiveOrDoneValid ? "YES" : "NO"}`);
-  console.log(`043_active_only=${spec043ActiveValid && spec043OutsideActiveValid ? "YES" : "NO"}`);
+  if (historical043Content) {
+    console.log(`spec_043_active_instances=${spec043Active.length}`);
+    console.log(`spec_043_outside_active_instances=${spec043OutsideActive.length}`);
+    console.log(`spec_043_instances=${spec043Active.length + spec043OutsideActive.length}`);
+    console.log(`042_backlog_only=${spec042BacklogValid && spec042ActiveOrDoneValid ? "YES" : "NO"}`);
+    console.log(`043_active_only=${spec043ActiveValid && spec043OutsideActiveValid ? "YES" : "NO"}`);
+  } else {
+    console.log(`042_backlog_only=${spec042BacklogValid && spec042ActiveOrDoneValid ? "YES" : "NO"}`);
+    console.log(`spec_043_active_instances=${spec043Active.length}`);
+    console.log(`spec_043_done_instances=${spec043Done.length}`);
+    console.log(`spec_043_current_path=${spec043Done.length === 1 ? spec043Done[0] : "INVALID"}`);
+    console.log(`043_terminal_status=${terminalDocumentation?.terminalStatus ? "STOPPED_INCONCLUSIVE" : "INVALID"}`);
+    console.log(`043_done_semantics=${terminalDocumentation?.doneSemantics ? "TERMINALLY_CLOSED_NOT_SUCCESSFULLY_DELIVERED" : "INVALID"}`);
+    console.log(`043_current_action_references=${terminalDocumentation?.currentActionReferences ?? "INVALID"}`);
+  }
   console.log(contentCommit === undefined
     ? "spec_lifecycle_scope=WORKTREE_VISIBLE_TRACKED_AND_UNTRACKED"
     : "spec_lifecycle_scope=HEAD_COMMIT_TRACKED_ONLY");
@@ -2570,12 +3023,29 @@ function addedLinesForCurrentPaths(paths) {
   return lines;
 }
 
-function addedLinesForScan(range) {
+function addedLinesForScan(range, worktreeProfile = undefined) {
+  const terminalClosure = range.mode === "WORKTREE"
+    && worktreeProfile === WORKTREE_PROFILES.TERMINAL_CLOSURE_043;
   const diffArgs = range.mode === "HISTORICAL"
     ? ["diff", "--unified=0", "--no-color", `${range.base}..${range.head}`, "--", ...EXACT_ALLOWED_FILE_SET]
-    : ["diff", "--no-ext-diff", "--unified=0", "--no-color", "--find-renames", "HEAD", "--", ...CURRENT_043A_ALLOWED_FILE_SET];
+    : [
+      "diff",
+      "--no-ext-diff",
+      "--unified=0",
+      "--no-color",
+      "--find-renames",
+      "HEAD",
+      "--",
+      ...(terminalClosure ? TERMINAL_043_CLOSURE_PHYSICAL_FILE_SET : CURRENT_043A_ALLOWED_FILE_SET),
+    ];
   const lines = parseAddedLinesFromUnifiedDiff(gitOutput(diffArgs));
   if (range.mode === "HISTORICAL") return lines;
+
+  if (terminalClosure) {
+    const previousText = gitOutput(["show", `HEAD:${HISTORICAL_SPEC_043_ACTIVE_PATH}`]);
+    lines.push(...addedLinesComparedToPrevious(CURRENT_SPEC_043_DONE_PATH, previousText));
+    return lines;
+  }
 
   for (const path of currentUntrackedPaths()) {
     if (path === CURRENT_SPEC_042_BACKLOG_PATH) {
@@ -2590,7 +3060,7 @@ function addedLinesForScan(range) {
   return lines;
 }
 
-function validateAddedLineHygiene(range) {
+function validateAddedLineHygiene(range, worktreeProfile = undefined) {
   const secretPatterns = [
     { category: "provider_key_variable", regex: new RegExp("OPENAI" + "_API" + "_KEY", "i") },
     { category: "bearer_header", regex: new RegExp("Authorization" + ":\\s*Bearer", "i") },
@@ -2614,7 +3084,7 @@ function validateAddedLineHygiene(range) {
   let personalDataFindings = 0;
   let privateLocationFindings = 0;
 
-  for (const added of addedLinesForScan(range)) {
+  for (const added of addedLinesForScan(range, worktreeProfile)) {
     const normalizedEscapes = added.text.replaceAll("\\/", "/").replaceAll("\\\\", "\\");
     for (const pattern of secretPatterns) {
       if (pattern.regex.test(added.text)) {
@@ -2644,7 +3114,13 @@ function validateAddedLineHygiene(range) {
       ...(normalizedEscapes.match(urlPattern) ?? []),
     ]);
     for (const url of urls) {
-      if (url !== allowedPublicUrl) {
+      const historical043bPostgresLocator = ["postgresql", "://", "127.0.0.1", ":5432/", "ritomer_043b_test"].join("");
+      const preservedHistorical043bLocator = worktreeProfile === WORKTREE_PROFILES.TERMINAL_CLOSURE_043
+        && added.path === "docs/product/v1-plan.md"
+        && url.startsWith(historical043bPostgresLocator)
+        && gitOutput(["show", "HEAD:docs/product/v1-plan.md"])
+          .includes(`jdbc:${historical043bPostgresLocator}`);
+      if (url !== allowedPublicUrl && !preservedHistorical043bLocator) {
         privateLocationFindings += 1;
         addError(`${added.path}:${added.line}:non_whitelisted_url`);
       }
@@ -2687,7 +3163,7 @@ function main() {
   if (range.mode !== "HISTORICAL_043B"
     && range.mode !== "HISTORICAL_043B_HOTFIX"
     && historicalVerification?.worktreeProfile !== WORKTREE_PROFILES.HOTFIX_043B) {
-    validateAddedLineHygiene(range);
+    validateAddedLineHygiene(range, historicalVerification?.worktreeProfile);
   }
   return historicalVerification;
 }
@@ -2716,6 +3192,8 @@ function runCli() {
 
   const is043bWorktree = verification?.worktreeProfile === WORKTREE_PROFILES.HARNESS_043B;
   const is043bHotfixWorktree = verification?.worktreeProfile === WORKTREE_PROFILES.HOTFIX_043B;
+  const is043TerminalClosureWorktree = verification?.worktreeProfile
+    === WORKTREE_PROFILES.TERMINAL_CLOSURE_043;
   const is043bHistorical = verification?.historicalProfile === "043b";
   const is043bHotfixHistorical = verification?.historicalProfile === "043b-hotfix";
   if (is043bWorktree) {
@@ -2742,6 +3220,12 @@ function runCli() {
       .map(([, value]) => value);
     assert(evidenceValues.length > 0 && evidenceValues.every((value) => value === true), `043b-hotfix historical evidence is incomplete`);
   }
+  if (is043TerminalClosureWorktree) {
+    const evidenceValues = Object.entries(verification)
+      .filter(([key]) => key !== "worktreeProfile")
+      .map(([, value]) => value);
+    assert(evidenceValues.length > 0 && evidenceValues.every((value) => value === true), `terminal 043 worktree evidence is incomplete`);
+  }
 
   if (errors.length > 0) {
     console.error(`governance_kit_errors=${errors.length}`);
@@ -2749,7 +3233,15 @@ function runCli() {
     process.exitCode = 1;
   } else {
     bufferedSuccessLines(bufferedOutput, errors).forEach((line) => console.log(line));
-    if (is043bHotfixWorktree) {
+    if (is043TerminalClosureWorktree) {
+      console.log("validation_mode=WORKTREE");
+      console.log("worktree_profile=043_TERMINAL_DOCUMENTARY_CLOSURE");
+      console.log("diff_file_set_verified=YES_1R_7M");
+      console.log("043_terminal_closure_status_map=YES_7M_1D_1UNTRACKED");
+      console.log("043_terminal_closure_staged_changes=NO");
+      console.log("043_terminal_closure_source_absent=YES");
+      console.log("043_terminal_closure_destination_present=YES");
+    } else if (is043bHotfixWorktree) {
       console.log("validation_mode=WORKTREE");
       console.log("worktree_profile=043B_MINIMUM_VIABLE_SAFETY_HOTFIX");
       console.log("diff_file_set_verified=YES_26_OF_26");

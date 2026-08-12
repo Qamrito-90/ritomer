@@ -1,3 +1,18 @@
+# Runbook 043 — archive forensique terminale
+
+RUNBOOK_STATUS=HISTORICAL_STOPPED_INCONCLUSIVE_NOT_EXECUTABLE_FOR_043C
+CURRENT_USE=FORENSIC_REFERENCE_FOR_043C
+043C_MUST_NOT_RESUME=YES
+R1_EXECUTED=NO
+R2_EXECUTED=NO
+
+043B_LOCAL_HARNESS_STATUS=LOCAL_SYNTHETIC_DEVELOPMENT_ONLY
+043B_CURRENT_RECIPE=runbooks/local-dev.md
+
+`CURRENT_USE=FORENSIC_REFERENCE_ONLY` vise 043c seul. Tout le payload 043c est forensique, non exécutable : procédures, instructions T00–T15, références au package V3, ancien rail d’autorité, futures commandes de run et instructions de l’orchestrateur rejeté. 043c/R1/R2 ne reprennent jamais.
+Le harness 043b à deux rôles déjà livré reste disponible uniquement pour le développement local synthétique selon `runbooks/local-dev.md` ; son matériel lui est subordonné. Il ne rouvre jamais la spec 043/043c/R1/R2 et n’autorise jamais 043c/R1/R2 ; il ne prouve ni deux humains indépendants, séparation réelle des fonctions, préparation externe, autorisation/sûreté d’usage avec des données réelles ou readiness production.
+
+<!-- 043_RUNBOOK_HISTORICAL_BEGIN -->
 # Pilote fiduciaire contrôlé 043 — simulation locale 043b et préparation 043c
 
 ## Statut et limite de preuve
@@ -528,3 +543,4 @@ Arrêter sans engager T00 si une autorisation, identité de run/tenant, commande
 Après engagement de T00, arrêter le travail métier, consommer la tentative, conserver la cause et aller au cleanup contrôlé si une donnée réelle, une cible non-loopback, une fuite cross-tenant ou un secret apparaît, si une tâche dévie, si l'audit n'est plus prouvable, si le résultat final n'est pas scellable ou si le cleanup exact ne peut pas être prouvé.
 
 Cette rebaseline n'exécute ni R1 ni R2 et n'émet aucune autorisation sensible.
+<!-- 043_RUNBOOK_HISTORICAL_END -->
