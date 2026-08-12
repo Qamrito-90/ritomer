@@ -143,7 +143,7 @@ Non-synthetic, cross-tenant, outside allowlist, outside provenance or invalid-ga
 - `policies/ai-mapping-annotation-guide-042a2.md` defines annotation and adjudication requirements.
 - `policies/ai-mapping-business-evaluation-protocol-042a2.md` defines future evaluation requirements.
 - `specs/backlog/042-controlled-ai-mapping-runtime-pilot-v1.md` is the preserved current context for this manifest, paused with `PAUSED_BY_SEPARATE_CPO_DECISION` and never moved to Done.
-- `specs/active/043-controlled-fiduciary-pilot-readiness-v1.md` is a separate CPO-controlled readiness spec; it does not approve, activate, alter or close this manifest or `042`.
+- `specs/done/043-controlled-fiduciary-pilot-readiness-v1.md` is a separate, terminally closed readiness spec with `STOPPED_INCONCLUSIVE / SUCCESSFULLY_DELIVERED=NO`; it does not approve, activate, alter or close this manifest or `042`.
 
 This manifest does not override any approved contract, current manual mapping authority or existing backend behavior.
 

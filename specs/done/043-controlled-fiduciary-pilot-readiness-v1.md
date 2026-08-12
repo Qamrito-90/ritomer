@@ -1,3 +1,68 @@
+# 043 — Clôture documentaire terminale
+
+STATUS=DONE_TERMINALLY_CLOSED
+FINAL_RESULT=STOPPED_INCONCLUSIVE
+SUCCESSFULLY_DELIVERED=NO
+R1_EXECUTED=NO
+R2_EXECUTED=NO
+EXTERNAL_READINESS_PROVED=NO
+MUST_NOT_RESUME=YES
+
+043_FINAL_STATUS=STOPPED_INCONCLUSIVE
+043A=DELIVERED
+043B=LOCAL_SYNTHETIC_SIMULATION_VALIDATED
+043C_R1_EXECUTED=NO
+043C_R2_EXECUTED=NO
+043C_EXTERNAL_READINESS_PROVED=NO
+043C_MUST_NOT_RESUME=YES
+
+PR_114=CLOSED_WITHOUT_MERGE
+PR_114_HEAD=FORENSIC_ONLY
+PR_114_HEAD_SHA=b8e6058467dac12f5052510120342decb5aa6cc1
+PR_114_BRANCH=FORENSIC_ONLY
+PR_114_BRANCH_NAME=feat/043c-minimal-execution-orchestrator-v1
+PR_114_IMPLEMENTATION=NOT_EXECUTABLE
+
+## Résumé de clôture courant
+
+- `043a` demeure livré.
+- `043b` demeure une simulation locale synthétique validée, mono-opérateur et à deux rôles ; elle ne prouve ni préparation externe ni séparation réelle des fonctions.
+- `043c` s’est terminé par `STOP_AND_RECORD_INCONCLUSIVE`.
+- R1 et R2 n’ont jamais été exécutés et la préparation externe n’a pas été prouvée.
+- La PR #114 a été fermée sans merge. Son head et sa branche exacts sont conservés uniquement comme éléments forensiques.
+- L’implémentation rejetée de PR #114 n’est ni exécutable ni réutilisable.
+
+Les quatre catégories bloquantes de la review indépendante étaient :
+
+1. liaison insuffisante entre le head Git revu et le worktree/index d’exécution ;
+2. preuve d’absence R2 insuffisamment liée aux identités exactes des ressources R1 ;
+3. possibilité d’attribuer à T15 un échec d’utilité survenu à T14 ;
+4. statut de volume fixe auto-attesté au lieu d’être vérifié depuis Windows.
+
+Les octets du rapport indépendant nommé dans la trace GitHub ne sont pas accessibles. Ils ne sont donc pas présentés comme ayant été rehashés indépendamment.
+
+Le classement de ce fichier sous `specs/done/` signifie uniquement `TERMINALLY_CLOSED_NOT_SUCCESSFULLY_DELIVERED` pour 043. Il ne redéfinit pas la sémantique des autres specs Done.
+
+## Direction produit et autorisation courantes
+
+NEXT_PRODUCT_DIRECTION=PHASE_1_DESIGN_PARTNER_READINESS
+CURRENT_AUTHORIZATION=DOCS_ONLY_PREPARATION
+
+PHASE_1_PUBLICATION_AUTHORIZED=NO
+PHASE_1_OUTREACH_AUTHORIZED=NO
+PHASE_1_INTERVIEW_AUTHORIZED=NO
+PHASE_1_COLLECTION_AUTHORIZED=NO
+PHASE_1_EXTERNAL_ACCESS_AUTHORIZED=NO
+PHASE_1_REAL_DATA_AUTHORIZED=NO
+PHASE_1_RUNTIME_AUTHORIZED=NO
+
+Aucune nouvelle spec n’est créée ou numérotée par cette clôture. Aucune publication, prospection, interview, collecte, création d’accès externe, utilisation de données réelles ou capacité runtime n’est autorisée.
+
+## Snapshot historique pré-clôture
+
+Tout le contenu compris entre les marqueurs suivants est le snapshot pré-clôture exact. Les mots « Active », « current », les futures commandes, les gates et les instructions d’exécution qu’il contient sont historiques, sans autorité courante, et ne doivent pas être repris ou exécutés.
+
+<!-- 043_TERMINAL_HISTORICAL_BEGIN -->
 # 043 - Controlled fiduciary pilot readiness V1
 
 ## Status
@@ -770,3 +835,4 @@ Stop `043a` if a fifteenth Git path endpoint is required, a protected `042` hash
 - All required checks are freshly executed and recorded.
 - No commit, push or pull request is created by the implementation mission.
 - A distinct CPO review remains required before any `043b` authorization.
+<!-- 043_TERMINAL_HISTORICAL_END -->

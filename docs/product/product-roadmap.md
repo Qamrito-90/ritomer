@@ -22,11 +22,29 @@ Le `pack final` est une cible de maturite. L'export actuellement livre reste un 
 | --- | --- | --- |
 | Livre et prouve | Le coeur deterministe du closing, l'import, le mapping manuel, les controles, previews financieres, workpapers, preuves, revue, export audit-ready et annexe minimale sont livres par les specs Done. Les surfaces cockpit et les smokes internes jusqu'a `041` apportent des preuves de parcours. | Ni production commerciale, ni livrable statutaire final, ni pilote externe. |
 | Local seulement | La demo integree PostgreSQL/JWT/Vite, les donnees demo synthetiques et la simulation offline `mapping-suggestion-v2` sont bornees au local et au POC interne. | Ni authentification SaaS durable, ni hebergement pilote, ni IA provider active. |
-| Documente seulement | La cible Google Cloud, les gates IA/humains, le plan `043b`/`043c`, les phases SaaS et les maturites MCP sont documentes mais non livres par cette roadmap. | La documentation ne vaut ni implementation, ni autorisation, ni preuve d'exploitation. |
+| Documente seulement | La cible Google Cloud, les gates IA/humains, les phases SaaS, les maturites MCP et la préparation documentaire de Phase 1 sont documentés mais non livrés par cette roadmap. La spec `043` est [terminalement close avec un résultat inconclusif](../../specs/done/043-controlled-fiduciary-pilot-readiness-v1.md) : 043a livré, 043b validé localement sur données synthétiques, 043c arrêté, R1/R2 non exécutés. | La documentation ne vaut ni implémentation, ni autorisation, ni preuve d’exploitation. La Phase 0 n’a pas obtenu de résultat complet positif. |
 | Bloque | `042` reste en backlog avec collecte humaine, adjudication, golden set et provider toujours bloques. Toute invitation externe, toute donnee reelle et toute activation IA provider restent sous gates distincts. | Un artefact prepare ou un gate decrit ne vaut pas approbation. |
-| Non commence | Site public execute, recrutement effectif de design partners, auth/onboarding SaaS durables, environnement pilote heberge, pilote externe, premiere IA metier mesuree et runtime MCP. | Aucun de ces sujets n'est engage par `043a`. |
+| Non commence | Site public exécuté, recrutement effectif de design partners, auth/onboarding SaaS durables, environnement pilote hébergé, pilote externe, première IA métier mesurée et runtime MCP. | Aucun de ces sujets n’est engagé par la clôture terminale de `043`. |
 
 La synthese du present, le plan V1, les specs et les preuves Git gardent leur precedence pour tout fait executable. Cette roadmap rend la direction lisible sans requalifier un artefact local ou documentaire en capacite livree.
+
+### Frontière courante vers la Phase 1
+
+```text
+NEXT_PRODUCT_DIRECTION=PHASE_1_DESIGN_PARTNER_READINESS
+CURRENT_AUTHORIZATION=DOCS_ONLY_PREPARATION
+PHASE_0_COMPLETE_PASS=NO
+
+PHASE_1_PUBLICATION_AUTHORIZED=NO
+PHASE_1_OUTREACH_AUTHORIZED=NO
+PHASE_1_INTERVIEW_AUTHORIZED=NO
+PHASE_1_COLLECTION_AUTHORIZED=NO
+PHASE_1_EXTERNAL_ACCESS_AUTHORIZED=NO
+PHASE_1_REAL_DATA_AUTHORIZED=NO
+PHASE_1_RUNTIME_AUTHORIZED=NO
+```
+
+Cette direction autorise uniquement la préparation documentaire. Elle ne crée ni ne numérote une nouvelle spec et n’autorise aucune publication, prospection, interview, collecte, création d’accès externe, donnée réelle ou capacité runtime.
 
 ## 3. Maturite IA
 
@@ -46,7 +64,7 @@ Ritomer devient `AI-native` lorsque plusieurs workflows centraux utilisent des c
 
 | Workstream | Etat actuel | Outcome recherche | Prochain gate significatif |
 | --- | --- | --- | --- |
-| Produit fiduciaire | Coeur closing et cockpit internes livres; `043` actif pour la readiness interne. | Un closing complet, clair et reproductible, utilisable puis eprouve par des fiduciaires sans perdre la preuve ni le controle humain. | Revue CPO distincte de `043a`, puis gates `043b`/`043c`. |
+| Produit fiduciaire | Cœur closing et cockpit internes livrés ; `043a` livré, `043b` validé localement sur données synthétiques et `043c` arrêté inconclusif. R1/R2 et la préparation externe ne sont pas établis. | Un closing complet, clair et reproductible, utilisable puis éprouvé par des fiduciaires sans perdre la preuve ni le contrôle humain. | Préparation documentaire de `PHASE_1_DESIGN_PARTNER_READINESS`, sans activité externe. |
 | SaaS & identite | Tenancy/RBAC et auth locale prouves; onboarding SaaS durable non commence. | Acces heberge securise, onboarding explicite et isolation tenant prouvee pour chaque acteur. | Readiness interne, cadrage auth/identity et revue Security/Privacy. |
 | Trust & operations | Audit, stockage prive et runbooks de base existent; exploitation pilote hebergee non prouvee. | Exploitation observable, recuperable et auditable avec incident, backup/restore, retention et support controles. | Revue d'architecture/operations avant environnement heberge. |
 | Go-to-market | Positionnement produit documente; site public et recrutement non lances. | Recruter des design partners qualifies avec une promesse honnete, un protocole et des gates de participation explicites. | Cadrage CPO et Security/Privacy avant publication ou collecte. |
@@ -57,8 +75,8 @@ Ritomer devient `AI-native` lorsque plusieurs workflows centraux utilisent des c
 
 | Phase | Outcome de phase |
 | --- | --- |
-| Phase 0 - alpha interne reproductible - `043` | Prouver en interne, sur donnees synthetiques, que le parcours et ses preuves sont repetables et evaluables. |
-| Phase 1 - site public et recrutement de design partners | Rendre la proposition de valeur comprehensible et preparer un recrutement responsable, sans promettre un pilote non pret. |
+| Phase 0 - alpha interne reproductible - `043` | Clôturée terminalement avec `STOPPED_INCONCLUSIVE` : 043a livré, 043b validé localement sur données synthétiques, 043c arrêté, R1/R2 non exécutés et aucune préparation externe prouvée. Aucun résultat complet positif de Phase 0 n’est établi. |
+| Phase 1 - Design Partner Readiness | Rendre la proposition de valeur compréhensible et préparer documentairement un recrutement responsable. L’autorisation courante reste `DOCS_ONLY_PREPARATION`. |
 | Phase 2 - authentification et onboarding SaaS | Permettre a des organisations et acteurs autorises d'entrer dans un tenant avec un onboarding securise et auditable. |
 | Phase 3 - environnement pilote heberge | Exploiter un environnement pilote controle, observable, recuperable et tenant-isole. |
 | Phase 4 - pilote fiduciaire synthetique externe | Observer des fiduciaires externes sur un protocole synthetique autorise, sans donnee client reelle. |
@@ -68,10 +86,10 @@ Ritomer devient `AI-native` lorsque plusieurs workflows centraux utilisent des c
 
 ## 6. Travail en parallele
 
-- Le site public et la preparation du recrutement peuvent etre cadres apres `043a`, en parallele de `043b` et `043c`. Cette preparation ne vaut ni publication, ni outreach, ni collecte, ni invitation.
+- La préparation de Phase 1 peut uniquement être cadrée dans des documents. Elle ne vaut ni publication, ni outreach, ni interview, ni collecte, ni invitation, ni accès externe, ni donnée réelle, ni runtime.
 - L'authentification SaaS et l'hebergement peuvent etre prepares en architecture et gouvernance, mais leur implementation depend de la readiness interne et de missions explicitement autorisees.
-- `042` reste en backlog avec tous ses artefacts, preuves, etats et blocages conserves. `043` ne l'approuve, ne le ferme et ne l'active pas.
-- MCP est un workstream transverse, pas une dependance de `043`. Aucune maturite MCP n'est requise pour terminer la readiness interne de niveau A.
+- `042` reste en backlog avec tous ses artefacts, preuves, états et blocages conservés. La clôture terminale de `043` ne l’approuve, ne le ferme et ne l’active pas.
+- MCP est un workstream transverse, sans lien d’autorisation avec la clôture de `043`.
 
 ## 7. Agent Platform & MCP
 
@@ -94,8 +112,8 @@ L'etat courant du workstream est documentaire, avant M0 livre. Les niveaux M0 a 
 
 | Phase | Objectif | Preuve de sortie | Gate | Risques principaux | Ce qui reste interdit |
 | --- | --- | --- | --- | --- | --- |
-| 0 | Alpha interne reproductible. | Fixtures exactes, harness controle, deux executions internes, cleanup et decision CPO traces. | Reviews CPO distinctes; CTO Gate avant code `043b`; validation post-code avant `043c`. | Faux sentiment de readiness, fuite locale, mesure non comparable. | Fiduciaire externe, observation participante reelle, donnee reelle, spec suivante automatique. |
-| 1 | Proposition de valeur et recrutement preparables. | Message, cible, protocole de contact, consentement et stop procedure revus. | CPO; Security/Privacy avant collecte; revue legale si le contenu l'exige. | Surpromesse, collecte prematuree, mauvais design partners. | Promesse commerciale non prouvee, invitation pilote avant gates, collecte implicite. |
+| 0 | Alpha interne reproductible. | Clôture terminale documentée : fixtures et preuve 043a, simulation locale 043b, arrêt inconclusif 043c, R1/R2 non exécutés et PR #114 forensique. | Décision terminale enregistrée ; aucune reprise autorisée. | Faux sentiment de readiness, surinterprétation de la simulation locale. | Fiduciaire externe, observation participante réelle, donnée réelle, reprise 043c, spec suivante automatique. |
+| 1 | Design Partner Readiness en préparation documentaire. | Message, cible, protocole de contact, consentement et stop procedure préparés dans une future mission explicitement autorisée. | Nouvelle autorisation avant toute activité autre que docs-only ; CPO et Security/Privacy avant collecte. | Surpromesse, collecte prématurée, mauvais design partners. | Publication, outreach, interview, collecte, accès externe, donnée réelle et runtime. |
 | 2 | Auth et onboarding SaaS securises. | Parcours d'acces, tenant membership, RBAC, recuperation et audit testes. | CTO, Security/Privacy et tests cross-tenant bloquants. | Account takeover, confusion tenant, droits excessifs. | Bypass auth, role porte par une source non autoritative, acces cross-tenant non trace. |
 | 3 | Environnement pilote heberge operable. | Deploiement/rollback, monitoring, incident, backup/restore, secrets et isolation prouves. | Architecture, operations, Security/Privacy et readiness pilote. | Perte de donnees, indisponibilite, cout, mauvaise region ou retention. | Production commerciale, donnee reelle ou ouverture externe sans gate de phase. |
 | 4 | Pilote externe synthetique. | Sessions autorisees, observations minimisees, preuves, incidents et decision de sortie consolides. | Nouvelle decision CPO, gate fiduciaire, Security/Privacy et protocole participant. | Donnee personnelle, biais d'observation, confusion avec production. | Donnee client reelle, acte statutaire, invitation hors cohorte approuvee. |
@@ -104,6 +122,8 @@ L'etat courant du workstream est documentaire, avant M0 livre. Les niveaux M0 a 
 | 7 | V1 commerciale IA-native operable. | Plusieurs workflows centraux mesures, SLO/ops/support, securite, audit et valeur client prouves. | Readiness commerciale, operations, security, product et governance reviews. | Fiabilite a l'echelle, support, conformite, economie unitaire. | Autonomie critique, promesse statutaire non prouvee, degradation sans fallback. |
 
 Le passage d'une phase demande toutes ses preuves et gates. Un document, une implementation locale ou un seul check vert ne suffit jamais a lui seul.
+
+La clôture de Phase 0 est un arrêt terminal inconclusif, pas un passage de gate ni une validation complète de la phase. Les détails forensiques de PR #114 restent dans la [spec 043 terminale](../../specs/done/043-controlled-fiduciary-pilot-readiness-v1.md).
 
 ## 9. Portefeuille indicatif
 

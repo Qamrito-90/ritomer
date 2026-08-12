@@ -73,7 +73,7 @@ Variables d’environnement locales minimales :
 - `SPRING_DATASOURCE_USERNAME=ritomer`
 - `SPRING_DATASOURCE_PASSWORD` doit déjà exister dans le shell local ;
 - `RITOMER_DB_TESTS_ENABLED=true` pour lancer les tests PostgreSQL optionnels
-- `RITOMER_DB_TEST_JDBC_URL`, `RITOMER_DB_TEST_USERNAME`, `RITOMER_DB_TEST_PASSWORD` pour la cible locale dédiée décrite dans le runbook 043b
+- `RITOMER_DB_TEST_JDBC_URL`, `RITOMER_DB_TEST_USERNAME`, `RITOMER_DB_TEST_PASSWORD` pour une cible locale dédiée ; voir `runbooks/local-dev.md`
 - voir aussi `backend/.env.example`
 
 Ne créer aucun fichier `.env` et ne demander ni à Codex ni à un autre outil de lire la valeur HMAC. Exemple PowerShell pour produire 32 octets CSPRNG directement dans le processus, sans afficher ni stocker la valeur :
@@ -85,6 +85,47 @@ $env:RITOMER_SECURITY_JWT_HMAC_SECRET = [Convert]::ToBase64String($jwtKeyBytes)
 [Array]::Clear($jwtKeyBytes, 0, $jwtKeyBytes.Length)
 ```
 
+## Clôture terminale 043
+
+```text
+043=TERMINALLY_CLOSED_STOPPED_INCONCLUSIVE
+043C_R1_R2=NOT_EXECUTED
+PR114=FORENSIC_ONLY
+NEXT_DIRECTION=PHASE_1_DESIGN_PARTNER_READINESS_DOCS_ONLY
+```
+
+La [spec 043 terminale](specs/done/043-controlled-fiduciary-pilot-readiness-v1.md) conserve les preuves : 043a demeure livré, 043b demeure une simulation locale synthétique validée, et 043c s’est arrêté avec un résultat inconclusif. La préparation externe n’est pas prouvée, PR #114 est fermée sans merge et son implémentation est `NOT_EXECUTABLE`.
+
+```text
+NEXT_PRODUCT_DIRECTION=PHASE_1_DESIGN_PARTNER_READINESS
+CURRENT_AUTHORIZATION=DOCS_ONLY_PREPARATION
+
+PHASE_1_PUBLICATION_AUTHORIZED=NO
+PHASE_1_OUTREACH_AUTHORIZED=NO
+PHASE_1_INTERVIEW_AUTHORIZED=NO
+PHASE_1_COLLECTION_AUTHORIZED=NO
+PHASE_1_EXTERNAL_ACCESS_AUTHORIZED=NO
+PHASE_1_REAL_DATA_AUTHORIZED=NO
+PHASE_1_RUNTIME_AUTHORIZED=NO
+```
+
+```text
+043B_LOCAL_HARNESS_STATUS=LOCAL_SYNTHETIC_DEVELOPMENT_ONLY
+043B_CURRENT_RECIPE=runbooks/local-dev.md
+
+043C_T00_T15_R1_R2_CURRENT_ACTION=NONE
+043C_MUST_NOT_RESUME=YES
+```
+
+Aucune instruction 043c, T00–T15, R1 ou R2 n’est active. Le harness 043b déjà livré demeure disponible uniquement comme capacité locale synthétique de développement, sous la recette courante `runbooks/local-dev.md`. Son utilisation ne rouvre pas la spec 043, n’autorise ni 043c, ni R1, ni R2, et ne prouve ni préparation externe, ni séparation réelle des fonctions, ni sûreté d’un usage avec des données réelles, ni readiness de production.
+
+Aucune nouvelle spec, publication, prospection, interview, collecte, création d’accès externe, donnée réelle ou capacité runtime n’est autorisée.
+
+### Snapshot historique 043b pré-clôture
+
+Le bloc suivant est conservé comme preuve historique uniquement. Ses statuts, commandes et recettes ne constituent aucune instruction courante et ne doivent pas être repris ou exécutés au titre de 043.
+
+<!-- README_043_HISTORICAL_BEGIN -->
 ## Posture locale 043b
 
 043b is a local single-operator two-role simulation.
@@ -102,3 +143,4 @@ Clôture factuelle du `2026-07-27` : preuves PostgreSQL dédiées, smoke local d
 `043c simplified rehearsal defined; execution not authorized; R1/R2 not started`.
 
 Les tests PostgreSQL destructifs utilisent exclusivement `jdbc:postgresql://127.0.0.1:5432/ritomer_043b_test` avec le rôle `ritomer_043b_test_runner`, sur un PostgreSQL local direct et des données synthétiques. Cloud SQL Proxy, tunnel SSH et port forward sont interdits pour cette preuve.
+<!-- README_043_HISTORICAL_END -->
