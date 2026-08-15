@@ -119,7 +119,7 @@ PHASE_1_RUNTIME_AUTHORIZED=NO
 
 Aucune instruction 043c, T00–T15, R1 ou R2 n’est active. Le harness 043b déjà livré demeure disponible uniquement comme capacité locale synthétique de développement, sous la recette courante `runbooks/local-dev.md`. Son utilisation ne rouvre pas la spec 043, n’autorise ni 043c, ni R1, ni R2, et ne prouve ni préparation externe, ni séparation réelle des fonctions, ni sûreté d’un usage avec des données réelles, ni readiness de production.
 
-Aucune nouvelle spec, publication, prospection, interview, collecte, création d’accès externe, donnée réelle ou capacité runtime n’est autorisée.
+La [spec 044](specs/active/044-design-partner-readiness-v1.md) est la seule spec active et met en œuvre uniquement la préparation docs-only de Phase 1. Aucune spec suivante, publication, prospection, interview, collecte, création d’accès externe, donnée réelle ou capacité runtime n’est autorisée.
 
 ### Snapshot historique 043b pré-clôture
 

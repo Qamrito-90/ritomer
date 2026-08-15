@@ -75,7 +75,7 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 
 ### Active
 
-- AUCUNE spec active.
+- `specs/active/044-design-partner-readiness-v1.md` — `ACTIVE / PHASE_1_DESIGN_PARTNER_READINESS / DOCS_ONLY_PREPARATION`; prépare un paquet documentaire de recherche reviewable sans activité externe, donnée réelle, accès ou runtime.
 
 ### Clôturé terminalement / résultat inconclusif
 
@@ -105,7 +105,7 @@ PHASE_1_REAL_DATA_AUTHORIZED=NO
 PHASE_1_RUNTIME_AUTHORIZED=NO
 ```
 
-Aucune nouvelle spec n’est créée ou numérotée par cette direction.
+044 est la seule spec active et met en œuvre uniquement cette préparation documentaire. Aucune spec suivante n’est créée ou annoncée, et toutes les autorisations Phase 1 ci-dessus restent à `NO`.
 
 ### Backlog
 
