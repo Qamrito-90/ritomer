@@ -72,10 +72,11 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `specs/done/039-local-demo-data-heavy-ux-polish-v1.md`
 - `specs/done/040-internal-poc-global-smoke-v1.md`
 - `specs/done/041-internal-poc-blockers-ux-readiness-v1.md`
+- `specs/done/044-design-partner-readiness-v1.md` — paquet documentaire docs-only de Design Partner Readiness livré et clôturé, sans recherche terrain ni autorisation externe.
 
 ### Active
 
-- `specs/active/044-design-partner-readiness-v1.md` — `ACTIVE / PHASE_1_DESIGN_PARTNER_READINESS / DOCS_ONLY_PREPARATION`; prépare un paquet documentaire de recherche reviewable sans activité externe, donnée réelle, accès ou runtime.
+AUCUNE
 
 ### Clôturé terminalement / résultat inconclusif
 
@@ -105,7 +106,7 @@ PHASE_1_REAL_DATA_AUTHORIZED=NO
 PHASE_1_RUNTIME_AUTHORIZED=NO
 ```
 
-044 est la seule spec active et met en œuvre uniquement cette préparation documentaire. Aucune spec suivante n’est créée ou annoncée, et toutes les autorisations Phase 1 ci-dessus restent à `NO`.
+Le paquet documentaire docs-only de 044 est livré et clôturé. Aucune spec n’est actuellement active ; aucune spec suivante n’est créée, réservée ou automatiquement autorisée. Toutes les autorisations Phase 1 ci-dessus restent à `NO`.
 
 ### Backlog
 
