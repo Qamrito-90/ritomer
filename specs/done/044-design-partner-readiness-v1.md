@@ -3,13 +3,20 @@
 ## 1. Statut et classification
 
 ```text
-STATUS=ACTIVE
+STATUS=DONE
 PHASE=PHASE_1_DESIGN_PARTNER_READINESS
 SURFACE=DOCS
 RISK_CLASS=B
 EVIDENCE_LEVEL=STANDARD
 
+FINAL_RESULT=DOCS_ONLY_READINESS_PACKAGE_DELIVERED
 CURRENT_AUTHORIZATION=DOCS_ONLY_PREPARATION
+
+DESIGN_PARTNER_RECRUITED=NO
+EXTERNAL_RESEARCH_EXECUTED=NO
+VALUE_TERRAIN_PROVED=NO
+MARKET_VALIDATED=NO
+SECURITY_PRIVACY_GATE_SATISFIED=NO
 
 PHASE_1_PUBLICATION_AUTHORIZED=NO
 PHASE_1_OUTREACH_AUTHORIZED=NO
@@ -20,7 +27,9 @@ PHASE_1_REAL_DATA_AUTHORIZED=NO
 PHASE_1_RUNTIME_AUTHORIZED=NO
 ```
 
-Cette spec réduit une incertitude de valeur produit avant tout chantier SaaS, auth, hosting ou provider. Elle prépare un paquet documentaire unique et reviewable, n'autorise aucune activité externe et ne crée aucune capacité runtime.
+Le paquet documentaire de readiness a été livré et la spec est clôturée normalement avec un résultat docs-only. Ce résultat ne prouve ni recrutement d'un design partner, ni exécution de recherche externe, ni valeur terrain, ni validation de marché, ni satisfaction du gate Security/Privacy.
+
+`CURRENT_AUTHORIZATION=DOCS_ONLY_PREPARATION` constitue uniquement le plafond courant de la Phase 1 ; il n'autorise aucune nouvelle spec, implémentation, delivery ou activité externe.
 
 ## 2. Problème et raison d'agir maintenant
 
@@ -354,6 +363,13 @@ Contre-signaux : processus décrit comme clair sans besoin de vérification ou d
 Les seuils peuvent produire des signaux concurrents ; ils n'inventent aucun tie-break automatique. Chaque décision exige une future décision owner.
 
 044 ne peut jamais autoriser à lui seul auth/onboarding, hosting, collecte structurée, site public, provider IA ou données réelles. Une construction supplémentaire exige au minimum la décision de recherche applicable et ses gates propres ; les gates 042 restent intégralement requis pour tout provider.
+
+```text
+LIFECYCLE_BOUNDARY=SECTIONS_14_TO_22_HISTORICAL_PRE_DELIVERY_CONTRACT
+CURRENT_LIFECYCLE_TRUTH=SECTION_1_FINAL_STATUS_AND_LIVING_DOCS
+```
+
+Les sections 14 à 22 conservent le contrat d'implémentation et de delivery approuvé avant la PR #116. Leurs marqueurs pré-delivery, critères de spec active, états d'autorisation, commandes et route de prochaine étape décrivent uniquement cet état historique : ils ne constituent ni des permissions courantes, ni la vérité actuelle du cycle de vie, ni des prochaines actions, et n'autorisent aucune spec suivante ni activité externe. La vérité courante est le statut final de la section 1 avec `README.md`, `docs/product/v1-plan.md` et la roadmap.
 
 ## 14. Scope documentaire strict
 
