@@ -112,13 +112,7 @@ PHASE_1_RUNTIME_AUTHORIZED=NO
 
 Le paquet documentaire docs-only de 044 reste livré et clôturé sous `specs/done`. La spec 045 est la seule spec active et prépare uniquement le protocole documentaire ; elle ne prouve ni recrutement, ni consentement, ni valeur terrain, ni validation de marché, ni conformité Privacy/Legal, ni readiness externe. Toutes les autorisations Phase 1 ci-dessus restent à `NO`. Aucune spec 046 n'est créée, réservée ou automatiquement autorisée.
 
-Le prochain gate obligatoire est le CTO Security/Privacy Gate sur l'objet 045 local exact :
-
-> Le protocole 045 et son instance opérationnelle candidate peuvent-ils fonctionner sans donnée client ou tierce et sans identifiant participant dans les notes, avec au plus une coordonnée volontaire séparée, et — seulement si une preuve de consentement liée est nécessaire — un rattachement minimal, séparé et expressément approuvé, avec finalité, custody, accès, rétention, retrait, suppression et incident fermés et vérifiables, sans CRM, formulaire public, analytics, compte produit ni accès à Ritomer ?
-
-Après les éventuelles corrections pilotées par ce gate, la CO / Fiduciaire Domain Review doit examiner exactement, avant toute CPO post-code review ou delivery :
-
-> Le delta participant-facing de 045 conserve-t-il la population, la neutralité des questions, les limites du walkthrough et la vérité produit approuvées en 044, sans induction, surpromesse, offre implicite, promesse professionnelle/statutaire ou validation de marché ?
+La séquence de gouvernance applicable à tout objet 045 exact est définie de manière version-neutre dans la section 22 de la spec active. Le plan V1 ne porte aucun statut courant de gate, de review, de décision CPO ni de prochaine action. La route applicable est déterminée uniquement à partir des records autoritatifs liés à l'objet courant exact. Toute modification matérielle impose de reprendre les gates et reviews applicables prévus par la spec avant une nouvelle CPO post-code review ou une éventuelle décision de delivery. Aucune spec 046 n'est créée, réservée ou automatiquement autorisée.
 
 ### Backlog
 

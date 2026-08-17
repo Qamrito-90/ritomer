@@ -125,11 +125,7 @@ Aucune instruction 043c, T00–T15, R1 ou R2 n’est active. Le harness 043b dé
 
 La [spec 044](specs/done/044-design-partner-readiness-v1.md) reste livrée et clôturée. La [spec 045](specs/active/045-design-partner-research-protocol-v1.md) est l'unique spec active : elle prépare uniquement un protocole documentaire versionné et fail-closed. Elle ne recrute personne, n'autorise aucune activité externe, n'introduit ni runtime ni accès produit et ne prouve ni valeur terrain, ni validation de marché, ni conformité Privacy/Legal, ni readiness externe. Publication, prospection, invitation, planification réelle, interview, collecte, création d'accès externe, donnée réelle et capacité runtime restent non autorisées.
 
-Le prochain gate obligatoire est le CTO Security/Privacy Gate sur les octets exacts de l'implémentation locale 045 et son bundle FULL :
-
-> Le protocole 045 et son instance opérationnelle candidate peuvent-ils fonctionner sans donnée client ou tierce et sans identifiant participant dans les notes, avec au plus une coordonnée volontaire séparée, et — seulement si une preuve de consentement liée est nécessaire — un rattachement minimal, séparé et expressément approuvé, avec finalité, custody, accès, rétention, retrait, suppression et incident fermés et vérifiables, sans CRM, formulaire public, analytics, compte produit ni accès à Ritomer ?
-
-Après toute correction matérielle issue de ce gate, une CO / Fiduciaire Domain Review sur le delta participant-facing exact reste requise avant CPO post-code review ou delivery. Aucune spec 046 n'est créée, réservée ou automatiquement autorisée.
+La séquence de gouvernance applicable à tout objet 045 exact est définie de manière version-neutre dans la section 22 de la spec active. Ce README ne porte aucun statut courant de gate, de review, de décision CPO ni de prochaine action. La route applicable est déterminée uniquement à partir des records autoritatifs liés à l'objet courant exact. Toute modification matérielle impose de reprendre les gates et reviews applicables prévus par la spec avant une nouvelle CPO post-code review ou une éventuelle décision de delivery. Aucune spec 046 n'est créée, réservée ou automatiquement autorisée.
 
 ### Snapshot historique 043b pré-clôture
 
