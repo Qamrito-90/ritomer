@@ -76,7 +76,7 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 
 ### Active
 
-AUCUNE
+- `specs/active/045-design-partner-research-protocol-v1.md` — `ACTIVE / PHASE_1_DESIGN_PARTNER_READINESS / DOCS / RISK_C / EVIDENCE_FULL` ; préparation docs-only d'un protocole versionné, reviewable et fail-closed pour un lot proposé `5/4/1`, sans participant, contact, collecte, accès externe, donnée réelle ni runtime.
 
 ### Clôturé terminalement / résultat inconclusif
 
@@ -96,6 +96,10 @@ AUCUNE
 
 NEXT_PRODUCT_DIRECTION=PHASE_1_DESIGN_PARTNER_READINESS
 CURRENT_AUTHORIZATION=DOCS_ONLY_PREPARATION
+ACTIVE_SPEC=045-design-partner-research-protocol-v1
+045_SURFACE=DOCS
+045_RISK_CLASS=C
+045_EVIDENCE_LEVEL=FULL
 
 PHASE_1_PUBLICATION_AUTHORIZED=NO
 PHASE_1_OUTREACH_AUTHORIZED=NO
@@ -106,7 +110,15 @@ PHASE_1_REAL_DATA_AUTHORIZED=NO
 PHASE_1_RUNTIME_AUTHORIZED=NO
 ```
 
-Le paquet documentaire docs-only de 044 est livré et clôturé. Aucune spec n’est actuellement active ; aucune spec suivante n’est créée, réservée ou automatiquement autorisée. Toutes les autorisations Phase 1 ci-dessus restent à `NO`.
+Le paquet documentaire docs-only de 044 reste livré et clôturé sous `specs/done`. La spec 045 est la seule spec active et prépare uniquement le protocole documentaire ; elle ne prouve ni recrutement, ni consentement, ni valeur terrain, ni validation de marché, ni conformité Privacy/Legal, ni readiness externe. Toutes les autorisations Phase 1 ci-dessus restent à `NO`. Aucune spec 046 n'est créée, réservée ou automatiquement autorisée.
+
+Le prochain gate obligatoire est le CTO Security/Privacy Gate sur l'objet 045 local exact :
+
+> Le protocole 045 et son instance opérationnelle candidate peuvent-ils fonctionner sans donnée client ou tierce et sans identifiant participant dans les notes, avec au plus une coordonnée volontaire séparée, et — seulement si une preuve de consentement liée est nécessaire — un rattachement minimal, séparé et expressément approuvé, avec finalité, custody, accès, rétention, retrait, suppression et incident fermés et vérifiables, sans CRM, formulaire public, analytics, compte produit ni accès à Ritomer ?
+
+Après les éventuelles corrections pilotées par ce gate, la CO / Fiduciaire Domain Review doit examiner exactement, avant toute CPO post-code review ou delivery :
+
+> Le delta participant-facing de 045 conserve-t-il la population, la neutralité des questions, les limites du walkthrough et la vérité produit approuvées en 044, sans induction, surpromesse, offre implicite, promesse professionnelle/statutaire ou validation de marché ?
 
 ### Backlog
 
