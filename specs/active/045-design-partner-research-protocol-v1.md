@@ -704,56 +704,75 @@ EXPERT_REVIEW_BOARD=NOT_REQUIRED_AT_PROTOCOL_SPEC_STAGE
 
 Aucun gate n'autorise une activité externe. Toute delivery, tout merge et toute future activité externe exigent leurs décisions owner et Authorization Records distincts, liés à l'objet exact. Un futur reviewer Codex séparé intervient à l'étape exigée par la doctrine C ; il n'est ni une signature humaine ni le CTO Gate.
 
-### File-set local autorisé
+### Source de vérité du file-set et de l'état courant
 
-Le correctif v2 vers l'objet courant est strictement borné à :
+La spec ne porte aucun file-set d'implémentation ou de correction courant,
+aucun nombre courant de commits, aucun état courant de branche ou de PR et
+aucune identité courante de patch ou de bundle. Pour chaque mission, ces
+éléments appartiennent exclusivement à l'Authorization Record exact, à
+l'Evidence Pack exact et aux records Git/GitHub liés à l'objet courant exact.
 
 ```text
-M specs/active/045-design-partner-research-protocol-v1.md
-
-CORRECTIVE_A=0
-CORRECTIVE_M=1
-CORRECTIVE_D=0
-CORRECTIVE_TOTAL_PATHS=1
+SPEC_DECLARES_CURRENT_IMPLEMENTATION_FILE_SET=NO
+SPEC_DECLARES_CURRENT_CORRECTIVE_FILE_SET=NO
+SPEC_DECLARES_CURRENT_COMMIT_BRANCH_OR_PR_STATE=NO
+SPEC_DECLARES_CURRENT_PATCH_OR_BUNDLE_IDENTITY=NO
+CURRENT_FILE_SET_SOURCE=EXACT_AUTHORIZATION_RECORD_BOUND_TO_CURRENT_OBJECT
+CURRENT_DIFF_AND_GIT_STATE_SOURCE=EXACT_EVIDENCE_PACK_AND_GIT_GITHUB_RECORDS
 ```
 
-Le file-set global depuis la base reste :
+Toute mission échoue fermée si son file-set, son diff, sa base, son head, sa
+branche, sa PR ou ses artefacts divergent des records exacts qui l'autorisent.
+Cette règle ne fixe aucun nombre permanent de chemins et n'autorise aucun scope
+supplémentaire.
+
+### Checks version-neutres de l'objet exact
+
+Toute version exacte de 045 doit prouver, selon la phase et l'Authorization
+Record applicables : structure et ordre des 22 sections ; UTF-8 strict sans
+BOM, LF-only et LF terminal ; liens internes valides ; absence de conflit,
+octet NUL, secret, credential, chemin de profil privé, donnée terrain ou record
+réel ; aucune autorisation externe à `YES` ; identité des sources gelées
+requises ; absence de régression des blocs hérités, du participant-facing, des
+limites `5/4/1`, de D-01 à D-05 et de X-01 ; au plus une future coordonnée
+séparée et non autorisée ; aucune liaison de consentement présumée ; aucune
+approbation, certification ou autorisation attribuée au CTO Gate ; absence de
+CRM, formulaire public, analytics, cookie, compte produit, accès externe ou
+runtime autorisé par cette spec.
+
+Les checks de Git, index, commits, branche, PR, patches, bundle, CI et
+reproductibilité sont déterminés par l'Authorization Record et l'Evidence Pack
+applicables à la phase courante. Ils ne constituent jamais des valeurs
+courantes ou universelles embarquées dans la spec.
 
 ```text
-A specs/active/045-design-partner-research-protocol-v1.md
-M docs/product/v1-plan.md
-M README.md
-
-A=1
-M=2
-D=0
-R=0
-C=0
-TOTAL_PATHS=3
+SPEC_STRUCTURE_AND_ENCODING_CHECKS_REQUIRED=YES
+NO_SECRET_PRIVATE_PATH_OR_REAL_DATA_REQUIRED=YES
+PARTICIPANT_FACING_AND_D01_D05_X01_NON_REGRESSION_REQUIRED=YES
+ALL_EXTERNAL_AUTHORIZATIONS_NO_UNTIL_SEPARATE_RECORD=YES
+PHASE_SPECIFIC_GIT_GITHUB_PATCH_AND_BUNDLE_CHECKS_SOURCE=EXACT_CURRENT_AUTHORIZATION_AND_EVIDENCE
+PHASE_SPECIFIC_CURRENT_STATE_EMBEDDED_IN_SPEC=NO
 ```
 
-042, 043, 044, `docs/product/product-roadmap.md`, toute spec 046 et tout quatrième chemin restent inchangés/interdits.
+### Conditions de stop version-neutres
 
-### Checks documentaires obligatoires
-
-Vérifier : file-set exact ; index réel vide ; zéro commit d'avance ; `git diff --check` ; UTF-8 strict sans BOM ; LF-only et LF terminal ; 22 sections dans l'ordre ; liens internes ; absence de conflit, NUL, secret, chemin de profil privé ou donnée terrain ; aucune autorisation externe à `YES` ; aucun record réel ; identité de 044 et invariance de 042, 043 et roadmap ; absence de 046, branche distante, PR ou spec active concurrente ; blocs copiés byte-identiques ; manifeste de réutilisation et delta ; `5/4/1` et limites de claims ; au plus une future coordonnée séparée et non autorisée ; aucune liaison de consentement présumée ; contraintes techniques soumises au CTO Gate read-only sans lui attribuer de décision, d'approbation, d'autorisation ou de certification ; absence d'audio/vidéo, CRM, formulaire, analytics, cookie, compte ou accès ; patch exact applicable, reproductible et réversible sur archive isolée ; reproduction byte-identique des trois fichiers finaux ; bundle FULL déterministe.
-
-Vérifier aussi : absence de l'ancien slot et de tout substitut par index, ordre ou temps dans la conversation, les notes et l'agrégat ; séparation des six surfaces ; classification potentiellement indirectement identifiante sans revendication d'anonymisation ; champs fermés et contrôle des combinaisons rares ; schéma incident fini et non sensible ; blocage aval de tout incident non clos ; lifecycle retrait, recalcul, supersession, unlinking et scellement ; absence des octets participant-derived d'un agrégat supersédé ; blockquote de section 12 byte-identique au manifeste participant-facing ; absence d'approbation ou d'autorisation attribuée au CTO Gate.
-
-```text
-BACKEND_TESTS=NON_REQUIRED_NOT_RUN
-FRONTEND_TESTS=NON_REQUIRED_NOT_RUN
-DB_TESTS=NON_REQUIRED_NOT_RUN
-LOCAL_RUNTIME=NON_REQUIRED_NOT_RUN
-```
-
-### Conditions de stop
-
-Stopper sans élargir le scope si : baseline ou source divergente ; spec active concurrente ; modification nécessaire de 042, 043, 044 ou roadmap ; risque inférieur à C/FULL ; fusion préparation/exécution ; donnée de personne, entreprise, coordonnée ou donnée réelle ; consent linkage supposé ; sélection d'un identifiant, outil, provider, adresse, téléphone ou durée ; besoin de compte, formulaire, CRM, site, analytics ou runtime ; quatrième chemin ; apparition de 046 ; record réel ; autorisation externe à `YES` ; bloc 044 non identique ; bundle incapable de reproduire l'objet exact.
+Stopper sans élargir le scope si : une identité ou une preuve décisive diverge
+des records exacts applicables ; une modification sort du file-set autorisé ;
+une donnée de personne, entreprise, coordonnée ou autre donnée réelle apparaît ;
+une liaison de consentement est supposée ; un identifiant, outil, provider,
+adresse, téléphone, durée, compte, formulaire, CRM, site, analytics ou runtime
+doit être sélectionné sans décision distincte ; une autorisation externe passe
+à `YES` sans Authorization Record exact ; un bloc hérité, le
+participant-facing, D-01 à D-05 ou X-01 régresse ; une spec 046 ou un changement
+de roadmap est introduit sans décision produit distincte ; l'objet exact ne
+peut plus être reproduit ou reviewé.
 
 ```text
-STOP_RITOMER_045_LOCAL_IMPLEMENTATION_BASELINE_DRIFT
-STOP_RITOMER_045_LOCAL_IMPLEMENTATION_SCOPE_DRIFT
-STOP_RITOMER_045_LOCAL_IMPLEMENTATION_PRIVACY_CONTRADICTION
-STOP_RITOMER_045_LOCAL_IMPLEMENTATION_EVIDENCE_INSUFFICIENT
+SPEC_045_CREATES_OR_AUTHORIZES_046=NO
+FUTURE_046_REQUIRES_SEPARATE_PRODUCT_AND_OWNER_DECISION=YES
+
+STOP_RITOMER_045_EXACT_OBJECT_IDENTITY_DRIFT
+STOP_RITOMER_045_AUTHORIZED_SCOPE_DRIFT
+STOP_RITOMER_045_PRIVACY_OR_EXTERNAL_ACTIVITY_CONTRADICTION
+STOP_RITOMER_045_DECISIVE_EVIDENCE_INSUFFICIENT
 ```
