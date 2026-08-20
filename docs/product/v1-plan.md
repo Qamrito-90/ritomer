@@ -73,10 +73,11 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `specs/done/040-internal-poc-global-smoke-v1.md`
 - `specs/done/041-internal-poc-blockers-ux-readiness-v1.md`
 - `specs/done/044-design-partner-readiness-v1.md` — paquet documentaire docs-only de Design Partner Readiness livré et clôturé, sans recherche terrain ni autorisation externe.
+- `specs/done/045-design-partner-research-protocol-v1.md` — `DONE / DOCS_ONLY_RESEARCH_PROTOCOL_DELIVERED` ; protocole documentaire versionné et fail-closed livré et clôturé, sans recherche, collecte, donnée réelle, activité externe ni runtime.
 
 ### Active
 
-- `specs/active/045-design-partner-research-protocol-v1.md` — `ACTIVE / PHASE_1_DESIGN_PARTNER_READINESS / DOCS / RISK_C / EVIDENCE_FULL` ; préparation docs-only d'un protocole versionné, reviewable et fail-closed pour un lot proposé `5/4/1`, sans participant, contact, collecte, accès externe, donnée réelle ni runtime.
+AUCUNE
 
 ### Clôturé terminalement / résultat inconclusif
 
@@ -94,9 +95,9 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 043C_EXTERNAL_READINESS_PROVED=NO
 043C_MUST_NOT_RESUME=YES
 
-NEXT_PRODUCT_DIRECTION=PHASE_1_DESIGN_PARTNER_READINESS
-CURRENT_AUTHORIZATION=DOCS_ONLY_PREPARATION
-ACTIVE_SPEC=045-design-partner-research-protocol-v1
+FOLLOW_ON_PRODUCT_DIRECTION_SELECTED=NO
+CLOSURE_EMITS_NEW_AUTHORIZATION=NO
+ACTIVE_SPEC=AUCUNE
 045_SURFACE=DOCS
 045_RISK_CLASS=C
 045_EVIDENCE_LEVEL=FULL
@@ -110,9 +111,9 @@ PHASE_1_REAL_DATA_AUTHORIZED=NO
 PHASE_1_RUNTIME_AUTHORIZED=NO
 ```
 
-Le paquet documentaire docs-only de 044 reste livré et clôturé sous `specs/done`. La spec 045 est la seule spec active et prépare uniquement le protocole documentaire ; elle ne prouve ni recrutement, ni consentement, ni valeur terrain, ni validation de marché, ni conformité Privacy/Legal, ni readiness externe. Toutes les autorisations Phase 1 ci-dessus restent à `NO`. Aucune spec 046 n'est créée, réservée ou automatiquement autorisée.
+Le paquet documentaire docs-only de 044 reste livré et clôturé sous `specs/done`. La spec 045 a livré et clôturé son outcome documentaire docs-only ; aucune recherche, collecte, donnée réelle, activité externe ou exécution runtime n'a été exécutée ni autorisée. Aucune spec n'est active. Elle ne prouve ni recrutement, ni consentement, ni valeur terrain, ni validation de marché, ni conformité Privacy/Legal, ni readiness externe. Toutes les autorisations Phase 1 ci-dessus restent à `NO`. Aucune spec 046 ni aucune spec suivante n'est créée, réservée ou autorisée.
 
-La séquence de gouvernance applicable à tout objet 045 exact est définie de manière version-neutre dans la section 22 de la spec active. Le plan V1 ne porte aucun statut courant de gate, de review, de décision CPO ni de prochaine action. La route applicable est déterminée uniquement à partir des records autoritatifs liés à l'objet courant exact. Toute modification matérielle impose de reprendre les gates et reviews applicables prévus par la spec avant une nouvelle CPO post-code review ou une éventuelle décision de delivery. Aucune spec 046 n'est créée, réservée ou automatiquement autorisée.
+Les sections 2 à 22 de la spec Done conservent le protocole substantiel livré et ne constituent aucune autorisation courante. Le plan V1 ne porte aucun statut courant de gate, de review, de décision CPO ni de prochaine action. La route d'une éventuelle suite est déterminée uniquement à partir de records autoritatifs liés à son objet exact. Toute modification matérielle imposerait de reprendre les gates et reviews applicables avant une nouvelle CPO post-code review ou une éventuelle décision de delivery. Aucune spec 046 ni aucune spec suivante n'est créée, réservée ou autorisée.
 
 ### Backlog
 

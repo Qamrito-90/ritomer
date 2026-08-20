@@ -1,7 +1,7 @@
 # 045 — Design Partner Research Protocol V1
 
 ```text
-STATUS=ACTIVE
+STATUS=DONE
 PHASE=PHASE_1_DESIGN_PARTNER_READINESS
 SURFACE=DOCS
 RISK_CLASS=C
@@ -13,11 +13,17 @@ PROTOCOL_REVIEWABLE=YES
 PROTOCOL_FAIL_CLOSED=YES
 REUSE_OF_044_TRACEABLE=YES
 EVIDENCE_SCHEMAS_DEFINED_WITHOUT_REAL_RECORDS=YES
+
+FINAL_OUTCOME=DOCS_ONLY_RESEARCH_PROTOCOL_DELIVERED
+DOCUMENTARY_OUTCOME_ACHIEVED=YES
+EXTERNAL_RESEARCH_EXECUTED=NO
+EXTERNAL_ACTIVITY_READINESS=NO
+X_01_STATUS=BLOCKING_EXTERNAL_ACTIVITY
 ```
 
 ## 1. Statut, phase, surface, risque et autorisations
 
-Cette spec est l'unique spec active. Elle prépare un protocole documentaire ; elle n'exécute aucune recherche et n'ouvre aucune capacité produit ou runtime.
+La spec 045 n'est plus active : son outcome documentaire est livré. Aucune recherche, collecte, donnée réelle, activité externe ou exécution runtime n'a été exécutée ni autorisée. Les sections 2 à 22 conservent le protocole substantiel livré et ne constituent aucune autorisation courante. Aucune spec suivante n'est créée, réservée ou automatiquement autorisée.
 
 ```text
 PROTOCOL_VERSION=045-DESIGN-PARTNER-RESEARCH-PROTOCOL-V1

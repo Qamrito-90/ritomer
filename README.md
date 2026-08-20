@@ -91,19 +91,18 @@ $env:RITOMER_SECURITY_JWT_HMAC_SECRET = [Convert]::ToBase64String($jwtKeyBytes)
 043=TERMINALLY_CLOSED_STOPPED_INCONCLUSIVE
 043C_R1_R2=NOT_EXECUTED
 PR114=FORENSIC_ONLY
-NEXT_DIRECTION=PHASE_1_DESIGN_PARTNER_READINESS_DOCS_ONLY
-ACTIVE_SPEC=045-design-partner-research-protocol-v1
-ACTIVE_SPEC_SURFACE=DOCS
-ACTIVE_SPEC_RISK=C
-ACTIVE_SPEC_EVIDENCE=FULL
+FOLLOW_ON_PRODUCT_DIRECTION_SELECTED=NO
+CLOSURE_EMITS_NEW_AUTHORIZATION=NO
+ACTIVE_SPEC=AUCUNE
+SPEC_045_STATUS=DONE
+SPEC_045_FINAL_OUTCOME=DOCS_ONLY_RESEARCH_PROTOCOL_DELIVERED
+EXTERNAL_ACTIVITY_READINESS=NO
+X_01_STATUS=BLOCKING_EXTERNAL_ACTIVITY
 ```
 
 La [spec 043 terminale](specs/done/043-controlled-fiduciary-pilot-readiness-v1.md) conserve les preuves : 043a demeure livré, 043b demeure une simulation locale synthétique validée, et 043c s’est arrêté avec un résultat inconclusif. La préparation externe n’est pas prouvée, PR #114 est fermée sans merge et son implémentation est `NOT_EXECUTABLE`.
 
 ```text
-NEXT_PRODUCT_DIRECTION=PHASE_1_DESIGN_PARTNER_READINESS
-CURRENT_AUTHORIZATION=DOCS_ONLY_PREPARATION
-
 PHASE_1_PUBLICATION_AUTHORIZED=NO
 PHASE_1_OUTREACH_AUTHORIZED=NO
 PHASE_1_INTERVIEW_AUTHORIZED=NO
@@ -123,9 +122,9 @@ PHASE_1_RUNTIME_AUTHORIZED=NO
 
 Aucune instruction 043c, T00–T15, R1 ou R2 n’est active. Le harness 043b déjà livré demeure disponible uniquement comme capacité locale synthétique de développement, sous la recette courante `runbooks/local-dev.md`. Son utilisation ne rouvre pas la spec 043, n’autorise ni 043c, ni R1, ni R2, et ne prouve ni préparation externe, ni séparation réelle des fonctions, ni sûreté d’un usage avec des données réelles, ni readiness de production.
 
-La [spec 044](specs/done/044-design-partner-readiness-v1.md) reste livrée et clôturée. La [spec 045](specs/active/045-design-partner-research-protocol-v1.md) est l'unique spec active : elle prépare uniquement un protocole documentaire versionné et fail-closed. Elle ne recrute personne, n'autorise aucune activité externe, n'introduit ni runtime ni accès produit et ne prouve ni valeur terrain, ni validation de marché, ni conformité Privacy/Legal, ni readiness externe. Publication, prospection, invitation, planification réelle, interview, collecte, création d'accès externe, donnée réelle et capacité runtime restent non autorisées.
+La [spec 044](specs/done/044-design-partner-readiness-v1.md) reste livrée et clôturée. La [spec 045](specs/done/045-design-partner-research-protocol-v1.md) est `DONE` : son outcome documentaire docs-only, un protocole versionné et fail-closed, est livré. Aucune spec n'est active. Aucune recherche, collecte, donnée réelle, activité externe ou exécution runtime n'a été exécutée ni autorisée ; `X-01` reste bloquant. La spec ne prouve ni valeur terrain, ni validation de marché, ni conformité Privacy/Legal, ni readiness externe. Publication, prospection, invitation, planification réelle, interview, collecte, création d'accès externe, donnée réelle et capacité runtime restent non autorisées.
 
-La séquence de gouvernance applicable à tout objet 045 exact est définie de manière version-neutre dans la section 22 de la spec active. Ce README ne porte aucun statut courant de gate, de review, de décision CPO ni de prochaine action. La route applicable est déterminée uniquement à partir des records autoritatifs liés à l'objet courant exact. Toute modification matérielle impose de reprendre les gates et reviews applicables prévus par la spec avant une nouvelle CPO post-code review ou une éventuelle décision de delivery. Aucune spec 046 n'est créée, réservée ou automatiquement autorisée.
+Les sections 2 à 22 de la spec Done conservent le protocole substantiel livré et ne constituent aucune autorisation courante. Ce README ne porte aucun statut courant de gate, de review, de décision CPO ni de prochaine action. La route d'une éventuelle suite est déterminée uniquement à partir de records autoritatifs liés à son objet exact. Toute modification matérielle imposerait de reprendre les gates et reviews applicables avant une nouvelle CPO post-code review ou une éventuelle décision de delivery. Aucune spec 046 ni aucune spec suivante n'est créée, réservée ou autorisée.
 
 ### Snapshot historique 043b pré-clôture
 
