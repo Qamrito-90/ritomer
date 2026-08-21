@@ -11,9 +11,11 @@ Il ne remplace ni la vision UX, ni le playbook UX, ni la source de verite UI. Il
 - La V1 reste orientee workbench de closing, pas SaaS generique.
 - Le flux reel deja fige dans le repo est : `closing -> import -> mapping manuel + mapping assiste no-provider -> controls -> financial-summary -> financial-statements-structured -> workpapers -> document-storage-and-evidence-files -> exports-audit-ready -> minimal-annex`.
 - Le present UX inclut maintenant un frontend borne sur `/` et `/closing-folders/:closingFolderId`, avec entree dossiers, detail dossier, import balance CSV borne, mapping manuel unitaire borne, cockpit controls/readiness read-only, dossier progress summary, preview `Financial summary` read-only, preview `Financial statements structured` read-only et bloc `Workpapers` avec maker update unitaire borne sur les items courants, upload document unitaire borne sur les current items avec workpaper persistant, download document unitaire explicite sur les documents deja visibles, frontiere dediee `WorkpapersPanel`, decision reviewer document unitaire sur les documents current eligibles deja visibles, decision reviewer workpaper humaine sur les anchors eligibles, audit-ready export pack UI et minimal annex preview read-only.
-- Les surfaces UX visibles/frontend du present sont closes jusqu'a `030`, avec `026` comme decompression frontend sans changement visible, `029` comme vague de confiance E2E pilote et `030` comme experience de revue humaine du mapping assiste no-provider.
+- Apres `030`, les increments frontend livres `032` a `035` durcissent la validation fail-closed des controls, la coherence des refreshs post-action, l'historique et le diff d'import, puis le refresh de l'annexe apres creation d'un export pack, sans nouveau runtime IA ni nouvelle promesse statutaire.
+- Les specs `036` a `041` livrent et prouvent uniquement une demo locale integree sur donnees synthetiques, son cockpit, son polish data-heavy et ses smokes internes. Elles ne prouvent ni authentification SaaS durable, ni environnement interne partage, ni utilisateur externe, ni provider IA reel.
+- `042` reste en backlog sous `PAUSED_BY_SEPARATE_CPO_DECISION`; `043` reste terminalement close avec `STOPPED_INCONCLUSIVE`; `044` et `045` restent Done docs-only. Aucune spec n'est active et aucune spec `046` n'existe.
 - La V1 reste bornee : les surfaces frontend 029 exposent des capacites existantes, mais ne transforment ni les previews financieres, ni l'audit-ready export pack, ni la minimal annex preview en livrables statutaires finaux.
-- La V1 reste progressive, desktop-first, AI-ready et non AI-led ; les surfaces 029 ameliorent le pilotage humain et `030` ajoute une assistance de mapping no-provider sans rendre l'IA autonome ni centrale dans l'experience courante.
+- La V1 reste progressive, desktop-first, AI-ready, non AI-led et pas encore AI-native dans le runtime ; les surfaces 029 ameliorent le pilotage humain et `030` ajoute une assistance de mapping no-provider sans rendre l'IA autonome ni centrale dans l'experience courante.
 - La source de verite UI codable reste `docs/ui/ui-foundations-v1.md`.
 - Le produit doit rester clair sous pression : contexte tenant, dossier, statut, blockers, next action et preuves doivent etre explicites.
 - Les lectures sur `ARCHIVED` restent autorisees sur les surfaces closes qui le prevoient ; les writes restent bloques quand le workflow le demande.
@@ -27,6 +29,13 @@ Il ne remplace ni la vision UX, ni le playbook UX, ni la source de verite UI. Il
 - `029-pilot-closing-workflow-e2e-confidence-hardening-v1` livre les surfaces frontend durables de pilotage E2E : dossier progress summary, audit-ready export pack UI, minimal annex preview UI et reviewer workpaper decision UI.
 - `minimal-annex-v1` est maintenant visible en frontend comme minimal annex preview non statutaire, read-only et preparee pour revue humaine ; elle ne devient pas une annexe legale finale.
 - `030-ia-mapping-assiste-suggestion-review-v1` livre l'affichage et la revue humaine de suggestions de mapping IA no-provider, avec preuves visibles, `requiresHumanReview = true`, actions unitaires `ACCEPT`, `CORRECT`, `REJECT` via backend et mapping manuel comme autorite.
+
+## Trajectoire UX approuvee, non livree
+
+- La prochaine cible produit apres M0 est M1 `AUTHENTICATED_PRODUCT_SHELL` : login, Home, Dossiers, workspace dossier, Activite IA, Parametres, contexte tenant/role et logout. Cette cible n'est pas livree par M0.
+- En developpement local, le futur mode `LOCAL_TEST_ONLY` pourra remplacer uniquement le passage par l'IdP externe. Il ne contournera jamais les autorisations serveur et utilisera de vrais utilisateurs synthetiques, memberships, roles et tenants ; tout environnement interne partage exigera un vrai OIDC.
+- Les patterns agentiques detailles restent futurs : kernel et registre d'outils en M3, puis Mapping Assistant comme premier slice IA-native en M4. L'UX courante de suggestions no-provider ne vaut ni agent runtime, ni provider reel.
+- Les signatures UX durables restent le workbench financier, la clarte sous pression, le contexte tenant/dossier et une IA verifiable, modifiable, rejetable et tracable.
 
 ## Ce qui est explicitement hors scope maintenant
 
@@ -77,6 +86,7 @@ Toujours hors scope maintenant :
 ## Artefacts vivants detailles du repo
 
 - `docs/ui/ui-foundations-v1.md`
+- `docs/product/product-roadmap.md`
 - `docs/product/v1-plan.md`
 - `specs/done/014-frontend-controls-readiness-cockpit-v1.md`
 - `specs/done/015-frontend-closing-folders-entrypoint-v1.md`
@@ -95,6 +105,20 @@ Toujours hors scope maintenant :
 - `specs/done/028-docs-present-realignment-after-027-v1.md`
 - `specs/done/029-pilot-closing-workflow-e2e-confidence-hardening-v1.md`
 - `specs/done/030-ia-mapping-assiste-suggestion-review-v1.md`
+- `specs/done/032-controls-readiness-deterministic-consumer-hardening-v1.md`
+- `specs/done/033-pilot-core-flow-ui-refresh-consistency-v1.md`
+- `specs/done/034-pilot-balance-import-history-diff-ui-v1.md`
+- `specs/done/035-pilot-export-pack-minimal-annex-refresh-ui-v1.md`
+- `specs/done/036-local-integrated-demo-real-backend-seed-v1.md`
+- `specs/done/037-local-integrated-demo-manual-business-smoke-v1.md`
+- `specs/done/038-local-demo-closing-workbench-ux-cockpit-v1.md`
+- `specs/done/039-local-demo-data-heavy-ux-polish-v1.md`
+- `specs/done/040-internal-poc-global-smoke-v1.md`
+- `specs/done/041-internal-poc-blockers-ux-readiness-v1.md`
+- `specs/backlog/042-controlled-ai-mapping-runtime-pilot-v1.md`
+- `specs/done/043-controlled-fiduciary-pilot-readiness-v1.md`
+- `specs/done/044-design-partner-readiness-v1.md`
+- `specs/done/045-design-partner-research-protocol-v1.md`
 - `specs/done/006-controls-v1.md`
 - `specs/done/007-financial-summary-v1.md`
 - `specs/done/009-financial-statements-structured-v1.md`

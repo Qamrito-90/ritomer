@@ -1,33 +1,100 @@
-# Plan V1 executable
+# Plan V1 exécutable
 
-## Objectif
-Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite, securite, revue et premier gain IA mesurable.
+## Objectif courant
 
-## Roadmap canonique
+Conduire Ritomer du noyau déterministe local déjà livré vers une alpha interne authentifiée, agentique, evidence-first et répétable, sans perdre l'autorité métier, l'isolation tenant, le mode manuel ou l'audit.
 
-`docs/product/product-roadmap.md` porte les outcomes, phases, six workstreams et gates produit canoniques. Elle ne cree aucune spec, n'autorise aucun runtime et ne remplace pas le sequencing ni les preuves detaillees de ce plan.
+La roadmap canonique M0–M8 vit dans `docs/product/product-roadmap.md`. Ce plan porte seulement la séquence exécutable immédiate, les décisions gelées et le handoff historique ; il ne crée ni spec ni autorisation.
 
-## Ordre des tranches
-1. Foundation
-2. Core identite / tenants / audit / closing
-3. Import balance
-4. Mapping manuel
-5. Controls + previews financieres derivees
-6. Workpapers V1
-7. Document storage and evidence files V1
-8. Exports audit-ready
-9. Annexe minimale
-10. Pilot closing workflow E2E confidence hardening
-11. IA mapping assiste
-12. Hardening
+## Séquence immédiate
+
+```text
+M0_STATUS=DONE_CANONICAL_ROADMAP_REBASELINE
+NEXT_MILESTONE=M1_AUTHENTICATED_PRODUCT_SHELL
+CRITICAL_PATH=M0_TO_M5
+FIRST_AI_NATIVE_VERTICAL_SLICE=MAPPING_ASSISTANT_AGENT
+
+ACTIVE_SPEC=AUCUNE
+ACTIVE_SPEC_COUNT=0
+SPEC_046=ABSENT
+M1_IMPLEMENTATION_AUTHORIZED=NO
+```
+
+M0 a synchronisé les documents vivants et borné le checker 042 à ses responsabilités historiques. M1 est la prochaine cible ; aucune implémentation M1 ne découle de ce plan.
+
+## Plus petit incrément futur M1.1
+
+```text
+M1_1_CANDIDATE=AUTHENTICATED_SESSION_FOUNDATION
+M1_1_STATUS=DOCUMENTED_NOT_AUTHORIZED
+M1_1_IS_SPEC=NO
+M1_1_SPEC_NUMBER_RESERVED=NO
+M1_1_IMPLEMENTATION_AUTHORIZED=NO
+```
+
+Outcome candidat : un utilisateur synthétique réel entre par un mode `local | test` qui remplace uniquement l'IdP externe, puis traverse les mêmes contrôles identity, membership, rôle, tenant et autorisation serveur que l'OIDC partagé. `/api/me`, expiration/logout et refus membership ou tenant doivent être démontrables.
+
+Entrée future : choix IdP et modèle de session, threat model, callbacks/domaines, politique CSRF/logout/révocation et autorisation d'implémentation exacte. Hors-scope M1.1 : shell complet, onboarding riche, provider IA, agent, MCP, donnée réelle, utilisateur externe et production.
+
+## Décisions de trajectoire gelées
+
+### Authentification
+
+```text
+AUTHENTICATION_SEQUENCE=M1_EARLY
+LOCAL_DEV_AUTH_MODE=LOCAL_TEST_ONLY
+LOCAL_DEV_AUTH_REPLACES_EXTERNAL_IDP_ONLY=YES
+LOCAL_DEV_AUTHORIZATION_BYPASS=NO
+LOCAL_DEV_MUST_USE_REAL_SYNTHETIC_USERS_MEMBERSHIPS_ROLES_AND_TENANTS=YES
+SHARED_INTERNAL_ENVIRONMENT_REQUIRES_REAL_OIDC=YES
+```
+
+### IA et agent
+
+```text
+OPENAI_FIRST=YES
+PROVIDER_ABSTRACTION_FROM_DAY_ONE=YES
+ONE_BOUNDED_AGENT_FIRST=YES
+MULTI_AGENT_SWARM_NOW=NO
+READ_ONLY_TOOLS_BY_DEFAULT=YES
+HUMAN_CONFIRMATION_BEFORE_MUTATION=YES
+DIRECT_MODEL_DATABASE_ACCESS=NO
+```
+
+M2 comparera Spring AI et le SDK Java officiel derrière le même port interne ; aucun framework, SDK, modèle ou provider n'est choisi par M0. M3 introduira un registre d'outils typé et MCP-adaptable, sans runtime MCP.
+
+### Model Context Protocol
+
+```text
+MCP_STRATEGIC_PRIORITY=CONFIRMED
+MCP_READINESS_FROM_M2_M3=YES
+INTERNAL_TOOL_REGISTRY_MCP_ADAPTABLE=YES
+MCP_RUNTIME_TARGET=M6
+MCP_CLIENT_FIRST=YES
+MCP_SERVER_ONLY_ON_PROVED_EXTERNAL_CLIENT_NEED=YES
+```
+
+MCP signifie `Model Context Protocol`. Le runtime cible M6 commence côté client read-only ; un serveur Ritomer exige un besoin client externe réel et une autorisation distincte.
+
+### Site public
+
+```text
+PRODUCT_FIRST=YES
+PUBLIC_WEBSITE_AFTER_STABLE_INTERNAL_ALPHA=YES
+PUBLIC_WEBSITE_BEFORE_EXTERNAL_BETA=YES
+```
+
+M7 attend une alpha M5 stable, des captures réelles, un slice IA-native fonctionnel, un positionnement stable, des formulations sécurité honnêtes et une démo répétable.
 
 ## Principes V1
-- workflow closing reel avant sophistication
-- REST first
-- IA contractuelle et bornee
-- tests d'isolation cross-tenant bloquants
-- RLS progressive
-- observabilite des le depart
+
+- workflow closing réel avant sophistication ;
+- REST first ;
+- monolithe modulaire Kotlin/Spring Boot ;
+- IA structurée, evidence-first et bornée ;
+- tests d'isolation cross-tenant bloquants ;
+- tenant-scoping applicatif autoritaire, RLS seulement sur trigger explicite ;
+- observabilité, audit, budgets, arrêt et mode dégradé dès l'étape qui les exige.
 
 ## Handoff vivant
 
@@ -62,6 +129,7 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 - `specs/done/028-docs-present-realignment-after-027-v1.md`
 - `specs/done/029-pilot-closing-workflow-e2e-confidence-hardening-v1.md`
 - `specs/done/030-ia-mapping-assiste-suggestion-review-v1.md`
+- Incréments historiques `031a`, `031b` et `031c` livrés par les PR #40, #41 et #42 : hygiène des logs sensibles, regression pack des invariants pilote et validation frontend fail-closed. Aucun fichier de spec 031 n'a existé et aucune spec rétroactive n'est inventée.
 - `specs/done/032-controls-readiness-deterministic-consumer-hardening-v1.md`
 - `specs/done/033-pilot-core-flow-ui-refresh-consistency-v1.md`
 - `specs/done/034-pilot-balance-import-history-diff-ui-v1.md`
@@ -77,7 +145,11 @@ Permettre a 5 fiduciaires pilotes d'executer un closing complet avec tracabilite
 
 ### Active
 
-AUCUNE
+```text
+ACTIVE_SPEC=AUCUNE
+ACTIVE_SPEC_COUNT=0
+SPEC_046=ABSENT
+```
 
 ### Clôturé terminalement / résultat inconclusif
 
@@ -95,9 +167,14 @@ AUCUNE
 043C_EXTERNAL_READINESS_PROVED=NO
 043C_MUST_NOT_RESUME=YES
 
-FOLLOW_ON_PRODUCT_DIRECTION_SELECTED=NO
 CLOSURE_EMITS_NEW_AUTHORIZATION=NO
+ROADMAP_DIRECTION_SELECTED=YES
+M0_STATUS=DONE_CANONICAL_ROADMAP_REBASELINE
+NEXT_MILESTONE=M1_AUTHENTICATED_PRODUCT_SHELL
 ACTIVE_SPEC=AUCUNE
+ACTIVE_SPEC_COUNT=0
+SPEC_046=ABSENT
+M1_IMPLEMENTATION_AUTHORIZED=NO
 045_SURFACE=DOCS
 045_RISK_CLASS=C
 045_EVIDENCE_LEVEL=FULL
@@ -111,9 +188,9 @@ PHASE_1_REAL_DATA_AUTHORIZED=NO
 PHASE_1_RUNTIME_AUTHORIZED=NO
 ```
 
-Le paquet documentaire docs-only de 044 reste livré et clôturé sous `specs/done`. La spec 045 a livré et clôturé son outcome documentaire docs-only ; aucune recherche, collecte, donnée réelle, activité externe ou exécution runtime n'a été exécutée ni autorisée. Aucune spec n'est active. Elle ne prouve ni recrutement, ni consentement, ni valeur terrain, ni validation de marché, ni conformité Privacy/Legal, ni readiness externe. Toutes les autorisations Phase 1 ci-dessus restent à `NO`. Aucune spec 046 ni aucune spec suivante n'est créée, réservée ou autorisée.
+Le paquet documentaire docs-only de 044 reste livré et clôturé sous `specs/done`. La spec 045 a livré et clôturé son outcome documentaire docs-only ; aucune recherche, collecte, donnée réelle, activité externe ou exécution runtime n'a été exécutée ni autorisée. Aucune spec n'est active. Elle ne prouve ni recrutement, ni consentement, ni valeur terrain, ni validation de marché, ni conformité Privacy/Legal, ni readiness externe. Les autorisations externes héritées de 044/045 restent à `NO` et ne définissent plus la direction de roadmap. Aucune spec 046 ni aucune spec suivante n'est créée, réservée ou autorisée.
 
-Les sections 2 à 22 de la spec Done conservent le protocole substantiel livré et ne constituent aucune autorisation courante. Le plan V1 ne porte aucun statut courant de gate, de review, de décision CPO ni de prochaine action. La route d'une éventuelle suite est déterminée uniquement à partir de records autoritatifs liés à son objet exact. Toute modification matérielle imposerait de reprendre les gates et reviews applicables avant une nouvelle CPO post-code review ou une éventuelle décision de delivery. Aucune spec 046 ni aucune spec suivante n'est créée, réservée ou autorisée.
+Les sections 2 à 22 de la spec Done conservent le protocole substantiel livré et ne constituent aucune autorisation courante. La nouvelle direction M0–M8 provient d'une décision owner distincte de la clôture 043 et des outcomes 044/045. M1 est la prochaine cible après M0, mais son implémentation exige un scope, des gates et une autorisation propres. Toute modification matérielle reprend la boucle de preuve applicable. Aucune spec 046 ni aucune spec suivante n'est créée, réservée ou autorisée.
 
 ### Backlog
 

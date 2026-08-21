@@ -8,8 +8,8 @@ Il ne remplace ni la vision IA, ni le playbook IA, ni les contrats et garde-fous
 
 ## Ce qui est vrai maintenant
 
-- Le produit est AI-ready, pas AI-led.
-- Le repo vivant est clos jusqu'a `030`.
+- Le produit est AI-ready, mais pas encore AI-native dans le runtime.
+- `042` reste en backlog sous `PAUSED_BY_SEPARATE_CPO_DECISION`; `043` reste terminalement close avec `STOPPED_INCONCLUSIVE`; `044` et `045` restent Done docs-only. Aucune spec n'est active et aucune spec `046` n'existe.
 - Le coeur metier reste deterministe, tenant-scoped, audit-ready et utilisable sans IA.
 - `030` livre une capacite de mapping assiste no-provider, evidence-first et human-in-the-loop.
 - La capacite livree expose des suggestions structurees de mapping, des preuves visibles et une decision humaine unitaire `ACCEPT`, `CORRECT` ou `REJECT`.
@@ -21,9 +21,18 @@ Il ne remplace ni la vision IA, ni le playbook IA, ni les contrats et garde-fous
 - `029` livre des surfaces frontend de confiance E2E, pas une capacite IA : aucune IA runtime, aucune redaction IA d'annexe, aucune decision automatique et aucune action engageante sans revue humaine.
 - La minimal annex preview exposee par `029` reste un read-model deterministe prepare pour revue humaine ; elle n'est pas une annexe redigee ou approuvee par IA.
 - La premiere capacite IA livree est le mapping assiste no-provider : elle n'active ni provider IA reel, ni modele reel, ni SDK, ni prompt runtime actif, ni cout provider, ni appel reseau IA.
-- `030d runtime` provider reel reste non livre, non approuve et bloque par CPO approval, CTO Gate, security/privacy review, IA governance review, provider-readiness record signe, dependency/security review signee, payload whitelist signee, runbook pret et golden set vert.
+- Les artefacts `030d` et `042` restent des preuves historiques ou de backlog. Ils ne constituent pas le rail executable de M2, n'activent aucun provider et ne rendent pas les evals candidates autoritatives.
 - Le read-model public de mapping expose `accountLabel` depuis la ligne originale tenant-scoped ; la frontiere interne `ai::access` utilise `sanitizedAccountLabel` minimise et ne remplace pas le contrat public.
 - Le repo porte les artefacts vivants de gouvernance IA : schema contractuel, prompt guardrail, evals, retrieval policy, runbook d'incident, readiness policy, readiness record et dependency/security review.
+
+## Trajectoire IA approuvee, non livree
+
+- M2 cible une provider gateway OpenAI-first avec abstraction provider des le premier runtime. Un spike borne comparera Spring AI et le SDK Java officiel derriere le meme port interne ; M0 ne choisit aucune dependance, aucun modele, aucun endpoint et n'active aucun appel reseau.
+- M3 cible un seul agent borne avant toute orchestration multi-agentes : goal/run state, budgets, arret, registre d'outils interne type et versionne, outils read-only par defaut et confirmation humaine avant toute mutation. Le modele n'accede jamais directement a la base.
+- M4 cible le Mapping Assistant comme premier slice IA-native, en reutilisant les services deterministes de mapping et la revue humaine sans reprendre le rail 042.
+- MCP signifie `Model Context Protocol`. Il n'est ni un modele, ni un agent, ni un orchestrateur. Sa sequence cible est `INTERNAL_TOOL_REGISTRY -> MCP_CAPABILITY_CATALOG -> MCP_CLIENT_READ_ONLY -> AUTHORIZED_EXTERNAL_RESOURCES_AND_TOOLS -> MCP_SERVER_ONLY_IF_A_REAL_EXTERNAL_CLIENT_NEED_EXISTS`.
+- La readiness MCP commence en M2/M3 par des ports, schemas et un registre adaptables. Aucun runtime MCP n'est active avant M6 ; M6 est client-first et un serveur exige un besoin externe reel et prouve.
+- Aucun provider, secret, SDK, appel reseau, agent runtime, runtime MCP ou multi-provider n'est active par M0.
 
 ## Ce qui est explicitement hors scope maintenant
 
@@ -36,8 +45,8 @@ Il ne remplace ni la vision IA, ni le playbook IA, ni les contrats et garde-fous
 - requirement GraphQL pour activer l'IA
 - service IA dedie obligatoire dans la V1 courante
 - redaction IA runtime d'une annexe
-- provider IA reel pour le mapping assiste tant que les gates `030d runtime` ne sont pas signes
-- modele reel, SDK provider, prompt runtime actif, cout provider ou appel reseau IA pour le mapping assiste courant
+- provider IA reel, modele reel, SDK provider, prompt runtime actif, cout provider ou appel reseau IA dans le present
+- agent runtime, runtime MCP, second provider actif ou orchestration multi-agentes dans le present
 - decision automatique ou approbation par IA d'un acte comptable, reglementaire ou financier
 
 ## Decisions non negociables du present
@@ -50,12 +59,13 @@ Il ne remplace ni la vision IA, ni le playbook IA, ni les contrats et garde-fous
 - Model pinning, prompt pinning, evals et logs obligatoires.
 - Feature flag et mode degrade obligatoires pour toute activation IA reelle.
 - Les donnees sensibles ne partent pas en clair vers des services IA externes.
-- Le mapping assiste `030` reste no-provider tant que `030d runtime` n'est pas approuve.
+- Le mapping assiste `030` reste no-provider ; M2 sera un futur scope distinct et ne reactive pas `042`.
 - Le mapping manuel reste l'autorite metier durable.
 
 ## Artefacts vivants detailles du repo
 
 - `docs/adr/0003-ai-gateway-evidence-first.md`
+- `docs/product/product-roadmap.md`
 - `docs/product/v1-plan.md`
 - `contracts/ai/mapping-suggestion.schema.json`
 - `contracts/openapi/mapping-suggestions-api.yaml`
@@ -70,6 +80,10 @@ Il ne remplace ni la vision IA, ni le playbook IA, ni les contrats et garde-fous
 - `docs/ui/ui-foundations-v1.md`
 - `specs/done/029-pilot-closing-workflow-e2e-confidence-hardening-v1.md`
 - `specs/done/030-ia-mapping-assiste-suggestion-review-v1.md`
+- `specs/backlog/042-controlled-ai-mapping-runtime-pilot-v1.md`
+- `specs/done/043-controlled-fiduciary-pilot-readiness-v1.md`
+- `specs/done/044-design-partner-readiness-v1.md`
+- `specs/done/045-design-partner-research-protocol-v1.md`
 - `docs/vision/ai-native.md`
 - `docs/playbooks/ai.md`
 
