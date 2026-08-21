@@ -1,51 +1,103 @@
-# SaaS Closing Comptable IA-Native — Pack de démarrage Codex
+# Ritomer — plateforme suisse de closing comptable IA-native
 
-Ce dépôt sert à construire une plateforme SaaS suisse de closing comptable, multi-tenant, audit-ready, avec une UX premium et une IA evidence-first.
+Ritomer construit un SaaS suisse de production du closing fiduciaire, multi-tenant, evidence-first et auditable, avec une UX premium claire sous pression. Le produit authentifié prime sur le site public et le métier garde le contrôle de toute décision engageante.
 
-## Lecture recommandée pour Codex
+## Lecture canonique
 
-`AGENTS.md` définit l'ordre canonique de lecture du dépôt ; le suivre pour toute mission.
-Pour la gouvernance du développement assisté par IA, consulter l'index actif `docs/governance/ai-first/README.md`.
+`AGENTS.md` définit l'ordre de lecture et les règles permanentes. La gouvernance active du développement assisté par IA est indexée dans `docs/governance/ai-first/README.md`.
 
-Référence UI documentaire : `docs/ui/ui-foundations-v1.md`
+- roadmap produit canonique : `docs/product/product-roadmap.md` ;
+- séquence exécutable : `docs/product/v1-plan.md` ;
+- synthèse du présent : `docs/present/README.md` ;
+- vérité UI durable : `docs/ui/ui-foundations-v1.md`.
 
-## Règle d’or
-Le produit repose sur 3 couches complémentaires :
-- un moteur métier déterministe
-- une couche de preuves et de traçabilité
-- une IA copilote structurée, jamais autonome sur les décisions engageantes
+## North Star et état réel
 
-## Arborescence clé
-- `AGENTS.md` : règles permanentes pour Codex
-- `backend/` : backend Kotlin/Spring Boot (source de vérité technique)
-- `frontend/` : frontend local
-- `docs/governance/ai-first/` : index, prompts de review et rôles de gouvernance du développement assisté par IA
-- `docs/vision/` : North Star UX, architecture et IA
-- `docs/ui/` : source de vérité documentaire UI
-- `docs/playbooks/` : patterns d’exécution et garde-fous
-- `docs/product/` : plan V1 exécutable et roadmap produit canonique orientée outcomes, preuves et gates
-- `docs/adr/` : décisions structurantes
-- `docs/archive/` : documents historisés ou supersédés
-- `specs/active/` : mission atomique active à implémenter
-- `specs/backlog/` : missions atomiques cadrées mais non actives
-- `specs/done/` : missions atomiques terminées
-- `contracts/` : contrats techniques source de vérité
-- `evals/` : qualité IA
-- `fixtures/` : fixtures synthétiques gelées, versionnées et validées pour les répétitions contrôlées
-- `prompts/` : prompts, guardrails et contrats du produit ou de son runtime IA
-- `knowledge/` : politique de retrieval / RAG
-- `runbooks/` : exploitation et incidents
-- `policies/` : sécurité, privacy, règles IA
+Le parcours cible est : utilisateur authentifié → tenant et rôle → dossier → objectif borné → outils et preuves → proposition → décision humaine → commande métier déterministe → vérification et audit.
 
-## Priorités V1
-- monolithe modulaire Kotlin/Spring Boot
-- PostgreSQL comme base principale
-- Cloud SQL for PostgreSQL comme cible de production
-- multi-tenant strict, audit trail append-only
-- REST first en V1
-- GraphQL read-model plus tard, avec garde-fous
-- AI Gateway contractuelle dès le départ
-- structured outputs, evals, observabilité, feature flags
+| Statut | État actuel |
+| --- | --- |
+| `DELIVERED_AND_PROVED` | Noyau déterministe du closing, tenancy et RBAC applicatifs, import, mapping manuel, contrôles, previews, workpapers, documents, export, annexe minimale, audit append-only et mapping assisté no-provider. |
+| `LOCAL_OR_SYNTHETIC_ONLY` | Démo PostgreSQL/JWT/Vite, shell courant et simulation offline `mapping-suggestion-v2`, avec identités et données synthétiques. |
+| `DOCUMENTED_NOT_IMPLEMENTED` | Auth/session SaaS durables, cible Cloud Run/Cloud SQL, provider IA réel, gateway provider générale, tracing IA et MCP. |
+| `NOT_STARTED` | Runtime agentique goal/run/tools, site public, bêta externe et production opérable. |
+
+`DELIVERED_AND_PROVED` décrit des preuves du repo ; il ne signifie ni SaaS partagé, ni production, ni validation professionnelle. Ritomer est actuellement AI-ready, sans provider réel ni runtime agentique.
+
+## Roadmap canonique résumée
+
+La définition détaillée, les gates et estimations relatives vivent dans `docs/product/product-roadmap.md`.
+
+```text
+M0=CANONICAL_ROADMAP_REBASELINE
+M1=AUTHENTICATED_PRODUCT_SHELL
+M2=AI_RUNTIME_CORE
+M3=AGENTIC_KERNEL_V1
+M4=MAPPING_ASSISTANT_AGENT
+M5=INTERNAL_ALPHA_HARDENING
+M6=MCP_AND_MULTI_PROVIDER
+M7=PUBLIC_WEBSITE_AND_GTM_READINESS
+M8=EXTERNAL_BETA_AND_PRODUCTION_READINESS
+
+CRITICAL_PATH=M0_TO_M5
+FIRST_AI_NATIVE_VERTICAL_SLICE=MAPPING_ASSISTANT_AGENT
+```
+
+M6 reste hors chemin critique. Le site M7 vient après une alpha interne M5 stable et avant la bêta externe M8.
+
+## Décisions structurantes
+
+### Authentification M1
+
+```text
+AUTHENTICATION_SEQUENCE=M1_EARLY
+LOCAL_DEV_AUTH_MODE=LOCAL_TEST_ONLY
+LOCAL_DEV_AUTH_REPLACES_EXTERNAL_IDP_ONLY=YES
+LOCAL_DEV_AUTHORIZATION_BYPASS=NO
+LOCAL_DEV_MUST_USE_REAL_SYNTHETIC_USERS_MEMBERSHIPS_ROLES_AND_TENANTS=YES
+SHARED_INTERNAL_ENVIRONMENT_REQUIRES_REAL_OIDC=YES
+```
+
+Le mode local futur simplifie l'entrée seulement. Il ne contourne jamais les memberships, rôles, contrôles serveur ou l'isolation tenant et n'est pas encore livré.
+
+### IA, agent et MCP
+
+```text
+OPENAI_FIRST=YES
+PROVIDER_ABSTRACTION_FROM_DAY_ONE=YES
+ONE_BOUNDED_AGENT_FIRST=YES
+MULTI_AGENT_SWARM_NOW=NO
+READ_ONLY_TOOLS_BY_DEFAULT=YES
+HUMAN_CONFIRMATION_BEFORE_MUTATION=YES
+DIRECT_MODEL_DATABASE_ACCESS=NO
+
+MCP_STRATEGIC_PRIORITY=CONFIRMED
+MCP_READINESS_FROM_M2_M3=YES
+MCP_RUNTIME_TARGET=M6
+MCP_CLIENT_FIRST=YES
+MCP_SERVER_ONLY_ON_PROVED_EXTERNAL_CLIENT_NEED=YES
+```
+
+MCP signifie `Model Context Protocol`. M0 ne choisit aucune dépendance, n'active aucun provider et n'exécute aucun runtime IA ou MCP.
+
+### Site public
+
+```text
+PRODUCT_FIRST=YES
+PUBLIC_WEBSITE_AFTER_STABLE_INTERNAL_ALPHA=YES
+PUBLIC_WEBSITE_BEFORE_EXTERNAL_BETA=YES
+```
+
+Le site M7 attend une alpha stable, des captures produit réelles, un slice IA-native fonctionnel, un positionnement stable, des formulations sécurité honnêtes et un chemin de démo répétable.
+
+## Invariants techniques V1
+
+- monolithe modulaire Kotlin/Spring Boot ;
+- PostgreSQL et cible Cloud SQL for PostgreSQL ;
+- cible plateforme Google Cloud / Cloud Run en `europe-west6` ;
+- multi-tenancy stricte et audit append-only ;
+- REST first ; GraphQL seulement si un coût réel de composition frontend le justifie ;
+- sorties IA structurées, preuves, evals, observabilité, feature flags et mode dégradé.
 
 ## Principes d'exécution backend
 - le backend reste PostgreSQL-first avec Flyway
@@ -85,46 +137,34 @@ $env:RITOMER_SECURITY_JWT_HMAC_SECRET = [Convert]::ToBase64String($jwtKeyBytes)
 [Array]::Clear($jwtKeyBytes, 0, $jwtKeyBytes.Length)
 ```
 
-## Clôture terminale 043
+## État de séquencement et historique
 
 ```text
+M0_STATUS=DONE_CANONICAL_ROADMAP_REBASELINE
+NEXT_MILESTONE=M1_AUTHENTICATED_PRODUCT_SHELL
+ACTIVE_SPEC=AUCUNE
+ACTIVE_SPEC_COUNT=0
+SPEC_046=ABSENT
+M1_IMPLEMENTATION_AUTHORIZED=NO
+
+042=BACKLOG_OR_HISTORICAL_NOT_EXECUTABLE_AS_CURRENT_RAIL
 043=TERMINALLY_CLOSED_STOPPED_INCONCLUSIVE
 043C_R1_R2=NOT_EXECUTED
+043C_MUST_NOT_RESUME=YES
 PR114=FORENSIC_ONLY
-FOLLOW_ON_PRODUCT_DIRECTION_SELECTED=NO
-CLOSURE_EMITS_NEW_AUTHORIZATION=NO
-ACTIVE_SPEC=AUCUNE
-SPEC_045_STATUS=DONE
-SPEC_045_FINAL_OUTCOME=DOCS_ONLY_RESEARCH_PROTOCOL_DELIVERED
+044=DONE_DOCS_ONLY
+045=DONE_DOCS_ONLY
 EXTERNAL_ACTIVITY_READINESS=NO
 X_01_STATUS=BLOCKING_EXTERNAL_ACTIVITY
 ```
 
-La [spec 043 terminale](specs/done/043-controlled-fiduciary-pilot-readiness-v1.md) conserve les preuves : 043a demeure livré, 043b demeure une simulation locale synthétique validée, et 043c s’est arrêté avec un résultat inconclusif. La préparation externe n’est pas prouvée, PR #114 est fermée sans merge et son implémentation est `NOT_EXECUTABLE`.
+La [spec 042](specs/backlog/042-controlled-ai-mapping-runtime-pilot-v1.md) reste en backlog et n'est pas le rail exécutable de la roadmap actuelle. Ses artefacts historiques utiles restent disponibles, mais aucun ancien candidat provider, retry ou gate ne vaut activation M2.
 
-```text
-PHASE_1_PUBLICATION_AUTHORIZED=NO
-PHASE_1_OUTREACH_AUTHORIZED=NO
-PHASE_1_INTERVIEW_AUTHORIZED=NO
-PHASE_1_COLLECTION_AUTHORIZED=NO
-PHASE_1_EXTERNAL_ACCESS_AUTHORIZED=NO
-PHASE_1_REAL_DATA_AUTHORIZED=NO
-PHASE_1_RUNTIME_AUTHORIZED=NO
-```
+La [spec 043 terminale](specs/done/043-controlled-fiduciary-pilot-readiness-v1.md) conserve les preuves : 043a demeure livré, 043b demeure une simulation locale synthétique validée et 043c s'est arrêté avec un résultat inconclusif. R1/R2 n'ont pas été exécutés, PR #114 reste forensique et la clôture 043 n'a émis aucune autorisation suivante.
 
-```text
-043B_LOCAL_HARNESS_STATUS=LOCAL_SYNTHETIC_DEVELOPMENT_ONLY
-043B_CURRENT_RECIPE=runbooks/local-dev.md
+La [spec 044](specs/done/044-design-partner-readiness-v1.md) et la [spec 045](specs/done/045-design-partner-research-protocol-v1.md) sont `DONE_DOCS_ONLY`. Elles ne prouvent ni recrutement, ni valeur terrain, ni readiness externe et n'autorisent aucune publication, prospection, interview, collecte, donnée réelle ou activité externe.
 
-043C_T00_T15_R1_R2_CURRENT_ACTION=NONE
-043C_MUST_NOT_RESUME=YES
-```
-
-Aucune instruction 043c, T00–T15, R1 ou R2 n’est active. Le harness 043b déjà livré demeure disponible uniquement comme capacité locale synthétique de développement, sous la recette courante `runbooks/local-dev.md`. Son utilisation ne rouvre pas la spec 043, n’autorise ni 043c, ni R1, ni R2, et ne prouve ni préparation externe, ni séparation réelle des fonctions, ni sûreté d’un usage avec des données réelles, ni readiness de production.
-
-La [spec 044](specs/done/044-design-partner-readiness-v1.md) reste livrée et clôturée. La [spec 045](specs/done/045-design-partner-research-protocol-v1.md) est `DONE` : son outcome documentaire docs-only, un protocole versionné et fail-closed, est livré. Aucune spec n'est active. Aucune recherche, collecte, donnée réelle, activité externe ou exécution runtime n'a été exécutée ni autorisée ; `X-01` reste bloquant. La spec ne prouve ni valeur terrain, ni validation de marché, ni conformité Privacy/Legal, ni readiness externe. Publication, prospection, invitation, planification réelle, interview, collecte, création d'accès externe, donnée réelle et capacité runtime restent non autorisées.
-
-Les sections 2 à 22 de la spec Done conservent le protocole substantiel livré et ne constituent aucune autorisation courante. Ce README ne porte aucun statut courant de gate, de review, de décision CPO ni de prochaine action. La route d'une éventuelle suite est déterminée uniquement à partir de records autoritatifs liés à son objet exact. Toute modification matérielle imposerait de reprendre les gates et reviews applicables avant une nouvelle CPO post-code review ou une éventuelle décision de delivery. Aucune spec 046 ni aucune spec suivante n'est créée, réservée ou autorisée.
+M0 ne crée, ne réserve et n'autorise aucune spec 046 ni aucune spec future. M1 reste une prochaine cible documentaire qui exigera son propre scope, ses gates et une autorisation d'implémentation distincte.
 
 ### Snapshot historique 043b pré-clôture
 

@@ -348,7 +348,7 @@ Aucun composant ne passe en production sans :
 - story + test + référence token avant merge
 
 Exception explicite `004` :
-- Storybook est `OUT` pour `specs/active/004-frontend-foundation-design-system.md`
+- Storybook etait `OUT` pour `specs/done/004-frontend-foundation-design-system.md`
 - la preuve remplacante obligatoire est : route `/` de demonstration interne + tests `Vitest + React Testing Library + axe-core` + mapping token explicite
 - aucun package `@storybook/*` ni dossier `.storybook/` n'est autorise dans `004`
 
@@ -361,7 +361,7 @@ Toute nouvelle décision structurante frontend crée ou modifie un ADR dans `doc
 ### Documentation
 - `docs/ui/ui-foundations-v1.md` -> source de vérité UI
 - `docs/adr/0005-front-ui-stack-and-design-system.md` -> décision structurante
-- `specs/active/004-frontend-foundation-design-system.md` -> verite normative de `004`
+- `specs/done/004-frontend-foundation-design-system.md` -> verite normative de `004`
 
 ### Frontend
 - `frontend/src/styles/tokens.css`
@@ -381,4 +381,4 @@ Ce document :
 
 - **À intégrer immédiatement dans le repo comme source de vérité documentaire**
 - **À utiliser dès maintenant comme contrainte de langage produit**
-- **A implementer techniquement via `specs/active/004-frontend-foundation-design-system.md` comme tranche d'enablement frontend differee**
+- **Le socle borne de `004` a ete implemente via `specs/done/004-frontend-foundation-design-system.md` comme tranche d'enablement frontend differee**

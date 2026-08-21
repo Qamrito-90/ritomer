@@ -1,157 +1,245 @@
-# Product roadmap canonique
+# Product roadmap canonique M0–M8
 
-## Role et portee
+## Rôle et portée
 
-Cette roadmap est la source canonique des outcomes, phases, workstreams et gates produit de Ritomer. Elle ne remplace pas la verite executable detaillee de `docs/product/v1-plan.md`, des specs, contrats, runbooks et artefacts de preuve.
+Cette roadmap est l'unique source canonique des outcomes, dépendances, gates et estimations relatives de Ritomer. `docs/product/v1-plan.md` porte la séquence immédiatement exécutable ; les specs, contrats, ADR, runbooks et preuves détaillent les incréments autorisés.
 
-Les phases sont des niveaux de maturite, pas un calendrier. Aucune date, capacite d'equipe ou promesse commerciale n'est inventee. Aucune progression n'est automatique et cette roadmap n'autorise aucun runtime.
+Les milestones sont des niveaux de maturité, pas des dates ni des autorisations. Aucun milestone ne crée, ne numérote ou ne réserve une spec et aucune progression n'est automatique.
 
 ## 1. North Star
 
-Ritomer devient la plateforme suisse de production du closing fiduciaire :
+Ritomer devient la plateforme suisse de production du closing fiduciaire, premium, multi-tenant, evidence-first et IA-native. Un utilisateur authentifié travaille dans son tenant, ouvre un dossier, confie un objectif borné à un agent, observe les outils et preuves, accepte, corrige ou rejette toute proposition engageante, puis retrouve l'exécution déterministe et l'audit.
 
-**balance → closing → contrôles → preuves → workpapers → revue → états → annexe → pack final**
+Le métier garde toujours l'autorité. `IA-native` ne signifie ni chatbot omniprésent, ni autonomie comptable, réglementaire ou financière.
 
-L'outcome vise un closing comprehensible, reproductible, tenant-scoped, evidence-first et pret pour une revue humaine responsable. Le metier garde le controle de toute decision engageante.
-
-Le `pack final` est une cible de maturite. L'export actuellement livre reste un pack audit-ready non statutaire, soumis a revue humaine; il n'est ni un depot officiel ni une promesse de conformite finale.
-
-## 2. Etat reel actuel
-
-| Etat | Verite actuelle | Ce que cet etat ne permet pas de conclure |
-| --- | --- | --- |
-| Livre et prouve | Le coeur deterministe du closing, l'import, le mapping manuel, les controles, previews financieres, workpapers, preuves, revue, export audit-ready et annexe minimale sont livres par les specs Done. Les surfaces cockpit et les smokes internes jusqu'a `041` apportent des preuves de parcours. | Ni production commerciale, ni livrable statutaire final, ni pilote externe. |
-| Local seulement | La demo integree PostgreSQL/JWT/Vite, les donnees demo synthetiques et la simulation offline `mapping-suggestion-v2` sont bornees au local et au POC interne. | Ni authentification SaaS durable, ni hebergement pilote, ni IA provider active. |
-| Documente seulement | La cible Google Cloud, les gates IA/humains, les phases SaaS, les maturites MCP et la préparation documentaire de Phase 1 sont documentés mais non livrés par cette roadmap. La spec `043` est [terminalement close avec un résultat inconclusif](../../specs/done/043-controlled-fiduciary-pilot-readiness-v1.md) : 043a livré, 043b validé localement sur données synthétiques, 043c arrêté, R1/R2 non exécutés. | La documentation ne vaut ni implémentation, ni autorisation, ni preuve d’exploitation. La Phase 0 n’a pas obtenu de résultat complet positif. |
-| Bloque | `042` reste en backlog avec collecte humaine, adjudication, golden set et provider toujours bloques. Toute invitation externe, toute donnee reelle et toute activation IA provider restent sous gates distincts. | Un artefact prepare ou un gate decrit ne vaut pas approbation. |
-| Non commence | Site public exécuté, recrutement effectif de design partners, auth/onboarding SaaS durables, environnement pilote hébergé, pilote externe, première IA métier mesurée et runtime MCP. | Aucun de ces sujets n’est engagé par la clôture terminale de `043`. |
-
-La synthese du present, le plan V1, les specs et les preuves Git gardent leur precedence pour tout fait executable. Cette roadmap rend la direction lisible sans requalifier un artefact local ou documentaire en capacite livree.
-
-### Frontière courante vers la Phase 1
+Le flux métier déterministe reste :
 
 ```text
-NEXT_PRODUCT_DIRECTION=PHASE_1_DESIGN_PARTNER_READINESS
-CURRENT_AUTHORIZATION=DOCS_ONLY_PREPARATION
-PHASE_0_COMPLETE_PASS=NO
-
-PHASE_1_PUBLICATION_AUTHORIZED=NO
-PHASE_1_OUTREACH_AUTHORIZED=NO
-PHASE_1_INTERVIEW_AUTHORIZED=NO
-PHASE_1_COLLECTION_AUTHORIZED=NO
-PHASE_1_EXTERNAL_ACCESS_AUTHORIZED=NO
-PHASE_1_REAL_DATA_AUTHORIZED=NO
-PHASE_1_RUNTIME_AUTHORIZED=NO
+balance → closing → contrôles → preuves → workpapers
+→ revue → états → annexe → pack final
 ```
 
-Cette direction autorise uniquement la préparation documentaire. Elle ne crée ni ne numérote une nouvelle spec et n’autorise aucune publication, prospection, interview, collecte, création d’accès externe, donnée réelle ou capacité runtime.
+Le `pack final` actuel reste un export audit-ready non statutaire soumis à revue humaine ; il n'est ni un dépôt officiel ni une promesse de conformité finale.
 
-## 3. Maturite IA
+## 2. État réel actuel
 
-### Aujourd'hui - AI-ready
-
-Le produit possede un coeur deterministe, une architecture de gateway, des sorties structurees, des evals, des garde-fous evidence-first et une revue humaine. Le mapping assiste livre est no-provider ou offline/local. Ritomer est donc `AI-ready`, pas encore `AI-assisted`.
-
-### Premiere IA metier mesuree - AI-assisted
-
-Ritomer devient `AI-assisted` seulement lorsqu'une premiere capacite IA metier reelle est mesuree sur un perimetre autorise, avec preuves exploitables, sortie structuree stricte, model/prompt/schema pinning, cout et latence mesures, fallback, isolation tenant et decision humaine explicite.
-
-### Plusieurs workflows centraux mesures - AI-native
-
-Ritomer devient `AI-native` lorsque plusieurs workflows centraux utilisent des capacites IA mesurees et gouvernees, tout en conservant un coeur deterministe, le mode degrade, les preuves, l'audit et le human-in-the-loop. `AI-native` ne signifie jamais autonomie sur une decision comptable, reglementaire ou financiere engageante.
-
-## 4. Six workstreams
-
-| Workstream | Etat actuel | Outcome recherche | Prochain gate significatif |
-| --- | --- | --- | --- |
-| Produit fiduciaire | Cœur closing et cockpit internes livrés ; `043a` livré, `043b` validé localement sur données synthétiques et `043c` arrêté inconclusif. R1/R2 et la préparation externe ne sont pas établis. | Un closing complet, clair et reproductible, utilisable puis éprouvé par des fiduciaires sans perdre la preuve ni le contrôle humain. | Préparation documentaire de `PHASE_1_DESIGN_PARTNER_READINESS`, sans activité externe. |
-| SaaS & identite | Tenancy/RBAC et auth locale prouves; onboarding SaaS durable non commence. | Acces heberge securise, onboarding explicite et isolation tenant prouvee pour chaque acteur. | Readiness interne, cadrage auth/identity et revue Security/Privacy. |
-| Trust & operations | Audit, stockage prive et runbooks de base existent; exploitation pilote hebergee non prouvee. | Exploitation observable, recuperable et auditable avec incident, backup/restore, retention et support controles. | Revue d'architecture/operations avant environnement heberge. |
-| Go-to-market | Positionnement produit documente; site public et recrutement non lances. | Recruter des design partners qualifies avec une promesse honnete, un protocole et des gates de participation explicites. | Cadrage CPO et Security/Privacy avant publication ou collecte. |
-| IA-native | AI-ready; `042` en backlog et provider bloque. | Produire un gain metier IA mesure, evidence-first et human-in-the-loop, puis l'etendre a plusieurs workflows centraux. | Nouvelle decision CPO sur `042` et tous les gates IA/provider requis. |
-| Agent Platform & MCP | Maturites documentees; aucun runtime MCP. | Exposer progressivement des capacites Ritomer aux clients IA et agents sans dupliquer ni contourner la logique metier. | Capability Catalog gouverne avant tout serveur ou tool MCP. |
-
-## 5. Phases produit
-
-| Phase | Outcome de phase |
-| --- | --- |
-| Phase 0 - alpha interne reproductible - `043` | Clôturée terminalement avec `STOPPED_INCONCLUSIVE` : 043a livré, 043b validé localement sur données synthétiques, 043c arrêté, R1/R2 non exécutés et aucune préparation externe prouvée. Aucun résultat complet positif de Phase 0 n’est établi. |
-| Phase 1 - Design Partner Readiness | Rendre la proposition de valeur compréhensible et préparer documentairement un recrutement responsable. L’autorisation courante reste `DOCS_ONLY_PREPARATION`. |
-| Phase 2 - authentification et onboarding SaaS | Permettre a des organisations et acteurs autorises d'entrer dans un tenant avec un onboarding securise et auditable. |
-| Phase 3 - environnement pilote heberge | Exploiter un environnement pilote controle, observable, recuperable et tenant-isole. |
-| Phase 4 - pilote fiduciaire synthetique externe | Observer des fiduciaires externes sur un protocole synthetique autorise, sans donnee client reelle. |
-| Phase 5 - hardening pilot-driven et readiness donnees reelles | Corriger les problemes prouves par le pilote et preparer, sans l'autoriser implicitement, le traitement de donnees reelles. |
-| Phase 6 - premiere IA metier assistee et mesuree | Demontrer un gain IA metier reel, borne, mesure, evidence-first et soumis a revue humaine. |
-| Phase 7 - V1 commerciale IA-native | Livrer une V1 commercialement operable dans laquelle plusieurs workflows IA mesures renforcent le closing sans autonomie critique. |
-
-## 6. Travail en parallele
-
-- La préparation de Phase 1 peut uniquement être cadrée dans des documents. Elle ne vaut ni publication, ni outreach, ni interview, ni collecte, ni invitation, ni accès externe, ni donnée réelle, ni runtime.
-- L'authentification SaaS et l'hebergement peuvent etre prepares en architecture et gouvernance, mais leur implementation depend de la readiness interne et de missions explicitement autorisees.
-- `042` reste en backlog avec tous ses artefacts, preuves, états et blocages conservés. La clôture terminale de `043` ne l’approuve, ne le ferme et ne l’active pas.
-- MCP est un workstream transverse, sans lien d’autorisation avec la clôture de `043`.
-
-## 7. Agent Platform & MCP
-
-MCP n'est ni le chat, ni le modele, ni l'orchestrateur. REST reste la surface des applications classiques. MCP sert les clients IA et agents; il expose des capacites controlees, pas une seconde logique metier.
-
-La logique metier reste dans les services Ritomer. Tout tool futur reutilise les controles tenant, RBAC, validation et audit de l'application. Aucune mutation agentique n'est permise sans autorisation, confirmation humaine explicite et audit. `043a` ne livre aucune implementation MCP, aucun serveur, aucun tool, aucun agent et aucun chat.
-
-| Maturite | Outcome et gate |
-| --- | --- |
-| M0 Capability Catalog | Inventorier les capacites candidates, contrats, donnees, droits, audits, risques et proprietaires; aucun serveur n'est livre. |
-| M1 MCP local read-only | Exposer localement un sous-ensemble read-only, tenant-scope et audite, apres revue du catalog et tests d'isolation. |
-| M2 Copilot Ritomer read-only | Permettre une exploration evidence-first dans un copilote Ritomer sans mutation, avec sources et mode degrade. |
-| M3 outils de brouillon | Preparer notes ou actions non engageantes; aucune application automatique et toute action critique reste a confirmer. |
-| M4 MCP distant prive | Exposer un MCP authentifie, prive, tenant-scoped, observable et revocable pour des clients IA autorises. |
-| M5 workflows agentiques controles | Orchestrer des etapes bornees avec budgets, politiques, checkpoints humains, audit et arret fail-closed. |
-
-L'etat courant du workstream est documentaire, avant M0 livre. Les niveaux M0 a M5 sont une echelle de maturite, pas un engagement d'implementation.
-
-## 8. Criteres de passage
-
-| Phase | Objectif | Preuve de sortie | Gate | Risques principaux | Ce qui reste interdit |
-| --- | --- | --- | --- | --- | --- |
-| 0 | Alpha interne reproductible. | Clôture terminale documentée : fixtures et preuve 043a, simulation locale 043b, arrêt inconclusif 043c, R1/R2 non exécutés et PR #114 forensique. | Décision terminale enregistrée ; aucune reprise autorisée. | Faux sentiment de readiness, surinterprétation de la simulation locale. | Fiduciaire externe, observation participante réelle, donnée réelle, reprise 043c, spec suivante automatique. |
-| 1 | Design Partner Readiness en préparation documentaire. | Message, cible, protocole de contact, consentement et stop procedure préparés dans une future mission explicitement autorisée. | Nouvelle autorisation avant toute activité autre que docs-only ; CPO et Security/Privacy avant collecte. | Surpromesse, collecte prématurée, mauvais design partners. | Publication, outreach, interview, collecte, accès externe, donnée réelle et runtime. |
-| 2 | Auth et onboarding SaaS securises. | Parcours d'acces, tenant membership, RBAC, recuperation et audit testes. | CTO, Security/Privacy et tests cross-tenant bloquants. | Account takeover, confusion tenant, droits excessifs. | Bypass auth, role porte par une source non autoritative, acces cross-tenant non trace. |
-| 3 | Environnement pilote heberge operable. | Deploiement/rollback, monitoring, incident, backup/restore, secrets et isolation prouves. | Architecture, operations, Security/Privacy et readiness pilote. | Perte de donnees, indisponibilite, cout, mauvaise region ou retention. | Production commerciale, donnee reelle ou ouverture externe sans gate de phase. |
-| 4 | Pilote externe synthetique. | Sessions autorisees, observations minimisees, preuves, incidents et decision de sortie consolides. | Nouvelle decision CPO, gate fiduciaire, Security/Privacy et protocole participant. | Donnee personnelle, biais d'observation, confusion avec production. | Donnee client reelle, acte statutaire, invitation hors cohorte approuvee. |
-| 5 | Hardening guide par le pilote et readiness reelle. | Problemes prioritaires corriges, securite/tenancy/ops revalidees, politique data approuvee. | CPO, CTO, Security/Privacy, legal/compliance selon donnees et Expert Board si requis. | Generalisation prematuree, dette critique, exposition de donnees. | Donnee reelle tant que son gate propre n'est pas signe; contournement audit/tenant. |
-| 6 | Premiere IA metier mesuree. | Evals autoritatives, gain metier mesure, structured output, preuves, cout/latence, fallback et revue humaine. | Gates IA, CPO, CTO, Security/Privacy, provider/network et gouvernance metier. | Hallucination, fuite, cout, biais, automatisation silencieuse. | Auto-apply, decision critique autonome, provider non autorise, donnee hors whitelist. |
-| 7 | V1 commerciale IA-native operable. | Plusieurs workflows centraux mesures, SLO/ops/support, securite, audit et valeur client prouves. | Readiness commerciale, operations, security, product et governance reviews. | Fiabilite a l'echelle, support, conformite, economie unitaire. | Autonomie critique, promesse statutaire non prouvee, degradation sans fallback. |
-
-Le passage d'une phase demande toutes ses preuves et gates. Un document, une implementation locale ou un seul check vert ne suffit jamais a lui seul.
-
-La clôture de Phase 0 est un arrêt terminal inconclusif, pas un passage de gate ni une validation complète de la phase. Les détails forensiques de PR #114 restent dans la [spec 043 terminale](../../specs/done/043-controlled-fiduciary-pilot-readiness-v1.md).
-
-## 9. Portefeuille indicatif
-
-Tous les sujets ci-dessous sont `CANDIDATE / NON_ENGAGED`. Ce portefeuille de futures specs candidates ne cree, ne priorise et n'autorise aucune spec :
-
-| Candidat | Phase/workstream pressenti | Outcome a prouver avant engagement |
+| Statut | Vérité actuelle | Limite |
 | --- | --- | --- |
-| Site public et design partners | Phase 1 / Go-to-market | Proposition de valeur et recrutement responsables. |
-| Authentification et onboarding SaaS | Phase 2 / SaaS & identite | Acces organisationnel securise et tenant-isole. |
-| Environnement pilote heberge | Phase 3 / Trust & operations | Exploitation pilote recuperable et observable. |
-| Pilote fiduciaire externe synthetique | Phase 4 / Produit fiduciaire | Utilisabilite externe prouvee sans donnees reelles. |
-| Hardening et readiness donnees reelles | Phase 5 / Produit fiduciaire + Trust | Risques pilotes corriges et gates data explicites. |
-| Premiere IA metier mesuree | Phase 6 / IA-native | Gain mesure sans perte de preuve ni controle humain. |
-| Capability Catalog et MCP local read-only | Transverse / Agent Platform & MCP | Capacites IA-client exposees sans duplication metier. |
-| Readiness commerciale | Phase 7 / Tous workstreams | Produit, operations, support et economie coherents. |
+| `DELIVERED_AND_PROVED` | Cœur déterministe du closing, identity et memberships applicatifs, tenancy/RBAC, import, mapping manuel, contrôles, previews, workpapers, documents, export, annexe minimale, audit append-only et mapping assisté no-provider. | Preuves de repo et de delivery, sans hébergement SaaS ni validation professionnelle. |
+| `LOCAL_OR_SYNTHETIC_ONLY` | Démo PostgreSQL/JWT/Vite, shell courant, fixtures et simulation offline `mapping-suggestion-v2`. | Pas de login/session SaaS durables, d'environnement partagé ni de donnée réelle. |
+| `DOCUMENTED_NOT_IMPLEMENTED` | Cible Cloud Run/Cloud SQL, provider gateway réel, tracing/coûts IA, MCP client/serveur et préparation design-partner. | La documentation ne vaut ni runtime, ni autorisation, ni preuve d'exploitation. |
+| `NOT_STARTED` | Goal/run agentique, registre d'outils exécutable, site public, bêta externe, support et production opérable. | Aucun de ces sujets n'est livré ou engagé par M0. |
 
-`042` est une spec existante en backlog, pas une nouvelle candidate. Aucune spec `044` ou suivante n'est creee ou engagee par cette roadmap. Aucun numero futur n'est reserve.
+Ritomer est `AI-ready, not yet AI-native in runtime`. Aucun provider réel, appel modèle réussi, agent runtime ou runtime MCP n'est actif.
 
-## 10. Gouvernance
+## 3. Séquence canonique
 
-Chaque future spec doit declarer explicitement :
+```text
+M0=CANONICAL_ROADMAP_REBASELINE
+M1=AUTHENTICATED_PRODUCT_SHELL
+M2=AI_RUNTIME_CORE
+M3=AGENTIC_KERNEL_V1
+M4=MAPPING_ASSISTANT_AGENT
+M5=INTERNAL_ALPHA_HARDENING
+M6=MCP_AND_MULTI_PROVIDER
+M7=PUBLIC_WEBSITE_AND_GTM_READINESS
+M8=EXTERNAL_BETA_AND_PRODUCTION_READINESS
 
-- la phase roadmap;
-- le workstream principal et les workstreams de support;
-- l'outcome utilisateur ou operationnel;
-- la preuve de sortie attendue;
-- le gate qu'elle cherche a debloquer.
+CRITICAL_PATH=M0_TO_M5
+FIRST_AI_NATIVE_VERTICAL_SLICE=MAPPING_ASSISTANT_AGENT
+```
 
-Elle doit aussi borner surface, risque, donnees, tenancy, audit, human-in-the-loop, mode degrade et stop conditions selon son contexte.
+Le chemin critique produit s'arrête à l'alpha interne stable M5. M6 reste hors chemin critique et n'est déclenché que par un besoin d'interopérabilité ou de portabilité prouvé. M7 suit M5 après son gate produit ; M8 suit la readiness site et opérations.
 
-Aucune spec n'est creee automatiquement. Une phase n'est ni une branche, ni une spec, ni une promesse de livraison. Tout engagement exige une decision explicite, une spec reviewable et les gates applicables.
+## 4. Milestones
+
+### M0 — Canonical Roadmap Rebaseline
+
+- **Outcome :** une seule vérité M0–M8 et aucun ancien rail présenté comme exécutable.
+- **Démo de sortie :** état réel, North Star, chemin critique, premier slice et gates se lisent sans contradiction ; le checker 042 ne contrôle que ses invariants historiques 042.
+- **Dépendances majeures :** décision owner de roadmap, baseline propre, zéro spec active et statuts 042–045 établis.
+- **Hors-scope :** code produit, auth, provider, runtime, nouvelle infrastructure, activité externe, Word et visions.
+- **Gate :** cohérence README/roadmap/plan/cadrages, liens et checks documentaires verts, aucune spec 046.
+- **Estimation relative :** 1–2 semaines ; maximum 1 incrément documentaire/checker.
+
+### M1 — Authenticated Product Shell
+
+- **Outcome :** un utilisateur authentifié entre dans son tenant, voit son rôle, reprend son travail, navigue et se déconnecte avec une session sûre.
+- **Démo de sortie :** login → accueil → dossiers → workspace → paramètres → logout ; mauvais tenant, membership absent et session expirée sont refusés clairement et audités.
+- **Dépendances majeures :** M0 terminé ; IdP, modèle de session, callbacks et threat model décidés.
+- **Hors-scope :** onboarding self-service riche, billing, MFA entreprise généralisée, recherche universelle, mobile 11/10 et utilisateur externe.
+- **Gate :** OIDC réel en environnement partagé ; membership Ritomer autoritaire ; session, logout, révocation, CSRF et isolation tenant prouvés.
+- **Estimation relative :** 4–6 semaines ; maximum 3 specs bornées.
+
+### M2 — AI Runtime Core
+
+- **Outcome :** un provider réel produit une sortie structurée, observable et désactivable sur données synthétiques, sans mutation.
+- **Démo de sortie :** appel backend avec modèle, prompt et schéma pinnés ; preuves, usage, coût et latence visibles ; timeout ou schéma invalide échoue explicitement ; mode manuel disponible provider coupé.
+- **Dépendances majeures :** M1 stable ; posture provider/data/region/retention/logging ; dataset synthétique ; secrets et kill switch prêts.
+- **Hors-scope :** orchestration agent, mutation, second provider actif, sélection provider par tenant, MCP runtime et données réelles.
+- **Gate :** comparer Spring AI et le SDK Java officiel derrière le même port interne, puis retenir seulement la solution qui préserve strict schema, pinning, data controls, approbations et traces redacted.
+- **Estimation relative :** 3–5 semaines ; maximum 2 specs bornées.
+
+### M3 — Agentic Kernel V1
+
+- **Outcome :** objectifs, runs, étapes, outils, budgets, approbations et audit sont persistés et lisibles.
+- **Démo de sortie :** un run borné appelle des outils read-only, passe en attente d'approbation, accepte le rejet, le cancel et le timeout, puis expose son historique.
+- **Dépendances majeures :** M2 stable ; schémas run/tool/approval, permissions et threat model des outils décidés.
+- **Hors-scope :** swarm, planification ouverte, runtime MCP, provider routing et mutation comptable autonome.
+- **Gate :** toute mutation reste impossible avant une décision humaine liée au même tenant, actor, rôle, run, proposition et version.
+- **Estimation relative :** 3–5 semaines ; maximum 2 specs bornées.
+
+### M4 — Mapping Assistant Agent
+
+- **Outcome :** le premier slice IA-native exécute le parcours mapping complet sans remplacer l'autorité humaine.
+- **Démo de sortie :** objectif → outils de lecture → proposition sourcée ou abstention → accept/correct/reject → mapping déterministe → vérification et audit liés au run.
+- **Dépendances majeures :** M1–M3 verts ; dataset et taxonomie requalifiés ; seuils d'eval, règles de stale/conflict et UX de décision définis.
+- **Hors-scope :** auto-apply, bulk autonome, donnée réelle, readiness globale, workpaper review, multi-agent et MCP.
+- **Gate :** preuve ou abstention pour chaque proposition, décisions honorées exactement, stale et double-submit maîtrisés, zéro cross-tenant, fallback manuel.
+- **Estimation relative :** 3–5 semaines ; maximum 2 specs bornées.
+
+### M5 — Internal Alpha Hardening
+
+- **Outcome :** l'alpha authentifiée est partagée en interne, stable, surveillée, récupérable et répétable sans session de debug.
+- **Démo de sortie :** dix runs synthétiques consécutifs sur deux tenants/deux rôles, pannes provider, session expiry, rollback, restore et trois parcours owner de session fraîche.
+- **Dépendances majeures :** M4 accepté ; ownership ops, environnement interne, threat model et politique de rétention synthétique.
+- **Hors-scope :** utilisateur externe, production, SLA commercial, billing, données réelles et site public.
+- **Gate :** zéro fuite tenant, décisions honorées, caps et kill switch appliqués, monitoring, incident, rollback, backup/restore et mode dégradé testés.
+- **Estimation relative :** 4–6 semaines ; maximum 3 specs bornées.
+
+### M6 — MCP and Multi-provider
+
+- **Outcome :** Ritomer consomme une capacité externe ou qualifie un second provider seulement parce qu'un besoin concret le justifie.
+- **Démo de sortie :** client MCP read-only authentifié sur une ressource ou un outil approuvé, ou même eval exécutée sur un second provider ; aucun serveur Ritomer sans client externe identifié.
+- **Dépendances majeures :** abstraction provider M2, registre d'outils M3, au moins M4 et besoin documenté.
+- **Hors-scope :** marketplace, serveur public par défaut, outil externe mutating sans confirmation, sélection provider libre et swarm.
+- **Gate :** isolation, allowlist, auth, egress, revocation, timeout, audit et parity d'eval prouvés ; aucun fallback silencieux.
+- **Estimation relative :** 4–7 semaines ; maximum 3 specs séparées par besoin.
+
+### M7 — Public Website and GTM Readiness
+
+- **Outcome :** un site public honnête présente le produit réellement disponible et permet un contact borné.
+- **Démo de sortie :** pages produit, IA, sécurité et cas d'usage avec captures M5 réelles, claims vérifiables, responsive, accessibilité et privacy.
+- **Dépendances majeures :** alpha M5 stable, positionnement et claims stables, provenance des captures et autorisations publication/collecte exactes.
+- **Hors-scope :** faux dashboard, témoignage inventé, promesse de conformité ou de gain, onboarding bêta automatique et données réelles.
+- **Gate :** les six conditions de la section site public sont prouvées ; légal/privacy et rollback publication sont prêts.
+- **Estimation relative :** 3–5 semaines ; maximum 2 specs bornées.
+
+### M8 — External Beta and Production Readiness
+
+- **Outcome :** une cohorte externe bornée utilise Ritomer avec onboarding, support, sécurité, opérations, récupération et arrêt contrôlé.
+- **Démo de sortie :** tenant bêta provisionné, parcours auth/closing/agent, support/incident, lifecycle data, rollback/restore et offboarding sans claim statutaire.
+- **Dépendances majeures :** M5 et M7 réussis ; périmètre, participants, données, obligations et runbooks autorisés.
+- **Hors-scope :** scale enterprise, conformité certifiée, autonomie comptable, expansion pays et billing complexe sans besoin prouvé.
+- **Gate :** sécurité, tenant/data lifecycle, support, recovery et métriques valeur/sûreté permettent une décision de production exacte et séparée.
+- **Estimation relative :** 6–10 semaines ; maximum 4 specs bornées.
+
+## 5. Travail parallèle sûr et travail différé
+
+Travail préparatoire parallèle permis sans activation : évaluation IdP et threat model ; fixtures et evals synthétiques ; exigences provider/data ; architecture de contenu et marque sans publication ; exigences secrets, incident, rollback, retention et support.
+
+```text
+SAFE_PARALLEL_WORK=IDENTITY_AND_THREAT_MODEL; SYNTHETIC_DATASET_AND_EVALS; BRAND_AND_CONTENT_ARCHITECTURE; LEGAL_PRIVACY_REQUIREMENTS; OPS_RUNBOOK_DRAFTS
+DEFERRED_WORK=SECOND_ACTIVE_PROVIDER; TENANT_PROVIDER_CHOICE; MCP_SERVER; MULTI_AGENT_SWARM; UNIVERSAL_SEARCH; DEEP_MOBILE; BILLING; GRAPHQL; GENERALIZED_RLS; PYTHON_AI_SERVICE; FINAL_STATUTORY_OUTPUTS
+```
+
+## 6. Décisions structurantes
+
+### Authentification
+
+```text
+AUTHENTICATION_SEQUENCE=M1_EARLY
+LOCAL_DEV_AUTH_MODE=LOCAL_TEST_ONLY
+LOCAL_DEV_AUTH_REPLACES_EXTERNAL_IDP_ONLY=YES
+LOCAL_DEV_AUTHORIZATION_BYPASS=NO
+LOCAL_DEV_MUST_USE_REAL_SYNTHETIC_USERS_MEMBERSHIPS_ROLES_AND_TENANTS=YES
+SHARED_INTERNAL_ENVIRONMENT_REQUIRES_REAL_OIDC=YES
+```
+
+Le mode local simplifie seulement l'entrée. Claims, memberships, rôles, autorisations serveur et tenant-scoping suivent les mêmes frontières que l'OIDC réel.
+
+### IA-native et agentique
+
+```text
+OPENAI_FIRST=YES
+PROVIDER_ABSTRACTION_FROM_DAY_ONE=YES
+ONE_BOUNDED_AGENT_FIRST=YES
+MULTI_AGENT_SWARM_NOW=NO
+READ_ONLY_TOOLS_BY_DEFAULT=YES
+HUMAN_CONFIRMATION_BEFORE_MUTATION=YES
+DIRECT_MODEL_DATABASE_ACCESS=NO
+```
+
+Le modèle n'a aucune autorité métier et n'accède jamais directement aux repositories ou à la base. Une approbation humaine déclenche une commande déterministe idempotente via la couche application.
+
+### Model Context Protocol
+
+MCP signifie `Model Context Protocol`. C'est un protocole host–client–server pour resources, prompts et tools ; ce n'est ni un modèle, ni un agent, ni un orchestrateur.
+
+```text
+MCP_STRATEGIC_PRIORITY=CONFIRMED
+MCP_READINESS_FROM_M2_M3=YES
+INTERNAL_TOOL_REGISTRY_MCP_ADAPTABLE=YES
+MCP_RUNTIME_TARGET=M6
+MCP_CLIENT_FIRST=YES
+MCP_SERVER_ONLY_ON_PROVED_EXTERNAL_CLIENT_NEED=YES
+```
+
+```text
+INTERNAL_TOOL_REGISTRY
+→ MCP_CAPABILITY_CATALOG
+→ MCP_CLIENT_READ_ONLY
+→ AUTHORIZED_EXTERNAL_RESOURCES_AND_TOOLS
+→ MCP_SERVER_ONLY_IF_A_REAL_EXTERNAL_CLIENT_NEED_EXISTS
+```
+
+`MCP_CAPABILITY_CATALOG` est un terme de gouvernance Ritomer, pas une primitive du protocole. M2/M3 préparent des ports, schémas et outils adaptables ; aucun runtime MCP n'arrive avant M6.
+
+### Site public
+
+```text
+PRODUCT_FIRST=YES
+PUBLIC_WEBSITE_AFTER_STABLE_INTERNAL_ALPHA=YES
+PUBLIC_WEBSITE_BEFORE_EXTERNAL_BETA=YES
+
+PUBLIC_WEBSITE_GATE_REQUIRES_STABLE_INTERNAL_ALPHA=YES
+PUBLIC_WEBSITE_GATE_REQUIRES_REAL_PRODUCT_SCREENSHOTS=YES
+PUBLIC_WEBSITE_GATE_REQUIRES_ONE_AI_NATIVE_VERTICAL_SLICE_WORKING=YES
+PUBLIC_WEBSITE_GATE_REQUIRES_POSITIONING_STABLE=YES
+PUBLIC_WEBSITE_GATE_REQUIRES_SECURITY_WORDING_HONEST=YES
+PUBLIC_WEBSITE_GATE_REQUIRES_DEMO_PATH_REPEATABLE=YES
+```
+
+Ces six marqueurs décrivent les prérequis du gate avant le build/publication M7 ; ils ne décrivent pas l'état actuel du produit.
+
+## 7. Architecture et confiance préservées
+
+```text
+MODULAR_MONOLITH_KOTLIN_SPRING_BOOT=PRESERVE
+REST_FIRST=PRESERVE
+POSTGRESQL_CLOUD_SQL=PRESERVE
+CLOUD_RUN=PRESERVE
+TENANT_SCOPING=PRESERVE
+AUDIT_APPEND_ONLY=PRESERVE
+NO_PREMATURE_MICROSERVICE=PRESERVE
+```
+
+M0 n'introduit ni microservice, ni GraphQL, ni RLS généralisée, ni nouvelle infrastructure. Les providers, runs et outils futurs restent dans le monolithe modulaire derrière des ports explicites tant qu'aucun trigger réel ne justifie une autre architecture.
+
+## 8. Statuts historiques et gouvernance
+
+```text
+042=BACKLOG_OR_HISTORICAL_NOT_EXECUTABLE_AS_CURRENT_RAIL
+043=STOPPED_INCONCLUSIVE
+044=DONE_DOCS_ONLY
+045=DONE_DOCS_ONLY
+ACTIVE_SPEC=AUCUNE
+ACTIVE_SPEC_COUNT=0
+SPEC_046=ABSENT
+```
+
+- La [spec 042](../../specs/backlog/042-controlled-ai-mapping-runtime-pilot-v1.md) conserve ses artefacts et blocages historiques ; elle n'est ni reprise ni utilisée comme rail actuel.
+- La [spec 043](../../specs/done/043-controlled-fiduciary-pilot-readiness-v1.md) reste terminalement close avec `STOPPED_INCONCLUSIVE / SUCCESSFULLY_DELIVERED=NO`; 043c ne reprend pas et R1/R2 n'ont pas été exécutés.
+- Les specs [044](../../specs/done/044-design-partner-readiness-v1.md) et [045](../../specs/done/045-design-partner-research-protocol-v1.md) restent des livraisons documentaires Done, sans activité externe.
+
+Une future spec doit porter un outcome démontrable de 1–2 semaines, un file-set fermé, ses risques, tests, gates et stop conditions. Une seule spec peut être active. Aucun numéro futur n'est réservé et M1 ne dispose d'aucune autorisation d'implémentation par cette roadmap.

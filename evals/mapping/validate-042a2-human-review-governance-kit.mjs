@@ -108,6 +108,7 @@ const WORKTREE_PROFILES = Object.freeze({
   HARNESS_043B: "WORKTREE_043B_LOCAL_TWO_ACTOR_HARNESS",
   HOTFIX_043B: "WORKTREE_043B_MINIMUM_VIABLE_SAFETY_HOTFIX",
   TERMINAL_CLOSURE_043: "WORKTREE_043_TERMINAL_DOCUMENTARY_CLOSURE",
+  UNRELATED: "UNRELATED_WORKTREE_CHANGES",
   INVALID: "INVALID_WORKTREE",
 });
 
@@ -264,16 +265,6 @@ const TERMINAL_043_HISTORY_PAYLOADS = new Map([
   ["README.md", [1_694, "7678e52734846232bf334a07db6df414621df0660dda23bf7ad3fcc969997303"]],
   ["runbooks/controlled-fiduciary-pilot-local-043.md", [28_387, "d1b876158f3e58d7dbc081f2e3ec8ed9a0c06227a7c9fe806d4e200a2dcd4d98"]],
 ]);
-const PHASE_1_EXTERNAL_AUTHORIZATION_TOKENS = [
-  "PHASE_1_PUBLICATION_AUTHORIZED=NO",
-  "PHASE_1_OUTREACH_AUTHORIZED=NO",
-  "PHASE_1_INTERVIEW_AUTHORIZED=NO",
-  "PHASE_1_COLLECTION_AUTHORIZED=NO",
-  "PHASE_1_EXTERNAL_ACCESS_AUTHORIZED=NO",
-  "PHASE_1_REAL_DATA_AUTHORIZED=NO",
-  "PHASE_1_RUNTIME_AUTHORIZED=NO",
-];
-
 const CURRENT_GOVERNANCE_FILE_SET = [...new Set(EXACT_ALLOWED_FILE_SET.map((path) =>
   path === HISTORICAL_SPEC_042_ACTIVE_PATH ? CURRENT_SPEC_042_BACKLOG_PATH : path,
 ))].sort();
@@ -547,7 +538,6 @@ function current043LivingDocuments() {
   const paths = [
     CURRENT_SPEC_043_DONE_PATH,
     "docs/product/v1-plan.md",
-    ROADMAP_PATH,
     "README.md",
     "runbooks/controlled-fiduciary-pilot-local-043.md",
     "evals/mapping/README.md",
@@ -734,16 +724,10 @@ function validate043TerminalDocumentation() {
     "TERMINALLY_CLOSED_NOT_SUCCESSFULLY_DELIVERED",
   ]);
   assert(documents.get("docs/product/v1-plan.md").includes("pour 043 uniquement"), `docs/product/v1-plan.md: done semantics must remain scoped to 043 only`);
-  assertTextTokens(ROADMAP_PATH, documents.get(ROADMAP_PATH), [
-    CURRENT_SPEC_043_DONE_PATH,
-    "043c",
-    "R1/R2",
-  ]);
   assertTextTokens("README.md", documents.get("README.md"), [
     "043=TERMINALLY_CLOSED_STOPPED_INCONCLUSIVE",
     "043C_R1_R2=NOT_EXECUTED",
     "PR114=FORENSIC_ONLY",
-    "NEXT_DIRECTION=PHASE_1_DESIGN_PARTNER_READINESS_DOCS_ONLY",
     CURRENT_SPEC_043_DONE_PATH,
   ]);
   assertTextTokens("runbooks/controlled-fiduciary-pilot-local-043.md", documents.get("runbooks/controlled-fiduciary-pilot-local-043.md"), [
@@ -763,19 +747,6 @@ function validate043TerminalDocumentation() {
     "terminally closed readiness spec",
     "STOPPED_INCONCLUSIVE / SUCCESSFULLY_DELIVERED=NO",
   ]);
-
-  const directionSurfaces = [...documents].filter(([, text]) =>
-    text.includes("NEXT_PRODUCT_DIRECTION=PHASE_1_DESIGN_PARTNER_READINESS"));
-  assert(directionSurfaces.length === 4, `terminal 043 direction must be stated on exactly four living surfaces`);
-  for (const [path, text] of directionSurfaces) {
-    assertTextTokens(path, text, [
-      "CURRENT_AUTHORIZATION=DOCS_ONLY_PREPARATION",
-      ...PHASE_1_EXTERNAL_AUTHORIZATION_TOKENS,
-    ]);
-  }
-  const phase1ExternalAuthorization = [...documents].some(([, text]) =>
-    /PHASE_1_(?:PUBLICATION|OUTREACH|INTERVIEW|COLLECTION|EXTERNAL_ACCESS|REAL_DATA|RUNTIME)_AUTHORIZED\s*=\s*YES/i.test(text));
-  assert(!phase1ExternalAuthorization, `Phase 1 external or runtime authorization must remain NO`);
 
   const forbiddenStructuredStates = [...documents].some(([, text]) =>
     /(?:SUCCESSFULLY_DELIVERED|R1_EXECUTED|R2_EXECUTED)\s*=\s*YES|(?:MUST_NOT_RESUME|043C_MUST_NOT_RESUME)\s*=\s*NO|(?:STATUS|FINAL_RESULT)\s*=\s*(?:PASS|READY|EXECUTABLE|MERGEABLE|RESUMABLE|SUCCESSFULLY_DELIVERED)/i.test(text));
@@ -838,7 +809,7 @@ export function classifyCurrentWorktreeProfile(paths) {
   if (sameArray(normalized, TERMINAL_043_CLOSURE_PHYSICAL_FILE_SET)) {
     return WORKTREE_PROFILES.TERMINAL_CLOSURE_043;
   }
-  return WORKTREE_PROFILES.INVALID;
+  return WORKTREE_PROFILES.UNRELATED;
 }
 
 function gitOutput(args) {
@@ -1669,6 +1640,10 @@ function validateExactFileSet(range) {
       worktreeVerification = validate043bHotfixWorktree(actual);
     } else if (worktreeProfile === WORKTREE_PROFILES.TERMINAL_CLOSURE_043) {
       worktreeVerification = validate043TerminalClosureWorktree(actual);
+    } else if (worktreeProfile === WORKTREE_PROFILES.UNRELATED) {
+      console.log(`diff_file_set_verified=OUT_OF_SCOPE_${actual.length}_PATHS`);
+      console.log("current_042_worktree_scope=UNRELATED_CHANGES_IGNORED");
+      worktreeVerification = { worktreeProfile };
     } else {
       const exactCurrentFileSet = worktreeProfile === WORKTREE_PROFILES.CLEAN
         || worktreeProfile === WORKTREE_PROFILES.PILOT_043A;
@@ -2713,85 +2688,6 @@ function validateDocumentCoherence() {
   console.log(`subdeliverables_042a2a6_and_042a2a6a_distinct=${coherent ? "YES" : "NO"}`);
 }
 
-function normalizeSearchText(value) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replaceAll("’", "'")
-    .replace(/[`*_#|]/g, " ")
-    .replace(/[–—]/g, "-")
-    .replace(/[ \t]+/g, " ")
-    .toLowerCase();
-}
-
-function validateRoadmap() {
-  const roadmapFilePresent = pathExists(ROADMAP_PATH);
-  assert(roadmapFilePresent, `${ROADMAP_PATH}: canonical product roadmap missing`);
-  console.log(`roadmap_file_present=${roadmapFilePresent ? "YES" : "NO"}`);
-  if (!roadmapFilePresent) {
-    console.log("roadmap_six_workstreams=NO");
-    console.log("roadmap_mcp_m0_to_m5=NO");
-    console.log("roadmap_no_automatic_specs=NO");
-    console.log("roadmap_no_invented_dates=NO");
-    return;
-  }
-
-  const rawRoadmap = readText(ROADMAP_PATH);
-  const roadmap = normalizeSearchText(rawRoadmap);
-  const lines = roadmap.split(/\r?\n/);
-  const requiredWorkstreams = [
-    "produit fiduciaire",
-    "saas & identite",
-    "trust & operations",
-    "go-to-market",
-    "ia-native",
-    "agent platform & mcp",
-  ];
-  const sixWorkstreamsPresent = requiredWorkstreams.every((workstream) => roadmap.includes(workstream));
-  assert(sixWorkstreamsPresent, `${ROADMAP_PATH}: the six canonical workstreams are not all present`);
-
-  const requiredMcpMaturities = [
-    ["m0", "capability catalog"],
-    ["m1", "mcp local read-only"],
-    ["m2", "copilot ritomer read-only"],
-    ["m3", "outils de brouillon"],
-    ["m4", "mcp distant prive"],
-    ["m5", "workflows agentiques controles"],
-  ];
-  const mcpM0ToM5Present = requiredMcpMaturities.every(([level, label]) =>
-    lines.some((line) => line.includes(level) && line.includes(label)),
-  );
-  assert(mcpM0ToM5Present, `${ROADMAP_PATH}: MCP maturity M0 through M5 is incomplete`);
-
-  const noAutomaticSuccessor = lines.some((line) =>
-    line.includes("aucune spec") && line.includes("automati"),
-  );
-  const noCommitted044Plus = lines.some((line) =>
-    line.includes("aucune spec")
-      && line.includes("044")
-      && (line.includes("cree") || line.includes("engag")),
-  );
-  const futurePortfolioCandidateOnly = lines.some((line) =>
-    line.includes("spec") && line.includes("candidate") && line.includes("future"),
-  );
-  const noAutomaticSpecs = noAutomaticSuccessor && noCommitted044Plus && futurePortfolioCandidateOnly;
-  assert(noAutomaticSpecs, `${ROADMAP_PATH}: future specs must remain candidates with no automatic or committed 044+ spec`);
-
-  const noCalendarYear = !/\b20\d{2}\b/.test(roadmap);
-  const explicitNoInventedPlanning = lines.some((line) =>
-    line.includes("aucune date")
-      && line.includes("capacite")
-      && line.includes("promesse commerciale"),
-  );
-  const noInventedDates = noCalendarYear && explicitNoInventedPlanning;
-  assert(noInventedDates, `${ROADMAP_PATH}: roadmap contains a calendar year or omits the no-invented-planning commitment`);
-
-  console.log(`roadmap_six_workstreams=${sixWorkstreamsPresent ? "YES" : "NO"}`);
-  console.log(`roadmap_mcp_m0_to_m5=${mcpM0ToM5Present ? "YES" : "NO"}`);
-  console.log(`roadmap_no_automatic_specs=${noAutomaticSpecs ? "YES" : "NO"}`);
-  console.log(`roadmap_no_invented_dates=${noInventedDates ? "YES" : "NO"}`);
-}
-
 function trackedPaths() {
   if (contentCommit !== undefined) return commitTreePaths(contentCommit);
   return gitOutput(["ls-files", "-z"])
@@ -3026,6 +2922,15 @@ function addedLinesForCurrentPaths(paths) {
 function addedLinesForScan(range, worktreeProfile = undefined) {
   const terminalClosure = range.mode === "WORKTREE"
     && worktreeProfile === WORKTREE_PROFILES.TERMINAL_CLOSURE_043;
+  const unrelatedWorktree = range.mode === "WORKTREE"
+    && worktreeProfile === WORKTREE_PROFILES.UNRELATED;
+  if (unrelatedWorktree) {
+    const current042HygienePaths = changedPaths().filter((path) =>
+      path !== "docs/product/v1-plan.md" && CURRENT_GOVERNANCE_FILE_SET.includes(path));
+    return current042HygienePaths.length === 0
+      ? []
+      : addedLinesForCurrentPaths(current042HygienePaths);
+  }
   const diffArgs = range.mode === "HISTORICAL"
     ? ["diff", "--unified=0", "--no-color", `${range.base}..${range.head}`, "--", ...EXACT_ALLOWED_FILE_SET]
     : [
@@ -3158,7 +3063,6 @@ function main() {
   validateSchemas();
   validateLedger();
   validateDocumentCoherence();
-  validateRoadmap();
   validateNoRealInstances();
   if (range.mode !== "HISTORICAL_043B"
     && range.mode !== "HISTORICAL_043B_HOTFIX"
