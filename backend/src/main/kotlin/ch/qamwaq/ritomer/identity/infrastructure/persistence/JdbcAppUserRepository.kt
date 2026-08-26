@@ -26,6 +26,19 @@ class JdbcAppUserRepository(
       .optional()
       .orElse(null)
 
+  override fun findById(actorId: UUID): AppUser? =
+    jdbcClient.sql(
+      """
+      select id, external_subject, email, display_name, status
+      from app_user
+      where id = :actorId
+      """
+    )
+      .param("actorId", actorId)
+      .query(APP_USER_ROW_MAPPER)
+      .optional()
+      .orElse(null)
+
   override fun create(externalSubject: String, email: String?, displayName: String?): AppUser {
     val appUser = AppUser(
       id = UUID.randomUUID(),

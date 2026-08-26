@@ -16,6 +16,8 @@ import ch.qamwaq.ritomer.identity.application.TENANT_AUDIT_RESOURCE_TYPE
 import ch.qamwaq.ritomer.identity.application.AppUserRepository
 import ch.qamwaq.ritomer.identity.application.TenantMembershipRepository
 import ch.qamwaq.ritomer.identity.domain.TenantRole
+import ch.qamwaq.ritomer.shared.application.ActorAuthorityFreshness
+import ch.qamwaq.ritomer.shared.application.ActorAuthorityFreshnessVerifier
 import ch.qamwaq.ritomer.shared.application.AuditCorrelationContext
 import ch.qamwaq.ritomer.shared.application.AuditTrail
 import ch.qamwaq.ritomer.shared.application.AppendAuditEventCommand
@@ -59,6 +61,9 @@ class PersistenceFoundationIntegrationTest {
 
   @Autowired
   private lateinit var tenantMembershipRepository: TenantMembershipRepository
+
+  @Autowired
+  private lateinit var actorAuthorityFreshnessVerifier: ActorAuthorityFreshnessVerifier
 
   @Autowired
   private lateinit var auditTrail: AuditTrail
@@ -154,6 +159,81 @@ class PersistenceFoundationIntegrationTest {
         "tenant-alpha" to TenantRole.ACCOUNTANT,
         "tenant-beta" to TenantRole.MANAGER
       )
+  }
+
+  @Test
+  fun `identity authority reads expose inactive users and observe every database change without auth writes`() {
+    val activeUserId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+    val inactiveUserId = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+    val activeTenantId = UUID.fromString("11111111-1111-1111-1111-111111111111")
+    val inactiveTenantId = UUID.fromString("22222222-2222-2222-2222-222222222222")
+    insertAppUser(activeUserId, "authority-active", status = "ACTIVE")
+    insertAppUser(inactiveUserId, "authority-inactive", status = "INACTIVE")
+    insertTenant(activeTenantId, "tenant-active", "Tenant Active")
+    insertTenant(inactiveTenantId, "tenant-inactive", "Tenant Inactive", status = "INACTIVE")
+    val activeMembershipId = insertMembership(activeUserId, activeTenantId, "ACCOUNTANT")
+    insertMembership(activeUserId, activeTenantId, "REVIEWER", status = "INACTIVE")
+    insertMembership(activeUserId, inactiveTenantId, "ADMIN")
+    val rowCountsBeforeAuthReads = identityAuthorityRowCounts()
+
+    assertThat(appUserRepository.findById(activeUserId)?.status).isEqualTo("ACTIVE")
+    assertThat(appUserRepository.findById(inactiveUserId)?.status).isEqualTo("INACTIVE")
+    assertThat(appUserRepository.findById(UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc"))).isNull()
+    assertThat(tenantMembershipRepository.findActiveMembershipGrants(activeUserId).map { it.role })
+      .containsExactly(TenantRole.ACCOUNTANT)
+    assertThat(actorAuthorityFreshnessVerifier.verifyFreshAuthority(activeUserId))
+      .isEqualTo(ActorAuthorityFreshness.ACTIVE)
+    assertThat(actorAuthorityFreshnessVerifier.verifyFreshAuthority(inactiveUserId))
+      .isEqualTo(ActorAuthorityFreshness.REVOKED)
+
+    jdbcTemplate.update(
+      "update tenant_membership set role_code = ? where id = ?",
+      "MANAGER",
+      activeMembershipId
+    )
+    assertThat(tenantMembershipRepository.findActiveMembershipGrants(activeUserId).map { it.role })
+      .containsExactly(TenantRole.MANAGER)
+
+    jdbcTemplate.update(
+      "update tenant_membership set status = ? where id = ?",
+      "INACTIVE",
+      activeMembershipId
+    )
+    assertThat(actorAuthorityFreshnessVerifier.verifyFreshAuthority(activeUserId))
+      .isEqualTo(ActorAuthorityFreshness.REVOKED)
+
+    jdbcTemplate.update(
+      "update tenant_membership set status = ? where id = ?",
+      "ACTIVE",
+      activeMembershipId
+    )
+    jdbcTemplate.update(
+      "update tenant set status = ? where id = ?",
+      "INACTIVE",
+      activeTenantId
+    )
+    assertThat(actorAuthorityFreshnessVerifier.verifyFreshAuthority(activeUserId))
+      .isEqualTo(ActorAuthorityFreshness.REVOKED)
+
+    jdbcTemplate.update(
+      "update tenant set status = ? where id = ?",
+      "ACTIVE",
+      activeTenantId
+    )
+    assertThat(actorAuthorityFreshnessVerifier.verifyFreshAuthority(activeUserId))
+      .isEqualTo(ActorAuthorityFreshness.ACTIVE)
+
+    jdbcTemplate.update(
+      "update app_user set status = ? where id = ?",
+      "INACTIVE",
+      activeUserId
+    )
+    assertThat(appUserRepository.findById(activeUserId)?.status).isEqualTo("INACTIVE")
+    assertThat(actorAuthorityFreshnessVerifier.verifyFreshAuthority(activeUserId))
+      .isEqualTo(ActorAuthorityFreshness.REVOKED)
+
+    assertThat(identityAuthorityRowCounts()).isEqualTo(rowCountsBeforeAuthReads)
+    assertThat(jdbcTemplate.queryForObject("select count(*) from audit_event", Int::class.java)).isZero()
   }
 
   @Test
@@ -639,6 +719,31 @@ class PersistenceFoundationIntegrationTest {
       status
     )
   }
+
+  private fun insertAppUser(
+    userId: UUID,
+    externalSubject: String,
+    status: String
+  ) {
+    jdbcTemplate.update(
+      """
+      insert into app_user (id, external_subject, email, display_name, status)
+      values (?, ?, ?, ?, ?)
+      """.trimIndent(),
+      userId,
+      externalSubject,
+      "$externalSubject@example.test",
+      externalSubject,
+      status
+    )
+  }
+
+  private fun identityAuthorityRowCounts(): Map<String, Int> =
+    listOf("app_user", "tenant", "tenant_membership", "audit_event")
+      .associateWith { tableName ->
+        jdbcTemplate.queryForObject("select count(*) from $tableName", Int::class.java)
+          ?: error("Missing row count for $tableName")
+      }
 
   private fun insertMembership(
     userId: UUID,
