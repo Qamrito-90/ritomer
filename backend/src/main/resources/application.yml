@@ -20,7 +20,8 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus
+        include: health,info
+        exclude: prometheus
   observations:
     key-values:
       application: ${spring.application.name}

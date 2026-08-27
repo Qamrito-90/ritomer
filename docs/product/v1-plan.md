@@ -1,40 +1,46 @@
 # Plan V1 exécutable
 
-## Objectif courant
+## Objectif V1
 
 Conduire Ritomer du noyau déterministe local déjà livré vers une alpha interne authentifiée, agentique, evidence-first et répétable, sans perdre l'autorité métier, l'isolation tenant, le mode manuel ou l'audit.
 
-La roadmap canonique M0–M8 vit dans `docs/product/product-roadmap.md`. Ce plan porte seulement la séquence exécutable immédiate, les décisions gelées et le handoff historique ; il ne crée ni spec ni autorisation.
+La roadmap canonique M0–M8 vit dans `docs/product/product-roadmap.md`. Ce plan porte seulement les repères de trajectoire exécutables, les décisions gelées et le handoff historique ; il ne crée ni spec ni autorisation.
 
-## Séquence immédiate
+## Repères de trajectoire
 
 ```text
 M0_STATUS=DONE_CANONICAL_ROADMAP_REBASELINE
-NEXT_MILESTONE=M1_AUTHENTICATED_PRODUCT_SHELL
 CRITICAL_PATH=M0_TO_M5
 FIRST_AI_NATIVE_VERTICAL_SLICE=MAPPING_ASSISTANT_AGENT
 
-ACTIVE_SPEC=AUCUNE
-ACTIVE_SPEC_COUNT=0
-SPEC_046=ABSENT
-M1_IMPLEMENTATION_AUTHORIZED=NO
+ACTIVE_SPEC=046_AUTHENTICATED_SESSION_FOUNDATION_V1
+ACTIVE_SPEC_COUNT=1
+SPEC_046=ACTIVE
+M1_1A_SCOPE=BACKEND_AUTH_TENANT_FOUNDATION_WITH_CORRECTIVE_M8
+M1_1_FINAL_OUTCOME_DELIVERED=NO
+M1_1B_IMPLEMENTED=NO
+M1_1C_IMPLEMENTED=NO
+M1_1D_IMPLEMENTED=NO
 ```
 
-M0 a synchronisé les documents vivants et borné le checker 042 à ses responsabilités historiques. M1 est la prochaine cible ; aucune implémentation M1 ne découle de ce plan.
+M0 a synchronisé les documents vivants et borné le checker 042 à ses responsabilités historiques. La spec 046 est l'unique spec active ; M1.1A avec son correctif M8 borne la fondation backend auth/tenant. Ce plan ne constitue aucune autorisation.
 
-## Plus petit incrément futur M1.1
+Les états de review, delivery, merge et décision owner vivent uniquement dans les Evidence Packs, la pull request et les records spécialisés.
+
+## Plus petit incrément actif M1.1 — checkpoint A borné
 
 ```text
-M1_1_CANDIDATE=AUTHENTICATED_SESSION_FOUNDATION
-M1_1_STATUS=DOCUMENTED_NOT_AUTHORIZED
-M1_1_IS_SPEC=NO
-M1_1_SPEC_NUMBER_RESERVED=NO
-M1_1_IMPLEMENTATION_AUTHORIZED=NO
+M1_1_SPEC=046_AUTHENTICATED_SESSION_FOUNDATION_V1
+M1_1A_SCOPE=BACKEND_AUTH_TENANT_FOUNDATION_WITH_CORRECTIVE_M8
+M1_1_FINAL_OUTCOME_DELIVERED=NO
+M1_1B_IMPLEMENTED=NO
+M1_1C_IMPLEMENTED=NO
+M1_1D_IMPLEMENTED=NO
 ```
 
-Outcome candidat : un utilisateur synthétique réel entre par un mode `local | test` qui remplace uniquement l'IdP externe, puis traverse les mêmes contrôles identity, membership, rôle, tenant et autorisation serveur que l'OIDC partagé. `/api/me`, expiration/logout et refus membership ou tenant doivent être démontrables.
+L'outcome final M1.1 reste une authentification same-origin par session serveur et cookie opaque sécurisé ; il n'est pas livré. M1.1A établit uniquement la fondation backend locale de principal applicatif, autorité PostgreSQL et sûreté tenant.
 
-Entrée future : choix IdP et modèle de session, threat model, callbacks/domaines, politique CSRF/logout/révocation et autorisation d'implémentation exacte. Hors-scope M1.1 : shell complet, onboarding riche, provider IA, agent, MCP, donnée réelle, utilisateur externe et production.
+Le correctif M8 ferme l'exposition web Prometheus ; health et info restent exposés. Il ne livre aucune session, cookie, CSRF, login, logout, UI, IdP réel, IA, agent ou runtime MCP. M1.1B, C et D ne sont pas implémentées ; chaque slice future exige une autorisation distincte.
 
 ## Décisions de trajectoire gelées
 
@@ -146,10 +152,17 @@ M7 attend une alpha M5 stable, des captures réelles, un slice IA-native fonctio
 ### Active
 
 ```text
-ACTIVE_SPEC=AUCUNE
-ACTIVE_SPEC_COUNT=0
-SPEC_046=ABSENT
+ACTIVE_SPEC=046_AUTHENTICATED_SESSION_FOUNDATION_V1
+ACTIVE_SPEC_COUNT=1
+SPEC_046=ACTIVE
+M1_1A_SCOPE=BACKEND_AUTH_TENANT_FOUNDATION_WITH_CORRECTIVE_M8
+M1_1_FINAL_OUTCOME_DELIVERED=NO
+M1_1B_IMPLEMENTED=NO
+M1_1C_IMPLEMENTED=NO
+M1_1D_IMPLEMENTED=NO
 ```
+
+- `specs/active/046-authenticated-session-foundation-v1.md` — M1.1A avec son correctif M8 borne la fondation backend auth/tenant ; l'outcome final M1.1 n'est pas livré.
 
 ### Clôturé terminalement / résultat inconclusif
 
@@ -170,11 +183,11 @@ SPEC_046=ABSENT
 CLOSURE_EMITS_NEW_AUTHORIZATION=NO
 ROADMAP_DIRECTION_SELECTED=YES
 M0_STATUS=DONE_CANONICAL_ROADMAP_REBASELINE
-NEXT_MILESTONE=M1_AUTHENTICATED_PRODUCT_SHELL
-ACTIVE_SPEC=AUCUNE
-ACTIVE_SPEC_COUNT=0
-SPEC_046=ABSENT
-M1_IMPLEMENTATION_AUTHORIZED=NO
+M0_SNAPSHOT_NEXT_MILESTONE=M1_AUTHENTICATED_PRODUCT_SHELL
+M0_SNAPSHOT_LIFECYCLE=NO_SPEC_IN_EXECUTION
+M0_SNAPSHOT_SPEC_NUMBER=NONE
+M0_SNAPSHOT_046_STATE=NOT_CREATED_AT_REBASELINE
+M0_SNAPSHOT_M1_IMPLEMENTATION_AUTHORIZED=NO
 045_SURFACE=DOCS
 045_RISK_CLASS=C
 045_EVIDENCE_LEVEL=FULL
@@ -188,9 +201,9 @@ PHASE_1_REAL_DATA_AUTHORIZED=NO
 PHASE_1_RUNTIME_AUTHORIZED=NO
 ```
 
-Le paquet documentaire docs-only de 044 reste livré et clôturé sous `specs/done`. La spec 045 a livré et clôturé son outcome documentaire docs-only ; aucune recherche, collecte, donnée réelle, activité externe ou exécution runtime n'a été exécutée ni autorisée. Aucune spec n'est active. Elle ne prouve ni recrutement, ni consentement, ni valeur terrain, ni validation de marché, ni conformité Privacy/Legal, ni readiness externe. Les autorisations externes héritées de 044/045 restent à `NO` et ne définissent plus la direction de roadmap. Aucune spec 046 ni aucune spec suivante n'est créée, réservée ou autorisée.
+Le paquet documentaire docs-only de 044 reste livré et clôturé sous `specs/done`. La spec 045 a livré et clôturé son outcome documentaire docs-only ; aucune recherche, collecte, donnée réelle, activité externe ou exécution runtime n'en découle. Ces outcomes docs-only ne créent aucune autorisation externe et ne définissent plus la direction de roadmap. La spec 046 est l'unique spec active. M1.1A avec son correctif M8 borne la fondation backend auth/tenant ; l'outcome final M1.1 n'est pas livré et B, C et D ne sont pas implémentées.
 
-Les sections 2 à 22 de la spec Done conservent le protocole substantiel livré et ne constituent aucune autorisation courante. La nouvelle direction M0–M8 provient d'une décision owner distincte de la clôture 043 et des outcomes 044/045. M1 est la prochaine cible après M0, mais son implémentation exige un scope, des gates et une autorisation propres. Toute modification matérielle reprend la boucle de preuve applicable. Aucune spec 046 ni aucune spec suivante n'est créée, réservée ou autorisée.
+Les sections 2 à 22 de la spec Done conservent le protocole substantiel livré et ne constituent aucune autorisation. La direction M0–M8 provient d'une décision owner distincte de la clôture 043 et des outcomes 044/045. Toute modification matérielle reprend la boucle de preuve applicable. Les marqueurs lifecycle conservés dans les blocs M0 de `README.md` et `docs/product/product-roadmap.md` sont des snapshots historiques de la rebaseline M0 ; ils ne décrivent pas l'état présent. Pour M1.1, cette section et la spec active 046 portent uniquement les vérités durables de périmètre ; les états de review, delivery, merge et décision owner restent dans les Evidence Packs, la pull request et les records spécialisés.
 
 ### Backlog
 
@@ -243,7 +256,7 @@ Le bloc suivant conserve la chronologie pré-clôture. Ses états « courants 
 - `040-internal-poc-global-smoke-v1` est cloturee en verdict `PARTIEL` : dossier demo ouvert, frontend `/api/me` via proxy `200`, backend `/api/me` direct sans JWT `401`, cockpit/import/suggestions/previews/export/annexe globalement atteignables, aucun token ni secret observe, mais parcours non comprehensible en 10 minutes, statut cockpit insuffisamment clair, mapping trop dense, rubriques Preuves trop anglo-techniques, montants Import trop bruts, libelles techniques residuels, header `Authorization` non verifie explicitement, absence IA runtime non verifiee explicitement et health backend direct non prouve dans ce bloc.
 - `041-internal-poc-blockers-ux-readiness-v1` est cloturee en `PASS global` pour readiness POC interne : `041a` a rendu le statut cockpit plus explicite et les montants Import lisibles en CHF ; `041b` a rendu le mapping plus premium, calme, scannable et responsive ; `041c` a rendu les rubriques Justifications / Preuves plus francaises, metier et actionnables ; `041d` a documente l'hygiene reseau, l'absence de fuite bearer observee et l'absence d'appel IA externe observe. Le smoke global final documente backend health `200`, `/api/me` direct sans JWT `401`, `/api/me` via Vite `200`, parcours compris en moins de 10 minutes, aucune friction majeure restante et produit suffisamment robuste/professionnel pour poursuivre vers le POC. Dettes non bloquantes : accents/typographie encore perfectibles, certaines cibles Mapping encore partiellement anglophones, design premium final encore ameliorable et warning Vite chunk `> 500 kB` non bloquant. Aucun runtime, backend, DB/migration, OpenAPI, auth/JWT/proxy, nouvelle mutation, nouveau endpoint, IA runtime, GraphQL, export officiel, annexe legale finale, promesse CO/statutaire, secret, `.env`, token, credential ou spec `042` n'est introduit par cette cloture documentaire.
 - `041` reste Done / `PASS global`.
-- Rappel de sequencing courant : `042` reste uniquement en backlog avec `PAUSED_BY_SEPARATE_CPO_DECISION`; `043` est terminalement close avec `STOPPED_INCONCLUSIVE / SUCCESSFULLY_DELIVERED=NO`, `043a` livré, `043b` validé en simulation locale synthétique, `043c` arrêté, R1/R2 non exécutés et reprise interdite. La seule direction suivante est `PHASE_1_DESIGN_PARTNER_READINESS` sous `DOCS_ONLY_PREPARATION`.
+- Snapshot historique antérieur à la rebaseline M0 : `042` figurait dans le backlog sous `PAUSED_BY_SEPARATE_CPO_DECISION`; `043` était terminalement close avec `STOPPED_INCONCLUSIVE / SUCCESSFULLY_DELIVERED=NO`, `043a` livré, `043b` validé en simulation locale synthétique, `043c` arrêté, R1/R2 non exécutés et reprise interdite. La direction alors documentée était `PHASE_1_DESIGN_PARTNER_READINESS` sous `DOCS_ONLY_PREPARATION`; ce snapshot ne porte aucun routage présent.
 - Rappel de cloture `039` : aucun backend, aucune DB/migration, aucun OpenAPI, aucune auth/JWT/proxy, aucune IA runtime, aucun GraphQL, aucune nouvelle mutation, aucun nouveau seed, aucune nouvelle donnee demo, aucune CI et aucun secret/token/credential/valeur `.env` ne sont ajoutes par cette cloture documentaire. La dette residuelle de jugement global a ete traitee par le smoke `040`, cloture en `PARTIEL`, et les blockers POC sont maintenant cadres par `041`.
 
 ### Decisions figees

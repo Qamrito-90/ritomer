@@ -3,75 +3,62 @@ package ch.qamwaq.ritomer.identity.application
 import ch.qamwaq.ritomer.identity.domain.AppUser
 import ch.qamwaq.ritomer.identity.domain.TenantMembership
 import ch.qamwaq.ritomer.identity.domain.TenantMembershipGrant
+import ch.qamwaq.ritomer.shared.application.ActorAuthorityFreshness
+import ch.qamwaq.ritomer.shared.application.ActorAuthorityFreshnessVerifier
+import ch.qamwaq.ritomer.shared.application.TenantContextProvider
 import java.util.UUID
-import org.springframework.security.access.AccessDeniedException
-import org.springframework.security.core.context.SecurityContextHolder
-import org.springframework.security.oauth2.jwt.Jwt
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken
+import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
+import org.springframework.web.bind.annotation.ResponseStatus
 
 @Service
 class ActorResolutionSupport(
   private val appUserRepository: AppUserRepository,
-  private val tenantMembershipRepository: TenantMembershipRepository
-) {
+  private val tenantMembershipRepository: TenantMembershipRepository,
+  private val currentAuthenticatedActorProvider: CurrentAuthenticatedActorProvider,
+  private val tenantContextProvider: TenantContextProvider
+) : ActorAuthorityFreshnessVerifier {
   fun resolveActorContext(): ResolvedActorContext {
-    val jwt = currentJwt()
-    val subject = jwt.subject?.trim()?.takeUnless { it.isEmpty() }
-      ?: throw AccessDeniedException("JWT subject claim is required.")
-    val email = jwt.getClaimAsString("email").normalized()
-    val displayName = resolveDisplayName(jwt)
-
-    val appUser = synchronizeAppUser(subject, email, displayName)
-    val memberships = groupMemberships(tenantMembershipRepository.findActiveMembershipGrants(appUser.id))
-    if (memberships.isEmpty()) {
-      throw AccessDeniedException("At least one active tenant membership is required.")
+    val actor = currentAuthenticatedActorProvider.current()
+    val authority = readFreshAuthority(actor.actorId)
+    val appUser = authority.appUser
+    if (appUser == null || !appUser.isActive() || authority.grants.isEmpty()) {
+      throw ActorAccessRevokedException()
     }
 
-    return ResolvedActorContext(appUser = appUser, memberships = memberships)
+    return ResolvedActorContext(appUser = appUser, memberships = groupMemberships(authority.grants))
+  }
+
+  override fun verifyFreshAuthority(actorId: UUID): ActorAuthorityFreshness {
+    val authority = readFreshAuthority(actorId)
+    return if (authority.appUser?.isActive() == true && authority.grants.isNotEmpty()) {
+      ActorAuthorityFreshness.ACTIVE
+    } else {
+      ActorAuthorityFreshness.REVOKED
+    }
   }
 
   fun resolveActiveTenant(
     memberships: List<TenantMembership>,
     requestedTenantId: UUID?
   ): TenantMembership? {
-    return when {
+    val activeTenant = when {
       requestedTenantId != null ->
         memberships.firstOrNull { it.tenantId == requestedTenantId }
-          ?: throw AccessDeniedException("Requested tenant is not accessible.")
+          ?: throw RequestedTenantAccessDeniedException()
       memberships.size == 1 -> memberships.single()
       else -> null
     }
+
+    activeTenant?.let { tenantContextProvider.bindAuthorizedTenant(it.tenantId) }
+    return activeTenant
   }
 
-  private fun currentJwt(): Jwt {
-    val authentication = SecurityContextHolder.getContext().authentication as? JwtAuthenticationToken
-      ?: throw AccessDeniedException("JWT authentication is required.")
-
-    return authentication.token
+  private fun readFreshAuthority(actorId: UUID): FreshAuthority {
+    val appUser = appUserRepository.findById(actorId)
+    val grants = tenantMembershipRepository.findActiveMembershipGrants(actorId)
+    return FreshAuthority(appUser = appUser, grants = grants)
   }
-
-  private fun synchronizeAppUser(subject: String, email: String?, displayName: String?): AppUser {
-    val existing = appUserRepository.findByExternalSubject(subject)
-    if (existing == null) {
-      return appUserRepository.create(subject, email, displayName)
-    }
-
-    if (!existing.isActive()) {
-      throw AccessDeniedException("Application user is not active.")
-    }
-
-    val resolvedEmail = email ?: existing.email
-    val resolvedDisplayName = displayName ?: existing.displayName
-    if (resolvedEmail == existing.email && resolvedDisplayName == existing.displayName) {
-      return existing
-    }
-
-    return appUserRepository.updateProfile(existing.id, resolvedEmail, resolvedDisplayName)
-  }
-
-  private fun resolveDisplayName(jwt: Jwt): String? =
-    jwt.getClaimAsString("name").normalized() ?: jwt.getClaimAsString("preferred_username").normalized()
 
   private fun groupMemberships(grants: List<TenantMembershipGrant>): List<TenantMembership> =
     grants.groupBy { it.tenantId }
@@ -93,4 +80,13 @@ data class ResolvedActorContext(
   val memberships: List<TenantMembership>
 )
 
-private fun String?.normalized(): String? = this?.trim()?.takeUnless { it.isEmpty() }
+private data class FreshAuthority(
+  val appUser: AppUser?,
+  val grants: List<TenantMembershipGrant>
+)
+
+@ResponseStatus(HttpStatus.FORBIDDEN, reason = "ACCESS_REVOKED")
+class ActorAccessRevokedException : RuntimeException("Authenticated actor authority is revoked.")
+
+@ResponseStatus(HttpStatus.FORBIDDEN, reason = "ACCESS_DENIED")
+class RequestedTenantAccessDeniedException : RuntimeException("Requested tenant is not accessible.")

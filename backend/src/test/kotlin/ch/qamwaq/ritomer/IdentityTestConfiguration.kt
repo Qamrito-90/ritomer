@@ -30,6 +30,9 @@ import ch.qamwaq.ritomer.workpapers.application.DocumentRepository
 import ch.qamwaq.ritomer.workpapers.application.WorkpaperRepository
 import ch.qamwaq.ritomer.workpapers.domain.Document
 import ch.qamwaq.ritomer.workpapers.domain.Workpaper
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneOffset
 import java.util.UUID
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
@@ -51,6 +54,10 @@ class IdentityTestConfiguration {
   @Bean
   fun tenantMembershipRepository(identityTestStore: IdentityTestStore): TenantMembershipRepository =
     InMemoryTenantMembershipRepository(identityTestStore)
+
+  @Bean
+  fun authenticatedActorClock(): Clock =
+    Clock.fixed(AUTHENTICATED_ACTOR_TEST_INSTANT, ZoneOffset.UTC)
 
   @Bean
   fun auditTestStore(): AuditTestStore = AuditTestStore()
@@ -125,11 +132,25 @@ class IdentityTestConfiguration {
 
 class IdentityTestStore {
   private val usersBySubject = linkedMapOf<String, AppUser>()
+  private val usersById = linkedMapOf<UUID, AppUser>()
   private val membershipsByUserId = linkedMapOf<UUID, MutableList<StoredTenantMembershipGrant>>()
+  private var externalSubjectReadCount = 0
+  private var actorIdReadCount = 0
+  private var membershipGrantReadCount = 0
+  private var createCount = 0
+  private var updateProfileCount = 0
+  private var failActorIdReads = false
 
   fun reset() {
     usersBySubject.clear()
+    usersById.clear()
     membershipsByUserId.clear()
+    externalSubjectReadCount = 0
+    actorIdReadCount = 0
+    membershipGrantReadCount = 0
+    createCount = 0
+    updateProfileCount = 0
+    failActorIdReads = false
   }
 
   fun userCount(): Int = usersBySubject.size
@@ -138,6 +159,7 @@ class IdentityTestStore {
 
   fun saveUser(appUser: AppUser) {
     usersBySubject[appUser.externalSubject] = appUser
+    usersById[appUser.id] = appUser
   }
 
   fun seedUser(
@@ -157,7 +179,82 @@ class IdentityTestStore {
     return appUser
   }
 
-  fun findUserById(userId: UUID): AppUser? = usersBySubject.values.firstOrNull { it.id == userId }
+  fun findUserById(userId: UUID): AppUser? = usersById[userId]
+
+  fun setUserStatus(userId: UUID, status: String) {
+    val existing = usersById[userId] ?: error("Unknown app_user id: $userId")
+    saveUser(existing.copy(status = status))
+  }
+
+  fun setMembershipStatus(userId: UUID, tenantId: UUID, status: String) {
+    replaceMembershipGrants(userId) { stored ->
+      if (stored.grant.tenantId == tenantId) stored.copy(membershipStatus = status) else stored
+    }
+  }
+
+  fun setTenantStatus(userId: UUID, tenantId: UUID, status: String) {
+    replaceMembershipGrants(userId) { stored ->
+      if (stored.grant.tenantId == tenantId) stored.copy(tenantStatus = status) else stored
+    }
+  }
+
+  fun replaceRoles(userId: UUID, tenantId: UUID, vararg roles: TenantRole) {
+    val existing = membershipsByUserId[userId].orEmpty()
+    val tenantGrant = existing.firstOrNull { it.grant.tenantId == tenantId }
+      ?: error("Unknown tenant membership: $tenantId")
+    val retained = existing.filterNot { it.grant.tenantId == tenantId }.toMutableList()
+    roles.forEach { role ->
+      retained.add(tenantGrant.copy(grant = tenantGrant.grant.copy(role = role)))
+    }
+    membershipsByUserId[userId] = retained
+  }
+
+  fun failActorIdReads() {
+    failActorIdReads = true
+  }
+
+  fun repositoryCounters(): IdentityRepositoryCounters =
+    IdentityRepositoryCounters(
+      externalSubjectReads = externalSubjectReadCount,
+      actorIdReads = actorIdReadCount,
+      membershipGrantReads = membershipGrantReadCount,
+      creates = createCount,
+      profileUpdates = updateProfileCount
+    )
+
+  fun repositoryFindUserBySubject(externalSubject: String): AppUser? {
+    externalSubjectReadCount += 1
+    return findUserBySubject(externalSubject)
+  }
+
+  fun repositoryFindUserById(userId: UUID): AppUser? {
+    actorIdReadCount += 1
+    if (failActorIdReads) {
+      throw IllegalStateException("Synthetic app_user read failure.")
+    }
+    return findUserById(userId)
+  }
+
+  fun repositoryMembershipGrantsForUser(userId: UUID): List<TenantMembershipGrant> {
+    membershipGrantReadCount += 1
+    return membershipGrantsForUser(userId)
+  }
+
+  fun recordCreate() {
+    createCount += 1
+  }
+
+  fun recordProfileUpdate() {
+    updateProfileCount += 1
+  }
+
+  private fun replaceMembershipGrants(
+    userId: UUID,
+    transform: (StoredTenantMembershipGrant) -> StoredTenantMembershipGrant
+  ) {
+    val grants = membershipsByUserId[userId] ?: error("Unknown membership user id: $userId")
+    membershipsByUserId[userId] = grants.map(transform).toMutableList()
+  }
 
   fun membershipGrantsForUser(userId: UUID): List<TenantMembershipGrant> =
     membershipsByUserId[userId].orEmpty()
@@ -215,6 +312,16 @@ class IdentityTestStore {
   }
 }
 
+data class IdentityRepositoryCounters(
+  val externalSubjectReads: Int,
+  val actorIdReads: Int,
+  val membershipGrantReads: Int,
+  val creates: Int,
+  val profileUpdates: Int
+) {
+  val totalWrites: Int = creates + profileUpdates
+}
+
 private data class StoredTenantMembershipGrant(
   val grant: TenantMembershipGrant,
   val membershipStatus: String,
@@ -237,16 +344,27 @@ class AuditTestStore {
 
 class ClosingFolderTestStore {
   private val foldersById = linkedMapOf<UUID, ClosingFolder>()
+  private var failReads = false
 
   fun reset() {
     foldersById.clear()
+    failReads = false
   }
 
   fun save(folder: ClosingFolder) {
     foldersById[folder.id] = folder
   }
 
-  fun findById(id: UUID): ClosingFolder? = foldersById[id]
+  fun findById(id: UUID): ClosingFolder? {
+    if (failReads) {
+      throw IllegalStateException("Synthetic closing_folder read failure.")
+    }
+    return foldersById[id]
+  }
+
+  fun failReads() {
+    failReads = true
+  }
 
   fun foldersForTenant(tenantId: UUID): List<ClosingFolder> =
     foldersById.values
@@ -510,9 +628,13 @@ private class InMemoryAppUserRepository(
   private val identityTestStore: IdentityTestStore
 ) : AppUserRepository {
   override fun findByExternalSubject(externalSubject: String): AppUser? =
-    identityTestStore.findUserBySubject(externalSubject)
+    identityTestStore.repositoryFindUserBySubject(externalSubject)
+
+  override fun findById(actorId: UUID): AppUser? =
+    identityTestStore.repositoryFindUserById(actorId)
 
   override fun create(externalSubject: String, email: String?, displayName: String?): AppUser {
+    identityTestStore.recordCreate()
     val appUser = AppUser(
       id = UUID.randomUUID(),
       externalSubject = externalSubject,
@@ -525,6 +647,7 @@ private class InMemoryAppUserRepository(
   }
 
   override fun updateProfile(userId: UUID, email: String?, displayName: String?): AppUser {
+    identityTestStore.recordProfileUpdate()
     val existing = identityTestStore.findUserById(userId)
       ?: error("Unknown app_user id: $userId")
     val updated = existing.copy(email = email, displayName = displayName)
@@ -537,8 +660,10 @@ private class InMemoryTenantMembershipRepository(
   private val identityTestStore: IdentityTestStore
 ) : TenantMembershipRepository {
   override fun findActiveMembershipGrants(userId: UUID): List<TenantMembershipGrant> =
-    identityTestStore.membershipGrantsForUser(userId)
+    identityTestStore.repositoryMembershipGrantsForUser(userId)
 }
+
+internal val AUTHENTICATED_ACTOR_TEST_INSTANT: Instant = Instant.parse("2026-08-22T10:15:30Z")
 
 private class InMemoryAuditTrail(
   private val auditTestStore: AuditTestStore

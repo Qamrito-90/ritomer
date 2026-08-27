@@ -23,8 +23,10 @@ Il ne remplace ni les ADRs, ni les specs, ni les contrats, ni les runbooks. Il f
 - `030` livre une capacite REST-first de mapping assiste no-provider : read-model backend de suggestions, port `ai::access` minimise, adapter stub sans modele reel, contrat OpenAPI dedie, decision humaine idempotente et UI de revue humaine.
 - `030f` ajoute une persistance tenant-scopee dediee a l'idempotence des decisions humaines de suggestion via `mapping_suggestion_decision_request`; cette table ne donne aucune autorite metier a l'IA.
 - Apres `030`, les increments `032` a `035` durcissent les consumers et refreshs frontend sans modifier le backend, les contrats ou l'architecture ; `036` a `041` restent une demo et des preuves locales sur donnees synthetiques, pas une authentification SaaS durable ni un environnement partage.
-- Le runtime local prouve une validation JWT, des utilisateurs synthetiques, memberships, roles, tenants et refus cross-tenant reels cote serveur. Il ne livre ni login OIDC durable, ni session, logout, revocation ou environnement interne partage.
-- `042` reste en backlog sous `PAUSED_BY_SEPARATE_CPO_DECISION`; `043` reste terminalement close avec `STOPPED_INCONCLUSIVE`; `044` et `045` restent Done docs-only. Aucune spec n'est active et aucune spec `046` n'existe.
+- Avec M1.1A, le backend local porte un principal applicatif, relit l'autorite PostgreSQL aux frontieres metier protegees et conserve la surete tenant/MDC. Le correctif M8 ferme l'exposition web Prometheus ; seuls health et info restent exposes.
+- La spec 046 est l'unique spec active. M1.1A avec son correctif M8 borne la fondation backend auth/tenant ; l'outcome final M1.1 n'est pas livre et M1.1B, C et D ne sont pas implementees.
+- M1.1A ne livre ni session, cookie, CSRF, login, logout, frontend, IdP reel ou environnement partage.
+- Ce cadrage ne constitue aucune autorisation. Chaque slice future B, C ou D exige une autorisation distincte ; les etats de review, delivery, merge et decision owner vivent uniquement dans les Evidence Packs, la pull request et les records specialises.
 - Aucun provider IA reel, modele reel, SDK, prompt runtime actif, cout provider ou appel reseau IA n'est actif dans le present.
 - Les artefacts `030d` et `042` restent des preuves historiques ou de backlog ; ils ne constituent pas le rail executable de la future implementation M2 et n'activent aucun provider.
 - `workpapers` reste le module proprietaire pour la justification, les documents et leur verification reviewer ; `011` et `012` n'introduisent pas de module transverse `documents`.
@@ -34,7 +36,7 @@ Il ne remplace ni les ADRs, ni les specs, ni les contrats, ni les runbooks. Il f
 
 ## Trajectoire architecture approuvee, non livree
 
-- M1 cible l'authentification, la session et le shell produit. Le mode local futur reste `LOCAL_TEST_ONLY`, remplace uniquement l'IdP externe et ne contourne ni memberships, ni roles, ni tenant-scoping, ni autorisations serveur ; tout environnement interne partage exige un vrai OIDC.
+- M1 cible toujours l'authentification par session et le shell produit. M1.1A n'en livre que la fondation backend auth/tenant ; la session, le mode local par la frontiere de session, le login/logout et le shell relevent des slices futures B, C et D.
 - M2 cible une provider gateway OpenAI-first derriere un port interne etroit, avec abstraction provider des le premier runtime. Un spike borne comparera Spring AI et le SDK Java officiel derriere ce meme port ; M0 ne choisit aucune dependance, aucun modele et aucun endpoint.
 - M3 cible dans le monolithe un kernel agentique borne et un registre d'outils interne type, versionne, tenant-scoped, audite et MCP-adaptable. Les outils restent read-only par defaut et toute mutation passe par confirmation humaine puis commande metier deterministe.
 - M4 cible le Mapping Assistant comme premier slice IA-native sur le kernel M3 ; il ne reprend pas le rail 042.
@@ -108,6 +110,7 @@ Il ne remplace ni les ADRs, ni les specs, ni les contrats, ni les runbooks. Il f
 - `specs/done/043-controlled-fiduciary-pilot-readiness-v1.md`
 - `specs/done/044-design-partner-readiness-v1.md`
 - `specs/done/045-design-partner-research-protocol-v1.md`
+- `specs/active/046-authenticated-session-foundation-v1.md`
 - `specs/done/008-financial-rubric-taxonomy-v2.md`
 - `specs/done/009-financial-statements-structured-v1.md`
 - `specs/done/010-workpapers-v1.md`

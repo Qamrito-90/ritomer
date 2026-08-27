@@ -9,7 +9,8 @@ Il ne remplace ni la vision IA, ni le playbook IA, ni les contrats et garde-fous
 ## Ce qui est vrai maintenant
 
 - Le produit est AI-ready, mais pas encore AI-native dans le runtime.
-- `042` reste en backlog sous `PAUSED_BY_SEPARATE_CPO_DECISION`; `043` reste terminalement close avec `STOPPED_INCONCLUSIVE`; `044` et `045` restent Done docs-only. Aucune spec n'est active et aucune spec `046` n'existe.
+- La spec 046 est l'unique spec active. M1.1A avec son correctif M8 borne la fondation backend auth/tenant sans modification IA, agent ou MCP runtime ; M8 ferme l'exposition web Prometheus tandis que health et info restent exposes. L'outcome final M1.1 n'est pas livre et B, C et D ne sont pas implementees.
+- Ce cadrage ne constitue aucune autorisation. Chaque slice future B, C ou D exige une autorisation distincte ; les etats de review, delivery, merge et decision owner vivent uniquement dans les Evidence Packs, la pull request et les records specialises.
 - Le coeur metier reste deterministe, tenant-scoped, audit-ready et utilisable sans IA.
 - `030` livre une capacite de mapping assiste no-provider, evidence-first et human-in-the-loop.
 - La capacite livree expose des suggestions structurees de mapping, des preuves visibles et une decision humaine unitaire `ACCEPT`, `CORRECT` ou `REJECT`.
@@ -84,6 +85,7 @@ Il ne remplace ni la vision IA, ni le playbook IA, ni les contrats et garde-fous
 - `specs/done/043-controlled-fiduciary-pilot-readiness-v1.md`
 - `specs/done/044-design-partner-readiness-v1.md`
 - `specs/done/045-design-partner-research-protocol-v1.md`
+- `specs/active/046-authenticated-session-foundation-v1.md`
 - `docs/vision/ai-native.md`
 - `docs/playbooks/ai.md`
 
