@@ -23,24 +23,50 @@ import ch.qamwaq.ritomer.shared.application.AuditTrail
 import ch.qamwaq.ritomer.shared.application.AppendAuditEventCommand
 import ch.qamwaq.ritomer.testsupport.DisposablePostgresTestDatabase
 import ch.qamwaq.ritomer.testsupport.DisposablePostgresTestDatabaseGuardInitializer
+import com.nimbusds.jose.jwk.source.ImmutableSecret
+import com.nimbusds.jose.proc.SecurityContext
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
+import java.security.SecureRandom
+import java.time.Instant
 import java.time.LocalDate
 import java.time.OffsetDateTime
+import java.time.temporal.ChronoUnit
+import java.util.UUID
+import javax.crypto.spec.SecretKeySpec
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
+import org.mockito.Mockito.clearInvocations
+import org.mockito.Mockito.mockingDetails
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
+import org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrint
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.core.env.Environment
 import org.springframework.dao.DataAccessException
+import org.springframework.http.HttpHeaders
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm
+import org.springframework.security.oauth2.jwt.JwsHeader
+import org.springframework.security.oauth2.jwt.JwtClaimsSet
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters
+import org.springframework.security.oauth2.jwt.NimbusJwtEncoder
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.ContextConfiguration
-import java.util.UUID
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean
+import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.MvcResult
+import org.springframework.test.web.servlet.get
 
 @SpringBootTest
+@AutoConfigureMockMvc(
+  print = MockMvcPrint.NONE,
+  printOnlyOnFailure = false
+)
 @ActiveProfiles("dbtest")
 @ContextConfiguration(
   initializers = [
@@ -56,7 +82,7 @@ class PersistenceFoundationIntegrationTest {
   @Autowired
   private lateinit var environment: Environment
 
-  @Autowired
+  @MockitoSpyBean
   private lateinit var appUserRepository: AppUserRepository
 
   @Autowired
@@ -73,6 +99,9 @@ class PersistenceFoundationIntegrationTest {
 
   @Autowired
   private lateinit var closingFolderService: ClosingFolderService
+
+  @Autowired
+  private lateinit var mockMvc: MockMvc
 
   @BeforeEach
   fun resetDatabaseState() {
@@ -233,6 +262,123 @@ class PersistenceFoundationIntegrationTest {
       .isEqualTo(ActorAuthorityFreshness.REVOKED)
 
     assertThat(identityAuthorityRowCounts()).isEqualTo(rowCountsBeforeAuthReads)
+    assertThat(jdbcTemplate.queryForObject("select count(*) from audit_event", Int::class.java)).isZero()
+  }
+
+  @Test
+  fun `actuator closure and api me use real bearer HTTP without mutating PostgreSQL authority`() {
+    assertThat(jdbcTemplate.queryForObject("select version()", String::class.java)).contains("PostgreSQL")
+
+    val tenantId = UUID.fromString("11111111-1111-1111-1111-111111111111")
+    val activeUserId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+    val inactiveUserId = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+    val revokedUserId = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc")
+    insertTenant(tenantId, "authority-tenant", "Authority Tenant")
+    insertAppUser(activeUserId, "http-active", status = "ACTIVE")
+    insertAppUser(inactiveUserId, "http-inactive", status = "INACTIVE")
+    insertAppUser(revokedUserId, "http-revoked", status = "ACTIVE")
+    insertMembership(activeUserId, tenantId, "ACCOUNTANT")
+    insertMembership(inactiveUserId, tenantId, "MANAGER")
+    val revokedMembershipId = insertMembership(
+      revokedUserId,
+      tenantId,
+      "REVIEWER",
+      status = "INACTIVE"
+    )
+
+    val authorityBeforeRequests = identityAuthoritySnapshot()
+    clearInvocations(appUserRepository)
+
+    val configuredKey = configuredSigningKey()
+    val wrongSignatureToken = signedCompactBearerToken(
+      subject = "http-active",
+      signingKey = randomSigningKeyDifferentFrom(configuredKey)
+    )
+    val activeToken = signedCompactBearerToken("http-active")
+    val unknownToken = signedCompactBearerToken("http-unknown")
+    val inactiveToken = signedCompactBearerToken("http-inactive")
+    val revokedToken = signedCompactBearerToken("http-revoked")
+
+    mockMvc.get("/actuator/prometheus")
+      .andExpect {
+        status { isUnauthorized() }
+      }
+      .andReturn()
+      .also(::assertNoPrometheusPayload)
+    mockMvc.get("/actuator/prometheus") {
+      header(HttpHeaders.AUTHORIZATION, "Bearer $wrongSignatureToken")
+    }.andExpect {
+      status { isUnauthorized() }
+    }.andReturn().also(::assertNoPrometheusPayload)
+
+    listOf(activeToken, unknownToken, inactiveToken, revokedToken).forEach { token ->
+      mockMvc.get("/actuator/prometheus") {
+        header(HttpHeaders.AUTHORIZATION, "Bearer $token")
+      }.andExpect {
+        status { isNotFound() }
+      }.andReturn().also(::assertNoPrometheusPayload)
+    }
+    assertThat(mockingDetails(appUserRepository).invocations).isEmpty()
+
+    listOf(
+      "/actuator/health",
+      "/actuator/health/liveness",
+      "/actuator/health/readiness",
+      "/actuator/info"
+    ).forEach { path ->
+      mockMvc.get(path)
+        .andExpect {
+          status { isOk() }
+        }
+    }
+
+    mockMvc.get("/api/me")
+      .andExpect {
+        status { isUnauthorized() }
+      }
+    mockMvc.get("/api/me") {
+      header(HttpHeaders.AUTHORIZATION, "Bearer $wrongSignatureToken")
+    }.andExpect {
+      status { isUnauthorized() }
+    }
+    mockMvc.get("/api/me") {
+      header(HttpHeaders.AUTHORIZATION, "Bearer $activeToken")
+    }.andExpect {
+      status { isOk() }
+      jsonPath("$.actor.externalSubject") { value("http-active") }
+    }
+    listOf(unknownToken, inactiveToken, revokedToken).forEach { token ->
+      mockMvc.get("/api/me") {
+        header(HttpHeaders.AUTHORIZATION, "Bearer $token")
+      }.andExpect {
+        status { isForbidden() }
+      }
+    }
+
+    val authorityAfterRequests = identityAuthoritySnapshot()
+    assertThat(authorityAfterRequests).isEqualTo(authorityBeforeRequests)
+    assertThat(
+      jdbcTemplate.queryForObject(
+        "select count(*) from app_user where external_subject = ?",
+        Int::class.java,
+        "http-unknown"
+      )
+    ).isZero()
+    assertThat(appUserRepository.findById(activeUserId)?.status).isEqualTo("ACTIVE")
+    assertThat(appUserRepository.findById(inactiveUserId)?.status).isEqualTo("INACTIVE")
+    assertThat(appUserRepository.findById(revokedUserId)?.status).isEqualTo("ACTIVE")
+    assertThat(
+      jdbcTemplate.queryForObject(
+        "select status from tenant_membership where id = ?",
+        String::class.java,
+        revokedMembershipId
+      )
+    ).isEqualTo("INACTIVE")
+    assertThat(
+      mockingDetails(appUserRepository).invocations
+        .map { it.method.name }
+        .filter { it == "create" || it == "updateProfile" }
+    ).isEmpty()
     assertThat(jdbcTemplate.queryForObject("select count(*) from audit_event", Int::class.java)).isZero()
   }
 
@@ -745,6 +891,69 @@ class PersistenceFoundationIntegrationTest {
           ?: error("Missing row count for $tableName")
       }
 
+  private fun identityAuthoritySnapshot(): IdentityAuthoritySnapshot =
+    IdentityAuthoritySnapshot(
+      appUsers = tableSnapshot("app_user"),
+      tenants = tableSnapshot("tenant"),
+      memberships = tableSnapshot("tenant_membership"),
+      auditEvents = tableSnapshot("audit_event")
+    )
+
+  private fun tableSnapshot(tableName: String): List<AuthorityRowSnapshot> =
+    jdbcTemplate.query(
+      """
+      select t.id::text as row_id,
+             to_jsonb(t)::text as row_data,
+             t.xmin::text as row_version
+      from $tableName t
+      order by t.id
+      """.trimIndent()
+    ) { resultSet, _ ->
+      AuthorityRowSnapshot(
+        id = resultSet.getString("row_id"),
+        rowData = resultSet.getString("row_data"),
+        rowVersion = resultSet.getString("row_version")
+      )
+    }
+
+  private fun assertNoPrometheusPayload(result: MvcResult) {
+    assertThat(result.response.contentAsString)
+      .doesNotContain("# HELP", "# TYPE")
+  }
+
+  private fun signedCompactBearerToken(
+    subject: String,
+    issuedAt: Instant = Instant.now().truncatedTo(ChronoUnit.SECONDS),
+    expiresAt: Instant = issuedAt.plusSeconds(DB_JWT_TTL_SECONDS),
+    signingKey: ByteArray = configuredSigningKey()
+  ): String {
+    val encoder = NimbusJwtEncoder(
+      ImmutableSecret<SecurityContext>(SecretKeySpec(signingKey, "HmacSHA256"))
+    )
+    val claims = JwtClaimsSet.builder()
+      .subject(subject)
+      .issuedAt(issuedAt)
+      .expiresAt(expiresAt)
+      .id(UUID.randomUUID().toString())
+      .build()
+    val header = JwsHeader.with(MacAlgorithm.HS256)
+      .type("JWT")
+      .build()
+    return encoder.encode(JwtEncoderParameters.from(header, claims)).tokenValue
+  }
+
+  private fun configuredSigningKey(): ByteArray =
+    environment.getRequiredProperty("ritomer.security.jwt.hmac-secret")
+      .toByteArray(StandardCharsets.UTF_8)
+
+  private fun randomSigningKeyDifferentFrom(configuredSigningKey: ByteArray): ByteArray {
+    var candidate: ByteArray
+    do {
+      candidate = ByteArray(32).also(DB_JWT_SECURE_RANDOM::nextBytes)
+    } while (MessageDigest.isEqual(candidate, configuredSigningKey))
+    return candidate
+  }
+
   private fun insertMembership(
     userId: UUID,
     tenantId: UUID,
@@ -786,3 +995,19 @@ class PersistenceFoundationIntegrationTest {
     updatedAt = createdAt
   )
 }
+
+private data class IdentityAuthoritySnapshot(
+  val appUsers: List<AuthorityRowSnapshot>,
+  val tenants: List<AuthorityRowSnapshot>,
+  val memberships: List<AuthorityRowSnapshot>,
+  val auditEvents: List<AuthorityRowSnapshot>
+)
+
+private data class AuthorityRowSnapshot(
+  val id: String,
+  val rowData: String,
+  val rowVersion: String
+)
+
+private const val DB_JWT_TTL_SECONDS = 300L
+private val DB_JWT_SECURE_RANDOM = SecureRandom()

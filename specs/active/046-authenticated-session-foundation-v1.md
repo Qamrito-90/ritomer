@@ -8,17 +8,15 @@ MILESTONE=M1_1_AUTHENTICATED_SESSION_FOUNDATION
 RISK_CLASS=C
 EVIDENCE_LEVEL=FULL
 
-CURRENT_CHECKPOINT=M1_1A_LOCAL_IMPLEMENTATION_PENDING_POST_CODE_CPO_REVIEW
+M1_1A_SCOPE=BACKEND_AUTH_TENANT_FOUNDATION_WITH_CORRECTIVE_M8
 M1_1_FINAL_OUTCOME_DELIVERED=NO
 
-M1_1A_IMPLEMENTED=YES_LOCAL_ONLY_PENDING_REVIEW
 M1_1B_IMPLEMENTED=NO
 M1_1C_IMPLEMENTED=NO
 M1_1D_IMPLEMENTED=NO
 
-M1_1B_AUTHORIZED=NO
-M1_1C_AUTHORIZED=NO
-M1_1D_AUTHORIZED=NO
+PROMETHEUS_WEB_EXPOSURE=CLOSED_FAIL_CLOSED
+PUBLIC_MANAGEMENT_ENDPOINTS=HEALTH_INFO_ONLY
 
 SESSION_CREATED=NO
 COOKIE_CREATED=NO
@@ -30,7 +28,7 @@ AGENT_RUNTIME=NO
 MCP_RUNTIME=NO
 ```
 
-Cette spec reste active pendant les quatre slices cumulatives. Le checkpoint A ne livre pas une session : il établit localement le principal applicatif, la lecture d'autorité fraîche et la sûreté tenant requises par la future frontière de session. La fermeture et le déplacement vers `specs/done/` appartiennent exclusivement à M1.1D.
+Cette spec reste active pendant les quatre slices cumulatives. Le checkpoint A ne livre pas une session : il borne le principal applicatif, la lecture d'autorité fraîche aux frontières métier protégées et la sûreté tenant requises par la future frontière de session. Le correctif M8 ferme fail-closed l'exposition HTTP de Prometheus ; seuls health et info restent exposés. La fermeture et le déplacement vers `specs/done/` appartiennent exclusivement à M1.1D.
 
 ## 2. Outcome M1.1 et outcome borné M1.1A
 
@@ -41,7 +39,8 @@ M1.1A couvre uniquement :
 - un principal applicatif unique, minimal, sérialisable et indépendant du transport ;
 - les ports de lecture et de fraîcheur d'autorité ;
 - l'adaptation read-only du JWT backend historique vers ce principal ;
-- la relecture de l'utilisateur et des grants actifs à chaque requête protégée ;
+- la relecture de l'utilisateur et des grants actifs à chaque requête métier protégée ;
+- la fermeture fail-closed de l'exposition web Prometheus, tandis que health et info restent exposés ;
 - la validation stricte de `X-Tenant-Id`, le binding MDC post-autorisation et son nettoyage ;
 - la neutralisation de l'auto-registration Servlet de l'instance existante de `TenantMdcFilter` ;
 - les preuves ciblées, PostgreSQL réelles, Modulith et backend complètes.
@@ -55,7 +54,9 @@ AUTH_ARCHITECTURE=BFF_SERVER_SIDE_SESSION_WITH_SECURE_OPAQUE_COOKIE
 LOCAL_TEST_AUTH=LOCAL_TEST_IDP_ADAPTER_THROUGH_THE_SAME_SESSION_BOUNDARY
 ONE_APPLICATION_PRINCIPAL_MODEL=YES
 MEMBERSHIP_DB_IS_AUTHORITATIVE=YES
-AUTHORITY_RELOAD=EVERY_PROTECTED_REQUEST
+AUTHORITY_RELOAD=EVERY_PROTECTED_BUSINESS_REQUEST
+PUBLIC_MANAGEMENT_ENDPOINTS=HEALTH_INFO_ONLY
+PROMETHEUS_WEB_EXPOSURE=CLOSED_FAIL_CLOSED
 BROWSER_BEARER_AUTH=NO
 NEW_DEPENDENCY=NO
 DB_MIGRATION=NO
@@ -236,7 +237,7 @@ Chaque contrat métier publie deux Security Requirement Objects pour exprimer `c
 
 ## 10. File-sets exacts et comptages
 
-### M1.1A — 12 paths, `A=3, M=9`
+### M1.1A — scope de base — 12 paths, `A=3, M=9`
 
 | Action | Path |
 |---|---|
@@ -252,6 +253,21 @@ Chaque contrat métier publie deux Security Requirement Objects pour exprimer `c
 | M | `backend/src/test/kotlin/ch/qamwaq/ritomer/BackendApplicationSmokeTest.kt` |
 | M | `backend/src/test/kotlin/ch/qamwaq/ritomer/PersistenceFoundationIntegrationTest.kt` |
 | A | `specs/active/046-authenticated-session-foundation-v1.md` |
+
+### M1.1A corrective M8 — 8 paths, `M=8`
+
+| Action | Path |
+|---|---|
+| M | `backend/src/main/resources/application.yml` |
+| M | `backend/src/test/kotlin/ch/qamwaq/ritomer/BackendApplicationSmokeTest.kt` |
+| M | `backend/src/test/kotlin/ch/qamwaq/ritomer/PersistenceFoundationIntegrationTest.kt` |
+| M | `specs/active/046-authenticated-session-foundation-v1.md` |
+| M | `docs/product/v1-plan.md` |
+| M | `docs/present/architecture-cadrage-v1.md` |
+| M | `docs/present/ux-cadrage-v1.md` |
+| M | `docs/present/ai-cadrage-v1.md` |
+
+La modification d'`application.yml` ferme uniquement l'exposition Prometheus et n'implémente aucune capacité M1.1B. Le réalignement des quatre documents canoniques corrige la vérité courante sans implémenter M1.1D.
 
 ### M1.1B — 12 paths, `A=6, M=6`
 
@@ -315,22 +331,16 @@ Chaque contrat métier publie deux Security Requirement Objects pour exprimer `c
 | R | `specs/active/046-authenticated-session-foundation-v1.md` vers `specs/done/046-authenticated-session-foundation-v1.md` |
 
 ```text
-M1_1A=12_LOGICAL_12_PHYSICAL_A3_M9
-M1_1B=12_LOGICAL_12_PHYSICAL_A6_M6
-M1_1C=12_LOGICAL_12_PHYSICAL_A2_M10
-M1_1D=22_LOGICAL_23_PHYSICAL_M21_R1
-
-ACROSS_COMMITS_LOGICAL_ARTIFACT_COUNT=58
-ACROSS_COMMITS_PHYSICAL_ENDPOINT_TOUCHES=59
-UNIQUE_PATHS_ACROSS_COMMITS=58
-OVERLAP_COUNT=1
-OVERLAP=SPEC_046_ACTIVE_A_TO_D_ONLY
-
-FINAL_BASE_TO_HEAD_PATH_COUNT=57
-FINAL_STATUS_MATRIX=A=11,M=46,D=0
+M1_1A_BASE_SCOPE=12_PATHS_A3_M9
+M1_1A_M8_SCOPE=8_PATHS_M8
+M1_1A_WITH_M8_SCOPE=17_PATHS_A3_M14
+M1_1B=12_PATHS_A6_M6_NOT_IMPLEMENTED
+M1_1C=12_PATHS_A2_M10_NOT_IMPLEMENTED
+M1_1D=22_LOGICAL_23_PHYSICAL_M21_R1_NOT_IMPLEMENTED
+M1_1_FINAL_OUTCOME_DELIVERED=NO
 ```
 
-A crée seulement la spec active. B et C ne la modifient pas. D réalise sa mise à jour durable finale et le rename. A, B et C sont cumulatives et ne sont pas livrées séparément.
+Le tableau A décrit le scope de base. Le delta correctif M8 modifie exactement huit paths et porte l'union A+M8 à `A=3, M=14, total=17`. Les file-sets B, C et D restent des contrats futurs non implémentés ; chaque slice future exige une autorisation distincte et ses comptages devront alors être revalidés.
 
 ## 11. Tests, gates et stops
 
@@ -342,14 +352,17 @@ M1.1A doit prouver avec des sorties fraîches :
 - test inchangé qui exécute `ApplicationModules.verify()` ;
 - build backend ;
 - `git diff --check` ;
-- file-set exact de 12 paths et matrice `A=3, M=9` ;
+- delta correctif exact de 8 paths, `M=8`, et union A+M8 exacte de 17 paths, `A=3, M=14` ;
+- vrai chemin MockMvc/Spring Security avec JWT HS256 compact signé, sans `with(jwt())`, prouvant Prometheus non mappé pour les acteurs actif, inconnu, inactif et révoqué ;
+- health, liveness, readiness et info publics sans régression ;
+- absence de payload Prometheus ;
 - absence de path caché, dépendance, migration ou changement protégé ;
 - scan de secret borné au diff et aux artefacts de review ;
 - UTF-8 sans BOM, LF et newline terminal.
 
 Les tests A couvrent au minimum : subject JWT absent, blank, inconnu et user inactif ; claims ignorés ; zéro write d'authentification ; quatre champs et sérialisation stable ; Clock UTC et corrélation serveur ; passthrough du principal ; relecture user/grants ; révocation immédiate ; erreurs DB propagées ; toutes les formes du header ; 400/403/404 ; binding post-membership ; aucun MDC pré-autorisation ; clear sur toutes les sorties ; identité, registration disabled, canaux `0/1` et ordre effectif du filtre.
 
-Le rail PostgreSQL prouve `findById` présent, absent et inactif, les états actifs/inactifs user, membership et tenant, les changements de rôle visibles au read suivant, les row counts avant/après et l'absence de write d'authentification.
+Le rail PostgreSQL prouve les états actif, inconnu, user inactif et membership révoqué via le vrai chemin HTTP/JWT. Des snapshots triés avant/après de toutes les colonnes utiles et de `xmin` pour `app_user`, `tenant`, `tenant_membership` et `audit_event` restent strictement identiques ; le sujet inconnu reste absent et aucun create, updateProfile ou réactivation n'est observé.
 
 Tout check requis failed, skipped, stale, missing ou indeterminate arrête la slice. Les stops A comprennent :
 
@@ -361,7 +374,7 @@ Tout check requis failed, skipped, stale, missing ou indeterminate arrête la sl
 - cycle Modulith ;
 - tenant MDC avant autorisation ;
 - identité, compteurs, canaux ou ordre du filtre non prouvés ;
-- treizième path, dépendance ou migration ;
+- neuvième path du delta correctif ou dix-huitième path de l'union A+M8, dépendance ou migration ;
 - modification d'un path protégé ;
 - spec divergente du présent contrat.
 
@@ -415,7 +428,9 @@ Stops D : cookie `Secure __Host-` ne round-trip pas sur HTTP loopback ; navigate
 
 ## 12. Autorisations et frontières
 
-Cette spec ne constitue aucune autorisation. Au checkpoint de sa création, seul M1.1A est implémenté localement et attend la revue CPO post-code. M1.1B, M1.1C et M1.1D nécessitent chacune l'acceptation des preuves précédentes et une autorisation owner distincte.
+Cette spec ne constitue aucune autorisation. M1.1A avec son correctif M8 borne uniquement la fondation backend auth/tenant ; M1.1B, M1.1C et M1.1D ne sont pas implémentées et chaque slice future exige une autorisation distincte.
+
+Les états de review, delivery, merge et décision owner vivent uniquement dans les Evidence Packs, la pull request et les records spécialisés.
 
 Une autorisation d'implémentation n'implique jamais delivery, merge, exécution sensible ou production. Aucune action GitHub, aucun commit, push, PR, merge, déploiement ou usage de donnée réelle ne découle de cette spec.
 
@@ -432,7 +447,7 @@ Restent hors M1.1 : Redis, nouvelle dépendance, migration DB, JIT provisioning,
 
 ## 14. Impacts documentaires et contractuels
 
-Pour M1.1A, seul ce fichier est ajouté. Aucun contrat, ADR, runbook, README, cadrage, roadmap ou fondation UI ne change.
+Le scope de base M1.1A ajoute seulement cette spec. Le correctif M8 modifie cette spec, `docs/product/v1-plan.md` et les trois cadrages du présent afin d'aligner la vérité durable de périmètre, en plus de la fermeture Prometheus et de ses preuves. Il ne modifie aucun contrat, ADR, runbook, README, roadmap ou fondation UI et n'anticipe aucune capacité B, C ou D.
 
 Les impacts ultérieurs sont bornés ainsi :
 

@@ -23,6 +23,8 @@ import ch.qamwaq.ritomer.shared.infrastructure.security.TENANT_MDC_KEY
 import ch.qamwaq.ritomer.shared.infrastructure.security.TENANT_MDC_PRESENT_AT_FILTER_ENTRY_ATTRIBUTE
 import ch.qamwaq.ritomer.shared.infrastructure.security.TENANT_MDC_PRESENT_BEFORE_BIND_ATTRIBUTE
 import ch.qamwaq.ritomer.shared.infrastructure.security.TenantMdcFilter
+import com.nimbusds.jose.jwk.source.ImmutableSecret
+import com.nimbusds.jose.proc.SecurityContext
 import jakarta.servlet.DispatcherType
 import jakarta.servlet.Filter
 import java.io.ByteArrayInputStream
@@ -30,13 +32,18 @@ import java.io.ByteArrayOutputStream
 import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
 import java.lang.reflect.Modifier
+import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
+import java.security.MessageDigest
+import java.security.SecureRandom
 import java.time.Instant
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
+import java.time.temporal.ChronoUnit
 import java.util.UUID
+import javax.crypto.spec.SecretKeySpec
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.hamcrest.Matchers.nullValue
@@ -47,15 +54,23 @@ import org.mockito.Mockito.mockingDetails
 import org.slf4j.MDC
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
+import org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrint
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.web.servlet.FilterRegistrationBean
 import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Import
+import org.springframework.core.env.Environment
+import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.Authentication
 import org.springframework.security.core.context.SecurityContextHolder
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm
+import org.springframework.security.oauth2.jwt.JwsHeader
 import org.springframework.security.oauth2.jwt.Jwt
+import org.springframework.security.oauth2.jwt.JwtClaimsSet
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters
+import org.springframework.security.oauth2.jwt.NimbusJwtEncoder
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication
@@ -74,7 +89,10 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPat
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status as mvcStatus
 
 @SpringBootTest
-@AutoConfigureMockMvc
+@AutoConfigureMockMvc(
+  print = MockMvcPrint.NONE,
+  printOnlyOnFailure = false
+)
 @ActiveProfiles("test")
 @Import(IdentityTestConfiguration::class)
 class BackendApplicationSmokeTest {
@@ -83,6 +101,9 @@ class BackendApplicationSmokeTest {
 
   @Autowired
   private lateinit var applicationContext: ApplicationContext
+
+  @Autowired
+  private lateinit var environment: Environment
 
   @Autowired
   private lateinit var identityTestStore: IdentityTestStore
@@ -115,12 +136,86 @@ class BackendApplicationSmokeTest {
   }
 
   @Test
-  fun `context loads and health endpoint remains public`() {
+  fun `context loads and health info and probe endpoints remain public`() {
     mockMvc.get("/actuator/health")
       .andExpect {
         status { isOk() }
         jsonPath("$.status") { value("UP") }
       }
+
+    listOf(
+      "/actuator/health/liveness",
+      "/actuator/health/readiness",
+      "/actuator/info"
+    ).forEach { path ->
+      mockMvc.get(path)
+        .andExpect {
+          status { isOk() }
+        }
+    }
+  }
+
+  @Test
+  fun `prometheus remains fail closed through the real bearer filter chain`() {
+    val tenantId = UUID.fromString("11111111-1111-1111-1111-111111111111")
+    identityTestStore.seedActiveMembership(
+      "prometheus-active",
+      tenantId,
+      "tenant-alpha",
+      "Tenant Alpha",
+      TenantRole.ACCOUNTANT
+    )
+    identityTestStore.seedUser("prometheus-inactive", status = "INACTIVE")
+    val revokedUser = identityTestStore.seedUser("prometheus-revoked")
+    identityTestStore.seedActiveMembership(
+      "prometheus-revoked",
+      tenantId,
+      "tenant-alpha",
+      "Tenant Alpha",
+      TenantRole.REVIEWER
+    )
+    identityTestStore.setMembershipStatus(revokedUser.id, tenantId, "INACTIVE")
+
+    val configuredKey = configuredSigningKey()
+    val wrongSignatureToken = signedCompactBearerToken(
+      subject = "prometheus-active",
+      signingKey = randomSigningKeyDifferentFrom(configuredKey)
+    )
+
+    val anonymous = mockMvc.get("/actuator/prometheus")
+      .andExpect {
+        status { isUnauthorized() }
+      }
+      .andReturn()
+    val invalidSignature = mockMvc.get("/actuator/prometheus") {
+      header(HttpHeaders.AUTHORIZATION, "Bearer $wrongSignatureToken")
+    }.andExpect {
+      status { isUnauthorized() }
+    }.andReturn()
+
+    listOf(
+      "prometheus-active",
+      "prometheus-unknown",
+      "prometheus-inactive",
+      "prometheus-revoked"
+    ).forEach { subject ->
+      val result = mockMvc.get("/actuator/prometheus") {
+        header(HttpHeaders.AUTHORIZATION, "Bearer ${signedCompactBearerToken(subject)}")
+      }.andExpect {
+        status { isNotFound() }
+      }.andReturn()
+
+      assertNoPrometheusPayload(result)
+      assertThat(result.request.getAttribute(TENANT_MDC_FILTER_INVOCATION_COUNT_ATTRIBUTE)).isEqualTo(1)
+      assertThat(result.request.getAttribute(TENANT_MDC_FILTER_AUTHENTICATED_AT_ENTRY_ATTRIBUTE)).isEqualTo(true)
+      assertFilterCleared(result)
+    }
+
+    assertNoPrometheusPayload(anonymous)
+    assertNoPrometheusPayload(invalidSignature)
+    assertThat(identityTestStore.repositoryCounters())
+      .isEqualTo(IdentityRepositoryCounters(0, 0, 0, 0, 0))
+    assertThat(auditTestStore.auditEvents()).isEmpty()
   }
 
   @Test
@@ -781,6 +876,44 @@ class BackendApplicationSmokeTest {
     assertThat(MDC.get(TENANT_MDC_KEY)).isNull()
   }
 
+  private fun assertNoPrometheusPayload(result: MvcResult) {
+    assertThat(result.response.contentAsString)
+      .doesNotContain("# HELP", "# TYPE")
+  }
+
+  private fun signedCompactBearerToken(
+    subject: String,
+    issuedAt: Instant = Instant.now().truncatedTo(ChronoUnit.SECONDS),
+    expiresAt: Instant = issuedAt.plusSeconds(JWT_TTL_SECONDS),
+    signingKey: ByteArray = configuredSigningKey()
+  ): String {
+    val encoder = NimbusJwtEncoder(
+      ImmutableSecret<SecurityContext>(SecretKeySpec(signingKey, "HmacSHA256"))
+    )
+    val claims = JwtClaimsSet.builder()
+      .subject(subject)
+      .issuedAt(issuedAt)
+      .expiresAt(expiresAt)
+      .id(UUID.randomUUID().toString())
+      .build()
+    val header = JwsHeader.with(MacAlgorithm.HS256)
+      .type("JWT")
+      .build()
+    return encoder.encode(JwtEncoderParameters.from(header, claims)).tokenValue
+  }
+
+  private fun configuredSigningKey(): ByteArray =
+    environment.getRequiredProperty("ritomer.security.jwt.hmac-secret")
+      .toByteArray(StandardCharsets.UTF_8)
+
+  private fun randomSigningKeyDifferentFrom(configuredSigningKey: ByteArray): ByteArray {
+    var candidate: ByteArray
+    do {
+      candidate = ByteArray(32).also(SMOKE_JWT_SECURE_RANDOM::nextBytes)
+    } while (MessageDigest.isEqual(candidate, configuredSigningKey))
+    return candidate
+  }
+
   private fun actorAuthentication(actorId: UUID): Authentication =
     UsernamePasswordAuthenticationToken(authenticatedActor(actorId), null, emptyList())
 
@@ -820,6 +953,9 @@ class BackendApplicationSmokeTest {
     }
   }
 }
+
+private const val JWT_TTL_SECONDS = 300L
+private val SMOKE_JWT_SECURE_RANDOM = SecureRandom()
 
 private fun actorJwt(
   subject: String? = "user-123",

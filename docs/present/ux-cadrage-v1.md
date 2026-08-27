@@ -13,7 +13,8 @@ Il ne remplace ni la vision UX, ni le playbook UX, ni la source de verite UI. Il
 - Le present UX inclut maintenant un frontend borne sur `/` et `/closing-folders/:closingFolderId`, avec entree dossiers, detail dossier, import balance CSV borne, mapping manuel unitaire borne, cockpit controls/readiness read-only, dossier progress summary, preview `Financial summary` read-only, preview `Financial statements structured` read-only et bloc `Workpapers` avec maker update unitaire borne sur les items courants, upload document unitaire borne sur les current items avec workpaper persistant, download document unitaire explicite sur les documents deja visibles, frontiere dediee `WorkpapersPanel`, decision reviewer document unitaire sur les documents current eligibles deja visibles, decision reviewer workpaper humaine sur les anchors eligibles, audit-ready export pack UI et minimal annex preview read-only.
 - Apres `030`, les increments frontend livres `032` a `035` durcissent la validation fail-closed des controls, la coherence des refreshs post-action, l'historique et le diff d'import, puis le refresh de l'annexe apres creation d'un export pack, sans nouveau runtime IA ni nouvelle promesse statutaire.
 - Les specs `036` a `041` livrent et prouvent uniquement une demo locale integree sur donnees synthetiques, son cockpit, son polish data-heavy et ses smokes internes. Elles ne prouvent ni authentification SaaS durable, ni environnement interne partage, ni utilisateur externe, ni provider IA reel.
-- `042` reste en backlog sous `PAUSED_BY_SEPARATE_CPO_DECISION`; `043` reste terminalement close avec `STOPPED_INCONCLUSIVE`; `044` et `045` restent Done docs-only. Aucune spec n'est active et aucune spec `046` n'existe.
+- La spec 046 est l'unique spec active. M1.1A avec son correctif M8 borne la fondation backend auth/tenant : aucune UI, session, cookie, CSRF, login ou logout n'est livree. L'outcome final M1.1 n'est pas livre et B, C et D ne sont pas implementees.
+- Ce cadrage ne constitue aucune autorisation. Chaque slice future B, C ou D exige une autorisation distincte ; les etats de review, delivery, merge et decision owner vivent uniquement dans les Evidence Packs, la pull request et les records specialises.
 - La V1 reste bornee : les surfaces frontend 029 exposent des capacites existantes, mais ne transforment ni les previews financieres, ni l'audit-ready export pack, ni la minimal annex preview en livrables statutaires finaux.
 - La V1 reste progressive, desktop-first, AI-ready, non AI-led et pas encore AI-native dans le runtime ; les surfaces 029 ameliorent le pilotage humain et `030` ajoute une assistance de mapping no-provider sans rendre l'IA autonome ni centrale dans l'experience courante.
 - La source de verite UI codable reste `docs/ui/ui-foundations-v1.md`.
@@ -32,7 +33,7 @@ Il ne remplace ni la vision UX, ni le playbook UX, ni la source de verite UI. Il
 
 ## Trajectoire UX approuvee, non livree
 
-- La prochaine cible produit apres M0 est M1 `AUTHENTICATED_PRODUCT_SHELL` : login, Home, Dossiers, workspace dossier, Activite IA, Parametres, contexte tenant/role et logout. Cette cible n'est pas livree par M0.
+- M1 `AUTHENTICATED_PRODUCT_SHELL` reste une cible non livree : login, Home, Dossiers, workspace dossier, Activite IA, Parametres, contexte tenant/role et logout. M1.1A ne livre aucun de ces comportements UX.
 - En developpement local, le futur mode `LOCAL_TEST_ONLY` pourra remplacer uniquement le passage par l'IdP externe. Il ne contournera jamais les autorisations serveur et utilisera de vrais utilisateurs synthetiques, memberships, roles et tenants ; tout environnement interne partage exigera un vrai OIDC.
 - Les patterns agentiques detailles restent futurs : kernel et registre d'outils en M3, puis Mapping Assistant comme premier slice IA-native en M4. L'UX courante de suggestions no-provider ne vaut ni agent runtime, ni provider reel.
 - Les signatures UX durables restent le workbench financier, la clarte sous pression, le contexte tenant/dossier et une IA verifiable, modifiable, rejetable et tracable.
@@ -119,6 +120,7 @@ Toujours hors scope maintenant :
 - `specs/done/043-controlled-fiduciary-pilot-readiness-v1.md`
 - `specs/done/044-design-partner-readiness-v1.md`
 - `specs/done/045-design-partner-research-protocol-v1.md`
+- `specs/active/046-authenticated-session-foundation-v1.md`
 - `specs/done/006-controls-v1.md`
 - `specs/done/007-financial-summary-v1.md`
 - `specs/done/009-financial-statements-structured-v1.md`
