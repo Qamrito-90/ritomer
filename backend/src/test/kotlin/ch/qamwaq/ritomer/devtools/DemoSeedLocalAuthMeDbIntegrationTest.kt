@@ -9,6 +9,9 @@ import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.nimbusds.jose.jwk.source.ImmutableSecret
 import com.nimbusds.jose.proc.SecurityContext
+import jakarta.servlet.ServletContext
+import jakarta.servlet.SessionTrackingMode
+import jakarta.servlet.http.Cookie
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.security.SecureRandom
@@ -30,6 +33,7 @@ import org.springframework.core.env.Environment
 import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.mock.web.MockHttpSession
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm
 import org.springframework.security.oauth2.jwt.JwsHeader
 import org.springframework.security.oauth2.jwt.JwtClaimsSet
@@ -47,7 +51,10 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor
 @SpringBootTest(
   properties = [
     "ritomer.demo.seed.enabled=true",
-    "ritomer.demo.seed.variant=043b-two-actor-pilot"
+    "ritomer.demo.seed.variant=043b-two-actor-pilot",
+    "ritomer.security.session.enabled=true",
+    "server.address=127.0.0.1",
+    "server.port=8080"
   ]
 )
 @AutoConfigureMockMvc(
@@ -78,8 +85,15 @@ class DemoSeedLocalAuthMeDbIntegrationTest {
   @Autowired
   private lateinit var mockMvc: MockMvc
 
+  @Autowired
+  private lateinit var servletContext: ServletContext
+
   @BeforeEach
   fun resetDatabaseState() {
+    assertThat(servletContext).isSameAs(mockMvc.dispatcherServlet.servletContext)
+    servletContext.setSessionTrackingModes(setOf(SessionTrackingMode.COOKIE))
+    assertThat(servletContext.effectiveSessionTrackingModes).containsExactly(SessionTrackingMode.COOKIE)
+
     DisposablePostgresTestDatabase.truncateAllCurrentTables(
       jdbcTemplate.dataSource ?: error("DataSource is required for guarded database reset."),
       environment
@@ -89,11 +103,78 @@ class DemoSeedLocalAuthMeDbIntegrationTest {
   }
 
   @Test
-  fun `api me requires a bearer token even when two actor demo seed exists`() {
+  fun `api me requires authentication even when the session demo seed exists`() {
     mockMvc.get("/api/me")
       .andExpect {
         status { isUnauthorized() }
       }
+  }
+
+  @Test
+  fun `local sessions resolve all three actors through fresh PostgreSQL authority without writes`() {
+    val expectedActors = sessionActorExpectations()
+    val before = authenticationTablesSnapshot()
+
+    expectedActors.forEachIndexed { index, expected ->
+      val authenticatedSession = authenticateLocalSession(expected.actorKey, assertActorCatalog = index == 0)
+      assertSessionMeResponse(authenticatedSession.session, expected.actor)
+      logoutLocalSession(authenticatedSession)
+    }
+
+    assertThat(authenticationTablesSnapshot()).isEqualTo(before)
+  }
+
+  @Test
+  fun `unknown local actor fails without any PostgreSQL write`() {
+    val bootstrap = bootstrapLocalSession()
+    val before = authenticationTablesSnapshot()
+
+    mockMvc.post("/api/session/local") {
+      with(localSessionRequest(bootstrap.session))
+      header(HttpHeaders.HOST, LOCAL_SESSION_HOST)
+      header(HttpHeaders.ORIGIN, LOCAL_SESSION_ORIGIN)
+      header(HttpHeaders.COOKIE, sessionCookieHeader(bootstrap.session))
+      header(LOCAL_SESSION_CSRF_HEADER, bootstrap.csrfToken)
+      contentType = MediaType.APPLICATION_JSON
+      content = """{"actorKey":"actor-99"}"""
+    }.andExpect {
+      status { isUnauthorized() }
+      header { string(HttpHeaders.CACHE_CONTROL, "no-store") }
+      jsonPath("$.code") { value("AUTHENTICATION_FAILED") }
+    }
+
+    assertThat(authenticationTablesSnapshot()).isEqualTo(before)
+  }
+
+  @Test
+  fun `session authority revocations invalidate user membership and tenant without authentication writes`() {
+    val accountant = authenticateLocalSession("actor-01")
+    val reviewer = authenticateLocalSession("actor-02")
+    val admin = authenticateLocalSession("actor-03")
+
+    assertThat(
+      jdbcTemplate.update(
+        "update app_user set status = 'INACTIVE', updated_at = current_timestamp where id = ?",
+        DemoSeedLocalDataset.userId
+      )
+    ).isEqualTo(1)
+    assertRevokedSessionWithoutAuthenticationWrite(accountant)
+
+    assertThat(
+      jdbcTemplate.update(
+        "update tenant_membership set status = 'INACTIVE', updated_at = current_timestamp where id = ?",
+        DemoSeedLocalDataset.reviewerMembershipId
+      )
+    ).isEqualTo(1)
+    assertRevokedSessionWithoutAuthenticationWrite(reviewer)
+
+    assertThat(
+      jdbcTemplate.update(
+        "update tenant set status = 'INACTIVE', updated_at = current_timestamp where id = ?",
+        DemoSeedLocalDataset.tenantId
+      )
+    ).isEqualTo(1)
+    assertRevokedSessionWithoutAuthenticationWrite(admin)
   }
 
   @Test
@@ -426,6 +507,213 @@ class DemoSeedLocalAuthMeDbIntegrationTest {
       jsonPath("$.memberships[0].roles[0]") { value(expectedRole) }
     }.andReturn()
 
+    assertExactMePayload(
+      result = result,
+      expectedUserId = expectedUserId,
+      expectedSubject = expectedSubject,
+      expectedEmail = expectedEmail,
+      expectedDisplayName = expectedDisplayName,
+      expectedRole = expectedRole
+    )
+  }
+
+  private fun sessionActorExpectations(): List<LocalSessionActorExpectation> =
+    listOf(
+      LocalSessionActorExpectation("actor-01", DemoSeedLocalDataset.accountantActor),
+      LocalSessionActorExpectation("actor-02", DemoSeedLocalDataset.reviewer043bActor),
+      LocalSessionActorExpectation("actor-03", DemoSeedLocalDataset.admin046bActor)
+    )
+
+  private fun authenticateLocalSession(
+    actorKey: String,
+    assertActorCatalog: Boolean = false
+  ): AuthenticatedLocalSession {
+    val anonymousBootstrap = bootstrapLocalSession()
+    assertThat(anonymousBootstrap.payload["sessionState"].asText()).isEqualTo("ANONYMOUS")
+    if (assertActorCatalog) {
+      assertThat(anonymousBootstrap.payload["actors"].map { it["actorKey"].asText() })
+        .containsExactly("actor-01", "actor-02", "actor-03")
+      assertThat(anonymousBootstrap.payload["actors"].map { it["displayLabel"].asText() })
+        .allSatisfy { label -> assertThat(label).isNotBlank() }
+    }
+    val anonymousSessionId = anonymousBootstrap.session.id
+
+    val loginResult = mockMvc.post("/api/session/local") {
+      with(localSessionRequest(anonymousBootstrap.session))
+      header(HttpHeaders.HOST, LOCAL_SESSION_HOST)
+      header(HttpHeaders.ORIGIN, LOCAL_SESSION_ORIGIN)
+      header(HttpHeaders.COOKIE, sessionCookieHeader(anonymousBootstrap.session))
+      header(LOCAL_SESSION_CSRF_HEADER, anonymousBootstrap.csrfToken)
+      contentType = MediaType.APPLICATION_JSON
+      content = """{"actorKey":"$actorKey"}"""
+    }.andExpect {
+      status { isNoContent() }
+      header { string(HttpHeaders.CACHE_CONTROL, "no-store") }
+      content { string("") }
+    }.andReturn()
+    val rotatedSession = loginResult.request.getSession(false) as? MockHttpSession
+      ?: error("A rotated authenticated session is required.")
+    assertThat(rotatedSession.id).isNotEqualTo(anonymousSessionId)
+
+    val authenticatedBootstrap = bootstrapLocalSession(rotatedSession)
+    assertThat(authenticatedBootstrap.payload["sessionState"].asText()).isEqualTo("AUTHENTICATED")
+    assertThat(authenticatedBootstrap.payload.has("actors")).isFalse()
+    assertThat(authenticatedBootstrap.csrfToken).isNotEqualTo(anonymousBootstrap.csrfToken)
+    return AuthenticatedLocalSession(
+      session = authenticatedBootstrap.session,
+      csrfToken = authenticatedBootstrap.csrfToken
+    )
+  }
+
+  private fun bootstrapLocalSession(existingSession: MockHttpSession? = null): LocalSessionBootstrap {
+    val result = mockMvc.get("/api/session/bootstrap") {
+      with(localSessionTopologyRequest())
+      header(HttpHeaders.HOST, LOCAL_SESSION_HOST)
+      if (existingSession != null) {
+        with(localSessionRequest(existingSession))
+        header(HttpHeaders.COOKIE, sessionCookieHeader(existingSession))
+      }
+    }.andExpect {
+      status { isOk() }
+      header { string(HttpHeaders.CACHE_CONTROL, "no-store") }
+      jsonPath("$.localLoginAvailable") { value(true) }
+      jsonPath("$.csrf.headerName") { value(LOCAL_SESSION_CSRF_HEADER) }
+    }.andReturn()
+    val payload = objectMapper.readTree(result.response.contentAsString)
+    val csrfToken = payload["csrf"]?.get("token")?.asText().orEmpty()
+    assertThat(csrfToken).isNotBlank()
+    val session = result.request.getSession(false) as? MockHttpSession
+      ?: error("Session bootstrap must retain a MockHttpSession.")
+    return LocalSessionBootstrap(session = session, csrfToken = csrfToken, payload = payload)
+  }
+
+  private fun assertSessionMeResponse(session: MockHttpSession, expected: DemoSeedLocalActorDataset) {
+    val result = mockMvc.get("/api/me") {
+      with(localSessionRequest(session))
+      header(HttpHeaders.HOST, LOCAL_SESSION_HOST)
+      header(HttpHeaders.COOKIE, sessionCookieHeader(session))
+    }.andExpect {
+      status { isOk() }
+    }.andReturn()
+    assertExactMePayload(
+      result = result,
+      expectedUserId = expected.userId,
+      expectedSubject = expected.externalSubject,
+      expectedEmail = expected.email,
+      expectedDisplayName = expected.displayName,
+      expectedRole = expected.membershipRole
+    )
+  }
+
+  private fun logoutLocalSession(authenticatedSession: AuthenticatedLocalSession) {
+    mockMvc.post("/api/session/logout") {
+      with(localSessionRequest(authenticatedSession.session))
+      header(HttpHeaders.HOST, LOCAL_SESSION_HOST)
+      header(HttpHeaders.ORIGIN, LOCAL_SESSION_ORIGIN)
+      header(HttpHeaders.COOKIE, sessionCookieHeader(authenticatedSession.session))
+      header(LOCAL_SESSION_CSRF_HEADER, authenticatedSession.csrfToken)
+    }.andExpect {
+      status { isNoContent() }
+      header { string(HttpHeaders.CACHE_CONTROL, "no-store") }
+      content { string("") }
+    }
+    assertThat(authenticatedSession.session.isInvalid).isTrue()
+  }
+
+  private fun assertRevokedSessionWithoutAuthenticationWrite(authenticatedSession: AuthenticatedLocalSession) {
+    val revokedBaseline = authenticationTablesSnapshot()
+    mockMvc.get("/api/me") {
+      with(localSessionRequest(authenticatedSession.session))
+      header(HttpHeaders.HOST, LOCAL_SESSION_HOST)
+      header(HttpHeaders.COOKIE, sessionCookieHeader(authenticatedSession.session))
+    }.andExpect {
+      status { isForbidden() }
+      header { string(HttpHeaders.CACHE_CONTROL, "no-store") }
+      jsonPath("$.code") { value("ACCESS_REVOKED") }
+    }
+    assertThat(authenticatedSession.session.isInvalid).isTrue()
+    assertThat(authenticationTablesSnapshot()).isEqualTo(revokedBaseline)
+  }
+
+  private fun localSessionRequest(session: MockHttpSession): RequestPostProcessor =
+    RequestPostProcessor { request ->
+      request.setSession(session)
+      request.setCookies(
+        Cookie(LOCAL_SESSION_COOKIE_NAME, session.id).apply {
+          isHttpOnly = true
+          secure = true
+          path = "/"
+        }
+      )
+      request.remoteAddr = LOCAL_SESSION_ADDRESS
+      request.localAddr = LOCAL_SESSION_ADDRESS
+      request.localPort = LOCAL_SESSION_PORT
+      request.serverName = LOCAL_SESSION_ADDRESS
+      request.serverPort = LOCAL_SESSION_PORT
+      request
+    }
+
+  private fun localSessionTopologyRequest(): RequestPostProcessor =
+    RequestPostProcessor { request ->
+      request.remoteAddr = LOCAL_SESSION_ADDRESS
+      request.localAddr = LOCAL_SESSION_ADDRESS
+      request.localPort = LOCAL_SESSION_PORT
+      request.serverName = LOCAL_SESSION_ADDRESS
+      request.serverPort = LOCAL_SESSION_PORT
+      request
+    }
+
+  private fun sessionCookieHeader(session: MockHttpSession): String =
+    "$LOCAL_SESSION_COOKIE_NAME=${session.id}"
+
+  private fun authenticationTablesSnapshot(): AuthenticationTablesSnapshot =
+    AuthenticationTablesSnapshot(
+      appUsers = stableAuthenticationRows(
+        """
+        select xmin::text as row_version, id, external_subject, email, display_name, status,
+               created_at, updated_at
+        from app_user
+        order by id asc
+        """.trimIndent()
+      ),
+      tenants = stableAuthenticationRows(
+        """
+        select xmin::text as row_version, id, slug, legal_name, status, created_at, updated_at
+        from tenant
+        order by id asc
+        """.trimIndent()
+      ),
+      memberships = stableAuthenticationRows(
+        """
+        select xmin::text as row_version, id, tenant_id, user_id, role_code, status,
+               created_at, updated_at
+        from tenant_membership
+        order by id asc
+        """.trimIndent()
+      ),
+      auditEvents = stableAuthenticationRows(
+        """
+        select xmin::text as row_version, id, tenant_id, occurred_at, actor_user_id, actor_subject,
+               actor_roles::text as actor_roles, request_id, trace_id, action, resource_type,
+               resource_id, metadata::text as metadata
+        from audit_event
+        order by id asc
+        """.trimIndent()
+      )
+    )
+
+  private fun stableAuthenticationRows(sql: String): List<Map<String, Any>> =
+    jdbcTemplate.queryForList(sql).map { row -> row.toSortedMap() }
+
+  private fun assertExactMePayload(
+    result: MvcResult,
+    expectedUserId: UUID,
+    expectedSubject: String,
+    expectedEmail: String,
+    expectedDisplayName: String,
+    expectedRole: String
+  ) {
+
     val expectedPayload = objectMapper.readTree(
       """
       {
@@ -592,12 +880,13 @@ class DemoSeedLocalAuthMeDbIntegrationTest {
       select count(*)
       from tenant_membership
       where tenant_id = ?
-        and user_id in (?, ?)
+        and user_id in (?, ?, ?)
       """.trimIndent(),
       Int::class.java,
       LURE_TENANT_ID,
       DemoSeedLocalDataset.userId,
-      DemoSeedLocalDataset.reviewerUserId
+      DemoSeedLocalDataset.reviewerUserId,
+      DemoSeedLocalDataset.adminUserId
     )
 
     assertThat(lureFolder["tenant_id"]).isEqualTo(LURE_TENANT_ID)
@@ -779,12 +1068,42 @@ class DemoSeedLocalAuthMeDbIntegrationTest {
     return objectMapper.readTree(Base64.getUrlDecoder().decode(parts[partIndex]))
   }
 
+  private data class LocalSessionActorExpectation(
+    val actorKey: String,
+    val actor: DemoSeedLocalActorDataset
+  )
+
+  private data class LocalSessionBootstrap(
+    val session: MockHttpSession,
+    val csrfToken: String,
+    val payload: JsonNode
+  )
+
+  private data class AuthenticatedLocalSession(
+    val session: MockHttpSession,
+    val csrfToken: String
+  )
+
+  private data class AuthenticationTablesSnapshot(
+    val appUsers: List<Map<String, Any>>,
+    val tenants: List<Map<String, Any>>,
+    val memberships: List<Map<String, Any>>,
+    val auditEvents: List<Map<String, Any>>
+  )
+
   companion object {
     private const val JWT_TTL_SECONDS = 3_600L
     private const val JWT_HEADER_PART = 0
     private const val JWT_PAYLOAD_PART = 1
     private val JWT_EXACT_CLAIM_NAMES = setOf("sub", "iat", "exp", "jti")
     private val SECURE_RANDOM = SecureRandom()
+
+    private const val LOCAL_SESSION_COOKIE_NAME = "__Host-ritomer-session"
+    private const val LOCAL_SESSION_CSRF_HEADER = "X-CSRF-TOKEN"
+    private const val LOCAL_SESSION_ADDRESS = "127.0.0.1"
+    private const val LOCAL_SESSION_PORT = 8080
+    private const val LOCAL_SESSION_HOST = "127.0.0.1:8080"
+    private const val LOCAL_SESSION_ORIGIN = "http://127.0.0.1:5173"
 
     private const val WORKPAPER_ANCHOR_CODE = "BS.ASSET.CURRENT_SECTION"
 

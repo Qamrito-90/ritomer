@@ -13,34 +13,39 @@ M0_STATUS=DONE_CANONICAL_ROADMAP_REBASELINE
 CRITICAL_PATH=M0_TO_M5
 FIRST_AI_NATIVE_VERTICAL_SLICE=MAPPING_ASSISTANT_AGENT
 
-ACTIVE_SPEC=046_AUTHENTICATED_SESSION_FOUNDATION_V1
+ACTIVE_SPEC=046
+ACTIVE_SPEC_ID=046_AUTHENTICATED_SESSION_FOUNDATION_V1
 ACTIVE_SPEC_COUNT=1
 SPEC_046=ACTIVE
 M1_1A_SCOPE=BACKEND_AUTH_TENANT_FOUNDATION_WITH_CORRECTIVE_M8
+M1_1A_IMPLEMENTED=YES
 M1_1_FINAL_OUTCOME_DELIVERED=NO
-M1_1B_IMPLEMENTED=NO
+M1_1B_SCOPE=BACKEND_SESSION_KERNEL_PROCESS_LOCAL_DEFAULT_OFF
+M1_1B_IMPLEMENTED=YES
 M1_1C_IMPLEMENTED=NO
 M1_1D_IMPLEMENTED=NO
 ```
 
-M0 a synchronisé les documents vivants et borné le checker 042 à ses responsabilités historiques. La spec 046 est l'unique spec active ; M1.1A avec son correctif M8 borne la fondation backend auth/tenant. Ce plan ne constitue aucune autorisation.
+M0 a synchronisé les documents vivants et borné le checker 042 à ses responsabilités historiques. La spec 046 est l'unique spec active ; M1.1A avec son correctif M8 borne la fondation backend auth/tenant et M1.1B implémente le kernel de session backend process-local, désactivé par défaut. Ce plan ne constitue aucune autorisation.
 
-Les états de review, delivery, merge et décision owner vivent uniquement dans les Evidence Packs, la pull request et les records spécialisés.
+Les états de review, delivery, merge, décision owner et autorisation vivent uniquement dans les Evidence Packs, la pull request et les records spécialisés.
 
-## Plus petit incrément actif M1.1 — checkpoint A borné
+## Plus petit incrément actif M1.1 — checkpoints A et B bornés
 
 ```text
 M1_1_SPEC=046_AUTHENTICATED_SESSION_FOUNDATION_V1
 M1_1A_SCOPE=BACKEND_AUTH_TENANT_FOUNDATION_WITH_CORRECTIVE_M8
+M1_1A_IMPLEMENTED=YES
 M1_1_FINAL_OUTCOME_DELIVERED=NO
-M1_1B_IMPLEMENTED=NO
+M1_1B_SCOPE=BACKEND_SESSION_KERNEL_PROCESS_LOCAL_DEFAULT_OFF
+M1_1B_IMPLEMENTED=YES
 M1_1C_IMPLEMENTED=NO
 M1_1D_IMPLEMENTED=NO
 ```
 
-L'outcome final M1.1 reste une authentification same-origin par session serveur et cookie opaque sécurisé ; il n'est pas livré. M1.1A établit uniquement la fondation backend locale de principal applicatif, autorité PostgreSQL et sûreté tenant.
+L'outcome final M1.1 reste une authentification same-origin par session serveur et cookie opaque sécurisé ; il n'est pas livré. M1.1A établit la fondation backend de principal applicatif, autorité PostgreSQL et sûreté tenant. M1.1B implémente le kernel backend de session process-local, default-off, avec bootstrap/login/logout local/test, cookie opaque, CSRF, rotation, expiration et relecture d'autorité.
 
-Le correctif M8 ferme l'exposition web Prometheus ; health et info restent exposés. Il ne livre aucune session, cookie, CSRF, login, logout, UI, IdP réel, IA, agent ou runtime MCP. M1.1B, C et D ne sont pas implémentées ; chaque slice future exige une autorisation distincte.
+Le correctif M8 ferme l'exposition web Prometheus ; health et info restent exposés. Pris isolément, il ne livre aucune session, cookie, CSRF, login, logout, UI, IdP réel, IA, agent ou runtime MCP. Le checkpoint B n'ajoute aucun frontend ou coordinator navigateur, aucun OIDC réel ou environnement partagé, aucune session distribuée et aucun changement IA, agent ou MCP. M1.1C et M1.1D ne sont pas implémentés.
 
 ## Décisions de trajectoire gelées
 
@@ -152,17 +157,20 @@ M7 attend une alpha M5 stable, des captures réelles, un slice IA-native fonctio
 ### Active
 
 ```text
-ACTIVE_SPEC=046_AUTHENTICATED_SESSION_FOUNDATION_V1
+ACTIVE_SPEC=046
+ACTIVE_SPEC_ID=046_AUTHENTICATED_SESSION_FOUNDATION_V1
 ACTIVE_SPEC_COUNT=1
 SPEC_046=ACTIVE
 M1_1A_SCOPE=BACKEND_AUTH_TENANT_FOUNDATION_WITH_CORRECTIVE_M8
+M1_1A_IMPLEMENTED=YES
 M1_1_FINAL_OUTCOME_DELIVERED=NO
-M1_1B_IMPLEMENTED=NO
+M1_1B_SCOPE=BACKEND_SESSION_KERNEL_PROCESS_LOCAL_DEFAULT_OFF
+M1_1B_IMPLEMENTED=YES
 M1_1C_IMPLEMENTED=NO
 M1_1D_IMPLEMENTED=NO
 ```
 
-- `specs/active/046-authenticated-session-foundation-v1.md` — M1.1A avec son correctif M8 borne la fondation backend auth/tenant ; l'outcome final M1.1 n'est pas livré.
+- `specs/active/046-authenticated-session-foundation-v1.md` — unique spec active ; M1.1A et M1.1B sont implémentés, le kernel de session reste backend process-local et default-off, et l'outcome final M1.1 n'est pas livré.
 
 ### Clôturé terminalement / résultat inconclusif
 
@@ -201,9 +209,9 @@ PHASE_1_REAL_DATA_AUTHORIZED=NO
 PHASE_1_RUNTIME_AUTHORIZED=NO
 ```
 
-Le paquet documentaire docs-only de 044 reste livré et clôturé sous `specs/done`. La spec 045 a livré et clôturé son outcome documentaire docs-only ; aucune recherche, collecte, donnée réelle, activité externe ou exécution runtime n'en découle. Ces outcomes docs-only ne créent aucune autorisation externe et ne définissent plus la direction de roadmap. La spec 046 est l'unique spec active. M1.1A avec son correctif M8 borne la fondation backend auth/tenant ; l'outcome final M1.1 n'est pas livré et B, C et D ne sont pas implémentées.
+Le paquet documentaire docs-only de 044 reste livré et clôturé sous `specs/done`. La spec 045 a livré et clôturé son outcome documentaire docs-only ; aucune recherche, collecte, donnée réelle, activité externe ou exécution runtime n'en découle. Ces outcomes docs-only ne créent aucune autorisation externe et ne définissent plus la direction de roadmap. La spec 046 est l'unique spec active. M1.1A avec son correctif M8 borne la fondation backend auth/tenant et M1.1B implémente le kernel de session backend process-local, default-off. L'outcome final M1.1 n'est pas livré ; C et D ne sont pas implémentés.
 
-Les sections 2 à 22 de la spec Done conservent le protocole substantiel livré et ne constituent aucune autorisation. La direction M0–M8 provient d'une décision owner distincte de la clôture 043 et des outcomes 044/045. Toute modification matérielle reprend la boucle de preuve applicable. Les marqueurs lifecycle conservés dans les blocs M0 de `README.md` et `docs/product/product-roadmap.md` sont des snapshots historiques de la rebaseline M0 ; ils ne décrivent pas l'état présent. Pour M1.1, cette section et la spec active 046 portent uniquement les vérités durables de périmètre ; les états de review, delivery, merge et décision owner restent dans les Evidence Packs, la pull request et les records spécialisés.
+Les sections 2 à 22 de la spec Done conservent le protocole substantiel livré et ne constituent aucune autorisation. La direction M0–M8 provient d'une décision owner distincte de la clôture 043 et des outcomes 044/045. Toute modification matérielle reprend la boucle de preuve applicable. Les marqueurs lifecycle conservés dans les blocs M0 de `README.md` et `docs/product/product-roadmap.md` sont des snapshots historiques de la rebaseline M0 ; ils ne décrivent pas l'état présent. Pour M1.1, cette section et la spec active 046 portent uniquement les vérités durables de périmètre ; les états de review, delivery, merge, décision owner et autorisation restent dans les Evidence Packs, la pull request et les records spécialisés.
 
 ### Backlog
 

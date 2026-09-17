@@ -10,6 +10,7 @@ import ch.qamwaq.ritomer.testsupport.DisposablePostgresTestDatabaseGuardInitiali
 import java.math.BigDecimal
 import java.util.UUID
 import org.assertj.core.api.Assertions.assertThat
+import org.flywaydb.core.Flyway
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
@@ -56,6 +57,9 @@ class DemoSeedLocalDbIntegrationTest {
   @Autowired
   private lateinit var environment: ConfigurableEnvironment
 
+  @Autowired
+  private lateinit var flyway: Flyway
+
   @BeforeEach
   fun resetDatabaseState() {
     environment.propertySources.remove(VARIANT_PROPERTY_SOURCE_NAME)
@@ -63,6 +67,16 @@ class DemoSeedLocalDbIntegrationTest {
       jdbcTemplate.dataSource ?: error("DataSource is required for guarded database reset."),
       environment
     )
+  }
+
+  @Test
+  fun `dbtest datasource flyway and local storage are bound to the exact rail run`() {
+    val dataSource = jdbcTemplate.dataSource ?: error("DataSource is required for rail binding verification.")
+
+    DisposablePostgresTestDatabase.assertCanonicalDataSourceAndFlyway(dataSource, flyway, environment)
+
+    val storageLeaf = DisposablePostgresTestDatabase.requireRunBoundLocalStorageLeaf(environment)
+    assertThat(storageLeaf.toString()).isEqualTo(System.getenv("RITOMER_DB_TEST_STORAGE_LOCAL_ROOT"))
   }
 
   @Test
@@ -131,7 +145,10 @@ class DemoSeedLocalDbIntegrationTest {
     environment.propertySources.addFirst(
       MapPropertySource(
         VARIANT_PROPERTY_SOURCE_NAME,
-        mapOf(DEMO_SEED_VARIANT_PROPERTY to DEMO_SEED_VARIANT_043B_TWO_ACTOR_PILOT)
+        mapOf(
+          DEMO_SEED_VARIANT_PROPERTY to DEMO_SEED_VARIANT_043B_TWO_ACTOR_PILOT,
+          DEMO_SEED_SESSION_ENABLED_PROPERTY to false
+        )
       )
     )
 
@@ -139,7 +156,7 @@ class DemoSeedLocalDbIntegrationTest {
     assertThat(databaseVersion).contains("PostgreSQL")
 
     val firstRun = demoSeedLocalService.seed()
-    val firstSnapshot = twoActorBusinessSnapshot()
+    val firstSnapshot = actorBusinessSnapshot()
     val firstAuditIds = seedAuditIds()
 
     assertThat(firstRun.changedRows).isGreaterThan(0)
@@ -169,13 +186,49 @@ class DemoSeedLocalDbIntegrationTest {
     assertThat(secondRun.changedRows).isZero()
     assertThat(secondRun.auditEventId).isNull()
     assertThat(secondRun.variantResults).isEqualTo(firstRun.variantResults)
-    assertThat(twoActorBusinessSnapshot()).isEqualTo(firstSnapshot)
+    assertThat(actorBusinessSnapshot()).isEqualTo(firstSnapshot)
     assertThat(seedAuditIds()).containsExactlyElementsOf(firstAuditIds)
     assertDemoTenant(secondRun.tenantId)
     assertExactTwoActorIdentitiesAndMemberships()
     assertTwoActorFolderDatasets()
     assertTwoActorSeedCounts()
     assertNoPreseededWorkpaperDocumentExportOrDecision()
+    assertDemoSeedAuditIsNotDuplicated(firstRun.tenantId)
+  }
+
+  @Test
+  fun `two actor pilot session rail adds deterministic admin and remains idempotent`() {
+    environment.propertySources.addFirst(
+      MapPropertySource(
+        VARIANT_PROPERTY_SOURCE_NAME,
+        mapOf(
+          DEMO_SEED_VARIANT_PROPERTY to DEMO_SEED_VARIANT_043B_TWO_ACTOR_PILOT,
+          DEMO_SEED_SESSION_ENABLED_PROPERTY to true
+        )
+      )
+    )
+
+    val firstRun = demoSeedLocalService.seed()
+    val firstSnapshot = actorBusinessSnapshot()
+    val firstAuditIds = seedAuditIds()
+
+    assertThat(firstRun.changedRows).isGreaterThan(0)
+    assertThat(firstRun.auditEventId).isNotNull()
+    assertThat(firstRun.variantResults).hasSize(1)
+    assertThat(firstRun.variantResults.single().variant).isEqualTo(DEMO_SEED_VARIANT_043B_TWO_ACTOR_PILOT)
+    assertExactSessionActorIdentitiesAndMemberships()
+    assertSessionActorSeedCounts()
+    assertNoPreseededWorkpaperDocumentExportOrDecision()
+
+    val secondRun = demoSeedLocalService.seed()
+
+    assertThat(secondRun.changedRows).isZero()
+    assertThat(secondRun.auditEventId).isNull()
+    assertThat(secondRun.variantResults).isEqualTo(firstRun.variantResults)
+    assertThat(actorBusinessSnapshot()).isEqualTo(firstSnapshot)
+    assertThat(seedAuditIds()).containsExactlyElementsOf(firstAuditIds)
+    assertExactSessionActorIdentitiesAndMemberships()
+    assertSessionActorSeedCounts()
     assertDemoSeedAuditIsNotDuplicated(firstRun.tenantId)
   }
 
@@ -386,50 +439,39 @@ class DemoSeedLocalDbIntegrationTest {
   }
 
   private fun assertExactTwoActorIdentitiesAndMemberships() {
-    val accountant = jdbcTemplate.queryForMap(
-      """
-      select id, external_subject, email, display_name, status
-      from app_user
-      where id = ?
-      """.trimIndent(),
-      DemoSeedLocalDataset.userId
+    assertExactActorIdentitiesAndMemberships(
+      listOf(
+        DemoSeedLocalDataset.accountantActor,
+        DemoSeedLocalDataset.reviewer043bActor
+      )
     )
-    val reviewer = jdbcTemplate.queryForMap(
-      """
-      select id, external_subject, email, display_name, status
-      from app_user
-      where id = ?
-      """.trimIndent(),
-      DemoSeedLocalDataset.reviewerUserId
-    )
+  }
 
-    assertActorRow(
-      accountant,
-      DemoSeedLocalDataset.userId,
-      DemoSeedLocalDataset.userExternalSubject,
-      DemoSeedLocalDataset.userEmail,
-      DemoSeedLocalDataset.userDisplayName
+  private fun assertExactSessionActorIdentitiesAndMemberships() {
+    assertExactActorIdentitiesAndMemberships(
+      listOf(
+        DemoSeedLocalDataset.accountantActor,
+        DemoSeedLocalDataset.reviewer043bActor,
+        DemoSeedLocalDataset.admin046bActor
+      )
     )
-    assertActorRow(
-      reviewer,
-      DemoSeedLocalDataset.reviewerUserId,
-      DemoSeedLocalDataset.reviewerExternalSubject,
-      DemoSeedLocalDataset.reviewerEmail,
-      DemoSeedLocalDataset.reviewerDisplayName
-    )
-    assertThat(countRows("app_user")).isEqualTo(2)
+  }
 
-    assertExactMembership(
-      membershipId = DemoSeedLocalDataset.membershipId,
-      userId = DemoSeedLocalDataset.userId,
-      expectedRole = DemoSeedLocalDataset.membershipRole
-    )
-    assertExactMembership(
-      membershipId = DemoSeedLocalDataset.reviewerMembershipId,
-      userId = DemoSeedLocalDataset.reviewerUserId,
-      expectedRole = DemoSeedLocalDataset.reviewerMembershipRole
-    )
-    assertThat(countRows("tenant_membership")).isEqualTo(2)
+  private fun assertExactActorIdentitiesAndMemberships(expectedActors: List<DemoSeedLocalActorDataset>) {
+    expectedActors.forEach { actor ->
+      val row = jdbcTemplate.queryForMap(
+        """
+        select id, external_subject, email, display_name, status
+        from app_user
+        where id = ?
+        """.trimIndent(),
+        actor.userId
+      )
+      assertActorRow(row, actor.userId, actor.externalSubject, actor.email, actor.displayName)
+      assertExactMembership(actor.membershipId, actor.userId, actor.membershipRole)
+    }
+    assertThat(countRows("app_user")).isEqualTo(expectedActors.size)
+    assertThat(countRows("tenant_membership")).isEqualTo(expectedActors.size)
   }
 
   private fun assertActorRow(
@@ -597,6 +639,16 @@ class DemoSeedLocalDbIntegrationTest {
     assertThat(countRows("manual_mapping")).isEqualTo(12)
   }
 
+  private fun assertSessionActorSeedCounts() {
+    assertThat(countRows("tenant")).isEqualTo(1)
+    assertThat(countRows("app_user")).isEqualTo(3)
+    assertThat(countRows("tenant_membership")).isEqualTo(3)
+    assertThat(countRows("closing_folder")).isEqualTo(2)
+    assertThat(countRows("balance_import")).isEqualTo(2)
+    assertThat(countRows("balance_import_line")).isEqualTo(12)
+    assertThat(countRows("manual_mapping")).isEqualTo(12)
+  }
+
   private fun assertNoPreseededWorkpaperDocumentExportOrDecision() {
     assertThat(countRows("workpaper")).isZero()
     assertThat(countRows("workpaper_evidence")).isZero()
@@ -658,8 +710,8 @@ class DemoSeedLocalDbIntegrationTest {
       UUID::class.java
     )
 
-  private fun twoActorBusinessSnapshot(): TwoActorBusinessSnapshot =
-    TwoActorBusinessSnapshot(
+  private fun actorBusinessSnapshot(): ActorBusinessSnapshot =
+    ActorBusinessSnapshot(
       tenants = stableRows(
         """
         select id, slug, legal_name, status
@@ -756,7 +808,7 @@ class DemoSeedLocalDbIntegrationTest {
     private const val VARIANT_PROPERTY_SOURCE_NAME = "demoSeedVariantTest"
   }
 
-  private data class TwoActorBusinessSnapshot(
+  private data class ActorBusinessSnapshot(
     val tenants: List<Map<String, Any>>,
     val users: List<Map<String, Any>>,
     val memberships: List<Map<String, Any>>,

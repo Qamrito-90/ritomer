@@ -6,7 +6,9 @@ import ch.qamwaq.ritomer.workpapers.application.DOCUMENT_CREATED_ACTION
 import ch.qamwaq.ritomer.workpapers.application.DOCUMENT_VERIFICATION_UPDATED_ACTION
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
+import java.nio.file.LinkOption
 import java.nio.file.Path
+import java.nio.file.attribute.BasicFileAttributes
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.util.Comparator
@@ -61,7 +63,7 @@ class DocumentsDbIntegrationTest {
       jdbcTemplate.dataSource ?: error("DataSource is required for guarded database reset."),
       environment
     )
-    deleteDirectoryIfExists(Path.of("build", "dbtest-documents"))
+    deleteDirectoryIfExists(DisposablePostgresTestDatabase.requireRunBoundLocalStorageLeaf(environment))
   }
 
   @Test
@@ -686,11 +688,19 @@ private fun actorJwt(subject: String) = jwt().jwt { token ->
 }
 
 private fun deleteDirectoryIfExists(path: Path) {
-  if (!Files.exists(path)) {
+  if (!Files.exists(path, LinkOption.NOFOLLOW_LINKS)) {
     return
   }
+  check(Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)) { "Run-bound storage leaf must be a directory." }
+  check(!Files.isSymbolicLink(path)) { "Run-bound storage leaf must not be a symbolic link." }
 
-  Files.walk(path)
-    .sorted(Comparator.reverseOrder())
-    .forEach { Files.deleteIfExists(it) }
+  Files.walk(path).use { paths ->
+    paths.sorted(Comparator.reverseOrder()).forEach { entry ->
+      val attributes = Files.readAttributes(entry, BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
+      check(!Files.isSymbolicLink(entry) && !attributes.isOther) {
+        "Run-bound storage cleanup must not traverse links or reparse points."
+      }
+      Files.deleteIfExists(entry)
+    }
+  }
 }

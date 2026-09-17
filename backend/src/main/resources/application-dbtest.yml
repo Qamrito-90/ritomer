@@ -2,7 +2,21 @@ spring:
   datasource:
     url: ${RITOMER_DB_TEST_JDBC_URL}
     username: ${RITOMER_DB_TEST_USERNAME}
-    password: ${RITOMER_DB_TEST_PASSWORD:}
+    password: ${RITOMER_DB_TEST_PASSWORD}
+    hikari:
+      maximum-pool-size: 2
+      minimum-idle: 0
+      data-source-properties:
+        ApplicationName: ${RITOMER_DB_TEST_APPLICATION_NAME}
+        logServerErrorDetail: "false"
+        sslmode: "disable"
+        gssEncMode: "disable"
+  flyway:
+    enabled: true
+    clean-disabled: true
+  sql:
+    init:
+      mode: never
 
 ritomer:
   security:
@@ -12,4 +26,4 @@ ritomer:
     documents:
       storage:
         backend: LOCAL_FS
-        local-root: ${user.dir}/build/dbtest-documents
+        local-root: ${RITOMER_DB_TEST_STORAGE_LOCAL_ROOT}
