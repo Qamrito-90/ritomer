@@ -9,6 +9,7 @@ import ch.qamwaq.ritomer.shared.application.AuthenticatedActor
 import ch.qamwaq.ritomer.shared.application.AuthenticatedActorContextInstaller
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.core.JsonProcessingException
+import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import jakarta.servlet.http.HttpServletRequest
@@ -84,7 +85,9 @@ class SessionController(
 
   private fun parseActorKey(rawBody: String?): String {
     if (rawBody == null) throw InvalidSessionRequestException()
-    val strictMapper = objectMapper.copy().enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
+    val strictMapper = objectMapper.copy()
+      .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
+      .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
     val root: JsonNode = try {
       strictMapper.readTree(rawBody) ?: throw InvalidSessionRequestException()
     } catch (_: JsonProcessingException) {

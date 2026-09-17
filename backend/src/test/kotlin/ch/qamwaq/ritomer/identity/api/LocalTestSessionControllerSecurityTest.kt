@@ -56,6 +56,8 @@ import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import org.slf4j.MDC
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
@@ -292,6 +294,57 @@ class LocalTestSessionControllerSecurityTest {
       "Local session authentication failed."
     )
 
+    assertThat(identityTestStore.repositoryCounters().totalWrites).isZero()
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = [
+    """{"actorKey":"actor-02"}""",
+    " \t\r\n{\"actorKey\":\"actor-02\"}",
+    " null",
+    " true",
+    " invalid"
+  ])
+  fun `local login rejects trailing content without authenticating or writing`(trailingContent: String) {
+    val anonymous = bootstrap()
+    val anonymousSessionId = anonymous.session.id
+    val countersBeforeLogin = identityTestStore.repositoryCounters()
+    assertThat(anonymous.body.path("sessionState").asText()).isEqualTo("ANONYMOUS")
+
+    val result = login(
+      anonymous.session,
+      anonymous.csrfToken,
+      """{"actorKey":"$LOCAL_SESSION_ACCOUNTANT_ACTOR_KEY"}""" + trailingContent
+    )
+
+    assertError(result, 400, "INVALID_REQUEST", "Request body is invalid.")
+    assertThat(result.resolvedException).isExactlyInstanceOf(InvalidSessionRequestException::class.java)
+    assertThat(result.request.getSession(false)).isSameAs(anonymous.session)
+    assertThat(anonymous.session.id).isEqualTo(anonymousSessionId)
+    assertThat(anonymous.session.getAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY))
+      .isNull()
+    assertThat(identityTestStore.repositoryCounters()).isEqualTo(countersBeforeLogin)
+    assertThat(identityTestStore.repositoryCounters().totalWrites).isZero()
+  }
+
+  @Test
+  fun `local login accepts one JSON object followed only by whitespace`() {
+    val anonymous = bootstrap()
+    val result = login(
+      anonymous.session,
+      anonymous.csrfToken,
+      """{"actorKey":"$LOCAL_SESSION_ACCOUNTANT_ACTOR_KEY"}""" + " \t\r\n"
+    )
+
+    assertThat(result.response.status).isEqualTo(204)
+    assertThat(result.response.contentAsByteArray).isEmpty()
+    assertThat(result.response.getHeader(HttpHeaders.CACHE_CONTROL)).isEqualTo("no-store")
+    val authenticatedSession = result.request.getSession(false) as MockHttpSession
+    val savedContext = authenticatedSession.getAttribute(
+      HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY
+    ) as SecurityContextImpl
+    assertThat((savedContext.authentication.principal as AuthenticatedActor).actorId)
+      .isEqualTo(LOCAL_SESSION_ACCOUNTANT_ACTOR_ID)
     assertThat(identityTestStore.repositoryCounters().totalWrites).isZero()
   }
 
