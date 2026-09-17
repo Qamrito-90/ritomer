@@ -29,6 +29,7 @@ import kotlin.streams.asSequence
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.assertj.core.api.Assertions.catchThrowable
+import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
@@ -757,6 +758,7 @@ class DemoSeedLocalSourceGuardTest {
   }
 
   @Test
+  @Tag("windows-only")
   fun postgresProvisionMicrosecondsCrossTheRealParserAndChildEnvironmentWithoutLoss() {
     val output = runRailPowerShell(
       """
@@ -1089,6 +1091,7 @@ class DemoSeedLocalSourceGuardTest {
   }
 
   @Test
+  @Tag("windows-only")
   fun postgresProvenanceCrossesPowerShellBuildersPayloadAndKotlinGuardUnchanged() {
     val provenance = runRailPowerShell(
       """
@@ -1236,6 +1239,7 @@ class DemoSeedLocalSourceGuardTest {
   }
 
   @Test
+  @Tag("windows-only")
   fun postgresRunnerSecretArtifactScannerRejectsBoundarySplitFixture() {
     val output = runRailPowerShell(
       """
@@ -1505,6 +1509,7 @@ class DemoSeedLocalSourceGuardTest {
   }
 
   @Test
+  @Tag("windows-only")
   fun postgresRunnerArtifactScannerClassifiesSimulatedIncompleteReadAndClearsNeedle() {
     val output = runRailPowerShell(
       """
@@ -1551,6 +1556,7 @@ class DemoSeedLocalSourceGuardTest {
   }
 
   @Test
+  @Tag("windows-only")
   fun postgresRunnerArtifactScannerPreservesInjectedControlledStops() {
     val output = runRailPowerShell(
       """
@@ -1911,6 +1917,27 @@ class DemoSeedLocalSourceGuardTest {
   @Test
   fun postgresGradleTasksAndLeanDocumentationAreExact() {
     val buildScript = postgresRailBuildSource()
+    val portableTestBlock = buildScript.sliceBetween(
+      """tasks.named<Test>("test")""",
+      """tasks.register<Test>("windowsTest")"""
+    )
+    val windowsTestBlock = buildScript.sliceBetween(
+      """tasks.register<Test>("windowsTest")""",
+      """tasks.register<Test>("dbIntegrationTest")"""
+    )
+    assertThat(portableTestBlock)
+      .contains("""excludeTags("db-integration", "windows-only")""")
+      .doesNotContain("includeTags", "onlyIf", "ignoreFailures")
+    assertThat(windowsTestBlock).contains(
+      "testClassesDirs = testSourceSet.output.classesDirs",
+      "classpath = testSourceSet.runtimeClasspath",
+      """shouldRunAfter(tasks.named("test"))""",
+      """includeTags("windows-only")""",
+      """excludeTags("db-integration")""",
+      "doFirst {",
+      """if (!System.getProperty("os.name").startsWith("Windows", ignoreCase = true)) {""",
+      "throw GradleException("
+    ).doesNotContain("onlyIf", "ignoreFailures", "dbIntegrationTest", "m1BPostgresRail")
     val railScript = postgresRailScriptSource()
     val registrations = Regex(
       """tasks\.register(?:<[^>]+>)?\("(m1BPostgresRail[^"]+)"\)"""
@@ -2620,6 +2647,7 @@ class DemoSeedLocalSourceGuardTest {
   }
 
   @Test
+  @Tag("windows-only")
   fun `guard rejects divergent process and effective Spring datasource configuration`() {
     val cases = listOf(
       canonicalEnvironment(processOverrides = mapOf(DB_TEST_JDBC_URL to "jdbc:postgresql://localhost:15432/ritomer_043b_test")),
@@ -2652,6 +2680,7 @@ class DemoSeedLocalSourceGuardTest {
   }
 
   @Test
+  @Tag("windows-only")
   fun `guard rejects absent blank and divergent password configuration`() {
     val cases = listOf(
       canonicalEnvironment(processOverrides = mapOf(DB_TEST_PASSWORD to null)),
@@ -2688,6 +2717,7 @@ class DemoSeedLocalSourceGuardTest {
   }
 
   @Test
+  @Tag("windows-only")
   fun `guard rejects divergent JDBC metadata without executing destructive SQL`() {
     val fixtures = listOf(
       jdbcFixture(JdbcOptions(metadataUrl = "jdbc:postgresql://127.0.0.1:15432/other")),
@@ -2702,6 +2732,7 @@ class DemoSeedLocalSourceGuardTest {
   }
 
   @Test
+  @Tag("windows-only")
   fun `runner settings keep the independent exhaustive partition and reserved reads really fail with 42501`() {
     assertThat(INDEPENDENT_ALL_SETTINGS).hasSize(23)
     assertThat(INDEPENDENT_SESSION_SETTINGS).hasSize(21)
@@ -2741,6 +2772,7 @@ class DemoSeedLocalSourceGuardTest {
   }
 
   @Test
+  @Tag("windows-only")
   fun `postmaster configuration is canonical positive int64 before all connection paths`() {
     val invalid = listOf(
       null, "", "0", "00", "01", "-1", "+1", "1.0", "1e6", " 1", "1 ", "1\n", "1\r\n",
@@ -2773,6 +2805,7 @@ class DemoSeedLocalSourceGuardTest {
   }
 
   @Test
+  @Tag("windows-only")
   fun `postmaster divergence including one microsecond refuses startup and both destructions`() {
     listOf(null, "", "0", "1789300000123455", "1789300000123457", "1789300000123000", "01789300000123456").forEach { instant ->
       val options = JdbcOptions(postmasterStartUnixMicros = instant)
@@ -2789,6 +2822,7 @@ class DemoSeedLocalSourceGuardTest {
   }
 
   @Test
+  @Tag("windows-only")
   fun `preload catalogue observations reject unsafe defaults overrides privileges and nulls`() {
     // Fixture facts become boundary result rows. The generated SQL is inspected separately below.
     val rejectedCatalogues = listOf(
@@ -2873,6 +2907,7 @@ class DemoSeedLocalSourceGuardTest {
   }
 
   @Test
+  @Tag("windows-only")
   fun `guard rejects every divergent PostgreSQL identity value`() {
     val invalidOptions = listOf(
       JdbcOptions(database = "ritomer"),
@@ -2898,6 +2933,7 @@ class DemoSeedLocalSourceGuardTest {
   }
 
   @Test
+  @Tag("windows-only")
   fun `server identity query requests the exact host and accepts only the exact host address`() {
     val nominal = jdbcFixture(JdbcOptions(serverAddress = "127.0.0.1"))
 
@@ -2919,6 +2955,7 @@ class DemoSeedLocalSourceGuardTest {
   }
 
   @Test
+  @Tag("windows-only")
   fun `server address rejects a network prefix another address null and blank before destruction`() {
     val invalidServerAddresses = listOf("127.0.0.1/32", "::1", null, "")
 
@@ -2933,6 +2970,7 @@ class DemoSeedLocalSourceGuardTest {
   }
 
   @Test
+  @Tag("windows-only")
   fun `guard rejects null and blank values returned by PostgreSQL`() {
     val invalidOptions = listOf(
       JdbcOptions(database = null),
@@ -2963,6 +3001,7 @@ class DemoSeedLocalSourceGuardTest {
 
   @ParameterizedTest
   @ValueSource(ints = [0, 1, 2, 3, 4, 5])
+  @Tag("windows-only")
   fun `guard rejects each dangerous PostgreSQL role privilege`(dangerousPrivilegeIndex: Int) {
     val fixture = jdbcFixture(JdbcOptions(dangerousPrivilegeIndex = dangerousPrivilegeIndex))
 
@@ -2972,6 +3011,7 @@ class DemoSeedLocalSourceGuardTest {
 
   @ParameterizedTest
   @ValueSource(strings = [EXPECTED_ROLE, "pg_database_owner"])
+  @Tag("windows-only")
   fun `guard rejects every explicit membership shape and incorrect owners`(publicOwner: String) {
     val membershipCases = listOf(
       "predefined-powerful" to "1",
@@ -3033,6 +3073,7 @@ class DemoSeedLocalSourceGuardTest {
   }
 
   @Test
+  @Tag("windows-only")
   fun `membership catalogue failure is fail closed sanitized and preserves rollback evidence`() {
     val catalogueFailure = SQLException("synthetic catalogue failure")
     val rollbackFailure = SQLException("synthetic rollback failure")
@@ -3063,6 +3104,7 @@ class DemoSeedLocalSourceGuardTest {
   }
 
   @Test
+  @Tag("windows-only")
   fun `connection and SELECT failures stop before destruction`() {
     val connectionFailure = jdbcFixture(JdbcOptions(connectionFailure = SQLException("synthetic connection failure")))
     assertThatThrownBy {
@@ -3084,6 +3126,7 @@ class DemoSeedLocalSourceGuardTest {
 
   @ParameterizedTest
   @ValueSource(strings = [EXPECTED_ROLE, "pg_database_owner"])
+  @Tag("windows-only")
   fun `nominal guard validates before SQL and commits exactly once on one connection`(publicOwner: String) {
     val fixture = jdbcFixture(JdbcOptions(publicSchemaOwner = publicOwner))
 
@@ -3102,6 +3145,7 @@ class DemoSeedLocalSourceGuardTest {
   }
 
   @Test
+  @Tag("windows-only")
   fun `failure rolls back once and exposes only a sanitized exception`() {
     val destructiveFailure = SQLException(SYNTHETIC_PASSWORD)
     val rollbackFailure = SQLException("rollback-$SYNTHETIC_PASSWORD")
@@ -3132,6 +3176,7 @@ class DemoSeedLocalSourceGuardTest {
 
   @ParameterizedTest
   @ValueSource(strings = [EXPECTED_ROLE, "pg_database_owner"])
+  @Tag("windows-only")
   fun `schema recreation uses one connection one transaction and ordered fixed operations`(publicOwner: String) {
     val fixture = jdbcFixture(JdbcOptions(publicSchemaOwner = publicOwner))
 
@@ -3172,6 +3217,7 @@ class DemoSeedLocalSourceGuardTest {
 
   @ParameterizedTest
   @ValueSource(strings = [EXPECTED_ROLE, "pg_database_owner"])
+  @Tag("windows-only")
   fun `startup initializer validates all four query families without a transaction`(publicOwner: String) {
     val fixture = jdbcFixture(JdbcOptions(publicSchemaOwner = publicOwner))
 
@@ -3186,6 +3232,7 @@ class DemoSeedLocalSourceGuardTest {
 
   @ParameterizedTest
   @ValueSource(strings = ["local_preload_libraries"])
+  @Tag("windows-only")
   fun `startup preload settings require genuinely empty values`(setting: String) {
     assertThat(POSTGRES_TEST_RAIL_ADMINISTRATIVE_SETTINGS.getValue("session_preload_libraries")).hasSize(0)
     assertThat(POSTGRES_TEST_RAIL_SAFE_SESSION_SETTINGS.getValue("local_preload_libraries")).hasSize(0)
@@ -3209,6 +3256,7 @@ class DemoSeedLocalSourceGuardTest {
   }
 
   @Test
+  @Tag("windows-only")
   fun `startup connection failure reports only safe acquisition diagnostics and clears properties`() {
     val fixture = jdbcFixture(JdbcOptions(connectionFailure = startupSqlFailure("08001")))
 
@@ -3219,6 +3267,7 @@ class DemoSeedLocalSourceGuardTest {
   }
 
   @Test
+  @Tag("windows-only")
   fun `startup JDBC metadata failures identify the exact metadata operation`() {
     val controls = linkedMapOf(
       "getMetaData" to "METADATA_READ",
@@ -3239,6 +3288,7 @@ class DemoSeedLocalSourceGuardTest {
   }
 
   @Test
+  @Tag("windows-only")
   fun `startup statement acquisition failure identifies the identity stage`() {
     val fixture = jdbcFixture(JdbcOptions(statementOpenFailure = startupSqlFailure("08003")))
 
@@ -3251,6 +3301,7 @@ class DemoSeedLocalSourceGuardTest {
 
   @ParameterizedTest
   @ValueSource(ints = [1, 2, 3, 4])
+  @Tag("windows-only")
   fun `startup SELECT failure identifies each query family`(queryIndex: Int) {
     val fixture = jdbcFixture(
       JdbcOptions(selectFailureIndex = queryIndex, selectFailure = startupSqlFailure("42501"))
@@ -3271,6 +3322,7 @@ class DemoSeedLocalSourceGuardTest {
     "3D000", "42501", "42601", "42703", "42883", "42P01", "53300", "53400",
     "55000", "57014", "57P01", "57P02", "57P03", "58000", "58030", "XX000"
   ])
+  @Tag("windows-only")
   fun `startup allows only an explicitly recognized SQLSTATE`(sqlState: String) {
     assertStartupRejected(
       jdbcFixture(JdbcOptions(connectionFailure = startupSqlFailure(sqlState))),
@@ -3279,6 +3331,7 @@ class DemoSeedLocalSourceGuardTest {
   }
 
   @Test
+  @Tag("windows-only")
   fun `startup maps absent unknown and malformed SQLSTATE to a fixed safe value`() {
     listOf(null, "", " ", "ZZ999", "00000", "08p01", " 08001", "08001 ", "08001\n",
       "08001; password=$SYNTHETIC_PASSWORD", SYNTHETIC_PASSWORD
@@ -3291,6 +3344,7 @@ class DemoSeedLocalSourceGuardTest {
   }
 
   @Test
+  @Tag("windows-only")
   fun `startup contains a driver exception whose SQLSTATE getter itself throws`() {
     val failure = object : SQLException("STARTUP_RAW_MESSAGE") {
       override fun getSQLState(): String = throw IllegalStateException("STARTUP_RAW_CAUSE")
@@ -3303,6 +3357,7 @@ class DemoSeedLocalSourceGuardTest {
   }
 
   @Test
+  @Tag("windows-only")
   fun `startup unexpected failures have no SQLSTATE and do not impersonate an invariant rejection`() {
     val cases = listOf(
       Triple("CONNECTION", "OPEN_CONNECTION", JdbcOptions(connectionFailure = startupUnexpectedFailure())),
@@ -3320,6 +3375,7 @@ class DemoSeedLocalSourceGuardTest {
   }
 
   @Test
+  @Tag("windows-only")
   fun `startup rejected invariants identify each safe control without exposing returned values`() {
     val cases = listOf(
       Triple("JDBC_METADATA", "METADATA_READ", JdbcOptions(metadataAbsent = true)),
@@ -3368,6 +3424,7 @@ class DemoSeedLocalSourceGuardTest {
 
   @ParameterizedTest
   @ValueSource(ints = [1, 2, 3, 4])
+  @Tag("windows-only")
   fun `startup absent or duplicate rows are rejected in the original query stage`(queryIndex: Int) {
     listOf(0, 2).forEach { rowCount ->
       val fixture = jdbcFixture(JdbcOptions(rowCountOverrides = mapOf(queryIndex to rowCount)))
@@ -3382,6 +3439,7 @@ class DemoSeedLocalSourceGuardTest {
 
   @ParameterizedTest
   @ValueSource(ints = [1, 2, 3, 4])
+  @Tag("windows-only")
   fun `startup result cursor and getter SQL failures retain the query stage and active control`(queryIndex: Int) {
     val getterControls = listOf("CURRENT_DATABASE", "ROLE_OID", "MEMBERSHIP_COUNT", "DATABASE_OID")
     listOf("next" to "ROW_COUNT", "getString" to getterControls[queryIndex - 1]).forEach { (method, control) ->
@@ -3400,6 +3458,7 @@ class DemoSeedLocalSourceGuardTest {
 
   @ParameterizedTest
   @ValueSource(ints = [1, 2, 3, 4])
+  @Tag("windows-only")
   fun `startup result set close failures are reported as resource close failures`(queryIndex: Int) {
     val fixture = jdbcFixture(JdbcOptions(resultSetCloseFailures = mapOf(queryIndex to startupSqlFailure("58030"))))
 
@@ -3412,6 +3471,7 @@ class DemoSeedLocalSourceGuardTest {
   }
 
   @Test
+  @Tag("windows-only")
   fun `startup statement and connection close failures expose only fixed resource controls`() {
     listOf(
       "STATEMENT_CLOSE" to JdbcOptions(statementCloseFailure = startupSqlFailure("08006")),
@@ -3429,6 +3489,7 @@ class DemoSeedLocalSourceGuardTest {
   }
 
   @Test
+  @Tag("windows-only")
   fun `startup preserves the primary SQL or invariant refusal over all suppressed close failures`() {
     val closeOptions = JdbcOptions(
       resultSetCloseFailures = mapOf(2 to startupSqlFailure("08006")),

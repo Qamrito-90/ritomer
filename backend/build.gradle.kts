@@ -403,7 +403,24 @@ tasks.withType<Test>().configureEach {
 
 tasks.named<Test>("test") {
   useJUnitPlatform {
+    excludeTags("db-integration", "windows-only")
+  }
+}
+
+tasks.register<Test>("windowsTest") {
+  description = "Runs the mandatory Windows-only offline fixtures without a database."
+  group = "verification"
+  testClassesDirs = testSourceSet.output.classesDirs
+  classpath = testSourceSet.runtimeClasspath
+  shouldRunAfter(tasks.named("test"))
+  useJUnitPlatform {
+    includeTags("windows-only")
     excludeTags("db-integration")
+  }
+  doFirst {
+    if (!System.getProperty("os.name").startsWith("Windows", ignoreCase = true)) {
+      throw GradleException("windowsTest requires Windows; its mandatory fixtures must not be skipped.")
+    }
   }
 }
 
