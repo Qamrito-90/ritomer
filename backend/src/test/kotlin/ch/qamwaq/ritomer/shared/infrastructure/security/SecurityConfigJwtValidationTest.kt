@@ -1,5 +1,6 @@
 package ch.qamwaq.ritomer.shared.infrastructure.security
 
+import ch.qamwaq.ritomer.shared.application.AuthenticatedActorContextInstaller
 import com.nimbusds.jose.JWSAlgorithm
 import com.nimbusds.jose.JWSHeader
 import com.nimbusds.jose.crypto.MACSigner
@@ -7,12 +8,10 @@ import com.nimbusds.jwt.JWTClaimsSet
 import com.nimbusds.jwt.PlainJWT
 import com.nimbusds.jwt.SignedJWT
 import java.nio.charset.StandardCharsets
-import java.nio.file.Path
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.Date
-import kotlin.io.path.readText
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatCode
 import org.assertj.core.api.Assertions.assertThatThrownBy
@@ -22,6 +21,8 @@ import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.boot.test.util.TestPropertyValues
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import org.springframework.security.oauth2.jwt.JwtDecoder
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository
+import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository
 
 class SecurityConfigJwtValidationTest {
   private val now = Instant.parse("2026-07-22T10:15:30Z")
@@ -30,7 +31,7 @@ class SecurityConfigJwtValidationTest {
   private val decoder = createLocalTestDbtestJwtDecoder(secret, clock)
 
   @Test
-  fun `strict decoder rejects absent blank short legacy and sentinel secrets`() {
+  fun `legacy decoder construction fails fast for absent blank short legacy and sentinel secrets`() {
     val rejected = listOf<String?>(
       null,
       "",
@@ -178,23 +179,37 @@ class SecurityConfigJwtValidationTest {
   }
 
   @Test
-  fun `profile split does not alter filter chain converter or future production contract`() {
-    val source = Path.of(
-      "src/main/kotlin/ch/qamwaq/ritomer/shared/infrastructure/security/SecurityConfig.kt"
-    ).readText()
+  fun `session capability is default off and does not imply a legacy decoder`() {
+    withSecurityContext(profile = "test", hmacSecret = null) { context ->
+      assertThat(context.getBean(SessionSecurityProperties::class.java).enabled).isFalse()
+      assertThat(context.getBeansOfType(JwtDecoder::class.java)).isEmpty()
+      assertThat(context.getBeansOfType(HttpSessionSecurityContextRepository::class.java)).isEmpty()
+      assertThat(context.getBeansOfType(HttpSessionCsrfTokenRepository::class.java)).isEmpty()
+      assertThat(context.getBeansOfType(AuthenticatedActorContextInstaller::class.java)).isEmpty()
+      assertThat(context.getBeansOfType(SessionTerminationSupport::class.java)).isEmpty()
+    }
+  }
 
-    assertThat(extractFunction(source, "fun securityFilterChain("))
-      .isEqualTo(EXPECTED_SECURITY_FILTER_CHAIN)
-    assertThat(extractFunction(source, "fun jwtAuthenticationConverter("))
-      .isEqualTo(EXPECTED_JWT_AUTHENTICATION_CONVERTER)
-    assertThat(extractFunction(source, "fun jwtDecoder("))
-      .isEqualTo(EXPECTED_NON_LOCAL_DECODER)
-    assertThat(source.lowercase()).doesNotContain(
-      "issuer",
-      "audience",
-      "oidc",
-      "jwks"
-    )
+  @Test
+  fun `session-only context starts without HMAC and exposes no legacy decoder`() {
+    withSecurityContext(profile = "test", hmacSecret = null, sessionEnabled = true) { context ->
+      assertThat(context.getBean(SessionSecurityProperties::class.java).enabled).isTrue()
+      assertThat(context.getBeansOfType(JwtDecoder::class.java)).isEmpty()
+      assertThat(context.getBeansOfType(HttpSessionSecurityContextRepository::class.java)).hasSize(1)
+      assertThat(context.getBeansOfType(HttpSessionCsrfTokenRepository::class.java)).hasSize(1)
+      assertThat(context.getBeansOfType(AuthenticatedActorContextInstaller::class.java)).hasSize(1)
+      assertThat(context.getBeansOfType(SessionTerminationSupport::class.java)).hasSize(1)
+    }
+  }
+
+  @Test
+  fun `an explicit HMAC keeps one legacy decoder alongside the session kernel`() {
+    withSecurityContext(profile = "test", hmacSecret = secret, sessionEnabled = true) { context ->
+      assertThat(context.getBean(SessionSecurityProperties::class.java).enabled).isTrue()
+      assertThat(context.getBeansOfType(JwtDecoder::class.java).keys)
+        .containsExactly("localTestDbtestJwtDecoder")
+      assertThat(context.getBeansOfType(HttpSessionSecurityContextRepository::class.java)).hasSize(1)
+    }
   }
 
   private fun assertAccepted(token: String) {
@@ -229,77 +244,25 @@ class SecurityConfigJwtValidationTest {
 
   private fun withSecurityContext(
     profile: String,
+    hmacSecret: String? = secret,
+    sessionEnabled: Boolean? = null,
     assertion: (AnnotationConfigApplicationContext) -> Unit
   ) {
     AnnotationConfigApplicationContext().use { context ->
       context.environment.setActiveProfiles(profile)
-      TestPropertyValues.of("ritomer.security.jwt.hmac-secret=$secret").applyTo(context)
-      context.register(SecurityConfig::class.java)
+      val properties = buildList {
+        hmacSecret?.let { add("ritomer.security.jwt.hmac-secret=$it") }
+        sessionEnabled?.let { add("ritomer.security.session.enabled=$it") }
+      }
+      if (properties.isNotEmpty()) {
+        TestPropertyValues.of(*properties.toTypedArray()).applyTo(context)
+      }
+      context.register(
+        SecurityConfig::class.java,
+        SessionSecurityKernelConfiguration::class.java
+      )
       context.refresh()
       assertion(context)
     }
-  }
-
-  private fun extractFunction(source: String, signature: String): String {
-    val start = source.indexOf(signature)
-    require(start >= 0) { "Function not found: $signature" }
-    val openBrace = source.indexOf('{', start)
-    require(openBrace >= 0) { "Function body not found: $signature" }
-    var depth = 0
-    for (index in openBrace until source.length) {
-      when (source[index]) {
-        '{' -> depth += 1
-        '}' -> {
-          depth -= 1
-          if (depth == 0) return source.substring(start, index + 1).replace("\r\n", "\n")
-        }
-      }
-    }
-    error("Unclosed function: $signature")
-  }
-
-  private companion object {
-    val EXPECTED_SECURITY_FILTER_CHAIN =
-      """
-      fun securityFilterChain(
-          http: HttpSecurity,
-          jwtAuthenticationConverter: JwtAuthenticationConverter,
-          tenantMdcFilter: TenantMdcFilter
-        ): SecurityFilterChain {
-          http
-            .csrf { it.disable() }
-            .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
-            .authorizeHttpRequests {
-              it.requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
-              it.requestMatchers(HttpMethod.GET, "/api/me").authenticated()
-              it.anyRequest().authenticated()
-            }
-            .oauth2ResourceServer {
-              it.jwt { jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter) }
-            }
-            .addFilterAfter(tenantMdcFilter, BearerTokenAuthenticationFilter::class.java)
-
-          return http.build()
-        }
-      """.trimIndent()
-
-    val EXPECTED_JWT_AUTHENTICATION_CONVERTER =
-      """
-      fun jwtAuthenticationConverter(): JwtAuthenticationConverter {
-          val scopeAuthoritiesConverter = JwtGrantedAuthoritiesConverter()
-
-          return JwtAuthenticationConverter().apply {
-            setJwtGrantedAuthoritiesConverter { jwt -> scopeAuthoritiesConverter.convert(jwt)?.toSet().orEmpty() }
-          }
-        }
-      """.trimIndent()
-
-    val EXPECTED_NON_LOCAL_DECODER =
-      """
-      fun jwtDecoder(): JwtDecoder {
-          val key = SecretKeySpec(hmacSecret.toByteArray(StandardCharsets.UTF_8), "HmacSHA256")
-          return NimbusJwtDecoder.withSecretKey(key).build()
-        }
-      """.trimIndent()
   }
 }

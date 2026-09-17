@@ -1,0 +1,559 @@
+openapi: 3.1.1
+info:
+  title: Ritomer Authenticated Session API
+  version: 1.0.0
+  description: |
+    Contrat du kernel de session authentifiée M1.1B.
+
+    La capacité de session est désactivée par défaut et confinée aux topologies
+    process-local autorisées. Les réponses de cette surface ne doivent pas être
+    mises en cache. Les clés d'acteur exposées par l'adaptateur local sont des
+    alias de transport non normatifs ; ce contrat n'en fixe ni les valeurs ni
+    les libellés.
+  license:
+    name: Proprietary
+jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
+servers:
+  - url: /
+tags:
+  - name: Authenticated session
+    description: Bootstrap, ouverture et fermeture de la session process-local.
+  - name: Current actor
+    description: Contexte d'autorité relu depuis la base pour la requête courante.
+paths:
+  /api/session/bootstrap:
+    get:
+      tags:
+        - Authenticated session
+      operationId: getSessionBootstrap
+      summary: Initialise ou relit le bootstrap de session
+      description: |
+        Cette opération est accessible sans authentification. Elle établit une
+        session anonyme lorsque nécessaire et retourne le jeton CSRF courant.
+        La liste d'acteurs locaux n'est retournée que pour une session anonyme.
+        Une session déjà authentifiée reste stable : cette lecture ne doit pas
+        provoquer une nouvelle rotation du SID.
+      security: []
+      responses:
+        '200':
+          description: État minimal de la session et jeton CSRF courant.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Set-Cookie:
+              $ref: '#/components/headers/SessionCookie'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionBootstrapResponse'
+        '400':
+          description: Requête rejetée avant traitement, credentials ambigus ou bearer interdit sur cette surface.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionError'
+        '401':
+          description: Session présentée mais expirée.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Set-Cookie:
+              $ref: '#/components/headers/ExpiredSessionCookie'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionError'
+        '403':
+          description: Frontière locale refusée ou accès révoqué pour une session authentifiée existante.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Set-Cookie:
+              $ref: '#/components/headers/ExpiredSessionCookie'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionError'
+        '404':
+          description: Capacité absente lorsque le kernel de session est désactivé.
+
+  /api/session/local:
+    post:
+      tags:
+        - Authenticated session
+      operationId: openLocalSession
+      summary: Authentifie une session locale de test
+      description: |
+        Résout l'alias d'acteur par une lecture seule des identités existantes,
+        puis fait tourner le SID et le jeton CSRF avant de sauvegarder
+        explicitement le contexte de sécurité. Cette opération ne crée ni ne
+        modifie aucune identité, appartenance, rôle ou donnée d'authentification.
+
+        La présence conjointe du cookie de session anonyme et du jeton CSRF est
+        obligatoire. Un bearer est toujours refusé sur cette opération.
+      security:
+        - cookieSession: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LocalSessionLoginRequest'
+      responses:
+        '204':
+          description: Session authentifiée ; corps de réponse vide.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Set-Cookie:
+              $ref: '#/components/headers/SessionCookie'
+        '400':
+          description: Corps invalide, requête rejetée, credentials ambigus ou bearer interdit.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionError'
+        '401':
+          description: Alias inconnu ou inactif, ou session expirée.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Set-Cookie:
+              $ref: '#/components/headers/ExpiredSessionCookie'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionError'
+        '403':
+          description: Frontière locale refusée, jeton CSRF invalide ou accès révoqué.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionError'
+        '404':
+          description: Capacité absente lorsque le kernel de session est désactivé.
+        '409':
+          description: La session est déjà authentifiée.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionError'
+
+  /api/session/logout:
+    post:
+      tags:
+        - Authenticated session
+      operationId: closeSession
+      summary: Ferme la session authentifiée
+      description: |
+        Invalide la session côté serveur, efface le contexte de sécurité et
+        expire le cookie. Le cookie de session authentifiée et le jeton CSRF
+        courant sont requis ensemble. Un bearer est toujours refusé.
+      security:
+        - cookieSession: []
+          csrfToken: []
+      responses:
+        '204':
+          description: Session fermée ; corps de réponse vide.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Set-Cookie:
+              $ref: '#/components/headers/ExpiredSessionCookie'
+        '400':
+          description: Requête rejetée, credentials ambigus ou bearer interdit.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionError'
+        '401':
+          description: Authentification absente ou session expirée.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Set-Cookie:
+              $ref: '#/components/headers/ExpiredSessionCookie'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionError'
+        '403':
+          description: Frontière locale refusée, jeton CSRF invalide ou accès révoqué.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionError'
+        '404':
+          description: Capacité absente lorsque le kernel de session est désactivé.
+
+  /api/me:
+    get:
+      tags:
+        - Current actor
+      operationId: getCurrentActorContext
+      summary: Retourne le contexte d'autorité courant
+      description: |
+        Relit l'identité active, les appartenances tenant et les rôles depuis la
+        base pour la requête courante. Le cookie de session ou le bearer backend
+        historique sont deux alternatives ; ils ne doivent jamais être envoyés
+        ensemble. Le header X-Tenant-Id ne sélectionne qu'une appartenance
+        autorisée et ne remplace jamais la vérification d'autorité.
+      security:
+        - cookieSession: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OptionalTenantId'
+      responses:
+        '200':
+          description: Identité et autorité fraîches pour la requête courante.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentActorContext'
+        '400':
+          description: Requête rejetée, credentials ambigus ou header tenant invalide.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionError'
+        '401':
+          description: Authentification absente, invalide ou expirée.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Set-Cookie:
+              $ref: '#/components/headers/ExpiredSessionCookie'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionError'
+        '403':
+          description: Accès révoqué ou appartenance tenant non autorisée.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Set-Cookie:
+              $ref: '#/components/headers/ExpiredSessionCookie'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionError'
+        '404':
+          description: Ressource ou contexte tenant masqué par la politique anti-énumération.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionError'
+
+components:
+  securitySchemes:
+    cookieSession:
+      type: apiKey
+      in: cookie
+      name: __Host-ritomer-session
+      description: |
+        Identifiant de session opaque géré côté serveur. Le cookie est émis avec
+        Secure, HttpOnly, Path=/ et SameSite=Lax, sans attribut Domain. Il ne doit
+        jamais être exposé dans un corps JSON ou un log applicatif.
+    csrfToken:
+      type: apiKey
+      in: header
+      name: X-CSRF-TOKEN
+      description: Jeton CSRF lié à la session et renouvelé après authentification.
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Compatibilité backend historique uniquement. Cette alternative est
+        conditionnelle à la configuration JWT existante et n'est pas un contrat
+        d'authentification navigateur. Elle est interdite sur /api/session/*.
+
+  parameters:
+    OptionalTenantId:
+      name: X-Tenant-Id
+      in: header
+      required: false
+      description: Tenant demandé pour cette requête, sous réserve d'une appartenance active relue en base.
+      schema:
+        type: string
+        format: uuid
+
+  headers:
+    NoStore:
+      description: Interdit toute conservation de la réponse par un navigateur ou un intermédiaire.
+      schema:
+        type: string
+        const: no-store
+    SessionCookie:
+      description: |
+        Cookie __Host-ritomer-session créé ou renouvelé. Il porte obligatoirement
+        les attributs Secure, HttpOnly, Path=/ et SameSite=Lax, ne porte aucun
+        attribut Domain et ne contient qu'un identifiant opaque. Sa valeur n'est
+        jamais décrite par le contrat.
+      schema:
+        type: string
+        minLength: 1
+    ExpiredSessionCookie:
+      description: |
+        Cookie __Host-ritomer-session expiré avec Max-Age=0, Secure, HttpOnly,
+        Path=/ et SameSite=Lax, sans attribut Domain.
+      schema:
+        type: string
+        minLength: 1
+
+  schemas:
+    SessionBootstrapResponse:
+      oneOf:
+        - $ref: '#/components/schemas/AnonymousSessionBootstrapResponse'
+        - $ref: '#/components/schemas/AuthenticatedSessionBootstrapResponse'
+      discriminator:
+        propertyName: sessionState
+        mapping:
+          ANONYMOUS: '#/components/schemas/AnonymousSessionBootstrapResponse'
+          AUTHENTICATED: '#/components/schemas/AuthenticatedSessionBootstrapResponse'
+
+    AnonymousSessionBootstrapResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - sessionState
+        - localLoginAvailable
+        - csrf
+        - actors
+      properties:
+        sessionState:
+          type: string
+          const: ANONYMOUS
+        localLoginAvailable:
+          type: boolean
+          const: true
+        csrf:
+          $ref: '#/components/schemas/SessionCsrf'
+        actors:
+          type: array
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/LocalSessionActor'
+
+    AuthenticatedSessionBootstrapResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - sessionState
+        - localLoginAvailable
+        - csrf
+      properties:
+        sessionState:
+          type: string
+          const: AUTHENTICATED
+        localLoginAvailable:
+          type: boolean
+          const: true
+        csrf:
+          $ref: '#/components/schemas/SessionCsrf'
+
+    SessionCsrf:
+      type: object
+      additionalProperties: false
+      required:
+        - headerName
+        - token
+      properties:
+        headerName:
+          type: string
+          const: X-CSRF-TOKEN
+        token:
+          type: string
+          minLength: 1
+          maxLength: 4096
+
+    LocalSessionActor:
+      type: object
+      additionalProperties: false
+      required:
+        - actorKey
+        - displayLabel
+      properties:
+        actorKey:
+          type: string
+          minLength: 1
+          maxLength: 128
+        displayLabel:
+          type: string
+          minLength: 1
+          maxLength: 200
+
+    LocalSessionLoginRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - actorKey
+      properties:
+        actorKey:
+          type: string
+          minLength: 1
+          maxLength: 128
+
+    CurrentActorContext:
+      type: object
+      additionalProperties: false
+      required:
+        - actor
+        - memberships
+        - activeTenant
+        - effectiveRoles
+      properties:
+        actor:
+          $ref: '#/components/schemas/CurrentActor'
+        memberships:
+          type: array
+          items:
+            $ref: '#/components/schemas/TenantMembership'
+        activeTenant:
+          oneOf:
+            - $ref: '#/components/schemas/ActiveTenant'
+            - type: 'null'
+        effectiveRoles:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/TenantRole'
+
+    CurrentActor:
+      type: object
+      additionalProperties: false
+      required:
+        - userId
+        - externalSubject
+      properties:
+        userId:
+          type: string
+          format: uuid
+        externalSubject:
+          type: string
+          minLength: 1
+          maxLength: 255
+        email:
+          oneOf:
+            - type: string
+              format: email
+              maxLength: 320
+            - type: 'null'
+        displayName:
+          oneOf:
+            - type: string
+              minLength: 1
+              maxLength: 200
+            - type: 'null'
+
+    TenantMembership:
+      type: object
+      additionalProperties: false
+      required:
+        - tenantId
+        - tenantSlug
+        - tenantName
+        - roles
+      properties:
+        tenantId:
+          type: string
+          format: uuid
+        tenantName:
+          type: string
+          minLength: 1
+          maxLength: 200
+        tenantSlug:
+          type: string
+          minLength: 1
+          maxLength: 200
+        roles:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/TenantRole'
+
+    ActiveTenant:
+      type: object
+      additionalProperties: false
+      required:
+        - tenantId
+        - tenantSlug
+        - tenantName
+      properties:
+        tenantId:
+          type: string
+          format: uuid
+        tenantName:
+          type: string
+          minLength: 1
+          maxLength: 200
+        tenantSlug:
+          type: string
+          minLength: 1
+          maxLength: 200
+
+    TenantRole:
+      type: string
+      minLength: 1
+      maxLength: 64
+      pattern: '^[A-Z][A-Z0-9_]*$'
+
+    SessionError:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - message
+      properties:
+        code:
+          $ref: '#/components/schemas/SessionErrorCode'
+        message:
+          type: string
+          minLength: 1
+          maxLength: 512
+
+    SessionErrorCode:
+      type: string
+      enum:
+        - INVALID_REQUEST
+        - REQUEST_REJECTED
+        - AUTHENTICATION_FAILED
+        - AUTHENTICATION_REQUIRED
+        - ACCESS_DENIED
+        - CSRF_REJECTED
+        - AMBIGUOUS_CREDENTIALS
+        - BEARER_NOT_ALLOWED_FOR_SESSION_ENDPOINT
+        - SESSION_EXPIRED
+        - SESSION_ALREADY_AUTHENTICATED
+        - ACCESS_REVOKED
+        - INVALID_TENANT_HEADER
+        - NOT_FOUND

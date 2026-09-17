@@ -23,10 +23,11 @@ Il ne remplace ni les ADRs, ni les specs, ni les contrats, ni les runbooks. Il f
 - `030` livre une capacite REST-first de mapping assiste no-provider : read-model backend de suggestions, port `ai::access` minimise, adapter stub sans modele reel, contrat OpenAPI dedie, decision humaine idempotente et UI de revue humaine.
 - `030f` ajoute une persistance tenant-scopee dediee a l'idempotence des decisions humaines de suggestion via `mapping_suggestion_decision_request`; cette table ne donne aucune autorite metier a l'IA.
 - Apres `030`, les increments `032` a `035` durcissent les consumers et refreshs frontend sans modifier le backend, les contrats ou l'architecture ; `036` a `041` restent une demo et des preuves locales sur donnees synthetiques, pas une authentification SaaS durable ni un environnement partage.
-- Avec M1.1A, le backend local porte un principal applicatif, relit l'autorite PostgreSQL aux frontieres metier protegees et conserve la surete tenant/MDC. Le correctif M8 ferme l'exposition web Prometheus ; seuls health et info restent exposes.
-- La spec 046 est l'unique spec active. M1.1A avec son correctif M8 borne la fondation backend auth/tenant ; l'outcome final M1.1 n'est pas livre et M1.1B, C et D ne sont pas implementees.
-- M1.1A ne livre ni session, cookie, CSRF, login, logout, frontend, IdP reel ou environnement partage.
-- Ce cadrage ne constitue aucune autorisation. Chaque slice future B, C ou D exige une autorisation distincte ; les etats de review, delivery, merge et decision owner vivent uniquement dans les Evidence Packs, la pull request et les records specialises.
+- Avec M1.1A, le backend porte un principal applicatif, relit l'autorite PostgreSQL aux frontieres metier protegees et conserve la surete tenant/MDC. Le correctif M8 ferme l'exposition web Prometheus ; seuls health et info restent exposes.
+- M1.1B implemente le kernel backend de session HTTP opaque, cookie `__Host-ritomer-session`, CSRF, rotation, expiration, invalidation et bootstrap/login/logout local/test. Il est process-local et desactive par defaut.
+- La spec 046 est l'unique spec active. M1.1A et M1.1B sont implementes ; l'outcome final M1.1 n'est pas livre et M1.1C et M1.1D ne sont pas implementes.
+- M1.1B ne livre aucun frontend ou coordinator navigateur, aucun OIDC reel ou environnement partage et aucune session distribuee. Il n'ajoute ni dependance, ni migration, ni provisioning.
+- Ce cadrage ne constitue aucune autorisation. Les slices futures C et D restent distinctes. Les etats de review, delivery, merge, decision owner et autorisation vivent uniquement dans les Evidence Packs, la pull request et les records specialises.
 - Aucun provider IA reel, modele reel, SDK, prompt runtime actif, cout provider ou appel reseau IA n'est actif dans le present.
 - Les artefacts `030d` et `042` restent des preuves historiques ou de backlog ; ils ne constituent pas le rail executable de la future implementation M2 et n'activent aucun provider.
 - `workpapers` reste le module proprietaire pour la justification, les documents et leur verification reviewer ; `011` et `012` n'introduisent pas de module transverse `documents`.
@@ -36,7 +37,7 @@ Il ne remplace ni les ADRs, ni les specs, ni les contrats, ni les runbooks. Il f
 
 ## Trajectoire architecture approuvee, non livree
 
-- M1 cible toujours l'authentification par session et le shell produit. M1.1A n'en livre que la fondation backend auth/tenant ; la session, le mode local par la frontiere de session, le login/logout et le shell relevent des slices futures B, C et D.
+- M1 cible toujours l'authentification par session et le shell produit. M1.1A livre la fondation backend auth/tenant et M1.1B le kernel de session process-local default-off. Le coordinator navigateur et le shell relevent de C et D ; l'OIDC partage et la session distribuee relevent de M1.2.
 - M2 cible une provider gateway OpenAI-first derriere un port interne etroit, avec abstraction provider des le premier runtime. Un spike borne comparera Spring AI et le SDK Java officiel derriere ce meme port ; M0 ne choisit aucune dependance, aucun modele et aucun endpoint.
 - M3 cible dans le monolithe un kernel agentique borne et un registre d'outils interne type, versionne, tenant-scoped, audite et MCP-adaptable. Les outils restent read-only par defaut et toute mutation passe par confirmation humaine puis commande metier deterministe.
 - M4 cible le Mapping Assistant comme premier slice IA-native sur le kernel M3 ; il ne reprend pas le rail 042.
@@ -75,6 +76,7 @@ Il ne remplace ni les ADRs, ni les specs, ni les contrats, ni les runbooks. Il f
 - `docs/adr/0004-multi-tenancy-audit-rls-progressive.md`
 - `docs/adr/0005-front-ui-stack-and-design-system.md`
 - `docs/adr/0006-postgresql-cloud-sql-no-docker-v1.md`
+- `docs/adr/0007-authenticated-session-boundary.md`
 - `docs/product/product-roadmap.md`
 - `docs/product/v1-plan.md`
 - `runbooks/local-dev.md`
@@ -120,6 +122,7 @@ Il ne remplace ni les ADRs, ni les specs, ni les contrats, ni les runbooks. Il f
 - `contracts/db/*`
 - `contracts/openapi/minimal-annex-api.yaml`
 - `contracts/openapi/mapping-suggestions-api.yaml`
+- `contracts/openapi/auth-session-api.yaml`
 - `contracts/openapi/*`
 
 ## Regle de maintenance

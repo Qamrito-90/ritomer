@@ -15,27 +15,40 @@ Cette stratégie ne définit ni ne réinterprète les critères de classificatio
 
 ## Backend
 
-Tests backend :
+La suite backend non-DB est l'union obligatoire de deux groupes disjoints :
+
+- `test` exécute les tests portables et exclut les méthodes marquées `@Tag("windows-only")` ;
+- `windowsTest` exécute ces méthodes natives sous Windows avec JDK 21 et Windows PowerShell Desktop 5.1. Son invocation hors Windows échoue ; elle ne produit pas un succès par skip.
+
+Le tag porte uniquement sur les méthodes concernées, sans désactiver leurs assertions. Les deux tâches excluent les tests PostgreSQL réels. Un inventaire vérifie que leur union conserve toute la suite non-DB, sans omission ni doublon. `build` seul conserve le groupe portable et ne constitue donc pas une preuve backend complète.
+
+Pour un correctif de `DemoSeedLocalSourceGuardTest`, exécuter d'abord les tests ciblés des deux groupes sous Windows :
 
 ```powershell
 Push-Location backend
 try {
-  .\gradlew.bat test
+  .\gradlew.bat test --tests "*DemoSeedLocalSourceGuardTest" --no-daemon
+  if ($LASTEXITCODE -ne 0) { throw "Échec des tests portables ciblés." }
+  .\gradlew.bat windowsTest --no-daemon
+  if ($LASTEXITCODE -ne 0) { throw "Échec des tests Windows natifs." }
 } finally {
   Pop-Location
 }
 ```
 
-Build backend :
+Puis vérifier la suite non-DB complète et le build sous Windows :
 
 ```powershell
 Push-Location backend
 try {
-  .\gradlew.bat build
+  .\gradlew.bat test windowsTest build --no-daemon --rerun-tasks
+  if ($LASTEXITCODE -ne 0) { throw "Échec de la validation backend complète et du build." }
 } finally {
   Pop-Location
 }
 ```
+
+Les résultats XML de chaque groupe doivent être présents, contenir au moins un test et ne signaler aucun échec, erreur ou test skipped. Une réussite locale Windows ne prouve ni une exécution Linux ni une réussite des runners GitHub hébergés ; ces résultats restent à obtenir lors d'une delivery séparément autorisée.
 
 Vérification Modulith si frontières de modules, architecture ou dépendances inter-modules :
 
@@ -100,6 +113,8 @@ try {
 
 Ne pas imposer `dbIntegrationTest` aux changements `DOCS`, `FRONTEND` ou `BACKEND` sans persistance.
 
+Le Lifecycle PostgreSQL déjà exécuté reste une preuve historique liée à son composite exact. La partition CI renouvelle le composite et le runtime de tests ; elle ne transfère pas cette preuve, ne reconfigure pas les bindings fermés du rail sensible et ne déclenche aucune campagne DB. Toute future exécution du composite corrigé relève d'un mandat sensible distinct, conformément à `runbooks/local-dev.md`.
+
 ## Documentation (`DOCS`)
 
 Checks minimaux depuis la racine du repo :
@@ -130,6 +145,10 @@ Sur `main`, les workflows courants et leurs jobs/required status contexts sont :
 
 - workflow `Backend CI` → job/context `backend` ;
 - workflow `Frontend CI` → job/context `frontend`.
+
+`Backend CI` conserve le contexte obligatoire `backend` comme agrégateur de deux jobs : tests portables puis build sur `ubuntu-latest` avec JDK 21 ; `windowsTest` sur `windows-2022` avec JDK 21 et Windows PowerShell Desktop 5.1. Chaque job vérifie les résultats XML de son groupe : présents, nombre de tests strictement positif, zéro échec, erreur et skipped.
+
+L'agrégateur dépend des deux jobs et s'exécute avec `always()`. Il réussit seulement si les deux résultats sont exactement `success` ; tout autre résultat, dont `failure`, `cancelled`, `skipped` ou une valeur absente, le fait échouer. Aucun `continue-on-error` ne transforme un échec en succès. Le workflow frontend et les contextes du ruleset restent inchangés.
 
 Une pull request n'est pas verte si un required check est absent, skipped de manière non autorisée, stale, cancelled, failed, timed out, action required ou indeterminate. Codex doit attendre leur état final via GitHub CLI.
 

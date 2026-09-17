@@ -10,6 +10,16 @@ spring:
 
 server:
   shutdown: graceful
+  servlet:
+    session:
+      timeout: 30m
+      tracking-modes: cookie
+      cookie:
+        name: __Host-ritomer-session
+        secure: true
+        http-only: true
+        path: /
+        same-site: lax
 
 management:
   endpoint:
@@ -28,6 +38,9 @@ management:
 
 ritomer:
   security:
+    session:
+      enabled: false
+      absolute-timeout: 8h
     jwt:
       hmac-secret: ${RITOMER_SECURITY_JWT_HMAC_SECRET}
   ai:

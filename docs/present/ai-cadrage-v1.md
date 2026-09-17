@@ -9,8 +9,8 @@ Il ne remplace ni la vision IA, ni le playbook IA, ni les contrats et garde-fous
 ## Ce qui est vrai maintenant
 
 - Le produit est AI-ready, mais pas encore AI-native dans le runtime.
-- La spec 046 est l'unique spec active. M1.1A avec son correctif M8 borne la fondation backend auth/tenant sans modification IA, agent ou MCP runtime ; M8 ferme l'exposition web Prometheus tandis que health et info restent exposes. L'outcome final M1.1 n'est pas livre et B, C et D ne sont pas implementees.
-- Ce cadrage ne constitue aucune autorisation. Chaque slice future B, C ou D exige une autorisation distincte ; les etats de review, delivery, merge et decision owner vivent uniquement dans les Evidence Packs, la pull request et les records specialises.
+- La spec 046 est l'unique spec active. M1.1A avec son correctif M8 borne la fondation backend auth/tenant et M1.1B implemente le kernel backend de session process-local, desactive par defaut. Aucun des deux checkpoints ne modifie l'IA, les agents ou MCP. L'outcome final M1.1 n'est pas livre et C et D ne sont pas implementes.
+- Ce cadrage ne constitue aucune autorisation. Les slices futures C et D restent distinctes. Les etats de review, delivery, merge, decision owner et autorisation vivent uniquement dans les Evidence Packs, la pull request et les records specialises.
 - Le coeur metier reste deterministe, tenant-scoped, audit-ready et utilisable sans IA.
 - `030` livre une capacite de mapping assiste no-provider, evidence-first et human-in-the-loop.
 - La capacite livree expose des suggestions structurees de mapping, des preuves visibles et une decision humaine unitaire `ACCEPT`, `CORRECT` ou `REJECT`.

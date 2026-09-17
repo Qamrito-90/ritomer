@@ -8,7 +8,7 @@ on:
       - master
 
 jobs:
-  backend:
+  backend_linux:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -33,5 +33,126 @@ jobs:
       - name: Run tests
         run: ./gradlew test --no-daemon
 
+      - name: Verify Linux test reports
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-StrictMode -Version Latest
+          $reports = @(Get-ChildItem -LiteralPath 'build/test-results/test' -Filter 'TEST-*.xml' -File)
+          if ($reports.Count -eq 0) { throw 'Linux JUnit reports are missing.' }
+          $settings = [System.Xml.XmlReaderSettings]::new()
+          $settings.DtdProcessing = [System.Xml.DtdProcessing]::Prohibit
+          $settings.XmlResolver = $null
+          $settings.MaxCharactersInDocument = 67108864
+          $totalTests = 0L
+          foreach ($report in $reports) {
+            $document = [System.Xml.XmlDocument]::new()
+            $document.XmlResolver = $null
+            $reader = [System.Xml.XmlReader]::Create($report.FullName, $settings)
+            try { $document.Load($reader) } finally { $reader.Dispose() }
+            $suite = $document.DocumentElement
+            if ($null -eq $suite -or $suite.LocalName -cne 'testsuite') { throw 'Invalid JUnit report root.' }
+            foreach ($attribute in @('tests', 'failures', 'errors', 'skipped')) {
+              $value = $suite.GetAttribute($attribute)
+              if ($value -cnotmatch '^(0|[1-9][0-9]*)\z') { throw 'Invalid JUnit result count.' }
+              $count = [long]$value
+              if ($attribute -ceq 'tests') {
+                if ($count -ne $suite.SelectNodes('testcase').Count) { throw 'JUnit test count mismatch.' }
+                $totalTests += $count
+              } elseif ($count -ne 0) { throw 'JUnit reports contain failed, errored or skipped tests.' }
+            }
+            if ($suite.SelectNodes('testcase/failure | testcase/error | testcase/skipped').Count -ne 0) {
+              throw 'JUnit reports contain unsuccessful test cases.'
+            }
+          }
+          if ($totalTests -le 0) { throw 'Linux partition executed no tests.' }
+          Write-Output "LINUX_JUNIT_EXECUTED=$totalTests;FAILURES=0;ERRORS=0;SKIPPED=0"
+
       - name: Build
         run: ./gradlew build --no-daemon
+
+  backend_windows:
+    runs-on: windows-2022
+    defaults:
+      run:
+        working-directory: backend
+        shell: powershell
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Verify Windows PowerShell 5.1
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-StrictMode -Version Latest
+          if ($PSVersionTable.PSEdition -cne 'Desktop' -or
+              $PSVersionTable.PSVersion.Major -ne 5 -or $PSVersionTable.PSVersion.Minor -ne 1) {
+            throw 'Windows PowerShell Desktop 5.1 is required.'
+          }
+
+      - name: Run Windows tests
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-StrictMode -Version Latest
+          .\gradlew.bat windowsTest --no-daemon
+          exit $LASTEXITCODE
+
+      - name: Verify Windows test reports
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-StrictMode -Version Latest
+          $reports = @(Get-ChildItem -LiteralPath 'build/test-results/windowsTest' -Filter 'TEST-*.xml' -File)
+          if ($reports.Count -eq 0) { throw 'Windows JUnit reports are missing.' }
+          $settings = [System.Xml.XmlReaderSettings]::new()
+          $settings.DtdProcessing = [System.Xml.DtdProcessing]::Prohibit
+          $settings.XmlResolver = $null
+          $settings.MaxCharactersInDocument = 67108864
+          $totalTests = 0L
+          foreach ($report in $reports) {
+            $document = [System.Xml.XmlDocument]::new()
+            $document.XmlResolver = $null
+            $reader = [System.Xml.XmlReader]::Create($report.FullName, $settings)
+            try { $document.Load($reader) } finally { $reader.Dispose() }
+            $suite = $document.DocumentElement
+            if ($null -eq $suite -or $suite.LocalName -cne 'testsuite') { throw 'Invalid JUnit report root.' }
+            foreach ($attribute in @('tests', 'failures', 'errors', 'skipped')) {
+              $value = $suite.GetAttribute($attribute)
+              if ($value -cnotmatch '^(0|[1-9][0-9]*)\z') { throw 'Invalid JUnit result count.' }
+              $count = [long]$value
+              if ($attribute -ceq 'tests') {
+                if ($count -ne $suite.SelectNodes('testcase').Count) { throw 'JUnit test count mismatch.' }
+                $totalTests += $count
+              } elseif ($count -ne 0) { throw 'JUnit reports contain failed, errored or skipped tests.' }
+            }
+            if ($suite.SelectNodes('testcase/failure | testcase/error | testcase/skipped').Count -ne 0) {
+              throw 'JUnit reports contain unsuccessful test cases.'
+            }
+          }
+          if ($totalTests -le 0) { throw 'Windows partition executed no tests.' }
+          Write-Output "WINDOWS_JUNIT_EXECUTED=$totalTests;FAILURES=0;ERRORS=0;SKIPPED=0"
+
+  backend:
+    name: backend
+    runs-on: ubuntu-latest
+    needs: [backend_linux, backend_windows]
+    if: ${{ always() }}
+    steps:
+      - name: Require both backend partitions
+        shell: bash
+        env:
+          BACKEND_LINUX_RESULT: ${{ needs.backend_linux.result }}
+          BACKEND_WINDOWS_RESULT: ${{ needs.backend_windows.result }}
+        run: |
+          set -eu
+          test "$BACKEND_LINUX_RESULT" = success
+          test "$BACKEND_WINDOWS_RESULT" = success

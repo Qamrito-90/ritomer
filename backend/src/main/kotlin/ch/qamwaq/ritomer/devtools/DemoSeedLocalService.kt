@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 internal const val DEMO_SEED_DATASET_CLASSIFICATION_043B = "HARNESS_ONLY_AUTH_RBAC_DATASET"
+internal const val DEMO_SEED_SESSION_ENABLED_PROPERTY = "ritomer.security.session.enabled"
 
 internal data class DemoSeedLocalResult(
   val tenantId: UUID,
@@ -49,6 +50,8 @@ internal class DemoSeedLocalService(
   @Transactional
   fun seed(): DemoSeedLocalResult {
     val requestedVariant = DemoSeedLocalVariant.fromPropertyValue(environment.getProperty(DEMO_SEED_VARIANT_PROPERTY))
+    val sessionAdminEnabled = requestedVariant == DemoSeedLocalVariant.TWO_ACTOR_PILOT_043B &&
+      environment.getProperty(DEMO_SEED_SESSION_ENABLED_PROPERTY, Boolean::class.java, false)
     val primaryFolder = DemoSeedLocalDataset.primaryFolder
     val now = OffsetDateTime.now(ZoneOffset.UTC)
     var changedRows = 0
@@ -72,7 +75,12 @@ internal class DemoSeedLocalService(
       if (requestedVariant.enforceExactActiveRoles) {
         changedRows += deactivateUnexpectedActiveRoles(tenantId, userId, accountant, now)
       }
-      requestedVariant.additionalActors.forEach { actor ->
+      val additionalActors = requestedVariant.additionalActors + if (sessionAdminEnabled) {
+        listOf(DemoSeedLocalDataset.admin046bActor)
+      } else {
+        emptyList()
+      }
+      additionalActors.forEach { actor ->
         val actorUserId = upsertAppUser(actor, now).also { changedRows += it.changedRows }.id
         changedRows += upsertTenantMembership(tenantId, actorUserId, actor, now)
         if (requestedVariant.enforceExactActiveRoles) {
@@ -659,6 +667,22 @@ internal object DemoSeedLocalDataset {
     displayName = reviewerDisplayName,
     membershipId = reviewerMembershipId,
     membershipRole = reviewerMembershipRole
+  )
+
+  val adminUserId: UUID = UUID.fromString("046b0000-0000-4000-8000-000000000002")
+  const val adminExternalSubject: String = "ritomer-demo-admin-046b"
+  const val adminEmail: String = "demo.admin.046b@example.invalid"
+  const val adminDisplayName: String = "Demo Admin 046b"
+  val adminMembershipId: UUID = UUID.fromString("046b0000-0000-4000-8000-000000000003")
+  const val adminMembershipRole: String = "ADMIN"
+
+  val admin046bActor: DemoSeedLocalActorDataset = DemoSeedLocalActorDataset(
+    userId = adminUserId,
+    externalSubject = adminExternalSubject,
+    email = adminEmail,
+    displayName = adminDisplayName,
+    membershipId = adminMembershipId,
+    membershipRole = adminMembershipRole
   )
 
   private val periodStart = LocalDate.parse("2025-01-01")

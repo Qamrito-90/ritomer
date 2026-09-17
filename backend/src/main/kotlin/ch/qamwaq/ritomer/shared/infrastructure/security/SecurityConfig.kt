@@ -4,14 +4,17 @@ import java.nio.charset.StandardCharsets
 import java.time.Clock
 import java.time.Duration
 import javax.crypto.spec.SecretKeySpec
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Profile
+import org.springframework.core.env.ConfigurableEnvironment
 import org.springframework.http.HttpMethod
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
+import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer
 import org.springframework.security.config.http.SessionCreationPolicy
 import org.springframework.security.oauth2.core.OAuth2Error
 import org.springframework.security.oauth2.core.OAuth2TokenValidator
@@ -23,45 +26,144 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter
+import org.springframework.security.web.AuthenticationEntryPoint
 import org.springframework.security.web.SecurityFilterChain
+import org.springframework.security.web.access.AccessDeniedHandler
+import org.springframework.security.web.authentication.logout.LogoutHandler
+import org.springframework.security.web.authentication.logout.LogoutSuccessHandler
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository
+import org.springframework.security.web.context.SecurityContextHolderFilter
+import org.springframework.security.web.csrf.CsrfTokenRequestHandler
+import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository
+import org.springframework.security.web.firewall.RequestRejectedHandler
+import org.springframework.security.web.firewall.StrictHttpFirewall
+import org.springframework.security.web.savedrequest.NullRequestCache
+import org.springframework.security.web.util.matcher.RequestMatcher
 
 @Configuration
 @EnableMethodSecurity
-class SecurityConfig(
-  @Value("\${ritomer.security.jwt.hmac-secret}")
-  private val hmacSecret: String
-) {
+class SecurityConfig {
   @Bean
   @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
   fun securityFilterChain(
     http: HttpSecurity,
     jwtAuthenticationConverter: JwtAuthenticationConverter,
-    tenantMdcFilter: TenantMdcFilter
+    jwtDecoderProvider: ObjectProvider<JwtDecoder>,
+    tenantMdcFilter: TenantMdcFilter,
+    sessionProperties: SessionSecurityProperties,
+    environment: ConfigurableEnvironment,
+    sessionCredentialConflictFilterProvider: ObjectProvider<SessionCredentialConflictFilter>,
+    sessionExpiryFilterProvider: ObjectProvider<SessionExpiryFilter>,
+    localAuthBoundaryFilterProvider: ObjectProvider<LocalAuthBoundaryFilter>,
+    sessionAuthorityFreshnessFilterProvider: ObjectProvider<SessionAuthorityFreshnessFilter>,
+    sessionSecurityContextRepositoryProvider: ObjectProvider<HttpSessionSecurityContextRepository>,
+    sessionCsrfTokenRepositoryProvider: ObjectProvider<HttpSessionCsrfTokenRepository>,
+    sessionCsrfTokenRequestHandlerProvider: ObjectProvider<CsrfTokenRequestHandler>,
+    authenticatedSessionLogoutRequestMatcherProvider: ObjectProvider<RequestMatcher>,
+    sessionAuthenticationEntryPoint: AuthenticationEntryPoint,
+    sessionAccessDeniedHandler: AccessDeniedHandler,
+    sessionLogoutSuccessHandler: LogoutSuccessHandler,
+    sessionCookieClearingLogoutHandler: LogoutHandler
   ): SecurityFilterChain {
     http
-      .csrf { it.disable() }
-      .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
       .authorizeHttpRequests {
         it.requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
+        it.requestMatchers(HttpMethod.GET, SESSION_BOOTSTRAP_PATH).permitAll()
+        it.requestMatchers(HttpMethod.POST, SESSION_LOCAL_LOGIN_PATH).permitAll()
+        it.requestMatchers(HttpMethod.POST, SESSION_LOGOUT_PATH).authenticated()
         it.requestMatchers(HttpMethod.GET, "/api/me").authenticated()
         it.anyRequest().authenticated()
       }
-      .oauth2ResourceServer {
-        it.jwt { jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter) }
+
+    val jwtDecoder = jwtDecoderProvider.getIfAvailable()
+    if (jwtDecoder != null) {
+      http.oauth2ResourceServer {
+        if (sessionProperties.enabled) {
+          it.authenticationEntryPoint(sessionAuthenticationEntryPoint)
+        }
+        it.jwt { jwt ->
+          jwt.decoder(jwtDecoder)
+          jwt.jwtAuthenticationConverter(jwtAuthenticationConverter)
+        }
       }
-      .addFilterAfter(tenantMdcFilter, BearerTokenAuthenticationFilter::class.java)
+    }
+
+    if (sessionProperties.enabled) {
+      validateEnabledSessionContract(environment)
+      val securityContextRepository = sessionSecurityContextRepositoryProvider.getObject()
+      val csrfTokenRepository = sessionCsrfTokenRepositoryProvider.getObject()
+      val csrfTokenRequestHandler = sessionCsrfTokenRequestHandlerProvider.getObject()
+      val conflictFilter = sessionCredentialConflictFilterProvider.getObject()
+      val expiryFilter = sessionExpiryFilterProvider.getObject()
+      val localBoundaryFilter = localAuthBoundaryFilterProvider.getObject()
+      val authorityFreshnessFilter = sessionAuthorityFreshnessFilterProvider.getObject()
+
+      http
+        .exceptionHandling {
+          it.authenticationEntryPoint(sessionAuthenticationEntryPoint)
+          it.accessDeniedHandler(sessionAccessDeniedHandler)
+        }
+        .securityContext {
+          it.securityContextRepository(securityContextRepository)
+          it.requireExplicitSave(true)
+        }
+        .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED) }
+        .requestCache { it.requestCache(NullRequestCache()) }
+        .csrf {
+          it.csrfTokenRepository(csrfTokenRepository)
+          it.csrfTokenRequestHandler(csrfTokenRequestHandler)
+          it.requireCsrfProtectionMatcher(CookieOrLegacyBearerCsrfRequestMatcher())
+        }
+        .logout {
+          it.logoutRequestMatcher(authenticatedSessionLogoutRequestMatcherProvider.getObject())
+          it.invalidateHttpSession(true)
+          it.clearAuthentication(true)
+          it.addLogoutHandler(sessionCookieClearingLogoutHandler)
+          it.logoutSuccessHandler(sessionLogoutSuccessHandler)
+        }
+        .addFilterAfter(conflictFilter, SecurityContextHolderFilter::class.java)
+        .addFilterAfter(expiryFilter, SessionCredentialConflictFilter::class.java)
+        .addFilterAfter(localBoundaryFilter, SessionExpiryFilter::class.java)
+        .addFilterAfter(tenantMdcFilter, LocalAuthBoundaryFilter::class.java)
+        .addFilterAfter(authorityFreshnessFilter, TenantMdcFilter::class.java)
+    } else {
+      check(jwtDecoder != null) {
+        "A non-blank legacy JWT HMAC secret is required while the session kernel is disabled."
+      }
+      http
+        .csrf { it.disable() }
+        .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
+        .addFilterAfter(tenantMdcFilter, BearerTokenAuthenticationFilter::class.java)
+    }
 
     return http.build()
   }
 
+  @Bean
+  @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
+  fun webSecurityCustomizer(
+    strictHttpFirewall: StrictHttpFirewall,
+    sessionRequestRejectedHandler: RequestRejectedHandler
+  ): WebSecurityCustomizer =
+    WebSecurityCustomizer { web ->
+      web.httpFirewall(strictHttpFirewall)
+      web.requestRejectedHandler(sessionRequestRejectedHandler)
+    }
+
   @Profile("local | test | dbtest")
   @Bean
-  fun localTestDbtestJwtDecoder(): JwtDecoder =
+  @ConditionalOnNonBlankLegacyJwtSecret
+  fun localTestDbtestJwtDecoder(
+    @Value("\${ritomer.security.jwt.hmac-secret}") hmacSecret: String
+  ): JwtDecoder =
     createLocalTestDbtestJwtDecoder(hmacSecret, Clock.systemUTC())
 
   @Profile("!local & !test & !dbtest")
   @Bean
-  fun jwtDecoder(): JwtDecoder {
+  @ConditionalOnNonBlankLegacyJwtSecret
+  fun jwtDecoder(
+    @Value("\${ritomer.security.jwt.hmac-secret}") hmacSecret: String
+  ): JwtDecoder {
     val key = SecretKeySpec(hmacSecret.toByteArray(StandardCharsets.UTF_8), "HmacSHA256")
     return NimbusJwtDecoder.withSecretKey(key).build()
   }

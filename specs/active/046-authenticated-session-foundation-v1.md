@@ -4,33 +4,39 @@
 
 ```text
 SPEC_STATUS=ACTIVE
+ACTIVE_SPEC=046
 MILESTONE=M1_1_AUTHENTICATED_SESSION_FOUNDATION
 RISK_CLASS=C
 EVIDENCE_LEVEL=FULL
 
 M1_1A_SCOPE=BACKEND_AUTH_TENANT_FOUNDATION_WITH_CORRECTIVE_M8
+M1_1A_IMPLEMENTED=YES
 M1_1_FINAL_OUTCOME_DELIVERED=NO
 
-M1_1B_IMPLEMENTED=NO
+M1_1B_SCOPE=BACKEND_SESSION_KERNEL_PROCESS_LOCAL_DEFAULT_OFF
+M1_1B_IMPLEMENTED=YES
 M1_1C_IMPLEMENTED=NO
 M1_1D_IMPLEMENTED=NO
 
 PROMETHEUS_WEB_EXPOSURE=CLOSED_FAIL_CLOSED
 PUBLIC_MANAGEMENT_ENDPOINTS=HEALTH_INFO_ONLY
 
-SESSION_CREATED=NO
-COOKIE_CREATED=NO
-CSRF_CREATED=NO
+SESSION_CREATED=YES
+COOKIE_CREATED=YES
+CSRF_CREATED=YES
 FRONTEND_MODIFIED=NO
+BROWSER_SESSION_INTEGRATION=NO
+SHARED_OIDC_INTEGRATION=NO
+DISTRIBUTED_SESSION=NO
 
 AI_RUNTIME=NO
 AGENT_RUNTIME=NO
 MCP_RUNTIME=NO
 ```
 
-Cette spec reste active pendant les quatre slices cumulatives. Le checkpoint A ne livre pas une session : il borne le principal applicatif, la lecture d'autorité fraîche aux frontières métier protégées et la sûreté tenant requises par la future frontière de session. Le correctif M8 ferme fail-closed l'exposition HTTP de Prometheus ; seuls health et info restent exposés. La fermeture et le déplacement vers `specs/done/` appartiennent exclusivement à M1.1D.
+Cette spec reste active pendant les quatre slices cumulatives. Le checkpoint A borne le principal applicatif, la lecture d'autorité fraîche aux frontières métier protégées et la sûreté tenant. Le correctif M8 ferme fail-closed l'exposition HTTP de Prometheus ; seuls health et info restent exposés. Le checkpoint B implémente le kernel de session backend process-local, désactivé par défaut, sans intégration frontend ou navigateur. Les checkpoints C et D ne sont pas implémentés. La fermeture et le déplacement vers `specs/done/` appartiennent exclusivement à M1.1D.
 
-## 2. Outcome M1.1 et outcome borné M1.1A
+## 2. Outcome M1.1 et outcomes bornés M1.1A/M1.1B
 
 L'outcome final M1.1 est une authentification same-origin portée par une session serveur et un cookie opaque sécurisé. PostgreSQL reste l'autorité pour l'utilisateur, les memberships, le tenant et les rôles. Le mode local/test traverse la même frontière de session que le futur IdP ; il ne devient pas une seconde architecture d'authentification.
 
@@ -47,6 +53,17 @@ M1.1A couvre uniquement :
 
 M1.1A ne crée aucun endpoint de session, cookie, CSRF, login, logout, frontend, IdP réel, provisioning, cache d'autorité, dépendance ou migration.
 
+M1.1B implémente uniquement le kernel backend de session process-local :
+
+- une session HTTP opaque et un cookie sécurisé, tous deux désactivés par défaut ;
+- le bootstrap anonyme, l'adaptateur de login local/test, le rebootstrap et le logout ;
+- la rotation du SID et du CSRF, l'expiration absolue et idle et l'invalidation sur révocation ;
+- la relecture PostgreSQL de l'autorité pour `/api/me` et les requêtes protégées ;
+- le confinement local/test fail-closed, le firewall strict et la coexistence bornée du bearer backend historique ;
+- le contrat OpenAPI auth-session et l'ADR de frontière process-local.
+
+M1.1B n'ajoute aucun frontend, coordinator navigateur, OIDC réel ou partagé, session distribuée, dépendance, migration, provisioning, runtime IA, agent ou MCP. M1.1C, M1.1D et l'outcome final M1.1 restent non implémentés.
+
 ## 3. Architecture gelée
 
 ```text
@@ -62,6 +79,9 @@ NEW_DEPENDENCY=NO
 DB_MIGRATION=NO
 FIFTH_SLICE=NO
 M1_1_SESSION_TOPOLOGY=PROCESS_LOCAL_ONLY
+SESSION_DEFAULT_ENABLED=NO
+SHARED_OIDC_INTEGRATION=NO
+DISTRIBUTED_SESSION=NO
 ```
 
 Les claims provider ne déterminent jamais un tenant, un membership ou un rôle. Le backend legacy peut encore reconnaître explicitement un bearer JWT pendant la transition, mais cette compatibilité n'autorise aucun bearer navigateur.
@@ -162,11 +182,11 @@ SECURITY_CHAIN_INSTANCE_COUNT=1
 
 La registration disabled référence exactement le bean injecté dans la chaîne : `registration.filter === tenantBean === instance in FilterChainProxy`. Aucune instance ad hoc ou seconde configuration du filtre n'existe. L'ordre HTTP effectif en A place cette instance après `BearerTokenAuthenticationFilter` et avant `AuthorizationFilter`. Les preuves utilisent l'identité des objets, les deux canaux réels et une requête instrumentée ; l'existence du bean ou `OncePerRequestFilter` seul ne suffit pas.
 
-M1.1B ajoutera uniquement les registrations disabled des quatre nouveaux filtres de session et revalidera la bijection des cinq.
+M1.1B ajoute les registrations disabled des quatre nouveaux filtres de session et revalide la bijection des cinq.
 
-## 7. Contrat cible M1.1B — kernel session backend
+## 7. Contrat M1.1B implémenté — kernel session backend
 
-M1.1B introduira, après autorisation distincte, le kernel session default-off, bootstrap/login/logout, rotation, CSRF, expiry et invalidation. Le cookie cible est :
+M1.1B introduit le kernel session default-off, bootstrap/login/logout, rotation, CSRF, expiry et invalidation. Cette capacité reste absente tant qu'elle n'est pas explicitement activée dans une topologie locale autorisée. Le cookie contractuel est :
 
 ```text
 NAME=__Host-ritomer-session
@@ -180,13 +200,13 @@ ABSOLUTE_TIMEOUT=8h
 TRACKING_MODE=COOKIE_ONLY
 ```
 
-Le firewall interdira le semicolon et les formes URL-session avec `400 REQUEST_REJECTED`. `AuthenticatedActorAuthentication` implémentera directement `Authentication`, avec credentials/details nuls, authorities vides immuables, downgrade vers `false` idempotent et irréversible, élévation vers `true` interdite et `toString` redacted.
+Le firewall interdit le semicolon et les formes URL-session avec `400 REQUEST_REJECTED`. `AuthenticatedActorAuthentication` implémente directement `Authentication`, avec credentials/details nuls, authorities vides immuables, downgrade vers `false` idempotent et irréversible, élévation vers `true` interdite et `toString` redacted.
 
-Les codes cibles incluent `INVALID_REQUEST`, `AUTHENTICATION_FAILED`, `SESSION_ALREADY_AUTHENTICATED`, `AMBIGUOUS_CREDENTIALS`, `BEARER_NOT_ALLOWED_FOR_SESSION_ENDPOINT`, `SESSION_EXPIRED`, `CSRF_REJECTED`, `ACCESS_REVOKED`, `INVALID_TENANT_HEADER`, `ACCESS_DENIED` et `NOT_FOUND`.
+Les codes incluent `INVALID_REQUEST`, `AUTHENTICATION_FAILED`, `SESSION_ALREADY_AUTHENTICATED`, `AMBIGUOUS_CREDENTIALS`, `BEARER_NOT_ALLOWED_FOR_SESSION_ENDPOINT`, `SESSION_EXPIRED`, `CSRF_REJECTED`, `ACCESS_REVOKED`, `INVALID_TENANT_HEADER`, `ACCESS_DENIED` et `NOT_FOUND`.
 
 Le confinement local/test est explicite et fail-closed face aux marqueurs Cloud Run. `PORT` seul n'est jamais une preuve de Cloud Run. La compatibilité bearer backend reste explicite et ne s'étend jamais au navigateur.
 
-### 7.1 Flux, statuts et précédence cibles
+### 7.1 Flux, statuts et précédence
 
 | Étape ou condition | Traitement contractuel | Résultat |
 |---|---|---|
@@ -203,13 +223,13 @@ Les statuts figés sont : JSON invalide `400 INVALID_REQUEST` ; actorKey inconnu
 
 La précédence HTTP réelle à prouver est : firewall `400` → credentials ambigus `400` → expiry `401` → frontière locale `403` → syntaxe tenant `400` → fraîcheur DB `403` et invalidation → CSRF `403` → authorization `401/403/404` → métier.
 
-### 7.2 Confinement local/test cible
+### 7.2 Confinement local/test
 
 La capability locale existe seulement avec `session.enabled=true`, un ensemble de profils exactement égal à `{local}`, `{test}` ou `{dbtest}`, le backend résolu sur `127.0.0.1:8080`, Vite sur `127.0.0.1:5173`, `remoteAddr=127.0.0.1`, Host et Origin exacts, et aucun `Forwarded` ou `X-Forwarded-*`. Sont refusés : `localhost`, wildcard, `0.0.0.0`, `::`, `::1`, LAN, proxy distant, Origin absent sur unsafe et overrides CLI.
 
 La simple présence, valeur vide incluse, de l'un des dix marqueurs suivants interdit la capability locale : `K_SERVICE`, `K_REVISION`, `K_CONFIGURATION`, `CLOUD_RUN_JOB`, `CLOUD_RUN_EXECUTION`, `CLOUD_RUN_TASK_INDEX`, `CLOUD_RUN_TASK_ATTEMPT`, `CLOUD_RUN_TASK_COUNT`, `CLOUD_RUN_WORKER_POOL`, `CLOUD_RUN_REVISION`. `PORT` seul n'est pas probant.
 
-### 7.3 Firewall, Authentication et filtres cibles
+### 7.3 Firewall, Authentication et filtres
 
 Le tracking effectif est le singleton `{COOKIE}`. `StrictHttpFirewall` refuse le semicolon et les deux formes matricielles `;jsessionid=` et paramètre URI dérivé du cookie, sur GET et unsafe, avant toute chaîne, avec `400 REQUEST_REJECTED`, body minimal et `Cache-Control: no-store`. Des preuves distinctes établissent l'absence d'authentification URL, de rewrite par `encodeURL`/`encodeRedirectURL`, de redirection et de SID dans body, URL, Location, headers ou logs.
 
@@ -269,7 +289,7 @@ Chaque contrat métier publie deux Security Requirement Objects pour exprimer `c
 
 La modification d'`application.yml` ferme uniquement l'exposition Prometheus et n'implémente aucune capacité M1.1B. Le réalignement des quatre documents canoniques corrige la vérité courante sans implémenter M1.1D.
 
-### M1.1B — 12 paths, `A=6, M=6`
+### M1.1B — 17 paths, `A=6, M=11`
 
 | Action | Path |
 |---|---|
@@ -285,6 +305,189 @@ La modification d'`application.yml` ferme uniquement l'exposition Prometheus et 
 | M | `backend/src/test/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalDbIntegrationTest.kt` |
 | A | `contracts/openapi/auth-session-api.yaml` |
 | A | `docs/adr/0007-authenticated-session-boundary.md` |
+| M | `specs/active/046-authenticated-session-foundation-v1.md` |
+| M | `docs/product/v1-plan.md` |
+| M | `docs/present/architecture-cadrage-v1.md` |
+| M | `docs/present/ux-cadrage-v1.md` |
+| M | `docs/present/ai-cadrage-v1.md` |
+
+### Correctif M1.1B — rail PostgreSQL direct lean — 6 paths, `A=2, M=4`
+
+```text
+M1_1B_POSTGRESQL_RAIL_DELTA=A2_M4_R0_D0_TOTAL6
+M1_1B_POSTGRESQL_RAIL_COMPOSITE=A8_M17_R0_D0_TOTAL25
+M1_1B_POSTGRESQL_RAIL_OVERLAPS_WITH_B=1
+M1_1B_POSTGRESQL_RAIL_MODES=PREFLIGHT_LIFECYCLE_ONLY
+M1_1B_POSTGRESQL_ADMIN_CLIENT=PSQL_17_DIRECT
+ADMIN_SECRET_VISIBLE_TO_GRADLE=NO
+ADMIN_SECRET_VISIBLE_TO_JAVA=NO
+GRADLE_RAIL_TASKS=READINESS_TARGETED_FULL_ONLY
+PSQL_PHASE_PROCESS_COUNTS=PREFLIGHT_1_PROVISION_1_CLEANUP_1
+POSTGRESQL_CONNECTION=NOT_EXECUTED_NOT_AUTHORIZED
+PREFLIGHT_EXECUTED=NO
+LIFECYCLE_EXECUTED=NO
+DB_INTEGRATION_TEST_EXECUTED=NO
+POSTGRESQL_RAIL_TECHNICAL_STATUS=INCONCLUSIVE_PENDING_DB_EXECUTION
+```
+
+| Action | Path |
+|---|---|
+| A | `backend/scripts/m1-1b-postgresql-rail.ps1` |
+| A | `backend/src/test/kotlin/ch/qamwaq/ritomer/testsupport/PostgresTestRailLifecycleCommand.kt` |
+| M | `backend/build.gradle.kts` |
+| M | `backend/src/test/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalSourceGuardTest.kt` |
+| M | `runbooks/local-dev.md` |
+| M | `specs/active/046-authenticated-session-foundation-v1.md` |
+
+L'unique overlap avec le scope B historique est cette spec. Les dix-neuf
+chemins du composite situés hors de ce correctif restent octet pour octet
+inchangés. `A8/M17/25` est le statut composite observé et contrôlé ; il n'est
+pas présenté comme une addition arithmétique du seul scope B et du delta
+correctif. Un septième path impose `STOP_SCOPE_CHANGE`.
+
+Le redesign retire tout canal, constante, task ou bootstrap administratif de
+Gradle et tout CLI/JDBC/SQL administratif de Java/Kotlin. Le fichier lifecycle
+Kotlin conserve uniquement `PostgresTestRailJdbcLogging`, toujours consommé
+par le support runner. `dbIntegrationTest` reste autonome et hors
+orchestration.
+
+Gradle expose exactement les trois tâches rail suivantes :
+
+- `m1BPostgresRailReadiness` : compilation et résolution strictes, sans
+  credential, test, seed, Flyway ou connexion DB ;
+- `m1BPostgresRailTargeted` : deux classes et treize tests avec le seul secret
+  runner jetable ;
+- `m1BPostgresRailFull` : douze classes et cinquante-cinq tests avec le seul
+  secret runner jetable.
+
+La preuve qu'aucun secret admin n'atteint Gradle ou le compilateur vient de
+l'orchestrateur : il refuse les canaux parent interdits, reconstruit
+l'environnement enfant par allowlist exacte puis lance la readiness. Le
+`PASS` complet de cette readiness précède obligatoirement tout contrôle de
+console, prompt ou process psql.
+
+L'unique invocateur administratif est `Invoke-M1BDirectPsql`. Il lance
+directement, sans shell ni recherche PATH :
+
+```text
+C:\Program Files\PostgreSQL\17\bin\psql.exe
+```
+
+avec exactement neuf tokens :
+
+```text
+-X
+-W
+-q
+-A
+-t
+--set=ON_ERROR_STOP=1
+--set=VERBOSITY=terse
+--dbname
+hostaddr=127.0.0.1 port=15432 dbname=postgres user=postgres connect_timeout=5 sslmode=disable gssencmode=disable require_auth=scram-sha-256 application_name=ritomer_m1b_admin_rail
+```
+
+`UseShellExecute=false`, l'environnement allowlisté et les homes neutres sont
+obligatoires. Tout `PG*` est refusé. Aucun secret admin ne peut apparaître
+dans un argument, une variable, un fichier, Gradle, Java, Kotlin, Spring ou
+Flyway : le seul canal autorisé est le prompt masqué natif de `psql -W` sur
+une console Windows attachée.
+
+Le futur `Preflight` lance exactement un psql. Son SQL fixe en mémoire utilise
+`BEGIN TRANSACTION READ ONLY`, `statement_timeout=5s`,
+`lock_timeout=2s` et `search_path=pg_catalog`. Le parseur exige deux lignes
+structurées, UTF-8/base64/JSON stricts, sortie et temps bornés, exit zéro et
+stderr vide. Il prouve client/serveur 17, endpoint
+`127.0.0.1:15432`, base/user/session user `postgres`, capacités admin, cluster,
+absence des deux cibles et première règle HBA runner applicable selon le
+`rule_number` global exactement `hostnossl ... 127.0.0.1/32 scram-sha-256`,
+sans option. Le payload exige un tableau JSON, des types primitifs exacts, des
+clés uniques et l'état HBA attendu. Le manifeste sanitisé conserve capacités,
+transaction read-only, timeouts, OID admin/base de maintenance, cluster et
+binding HBA ; il ne mute rien et ne persiste jamais les sorties brutes.
+
+Le futur `Lifecycle` exige le manifeste preflight exact et son hash, puis
+dérive en mémoire un vérificateur SCRAM-SHA-256 depuis un password runner
+CSPRNG. Le provisioning utilise un seul nouveau psql ; le rôle reste
+`NOLOGIN` jusqu'à la fin de son durcissement. Targeted puis full ne reçoivent
+que le secret runner. Le cleanup, dans `finally`, utilise un seul nouveau
+psql, refuse toute session étrangère, vérifie cluster/OID/provenance, puis
+prouve base, rôle et sessions à zéro. Aucun retry, recovery heuristique ou
+process psql caché n'existe.
+
+Le contrat de provenance Lifecycle est commun à PowerShell et Kotlin :
+`ritomer-m1-1b:<RunId>:<ReviewedObjectSha256>:<ClusterSystemIdentifier>`.
+`Get-M1BProvenance` est un producteur pur alimenté par les valeurs validées,
+dont le cluster du manifeste Preflight validé. La validation stricte commune
+aux builders provision/cleanup et au validateur de payload exige le préfixe
+exact, 32 hex minuscules pour le run, 64 pour le hash et un cluster décimal
+`[1-9][0-9]{0,19}`, sans caractère final supplémentaire. Le cluster incorporé
+doit égaler le cluster attendu ; le cleanup exige aussi l'égalité du run.
+La même valeur traverse les deux `COMMENT ON`, les commentaires observés et
+les deux prédicats du cleanup. Aucun ancien format n'est accepté, même si
+l'attendu et le payload utilisent tous deux cet ancien format.
+
+Dans la garde JDBC, le véritable propriétaire de `public` est uniquement
+`ritomer_043b_test_runner` ou `pg_database_owner`, sous réserve de tous les
+autres invariants : connexion runner exacte, OID et provenances conformes,
+base appartenant au runner et ACL conformes au véritable `nspowner`.
+`postgres` et tout autre propriétaire sont refusés. Un droit `CREATE` ou une
+membership ne remplace pas la propriété ; `NOINHERIT`, les restrictions du
+runner et le rejet des memberships explicites restent requis. La validation
+précède toujours la destruction sur la même connexion et transaction ; la
+recréation conserve ses opérations fixes et son propriétaire runner.
+
+Chaque commande sensible reçoit le SHA-256 lowercase du `psql.exe` exactement
+autorisé. Le hash est recalculé avant chaque démarrage, persisté par Preflight,
+relié par Lifecycle puis prouvé identique pour Provision et Cleanup. Une dérive
+d'octets impose un arrêt et une nouvelle autorisation d'artefact.
+
+Preflight et Lifecycle exigent deux records d'autorisation sensible distincts.
+Le Lifecycle lie explicitement le record Preflight persisté, son manifeste et
+son hash, puis son propre record à la commande Lifecycle exacte.
+
+Avant readiness et après chaque phase, le rail recalcule le diff binaire exact
+du composite `A8/M17/25` avec un index Git alternatif hors repository. Le hash
+fourni par `ReviewedObjectSha256` doit être celui de ce `DIFF.patch` ; branche,
+HEAD, top-level, index réel vide, file-set, états et octets sont ainsi rebornés.
+Le binaire Git est épinglé et son environnement est reconstruit sans état
+`GIT_*` parent.
+
+L'alignement de ces deux contrats renouvelle le composite canonique et le
+digest runtime. Toute future exécution sensible exige leur review et de
+nouveaux bindings exacts ; les anciens manifestes, sidecars, records et
+reviews restent intacts et ne prouvent que le code antérieur. Cet alignement
+ne déclare aucune réussite PostgreSQL ni fermeture de M1.1B.
+
+Gradle est créé suspendu sous Windows 10+ et attaché atomiquement à un Job
+Object non nommé avec kill-on-close et liste fermée des trois handles standard,
+avant toute reprise. L'arbre complet est terminé et attendu dans tous les cas,
+afin qu'aucun worker ne survive avec le secret runner. Les logs système JUnit
+sont désactivés, les fichiers de crash restent sous le root volatil et un scan
+binaire borné de tout le root recherche le secret exact après chaque phase ;
+toute contamination est supprimée puis arrête le rail. Un lock global commun à
+tous les run IDs sérialise l'usage de la base et du rôle fixes.
+
+La readiness lie en outre un SHA-256 déterministe du runtime exact : classes,
+ressources, jars, racines JDK complètes du JVM Gradle et du `JavaLauncher` 21
+explicitement assigné aux workers `Test`, wrapper et distribution Gradle. Ce
+digest est persisté dans les deux manifestes ; Lifecycle exige celui du
+manifeste Preflight, puis targeted et full le recalculent avant et après leur
+exécution. Ce contrôle détecte une dérive accidentelle inter-phase ; les ACL de
+l'hôte restent la frontière contre un adversaire utilisant le même compte
+Windows.
+
+Les sorties psql sont lues de façon incrémentale avec limite et timeout ; sur
+erreur le child encore actif est tué et attendu. Les sidecars de hash sont lus
+sur une ouverture unique, avec exactement 65 octets UTF-8 stricts et un LF
+canonique ; les JSON refusent aussi les propriétés dupliquées. Les manifestes
+create-new ne portent que les observations sanitisées et leurs hashes. Jamais
+le SQL, stdout/stderr bruts, un password ou un vérificateur.
+
+Ce correctif n'a exécuté ni `psql`, ni `Preflight`, ni `Lifecycle`, ni
+`dbIntegrationTest` et n'a établi aucune connexion PostgreSQL. La correction
+ne prouve donc pas le comportement DB réel ; le statut reste
+`INCONCLUSIVE_PENDING_DB_EXECUTION` jusqu'à une mission sensible distincte.
 
 ### M1.1C — 12 paths, `A=2, M=10`
 
@@ -334,13 +537,13 @@ La modification d'`application.yml` ferme uniquement l'exposition Prometheus et 
 M1_1A_BASE_SCOPE=12_PATHS_A3_M9
 M1_1A_M8_SCOPE=8_PATHS_M8
 M1_1A_WITH_M8_SCOPE=17_PATHS_A3_M14
-M1_1B=12_PATHS_A6_M6_NOT_IMPLEMENTED
+M1_1B=17_PATHS_A6_M11_IMPLEMENTED
 M1_1C=12_PATHS_A2_M10_NOT_IMPLEMENTED
 M1_1D=22_LOGICAL_23_PHYSICAL_M21_R1_NOT_IMPLEMENTED
 M1_1_FINAL_OUTCOME_DELIVERED=NO
 ```
 
-Le tableau A décrit le scope de base. Le delta correctif M8 modifie exactement huit paths et porte l'union A+M8 à `A=3, M=14, total=17`. Les file-sets B, C et D restent des contrats futurs non implémentés ; chaque slice future exige une autorisation distincte et ses comptages devront alors être revalidés.
+Le tableau A décrit le scope de base. Le delta correctif M8 modifie exactement huit paths et porte l'union A+M8 à `A=3, M=14, total=17`. Le file-set B implémenté contient exactement 17 paths, `A=6, M=11`. Les file-sets C et D restent des contrats futurs non implémentés ; leurs comptages devront être revalidés dans leur slice respective.
 
 ## 11. Tests, gates et stops
 
@@ -391,9 +594,89 @@ M1.1B doit prouver :
 - bearer+cookie et bearer sur session endpoints refusés, CSRF courant seulement, cookie émis/supprimé exactement, logout Spring et expiry aux limites du `Clock` ;
 - les dix marqueurs Cloud Run testés séparément par simple présence, profils et topologie exacts ;
 - PostgreSQL réel pour seed, `/api/me`, révocations et zéro write d'authentification ;
-- OpenAPI auth-session parsé, tests SecurityConfig et session ciblés, deux tests DemoSeed DB, backend complet, Modulith, build et scan secret.
+- OpenAPI auth-session parsé, tests SecurityConfig et session ciblés, deux tests DemoSeed DB, backend complet, Modulith, build et scan secret ;
+- read-back exact du contrat auth-session, de l'ADR 0007, de cette spec, du v1-plan et des trois cadrages du présent.
 
-Stops B : HMAC requis au démarrage session ; tracking différent de `{COOKIE}` ; semicolon autorisé ; firewall différent de `400` ; SID réécrit ou divulgué ; graphe Authentication différent ou ré-élevable ; import/cycle ; filtre sans registration disabled ou ordre/invocation ambigu ; marqueur Cloud Run accepté ; DB skipped ; cookie affaibli ; treizième path.
+Stops B : HMAC requis au démarrage session ; tracking différent de `{COOKIE}` ; semicolon autorisé ; firewall différent de `400` ; SID réécrit ou divulgué ; graphe Authentication différent ou ré-élevable ; import/cycle ; filtre sans registration disabled ou ordre/invocation ambigu ; marqueur Cloud Run accepté ; DB skipped ; cookie affaibli ; dix-huitième path.
+
+### Checks et stops du correctif rail PostgreSQL M1.1B
+
+Les checks d'implémentation sont exclusivement non-DB : hash du plan et
+baseline ; AST PowerShell 5.1 ; `DemoSeedLocalSourceGuardTest` ciblé ; audits
+d'absence des canaux admin ; audits des neuf arguments, du transport, de
+l'authentification, des timeouts, de HBA et des trois démarrages psql ;
+suite backend complète ; build ; encodage/liens/scan secrets ; budget de
+lignes ; `git diff --check` ; patch exact avec application et inversion dans
+deux racines isolées issues de la baseline ; revalidation Git ; pack FULL et
+review Codex séparée read-only du hash exact.
+
+Les fixtures offline couvrent le parseur structuré nominal et ses rejets, la
+matrice ordonnée de première règle HBA et le vecteur SCRAM-SHA-256
+déterministe. Elles dot-sourcent le script sans dispatch. Elles ne peuvent
+appeler ni console, ni psql, ni Gradle, ni DB.
+
+Les tests de contrat de cet alignement comparent la sortie unique exacte du
+vrai producteur PowerShell à `postgresTestRailProvenance` sur les mêmes
+entrées. Ils réutilisent cette sortie dans les vrais builders et validateurs,
+puis dans les commentaires de la fixture JDBC exerçant la vraie garde. Ils
+vérifient les deux commentaires provisionnés, les deux comparaisons cleanup,
+les formats et bindings divergents, ainsi que l'ancien attendu associé à
+l'ancien payload. Les deux propriétaires admis sont exercés sous invariants
+conformes ; propriétaire étranger, base étrangère avec `pg_database_owner`,
+OID, ACL et memberships invalides sont refusés avant destruction simulée.
+Les assertions de transaction et de recréation restent obligatoires. Ces
+preuves non-DB ne remplacent pas les futurs targeted `2/13` et full `12/55`.
+
+Le budget initial est de 8 628 lignes pour les quatre fichiers code candidats
+et de 9 659 lignes pour les six fichiers. La réduction du correctif est prouvée
+par comparaison de ces totaux liés au plan avec les totaux finaux ; le
+`DIFF.patch` composite contre HEAD inclut toute M1.1B et ne mesure pas seul ce
+delta de redesign. Les deux totaux finaux doivent être strictement inférieurs,
+sans compression illisible.
+
+Stops : divergence du plan, de la branche, du HEAD, de l'index, des six paths
+ou du composite 25 ; septième path ; canal admin hors prompt psql ; tâche
+Gradle rail supplémentaire ; argument, endpoint ou nombre de process
+divergent ; parser/HBA/SCRAM fail-open ; secret ou sortie brute persistée ;
+code non réduit ; check requis manquant, skipped ou en échec. Après
+`FORMAL_CHECK_SEQUENCE_STARTED`, le premier échec arrête le goal sans
+correction supplémentaire.
+
+Les preuves PostgreSQL restent futures et séparément autorisées : un
+Preflight réel, targeted `2/13`, full `12/55` et cleanup à zéro. Aucun guard,
+test unitaire ou build non-DB ne permet de les déclarer exécutées ou
+opérationnellement prouvées. La procédure liée est `runbooks/local-dev.md`.
+
+### Boucle corrective non-DB bornée — stabilisation des pools dbtest M1.1B
+
+Pour cette seule stabilisation, lorsqu'un mandat l'autorise explicitement,
+un échec ordinaire et explicable de régression non-DB peut conduire à une
+correction dans le même goal et le même file-set :
+`application-dbtest.yml`, `DemoSeedLocalSourceGuardTest.kt`, ce document et
+`runbooks/local-dev.md`. Il ne nécessite pas une nouvelle décision de Luis
+à chaque tentative. Les tests et protections existants restent requis.
+
+La boucle conserve le rouge attendu de configuration, applique le correctif
+minimal, reteste les régressions ciblées, puis exécute SourceGuard complet,
+la suite backend non-DB et le build avant la review indépendante finale.
+Un finding correctible dans ce contrat suit la même boucle, avec des
+preuves renouvelées et une nouvelle review des éléments affectés.
+
+Le plafond reste de quatre itérations correctives et six heures de travail
+actif cumulées entre le mandat initial et sa reprise ; les compteurs ne sont
+pas réinitialisés. Le rouge initial attendu ne consomme pas une itération.
+Chaque tentative conserve immédiatement son hypothèse, son delta, ses
+identités, sa commande, ses horaires UTC, son résultat et un diagnostic
+expurgé. Aucun retry identique sans information nouvelle ; deux corrections
+consécutives sans progrès ou l'épuisement du budget imposent l'arrêt.
+
+Cette règle ne modifie pas la clause historique
+`FORMAL_CHECK_SEQUENCE_STARTED` du correctif rail précédent et n'a aucun
+effet rétroactif. Elle ne couvre ni les refus de sécurité ou de permission,
+ni les contrôles DB, le scanner réel, le cleanup, la delivery ou la
+production. Les demandes d'accès passent uniquement par le mécanisme
+officiel de la plateforme ; un refus explicite reste un arrêt. Aucun
+résultat non-DB ne vaut validation PostgreSQL ou clôture de M1.1B.
 
 ### Gates et stops M1.1C
 
@@ -428,11 +711,16 @@ Stops D : cookie `Secure __Host-` ne round-trip pas sur HTTP loopback ; navigate
 
 ## 12. Autorisations et frontières
 
-Cette spec ne constitue aucune autorisation. M1.1A avec son correctif M8 borne uniquement la fondation backend auth/tenant ; M1.1B, M1.1C et M1.1D ne sont pas implémentées et chaque slice future exige une autorisation distincte.
+Cette spec ne constitue aucune autorisation. M1.1A avec son correctif M8 et M1.1B sont implémentés dans leurs file-sets bornés. M1.1C et M1.1D ne sont pas implémentés et l'outcome final M1.1 n'est pas livré.
 
-Les états de review, delivery, merge et décision owner vivent uniquement dans les Evidence Packs, la pull request et les records spécialisés.
+Les états de review, delivery, merge, décision owner et autorisation vivent uniquement dans les Evidence Packs, la pull request et les records spécialisés.
 
 Une autorisation d'implémentation n'implique jamais delivery, merge, exécution sensible ou production. Aucune action GitHub, aucun commit, push, PR, merge, déploiement ou usage de donnée réelle ne découle de cette spec.
+
+Le correctif rail ne change pas cette règle. Toute connexion PostgreSQL, dont
+`Preflight`, exige une mission distincte. `Lifecycle` exige en plus une review
+sur les artefacts exacts et une autorisation sensible liée au run, au root, au
+manifeste preflight, à l'environnement et à la commande exacts.
 
 ## 13. Frontière M1.2 et hors-scope
 
@@ -449,9 +737,16 @@ Restent hors M1.1 : Redis, nouvelle dépendance, migration DB, JIT provisioning,
 
 Le scope de base M1.1A ajoute seulement cette spec. Le correctif M8 modifie cette spec, `docs/product/v1-plan.md` et les trois cadrages du présent afin d'aligner la vérité durable de périmètre, en plus de la fermeture Prometheus et de ses preuves. Il ne modifie aucun contrat, ADR, runbook, README, roadmap ou fondation UI et n'anticipe aucune capacité B, C ou D.
 
+M1.1B ajoute `contracts/openapi/auth-session-api.yaml` et `docs/adr/0007-authenticated-session-boundary.md`, puis modifie cette spec, `docs/product/v1-plan.md` et les trois cadrages du présent. Ces cinq read-backs documentaires portent le file-set B historique à 17 paths, `A=6, M=11`. Aucun README, runbook, roadmap, document UI, frontend ou contrat métier existant n'est inclus dans ce scope B historique.
+
+Le correctif rail PostgreSQL est un sous-scope distinct de six paths,
+`A=2/M=4`, qui modifie uniquement le runbook et cette spec côté documentation,
+sans changer le sequencing V1, un contrat, une ADR, un cadrage du présent,
+README, frontend, dépendance ou migration. Son unique overlap avec B est cette
+spec ; le composite observé reste `A=8/M=17/25`.
+
 Les impacts ultérieurs sont bornés ainsi :
 
-- B : `contracts/openapi/auth-session-api.yaml` et ADR 0007 ;
 - C : `docs/ui/ui-foundations-v1.md` ;
 - D : README, local-dev, v1-plan, product-roadmap, trois cadrages, huit OpenAPI, `.env.example`, puis rename de la spec.
 
