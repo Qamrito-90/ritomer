@@ -299,6 +299,23 @@ Contient :
 
 Derogation 004 AppShell : dans `004`, AppShell conserve `header`, `sidebar`, `breadcrumb`, `sticky action zone` et contexte tenant visible en lecture seule ; aucun tenant switch interactif n'est autorise.
 
+### Session et contexte protégé — contrat M1.1C
+
+Ce contrat accompagne l'implémentation locale validée de [046](../../specs/active/046-authenticated-session-foundation-v1.md), sans delivery ni activation intégrée, cette dernière restant réservée à M1.1D. Il réutilise les composants et zones d'action existants.
+
+- Un coordinateur unique pilote initialisation, connexion, contexte utilisateur/tenant/dossier, expiration, refus et déconnexion. Le router l'installe avant le contenu protégé ; aucun appel métier ne précède la résolution du contexte et aucun bootstrap ne part au simple import.
+- Le parcours local utilise bootstrap → connexion explicite → rebootstrap → `/api/me`. Le choix affiche seulement les libellés fournis ; aucun UUID acteur, subject ou actorKey n'apparaît dans le DOM ou l'URL, même dans des détails fermés. Aucun identifiant technique ne sert de libellé utilisateur de secours. Le retrait du créateur technique d'un pack ne change ni le DTO ni l'audit.
+- Les états chargement, connexion requise, expiration, accès refusé, contexte indisponible, panne réseau, timeout, erreur serveur et réponse invalide sont explicites. Un `401` après disponibilité ou une révocation globale efface le contexte utilisateur/tenant/dossier et le CSRF et démonte le contenu protégé. Les réponses tardives ne restaurent aucun contexte abandonné.
+- Un `403 ACCESS_DENIED` reste un refus contextualisé, sans reconnexion ou répétition automatique ; un `404` métier reste opaque. Un rejet CSRF suspend les mutations pendant une reprise contrôlée, sans jamais rejouer automatiquement l'action métier.
+- Seul le `404` du bootstrap initial permet `LEGACY_PROXY_TRANSITION` puis le parcours existant via `/api/me`, sans ajout de bearer ou de CSRF. Une panne ou une perte de capability ultérieure ne déclenche pas cette transition. Une capacité absente ne promet aucun login/logout serveur disponible.
+- Les requêtes utilisent des credentials same-origin. Le CSRF courant reste en mémoire ; une mutation métier `SESSION_READY` sans token est bloquée avant le réseau. Aucun secret, bearer, cookie ou SID n'est exposé dans DOM, URL, storage, IndexedDB ou channel. Les endpoints session n'emploient pas de header tenant ; le backend reste l'autorité pour les droits métier.
+- La déconnexion est explicite, accessible au clavier, avec focus visible et prévention du double clic. Le contexte local disparaît immédiatement ; seule la confirmation serveur autorise l'affichage d'une fermeture réussie, suivie d'un bootstrap anonyme. Une panne réseau affiche « Déconnexion non confirmée » et ne réouvre pas silencieusement le contexte sur focus ou message inter-onglets.
+- Le retour après connexion reste en mémoire : `/` ou `/closing-folders/{UUID canonique lowercase}` uniquement. Query, fragment, schéma, doubles slashs, backslashes, contrôles et encodages non autorisés sont refusés avec retour à `/`. Un chemin accepté ne confère aucun accès au dossier.
+- Initialisation, revalidation, focus et visibility sont dédupliqués, sans polling. Le channel `ritomer:session:v1` transmet seulement `{type: "SESSION_CHANGED"}`, sans identité, secret ni écho. Si `BroadcastChannel` est indisponible, conserver focus/visibility sans fallback storage et nettoyer les abonnements.
+- Les téléchargements de documents et de packs contrôlent la génération avant réception exploitable des en-têtes, après lecture du Blob, avant résultat API, puis dans le panneau après `await` et immédiatement avant création de l'URL objet, sans attente intermédiaire. Une réponse périmée ne notifie pas une nouvelle expiration et ne déclenche ni succès, ni URL objet, ni lien, ni clic. Seul le verrou de sa tentative est libéré. Le délai unique de 5 000 ms couvre en-têtes et corps ; timeout et invalidation terminent aussi une attente simulée ignorant l'abort.
+
+Les libellés, contrôles et états utilisent les composants du design system et une disposition adaptée au viewport étroit. Les tests C du frontend simulé couvrent leur structure, navigation clavier et accessibilité automatisée. Ils ne prouvent ni rendu navigateur réel, ni cookie `Secure`/`HttpOnly`, ni proxy, ni deux jars, ni concurrence réelle entre onglets : ces validations et l'activation intégrée restent en D. La clôture de 046 reste exclusivement en D.
+
 ### Actions et feedback
 - Button / Icon Button
 - Toast + Undo

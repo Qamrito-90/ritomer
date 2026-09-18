@@ -1,11 +1,16 @@
-import { act } from "react";
+import { act, StrictMode } from "react";
 import { RouterProvider } from "react-router-dom";
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "jest-axe";
 import { vi } from "vitest";
 import { createAppMemoryRouter } from "./router";
 import { DEFAULT_REQUEST_TIMEOUT_MS } from "../lib/api/http";
+import * as exportsApi from "../lib/api/exports";
+
+const SESSION_ACTOR_KEY = "test-accountant-memory-key";
+const SESSION_ACTOR_UUID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+const SESSION_TOKEN = "current-session-csrf-test-fixture";
 
 const ACTIVE_TENANT = {
   tenantId: "11111111-1111-1111-1111-111111111111",
@@ -432,9 +437,12 @@ function jsonResponse(status: number, payload: unknown) {
   });
 }
 
+const activeRouters: ReturnType<typeof createAppMemoryRouter>[] = [];
+
 function renderRoute(initialEntry: string) {
   const router = createAppMemoryRouter([initialEntry]);
-  return render(<RouterProvider router={router} />);
+  activeRouters.push(router);
+  return { ...render(<RouterProvider router={router} />), router };
 }
 
 function expectVisibleText(text: string) {
@@ -534,8 +542,8 @@ async function expectControlsState(text: string) {
 
 async function flushTimeout() {
   await act(async () => {
-    vi.advanceTimersByTime(DEFAULT_REQUEST_TIMEOUT_MS);
-    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(DEFAULT_REQUEST_TIMEOUT_MS);
   });
 }
 
@@ -546,10 +554,16 @@ async function openWorkbenchPanel(label: string) {
 
 describe("router", () => {
   beforeEach(() => {
-    vi.stubGlobal("fetch", vi.fn());
+    vi.stubGlobal("fetch", vi.fn().mockImplementationOnce((input, init) => {
+      expect(String(input)).toBe("/api/session/bootstrap");
+      expect(init?.method).toBe("GET");
+      return Promise.resolve(jsonResponse(404, {}));
+    }));
   });
 
   afterEach(() => {
+    cleanup();
+    activeRouters.splice(0).forEach((router) => router.dispose());
     vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -563,8 +577,8 @@ describe("router", () => {
       renderRoute("/");
 
       expect(await expectVisibleText("chargement dossiers")).toBeInTheDocument();
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-      expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/me");
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/me");
       expect(screen.queryByLabelText("tenant actif")).not.toBeInTheDocument();
       expect(screen.queryByText("Portefeuille de closing")).not.toBeInTheDocument();
     });
@@ -576,8 +590,8 @@ describe("router", () => {
       renderRoute("/");
 
       expect(await expectVisibleText("authentification requise")).toBeInTheDocument();
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-      expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/me");
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/me");
       expect(screen.queryByLabelText("tenant actif")).not.toBeInTheDocument();
     });
 
@@ -588,7 +602,7 @@ describe("router", () => {
       renderRoute("/");
 
       expect(await expectVisibleText("contexte tenant requis")).toBeInTheDocument();
-      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
       expect(screen.queryByLabelText("tenant actif")).not.toBeInTheDocument();
     });
 
@@ -599,7 +613,7 @@ describe("router", () => {
       renderRoute("/");
 
       expect(await expectVisibleText("profil indisponible")).toBeInTheDocument();
-      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
       expect(screen.queryByLabelText("tenant actif")).not.toBeInTheDocument();
     });
 
@@ -614,8 +628,8 @@ describe("router", () => {
       expect(await expectVisibleText("authentification requise")).toBeInTheDocument();
       expect(await screen.findByLabelText("tenant actif")).toHaveTextContent("Tenant Alpha");
       expect(screen.getByText("Portefeuille de closing")).toBeInTheDocument();
-      expect(fetchMock).toHaveBeenCalledTimes(2);
-      expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/closing-folders");
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(fetchMock.mock.calls[2]?.[0]).toBe("/api/closing-folders");
     });
 
     it("renders acces dossiers refuse on /api/closing-folders 403", async () => {
@@ -701,11 +715,11 @@ describe("router", () => {
       expect(within(archivedCard as HTMLElement).getByText("aucune")).toBeInTheDocument();
       expect(within(archivedCard as HTMLElement).getByText("Archive")).toBeInTheDocument();
 
-      expect(fetchMock).toHaveBeenCalledTimes(2);
-      expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/me");
-      expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/closing-folders");
-      expect(getRequestHeaders(fetchMock, 0)["X-Tenant-Id"]).toBeUndefined();
-      expect(getRequestHeaders(fetchMock, 1)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/me");
+      expect(fetchMock.mock.calls[2]?.[0]).toBe("/api/closing-folders");
+      expect(getRequestHeaders(fetchMock, 1)["X-Tenant-Id"]).toBeUndefined();
+      expect(getRequestHeaders(fetchMock, 2)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
       expect(fetchMock.mock.calls.map((call) => String(call[0]))).not.toContain(
         `/api/closing-folders/${CLOSING_FOLDER.id}/controls`
       );
@@ -719,7 +733,6 @@ describe("router", () => {
       fetchMock
         .mockResolvedValueOnce(jsonResponse(200, { activeTenant: ACTIVE_TENANT }))
         .mockResolvedValueOnce(jsonResponse(200, [ENTRYPOINT_PRIMARY_FOLDER]))
-        .mockResolvedValueOnce(jsonResponse(200, { activeTenant: ACTIVE_TENANT }))
         .mockResolvedValueOnce(jsonResponse(200, CLOSING_FOLDER))
         .mockResolvedValueOnce(jsonResponse(200, READY_CONTROLS))
         .mockResolvedValueOnce(jsonResponse(200, DEFAULT_MANUAL_MAPPING))
@@ -736,7 +749,7 @@ describe("router", () => {
 
       const folderCard = (await screen.findByText("Closing FY26")).closest("article");
       expect(folderCard).not.toBeNull();
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
       expect(fetchMock.mock.calls.map((call) => String(call[0]))).not.toContain(
         `/api/closing-folders/${CLOSING_FOLDER.id}/controls`
       );
@@ -751,7 +764,7 @@ describe("router", () => {
       expect(await screen.findByText("Annexe minimale")).toBeInTheDocument();
       expect(await screen.findByLabelText("tenant actif")).toHaveTextContent("Tenant Alpha");
       expect(fetchMock).toHaveBeenCalledTimes(14);
-      expect(fetchMock.mock.calls[2]?.[0]).toBe("/api/me");
+      expect(fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/me")).toHaveLength(1);
       expect(fetchMock.mock.calls[3]?.[0]).toBe(`/api/closing-folders/${CLOSING_FOLDER.id}`);
       expect(fetchMock.mock.calls[4]?.[0]).toBe(
         `/api/closing-folders/${CLOSING_FOLDER.id}/controls`
@@ -794,7 +807,7 @@ describe("router", () => {
       renderRoute(CLOSING_ROUTE);
 
       expect(await expectVisibleText("authentification requise")).toBeInTheDocument();
-      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
       expect(screen.queryByText("Closing FY26")).not.toBeInTheDocument();
     });
 
@@ -805,7 +818,7 @@ describe("router", () => {
       renderRoute(CLOSING_ROUTE);
 
       expect(await expectVisibleText("contexte tenant requis")).toBeInTheDocument();
-      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
       expect(screen.queryByLabelText("tenant actif")).not.toBeInTheDocument();
     });
 
@@ -816,7 +829,7 @@ describe("router", () => {
       renderRoute(CLOSING_ROUTE);
 
       expect(await expectVisibleText("profil indisponible")).toBeInTheDocument();
-      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
     });
 
     it("renders profil indisponible on /api/me 5xx and never calls dossier", async () => {
@@ -826,7 +839,7 @@ describe("router", () => {
       renderRoute(CLOSING_ROUTE);
 
       expect(await expectVisibleText("profil indisponible")).toBeInTheDocument();
-      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
     });
 
     it("renders profil indisponible on /api/me network failure and never calls dossier", async () => {
@@ -836,7 +849,7 @@ describe("router", () => {
       renderRoute(CLOSING_ROUTE);
 
       expect(await expectVisibleText("profil indisponible")).toBeInTheDocument();
-      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
     });
 
     it("renders profil indisponible on /api/me timeout and never calls dossier", async () => {
@@ -849,7 +862,7 @@ describe("router", () => {
       vi.useRealTimers();
 
       expect(await expectVisibleText("profil indisponible")).toBeInTheDocument();
-      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
     });
 
     it("renders profil indisponible on /api/me invalid payload and never calls dossier", async () => {
@@ -859,7 +872,7 @@ describe("router", () => {
       renderRoute(CLOSING_ROUTE);
 
       expect(await expectVisibleText("profil indisponible")).toBeInTheDocument();
-      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
     });
 
     it("renders authentification requise on dossier 401, keeps tenant visible, and never calls controls", async () => {
@@ -872,7 +885,7 @@ describe("router", () => {
 
       expect(await expectVisibleText("authentification requise")).toBeInTheDocument();
       expect(await screen.findByLabelText("tenant actif")).toHaveTextContent("Tenant Alpha");
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
       expect(screen.queryByText("Closing FY26")).not.toBeInTheDocument();
     });
 
@@ -886,7 +899,7 @@ describe("router", () => {
 
       expect(await expectVisibleText("acces dossier refuse")).toBeInTheDocument();
       expect(await screen.findByLabelText("tenant actif")).toHaveTextContent("Tenant Alpha");
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
       expect(screen.queryByText("Closing FY26")).not.toBeInTheDocument();
     });
 
@@ -900,7 +913,7 @@ describe("router", () => {
 
       expect(await expectVisibleText("dossier introuvable")).toBeInTheDocument();
       expect(await screen.findByLabelText("tenant actif")).toHaveTextContent("Tenant Alpha");
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
       expect(screen.queryByText("Closing FY26")).not.toBeInTheDocument();
     });
 
@@ -914,7 +927,7 @@ describe("router", () => {
 
       expect(await expectVisibleText("dossier indisponible")).toBeInTheDocument();
       expect(await screen.findByLabelText("tenant actif")).toHaveTextContent("Tenant Alpha");
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
       expect(screen.queryByText("Closing FY26")).not.toBeInTheDocument();
     });
 
@@ -928,7 +941,7 @@ describe("router", () => {
 
       expect(await expectVisibleText("dossier indisponible")).toBeInTheDocument();
       expect(await screen.findByLabelText("tenant actif")).toHaveTextContent("Tenant Alpha");
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
       expect(screen.queryByText("Closing FY26")).not.toBeInTheDocument();
     });
 
@@ -942,7 +955,7 @@ describe("router", () => {
 
       expect(await expectVisibleText("dossier indisponible")).toBeInTheDocument();
       expect(await screen.findByLabelText("tenant actif")).toHaveTextContent("Tenant Alpha");
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
       expect(screen.queryByText("Closing FY26")).not.toBeInTheDocument();
     });
 
@@ -956,7 +969,7 @@ describe("router", () => {
 
       expect(await expectVisibleText("dossier indisponible")).toBeInTheDocument();
       expect(await screen.findByLabelText("tenant actif")).toHaveTextContent("Tenant Alpha");
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
       expect(screen.queryByText("Closing FY26")).not.toBeInTheDocument();
     });
 
@@ -975,7 +988,7 @@ describe("router", () => {
 
       expect(await expectVisibleText("incoherence tenant dossier")).toBeInTheDocument();
       expect(await screen.findByLabelText("tenant actif")).toHaveTextContent("Tenant Alpha");
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
       expect(screen.queryByText("Closing FY26")).not.toBeInTheDocument();
     });
 
@@ -989,7 +1002,7 @@ describe("router", () => {
       expect(screen.getByText("Dossier courant")).toBeInTheDocument();
       expect(await expectVisibleText("chargement controles")).toBeInTheDocument();
       expect(await screen.findByText("Aucun pack auditable genere.")).toBeInTheDocument();
-      expect(fetchMock).toHaveBeenCalledTimes(12);
+      expect(fetchMock).toHaveBeenCalledTimes(13);
       expectNoControlsNominalBlocks();
     });
 
@@ -1062,7 +1075,7 @@ describe("router", () => {
       expect(cockpit).not.toHaveTextContent("ready for review");
       expect(cockpit).not.toHaveTextContent("reviewed");
       expect(cockpit).not.toHaveTextContent("DRAFT");
-      expect(fetchMock).toHaveBeenCalledTimes(12);
+      expect(fetchMock).toHaveBeenCalledTimes(13);
     });
 
     it("renders controls-ready cockpit as review to complete without statutory promise", async () => {
@@ -1091,7 +1104,7 @@ describe("router", () => {
       expect(cockpit).not.toHaveTextContent("DRAFT");
       expect(cockpit).not.toHaveTextContent(/CO-ready|statutory-ready|ready to file/i);
       expectNoPrototypeMicrocopy(cockpit);
-      expect(fetchMock).toHaveBeenCalledTimes(12);
+      expect(fetchMock).toHaveBeenCalledTimes(13);
     });
 
     it("renders preview-ready cockpit as human review ready with no priority point", async () => {
@@ -1124,7 +1137,7 @@ describe("router", () => {
       expect(cockpit).not.toHaveTextContent("DRAFT");
       expect(cockpit).not.toHaveTextContent(/CO-ready|statutory-ready|ready to file/i);
       expectNoPrototypeMicrocopy(cockpit);
-      expect(fetchMock).toHaveBeenCalledTimes(12);
+      expect(fetchMock).toHaveBeenCalledTimes(13);
     });
 
     it("renders a compact workbench with tabs, one active detail panel, and structural overflow guards", async () => {
@@ -1171,7 +1184,7 @@ describe("router", () => {
       expect(overviewPanel).not.toHaveTextContent(CLOSING_FOLDER.id);
       expect(overviewPanel).not.toHaveTextContent(ACTIVE_TENANT.tenantId);
       expectNoPrototypeMicrocopy(cockpit);
-      expect(fetchMock).toHaveBeenCalledTimes(12);
+      expect(fetchMock).toHaveBeenCalledTimes(13);
     });
 
     it("keeps long mapping rows bounded with wrapping fields and aligned actions", async () => {
@@ -1323,7 +1336,7 @@ describe("router", () => {
       expect(within(mappingLine).queryByRole("button", { name: "Affecter" })).not.toBeInTheDocument();
       expect(mappingPanel).not.toHaveTextContent("/api/");
       expect(mappingPanel).not.toHaveTextContent(CLOSING_FOLDER.id);
-      expect(fetchMock).toHaveBeenCalledTimes(12);
+      expect(fetchMock).toHaveBeenCalledTimes(13);
     });
 
     it.each([
@@ -1339,7 +1352,7 @@ describe("router", () => {
       renderRoute(CLOSING_ROUTE);
 
       await expectControlsState(text);
-      expect(fetchMock).toHaveBeenCalledTimes(12);
+      expect(fetchMock).toHaveBeenCalledTimes(13);
     });
 
     it("renders erreur reseau controles on a controls network failure", async () => {
@@ -1361,7 +1374,7 @@ describe("router", () => {
       renderRoute(CLOSING_ROUTE);
 
       await expectControlsState("erreur reseau controles");
-      expect(fetchMock).toHaveBeenCalledTimes(12);
+      expect(fetchMock).toHaveBeenCalledTimes(13);
     });
 
     it("renders timeout controles on a controls timeout failure", async () => {
@@ -1383,7 +1396,7 @@ describe("router", () => {
       renderRoute(CLOSING_ROUTE);
 
       await expectControlsState("timeout controles");
-      expect(fetchMock).toHaveBeenCalledTimes(12);
+      expect(fetchMock).toHaveBeenCalledTimes(13);
     });
 
     it("renders payload controles invalide when the controls payload is incomplete", async () => {
@@ -1401,7 +1414,7 @@ describe("router", () => {
       renderRoute(CLOSING_ROUTE);
 
       await expectControlsState("payload controles invalide");
-      expect(fetchMock).toHaveBeenCalledTimes(12);
+      expect(fetchMock).toHaveBeenCalledTimes(13);
     });
 
     it("renders the exact READY controls blocks in order and stays accessible", async () => {
@@ -1462,52 +1475,52 @@ describe("router", () => {
       expect(screen.queryByText(ACTIVE_TENANT.tenantId)).not.toBeInTheDocument();
       expect(screen.queryByText(CLOSING_FOLDER.id)).not.toBeInTheDocument();
       expect(await screen.findByText("Aucun pack auditable genere.")).toBeInTheDocument();
-      expect(fetchMock).toHaveBeenCalledTimes(12);
+      expect(fetchMock).toHaveBeenCalledTimes(13);
 
-      expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/me");
-      expect(fetchMock.mock.calls[1]?.[0]).toBe(`/api/closing-folders/${CLOSING_FOLDER.id}`);
-      expect(fetchMock.mock.calls[2]?.[0]).toBe(
+      expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/me");
+      expect(fetchMock.mock.calls[2]?.[0]).toBe(`/api/closing-folders/${CLOSING_FOLDER.id}`);
+      expect(fetchMock.mock.calls[3]?.[0]).toBe(
         `/api/closing-folders/${CLOSING_FOLDER.id}/controls`
       );
-      expect(fetchMock.mock.calls[3]?.[0]).toBe(
+      expect(fetchMock.mock.calls[4]?.[0]).toBe(
         `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/manual`
       );
-      expect(fetchMock.mock.calls[4]?.[0]).toBe(
+      expect(fetchMock.mock.calls[5]?.[0]).toBe(
         `/api/closing-folders/${CLOSING_FOLDER.id}/financial-summary`
       );
-      expect(fetchMock.mock.calls[5]?.[0]).toBe(
+      expect(fetchMock.mock.calls[6]?.[0]).toBe(
         `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`
       );
-      expect(fetchMock.mock.calls[6]?.[0]).toBe(
+      expect(fetchMock.mock.calls[7]?.[0]).toBe(
         `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`
       );
-      expect(fetchMock.mock.calls[7]?.[0]).toBe(
+      expect(fetchMock.mock.calls[8]?.[0]).toBe(
         `/api/closing-folders/${CLOSING_FOLDER.id}/imports/balance/versions`
       );
-      expect((fetchMock.mock.calls[7]?.[1] as RequestInit | undefined)?.method).toBe("GET");
-      expect(fetchMock.mock.calls[8]?.[0]).toBe(
+      expect((fetchMock.mock.calls[8]?.[1] as RequestInit | undefined)?.method).toBe("GET");
+      expect(fetchMock.mock.calls[9]?.[0]).toBe(
         `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`
       );
-      expect(fetchMock.mock.calls[9]?.[0]).toBe(
+      expect(fetchMock.mock.calls[10]?.[0]).toBe(
         `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`
       );
-      expect(fetchMock.mock.calls[10]?.[0]).toBe(
+      expect(fetchMock.mock.calls[11]?.[0]).toBe(
         `/api/closing-folders/${CLOSING_FOLDER.id}/minimal-annex`
       );
-      expect(fetchMock.mock.calls[11]?.[0]).toBe(
+      expect(fetchMock.mock.calls[12]?.[0]).toBe(
         `/api/closing-folders/${CLOSING_FOLDER.id}/imports/balance/versions/2/diff-previous`
       );
-      expect(getRequestHeaders(fetchMock, 0)["X-Tenant-Id"]).toBeUndefined();
-      expect(getRequestHeaders(fetchMock, 1)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
+      expect(getRequestHeaders(fetchMock, 1)["X-Tenant-Id"]).toBeUndefined();
       expect(getRequestHeaders(fetchMock, 2)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
       expect(getRequestHeaders(fetchMock, 3)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
       expect(getRequestHeaders(fetchMock, 4)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
       expect(getRequestHeaders(fetchMock, 5)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
       expect(getRequestHeaders(fetchMock, 6)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
       expect(getRequestHeaders(fetchMock, 7)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
-      expect(getRequestHeaders(fetchMock, 7).Accept).toBe("application/json");
       expect(getRequestHeaders(fetchMock, 8)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
+      expect(getRequestHeaders(fetchMock, 8).Accept).toBe("application/json");
       expect(getRequestHeaders(fetchMock, 9)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
+      expect(getRequestHeaders(fetchMock, 10)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
       expect((await axe(container)).violations).toEqual([]);
       expectNoPrototypeMicrocopy(container);
     });
@@ -1579,7 +1592,393 @@ describe("router", () => {
       expect(rows[1]).toHaveTextContent("Revenue");
       expect(rows[2]).toHaveTextContent("0500");
       expect(rows[2]).toHaveTextContent("Receivable");
-      expect(fetchMock).toHaveBeenCalledTimes(12);
+      expect(fetchMock).toHaveBeenCalledTimes(13);
     });
+  });
+});
+
+const SESSION_PACK = {
+  exportPackId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+  closingFolderId: CLOSING_FOLDER.id,
+  fileName: "session-audit-pack.zip",
+  mediaType: "application/zip",
+  byteSize: 3,
+  checksumSha256: "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+  basisImportVersion: 2,
+  basisTaxonomyVersion: 1,
+  createdAt: "2026-02-01T10:00:00Z",
+  createdByUserId: SESSION_ACTOR_UUID
+};
+
+function sessionBootstrap(authenticated = true, token = SESSION_TOKEN) {
+  return jsonResponse(200, {
+    sessionState: authenticated ? "AUTHENTICATED" : "ANONYMOUS",
+    localLoginAvailable: true,
+    csrf: { headerName: "X-CSRF-TOKEN", token },
+    ...(authenticated ? {} : { actors: [{ actorKey: SESSION_ACTOR_KEY, displayLabel: "Comptable pilote" }] })
+  });
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+function sessionRouteFetch(overrides: Record<string, (() => Response | Promise<Response>)[]> = {}) {
+  const folder = `/api/closing-folders/${CLOSING_FOLDER.id}`;
+  const responses: Record<string, (() => Response | Promise<Response>)[]> = {
+    "GET /api/session/bootstrap": [() => sessionBootstrap()],
+    "GET /api/me": [() => jsonResponse(200, {
+      activeTenant: ACTIVE_TENANT,
+      effectiveRoles: ["ACCOUNTANT"],
+      actor: { userId: SESSION_ACTOR_UUID, subject: "private-subject", displayName: "Comptable pilote" }
+    })],
+    "GET /api/closing-folders": [() => jsonResponse(200, [ENTRYPOINT_PRIMARY_FOLDER])],
+    [`GET ${folder}`]: [() => jsonResponse(200, CLOSING_FOLDER)],
+    [`GET ${folder}/controls`]: [() => jsonResponse(200, READY_CONTROLS)],
+    [`GET ${folder}/mappings/manual`]: [() => jsonResponse(200, DEFAULT_MANUAL_MAPPING)],
+    [`GET ${folder}/financial-summary`]: [() => jsonResponse(200, DEFAULT_FINANCIAL_SUMMARY)],
+    [`GET ${folder}/financial-statements/structured`]: [() => jsonResponse(200, DEFAULT_FINANCIAL_STATEMENTS_STRUCTURED)],
+    [`GET ${folder}/workpapers`]: [() => jsonResponse(200, DEFAULT_WORKPAPERS)],
+    [`GET ${folder}/imports/balance/versions`]: [() => jsonResponse(200, DEFAULT_IMPORT_VERSIONS)],
+    [`GET ${folder}/imports/balance/versions/2/diff-previous`]: [() => jsonResponse(200, DEFAULT_IMPORT_DIFF)],
+    [`GET ${folder}/mappings/suggestions`]: [() => jsonResponse(200, EMPTY_MAPPING_SUGGESTIONS)],
+    [`GET ${folder}/export-packs`]: [() => jsonResponse(200, { items: [SESSION_PACK] })],
+    [`GET ${folder}/minimal-annex`]: [() => jsonResponse(200, BLOCKED_MINIMAL_ANNEX)],
+    ...overrides
+  };
+  const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const key = `${init?.method ?? "GET"} ${String(input)}`;
+    const response = responses[key]?.shift();
+    if (!response) throw new Error(`Unexpected session fixture request: ${key}`);
+    return Promise.resolve(response());
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
+function renderSessionRoute(path = "/", strict = false) {
+  const router = createAppMemoryRouter([path]);
+  activeRouters.push(router);
+  const content = <RouterProvider router={router} />;
+  return { ...render(strict ? <StrictMode>{content}</StrictMode> : content), router };
+}
+
+function mockBrowserDownload() {
+  const createObjectURL = vi.fn(() => "blob:session-download");
+  const revokeObjectURL = vi.fn();
+  Object.defineProperty(URL, "createObjectURL", { configurable: true, value: createObjectURL });
+  Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: revokeObjectURL });
+  const append = vi.spyOn(document.body, "append");
+  const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+  return { createObjectURL, revokeObjectURL, append, click };
+}
+
+describe("router authenticated session", () => {
+  afterEach(() => {
+    cleanup();
+    activeRouters.splice(0).forEach((router) => router.dispose());
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("installs the real coordinator before children and coalesces StrictMode bootstrap", async () => {
+    const bootstrap = deferred<Response>();
+    const fetchMock = sessionRouteFetch({
+      "GET /api/session/bootstrap": [() => bootstrap.promise],
+      // StrictMode replays the existing portfolio effect, but session negotiation is unique.
+      "GET /api/closing-folders": [
+        () => jsonResponse(200, [ENTRYPOINT_PRIMARY_FOLDER]),
+        () => jsonResponse(200, [ENTRYPOINT_PRIMARY_FOLDER])
+      ]
+    });
+    renderSessionRoute("/", true);
+    expect(await screen.findByText("Initialisation de la session")).toBeInTheDocument();
+    expect(fetchMock.mock.calls.map(([path]) => String(path))).toEqual(["/api/session/bootstrap"]);
+    await act(async () => { bootstrap.resolve(sessionBootstrap()); });
+    expect(await screen.findByText("Closing FY26")).toBeInTheDocument();
+    expect(fetchMock.mock.calls.map(([path]) => String(path))).toEqual([
+      "/api/session/bootstrap", "/api/me", "/api/closing-folders", "/api/closing-folders"
+    ]);
+    expect(fetchMock.mock.calls.every(([, init]) => init?.credentials === "same-origin")).toBe(true);
+  });
+
+  it("offers only actor labels, logs in once, refreshes CSRF, returns to the folder and logs out by keyboard", async () => {
+    const login = deferred<Response>();
+    const storageWrite = vi.spyOn(Storage.prototype, "setItem");
+    const fetchMock = sessionRouteFetch({
+      "GET /api/session/bootstrap": [() => sessionBootstrap(false, "anonymous-token"), () => sessionBootstrap(), () => sessionBootstrap(false, "after-logout-token")],
+      "POST /api/session/local": [() => login.promise],
+      "POST /api/session/logout": [() => new Response(null, { status: 204 })]
+    });
+    const { container, router } = renderSessionRoute(CLOSING_ROUTE);
+    const chooser = await screen.findByRole("button", { name: "Comptable pilote" });
+    expect(container.outerHTML).not.toContain(SESSION_ACTOR_KEY);
+    expect(container.outerHTML).not.toContain("anonymous-token");
+    expect((await axe(container)).violations).toEqual([]);
+    fireEvent.click(chooser);
+    fireEvent.click(chooser);
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.filter(([path]) => path === "/api/session/local")).toHaveLength(1);
+    });
+    const loginInit = fetchMock.mock.calls.find(([path]) => path === "/api/session/local")?.[1];
+    expect(JSON.parse(String(loginInit?.body))).toEqual({ actorKey: SESSION_ACTOR_KEY });
+    expect(new Headers(loginInit?.headers).get("X-CSRF-TOKEN")).toBe("anonymous-token");
+    expect(new Headers(loginInit?.headers).has("X-Tenant-Id")).toBe(false);
+    await act(async () => { login.resolve(new Response(null, { status: 204 })); });
+    expect(await screen.findByText("Closing FY26")).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(CLOSING_ROUTE);
+    expect(fetchMock.mock.calls.slice(0, 4).map(([path]) => String(path))).toEqual([
+      "/api/session/bootstrap", "/api/session/local", "/api/session/bootstrap", "/api/me"
+    ]);
+    expect(container.outerHTML).not.toContain(SESSION_ACTOR_UUID);
+    expect(container.outerHTML).not.toContain("private-subject");
+    expect(container.outerHTML).not.toContain(SESSION_TOKEN);
+    const logout = screen.getByRole("button", { name: "Déconnexion" });
+    expect(logout.parentElement).toHaveClass("flex-wrap", "min-w-0");
+    logout.focus();
+    expect(logout).toHaveFocus();
+    await userEvent.setup().keyboard("{Enter}");
+    expect(await screen.findByRole("button", { name: "Comptable pilote" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("tenant actif")).not.toBeInTheDocument();
+    expect(screen.queryByText("Closing FY26")).not.toBeInTheDocument();
+    const logoutCalls = fetchMock.mock.calls.filter(([path]) => path === "/api/session/logout");
+    expect(logoutCalls).toHaveLength(1);
+    expect(new Headers(logoutCalls[0]?.[1]?.headers).get("X-CSRF-TOKEN")).toBe(SESSION_TOKEN);
+    expect(storageWrite).not.toHaveBeenCalled();
+  });
+
+  it("expires and removes the tenant context on a protected current 401 without an automatic retry", async () => {
+    const fetchMock = sessionRouteFetch({ "GET /api/closing-folders": [() => jsonResponse(401, { code: "SESSION_EXPIRED" })] });
+    renderSessionRoute();
+    expect(await screen.findByText("Session expirée")).toBeInTheDocument();
+    expect(screen.queryByLabelText("tenant actif")).not.toBeInTheDocument();
+    expect(screen.queryByText("Portefeuille de closing")).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it.each(["?next=https://example.test", "#secret", "?path=//evil", "%2fhidden"])("returns to the portfolio after rejecting an unsafe saved route suffix %s", async (suffix) => {
+    sessionRouteFetch({
+      "GET /api/session/bootstrap": [() => sessionBootstrap(false), () => sessionBootstrap()],
+      "POST /api/session/local": [() => new Response(null, { status: 204 })]
+    });
+    const { router } = renderSessionRoute(CLOSING_ROUTE + suffix);
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Comptable pilote" }));
+    await waitFor(() => { expect(router.state.location.pathname).toBe("/"); });
+    expect(router.state.location.search).toBe("");
+    expect(router.state.location.hash).toBe("");
+    expect(await screen.findByText("Portefeuille de closing")).toBeInTheDocument();
+  });
+
+  it("abandons a delayed folder A when navigating to folder B", async () => {
+    const folderA = deferred<Response>();
+    const folderB = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    const fetchMock = sessionRouteFetch({
+      [`GET /api/closing-folders/${CLOSING_FOLDER.id}`]: [() => folderA.promise],
+      [`GET /api/closing-folders/${folderB}`]: [() => jsonResponse(403, { code: "ACCESS_DENIED" })]
+    });
+    const { router } = renderSessionRoute(CLOSING_ROUTE);
+    await waitFor(() => { expect(fetchMock.mock.calls.some(([path]) => String(path) === `/api/closing-folders/${CLOSING_FOLDER.id}`)).toBe(true); });
+    await act(async () => { await router.navigate(`/closing-folders/${folderB}`); });
+    expect(await screen.findByText("acces dossier refuse")).toBeInTheDocument();
+    await act(async () => { folderA.resolve(jsonResponse(200, CLOSING_FOLDER)); });
+    expect(screen.queryByText("Closing FY26")).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([path]) => String(path).endsWith("/controls"))).toBe(false);
+    expect(router.state.location.pathname).toBe(`/closing-folders/${folderB}`);
+  });
+
+  it("keeps an ordinary access refusal contextual and never starts a login loop", async () => {
+    const fetchMock = sessionRouteFetch({ "GET /api/closing-folders": [() => jsonResponse(403, { code: "ACCESS_DENIED" })] });
+    renderSessionRoute();
+    expect(await screen.findByText("acces dossiers refuse")).toBeInTheDocument();
+    expect(screen.getByLabelText("tenant actif")).toHaveTextContent("Tenant Alpha");
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("purges the context on global access revocation", async () => {
+    const fetchMock = sessionRouteFetch({ "GET /api/closing-folders": [() => jsonResponse(403, { code: "ACCESS_REVOKED" })] });
+    renderSessionRoute();
+    expect(await screen.findByText("Accès refusé")).toBeInTheDocument();
+    expect(screen.queryByLabelText("tenant actif")).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not reopen an unconfirmed logout through focus", async () => {
+    const fetchMock = sessionRouteFetch({ "POST /api/session/logout": [() => Promise.reject(new TypeError("offline"))] });
+    renderSessionRoute();
+    await screen.findByText("Closing FY26");
+    await userEvent.setup().click(screen.getByRole("button", { name: "Déconnexion" }));
+    expect(await screen.findByText("Déconnexion non confirmée")).toBeInTheDocument();
+    await act(async () => { window.dispatchEvent(new Event("focus")); });
+    expect(screen.queryByLabelText("tenant actif")).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it("C-LOGOUT-01 recovers a lost logout response from an anonymous bootstrap without another logout or protected reload", async () => {
+    const anonymousBootstrap = deferred<Response>();
+    let serverAuthenticated = true;
+    let bootstrapCalls = 0;
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      const method = init?.method ?? "GET";
+      if (method === "GET" && path === "/api/session/bootstrap") {
+        bootstrapCalls += 1;
+        if (bootstrapCalls === 1) return Promise.resolve(sessionBootstrap());
+        if (bootstrapCalls === 2) return anonymousBootstrap.promise;
+      }
+      if (method === "POST" && path === "/api/session/logout") {
+        if (!serverAuthenticated) {
+          return Promise.resolve(jsonResponse(401, { code: "AUTHENTICATION_REQUIRED", message: "Authentication is required." }));
+        }
+        serverAuthenticated = false;
+        // The server closed the authenticated session, but its response was lost.
+        return Promise.reject(new TypeError("logout response lost"));
+      }
+      if (serverAuthenticated && method === "GET" && path === "/api/me") {
+        return Promise.resolve(jsonResponse(200, {
+          activeTenant: ACTIVE_TENANT,
+          effectiveRoles: ["ACCOUNTANT"]
+        }));
+      }
+      if (serverAuthenticated && method === "GET" && path === "/api/closing-folders") {
+        return Promise.resolve(jsonResponse(200, [ENTRYPOINT_PRIMARY_FOLDER]));
+      }
+      throw new Error(`Unexpected logout recovery request: ${method} ${path}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { router } = renderSessionRoute();
+    await screen.findByText("Closing FY26");
+    expect(router.sessionCoordinator.getSnapshot().mode).toBe("SESSION_READY");
+    const initialLocationKey = router.state.location.key;
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Déconnexion" }));
+    expect(await screen.findByText("Déconnexion non confirmée")).toBeInTheDocument();
+    expect(screen.queryByLabelText("tenant actif")).not.toBeInTheDocument();
+    expect(screen.queryByText("Closing FY26")).not.toBeInTheDocument();
+    expect(screen.queryByText("Portefeuille de closing")).not.toBeInTheDocument();
+
+    const retry = screen.getByRole("button", { name: "Réessayer" });
+    fireEvent.click(retry);
+    fireEvent.click(retry);
+    await waitFor(() => { expect(bootstrapCalls).toBe(2); });
+    expect(screen.queryByLabelText("tenant actif")).not.toBeInTheDocument();
+    expect(screen.queryByText("Closing FY26")).not.toBeInTheDocument();
+    await act(async () => {
+      anonymousBootstrap.resolve(sessionBootstrap(false, "recovered-anonymous-csrf"));
+    });
+
+    expect(await screen.findByRole("button", { name: "Comptable pilote" })).toBeInTheDocument();
+    expect(router.sessionCoordinator.getSnapshot().mode).toBe("ANONYMOUS");
+    expect(screen.queryByText("Déconnexion non confirmée")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("tenant actif")).not.toBeInTheDocument();
+    expect(screen.queryByText("Closing FY26")).not.toBeInTheDocument();
+    expect(screen.queryByText("Portefeuille de closing")).not.toBeInTheDocument();
+    expect(router.state.location.key).toBe(initialLocationKey);
+    expect(serverAuthenticated).toBe(false);
+    const logoutInit = fetchMock.mock.calls.find(([path]) => path === "/api/session/logout")?.[1];
+    expect(new Headers(logoutInit?.headers).get("X-CSRF-TOKEN")).toBe(SESSION_TOKEN);
+    expect(fetchMock.mock.calls.map(([path, init]) => `${init?.method ?? "GET"} ${String(path)}`)).toEqual([
+      "GET /api/session/bootstrap",
+      "GET /api/me",
+      "GET /api/closing-folders",
+      "POST /api/session/logout",
+      "GET /api/session/bootstrap"
+    ]);
+  });
+
+  it("allows logout with current CSRF when the authenticated user has no tenant context", async () => {
+    const fetchMock = sessionRouteFetch({
+      "GET /api/session/bootstrap": [() => sessionBootstrap(), () => sessionBootstrap(false)],
+      "GET /api/me": [() => jsonResponse(200, { activeTenant: null, effectiveRoles: [] })],
+      "POST /api/session/logout": [() => new Response(null, { status: 204 })]
+    });
+    renderSessionRoute();
+    expect(await screen.findByText("contexte tenant requis")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(screen.queryByLabelText("tenant actif")).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Déconnexion" }));
+    expect(await screen.findByRole("button", { name: "Comptable pilote" })).toBeInTheDocument();
+    const logoutInit = fetchMock.mock.calls.find(([path]) => path === "/api/session/logout")?.[1];
+    expect(new Headers(logoutInit?.headers).get("X-CSRF-TOKEN")).toBe(SESSION_TOKEN);
+    expect(fetchMock.mock.calls.some(([path]) => String(path).startsWith("/api/closing-folders"))).toBe(false);
+  });
+
+  it("never exposes the export creator UUID, including technical details, and preserves nominal download cleanup", async () => {
+    const browser = mockBrowserDownload();
+    const contentPath = `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs/${SESSION_PACK.exportPackId}/content`;
+    sessionRouteFetch({ [`GET ${contentPath}`]: [() => new Response(new Blob(["zip"]), { headers: { "Content-Type": "application/zip" } })] });
+    const { container } = renderSessionRoute(CLOSING_ROUTE);
+    await screen.findByText(SESSION_PACK.fileName);
+    expect(container.outerHTML).not.toContain(SESSION_ACTOR_UUID);
+    await userEvent.setup().click(screen.getByRole("tab", { name: "Export" }));
+    const details = screen.getByText(SESSION_PACK.fileName).closest("article")?.querySelector("details");
+    expect(details).not.toBeNull();
+    expect(details?.open).toBe(false);
+    await userEvent.setup().click(details?.querySelector("summary") as HTMLElement);
+    expect(details?.open).toBe(true);
+    expect(container.outerHTML).not.toContain(SESSION_ACTOR_UUID);
+    await userEvent.setup().click(screen.getByRole("button", { name: "Telecharger l'archive de revue" }));
+    await waitFor(() => { expect(browser.createObjectURL).toHaveBeenCalledTimes(1); });
+    expect(browser.click).toHaveBeenCalledTimes(1);
+    expect(browser.revokeObjectURL).toHaveBeenCalledWith("blob:session-download");
+    expect(container.querySelector("a[download]")).toBeNull();
+  });
+
+  it("discards an export success invalidated between the real client and its panel handler", async () => {
+    const browser = mockBrowserDownload();
+    const contentPath = `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs/${SESSION_PACK.exportPackId}/content`;
+    sessionRouteFetch({
+      [`GET ${contentPath}`]: [() => new Response(new Blob(["zip"]), { headers: { "Content-Type": "application/zip" } })],
+      "POST /api/session/logout": [() => new Promise<Response>(() => {})]
+    });
+    const realDownload = exportsApi.downloadExportPackContent;
+    const clientFinished = deferred<void>();
+    const release = deferred<void>();
+    vi.spyOn(exportsApi, "downloadExportPackContent").mockImplementation(async (...args) => {
+      const result = await realDownload(...args);
+      expect(result.kind).toBe("success");
+      clientFinished.resolve();
+      await release.promise;
+      return result;
+    });
+    const { router } = renderSessionRoute(CLOSING_ROUTE);
+    await screen.findByText(SESSION_PACK.fileName);
+    await userEvent.setup().click(screen.getByRole("tab", { name: "Export" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Telecharger l'archive de revue" }));
+    await clientFinished.promise;
+    await act(async () => { void router.sessionCoordinator.logout(); });
+    await act(async () => { release.resolve(); });
+    expect(browser.createObjectURL).not.toHaveBeenCalled();
+    expect(browser.append).not.toHaveBeenCalled();
+    expect(browser.click).not.toHaveBeenCalled();
+  });
+
+  it.each(["headers", "blob"] as const)("discards an export invalidated by logout during %s", async (phase) => {
+    const browser = mockBrowserDownload();
+    const headers = deferred<Response>();
+    const blob = deferred<Blob>();
+    const bodyStarted = deferred<void>();
+    const response = new Response(new Blob(["zip"]), { headers: { "Content-Type": "application/zip" } });
+    if (phase === "blob") {
+      vi.spyOn(response, "blob").mockImplementation(() => { bodyStarted.resolve(); return blob.promise; });
+    }
+    const contentPath = `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs/${SESSION_PACK.exportPackId}/content`;
+    const fetchMock = sessionRouteFetch({
+      [`GET ${contentPath}`]: [() => phase === "headers" ? headers.promise : response],
+      "POST /api/session/logout": [() => new Promise<Response>(() => {})]
+    });
+    const { router } = renderSessionRoute(CLOSING_ROUTE);
+    await screen.findByText(SESSION_PACK.fileName);
+    await userEvent.setup().click(screen.getByRole("tab", { name: "Export" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Telecharger l'archive de revue" }));
+    await waitFor(() => { expect(fetchMock.mock.calls.some(([path]) => path === contentPath)).toBe(true); });
+    if (phase === "blob") await bodyStarted.promise;
+    await act(async () => { void router.sessionCoordinator.logout(); });
+    await act(async () => { headers.resolve(response); blob.resolve(new Blob(["late zip"])); });
+    expect(browser.createObjectURL).not.toHaveBeenCalled();
+    expect(browser.append).not.toHaveBeenCalled();
+    expect(browser.click).not.toHaveBeenCalled();
   });
 });

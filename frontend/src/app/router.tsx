@@ -1,6 +1,6 @@
 import type { ChangeEvent, ReactNode, RefObject } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, createBrowserRouter, createMemoryRouter, useParams } from "react-router-dom";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Link, createBrowserRouter, createMemoryRouter, useLocation, useNavigate, useParams } from "react-router-dom";
 import { AppShell } from "../components/workbench/app-shell";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -56,11 +56,12 @@ import {
   type ManualMappingProjection,
   type ManualMappingShellState
 } from "../lib/api/manual-mapping";
-import {
-  loadMeShellState,
-  type ActiveTenant,
-  type EffectiveRolesHint
+import type {
+  MeShellState,
+  ActiveTenant,
+  EffectiveRolesHint
 } from "../lib/api/me";
+import { createSessionCoordinator } from "../lib/api/session";
 import { formatLocalDate } from "../lib/format/date";
 import { formatOptionalText } from "../lib/format/text";
 
@@ -342,7 +343,12 @@ const nextActionLabelByCode = {
 
 const manualMappingWritableRoles = new Set(["ACCOUNTANT", "MANAGER", "ADMIN"]);
 
-function ClosingFoldersEntrypointRoute() {
+type ReadyMeState = Extract<MeShellState, { kind: "ready" }>;
+
+function ClosingFoldersEntrypointRoute({ meState, sessionActions }: {
+  meState: ReadyMeState;
+  sessionActions: ReactNode;
+}) {
   const [state, setState] = useState<EntrypointRouteState>({ kind: "loading" });
 
   useEffect(() => {
@@ -350,27 +356,6 @@ function ClosingFoldersEntrypointRoute() {
 
     async function loadEntrypointState() {
       setState({ kind: "loading" });
-
-      const meState = await loadMeShellState();
-
-      if (cancelled) {
-        return;
-      }
-
-      if (meState.kind === "auth_required") {
-        setState({ kind: "auth_required" });
-        return;
-      }
-
-      if (meState.kind === "tenant_context_required") {
-        setState({ kind: "tenant_context_required" });
-        return;
-      }
-
-      if (meState.kind === "profile_unavailable") {
-        setState({ kind: "profile_unavailable" });
-        return;
-      }
 
       setState({
         kind: "list_loading",
@@ -418,7 +403,7 @@ function ClosingFoldersEntrypointRoute() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [meState]);
 
   const tenant = hasActiveTenant(state)
     ? {
@@ -430,12 +415,15 @@ function ClosingFoldersEntrypointRoute() {
   return (
     <AppShell
       actionZone={
-        <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-          <div>
-            <p className="font-medium text-foreground">Action recommandee</p>
-            <p className="text-muted-foreground">Ouvrir un dossier pour poursuivre la revue.</p>
+        <div className="grid gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+            <div>
+              <p className="font-medium text-foreground">Action recommandee</p>
+              <p className="text-muted-foreground">Ouvrir un dossier pour poursuivre la revue.</p>
+            </div>
+            <p className="text-muted-foreground">Consultation des dossiers disponibles.</p>
           </div>
-          <p className="text-muted-foreground">Consultation des dossiers disponibles.</p>
+          {sessionActions}
         </div>
       }
       breadcrumb={[{ label: "Dossiers de closing" }]}
@@ -471,7 +459,10 @@ function ClosingFoldersEntrypointRoute() {
   );
 }
 
-function ClosingFolderRoute() {
+function ClosingFolderRoute({ meState, sessionActions }: {
+  meState: ReadyMeState;
+  sessionActions: ReactNode;
+}) {
   const { closingFolderId = "" } = useParams();
   const [state, setState] = useState<ClosingRouteState>({ kind: "loading" });
   const [activePanel, setActivePanel] = useState<WorkbenchPanelId>("overview");
@@ -484,27 +475,6 @@ function ClosingFolderRoute() {
 
     async function loadShellState() {
       setState({ kind: "loading" });
-
-      const meState = await loadMeShellState();
-
-      if (cancelled) {
-        return;
-      }
-
-      if (meState.kind === "auth_required") {
-        setState({ kind: "auth_required" });
-        return;
-      }
-
-      if (meState.kind === "tenant_context_required") {
-        setState({ kind: "tenant_context_required" });
-        return;
-      }
-
-      if (meState.kind === "profile_unavailable") {
-        setState({ kind: "profile_unavailable" });
-        return;
-      }
 
       const closingFolderState = await loadClosingFolderShellState(closingFolderId, meState.activeTenant);
 
@@ -620,7 +590,7 @@ function ClosingFolderRoute() {
     return () => {
       cancelled = true;
     };
-  }, [closingFolderId]);
+  }, [closingFolderId, meState]);
 
   async function handleImportBalance() {
     if (state.kind !== "closing_ready") {
@@ -1160,19 +1130,22 @@ function ClosingFolderRoute() {
   return (
     <AppShell
       actionZone={
-        cockpitModel === null ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-            <div>
-              <p className="font-medium text-foreground">Action recommandee</p>
-              <p className="text-muted-foreground">chargement du contexte dossier</p>
+        <div className="grid gap-3">
+          {cockpitModel === null ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+              <div>
+                <p className="font-medium text-foreground">Action recommandee</p>
+                <p className="text-muted-foreground">chargement du contexte dossier</p>
+              </div>
+              <Button asChild size="sm" variant="outline">
+                <Link to="/">Retour dossiers</Link>
+              </Button>
             </div>
-            <Button asChild size="sm" variant="outline">
-              <Link to="/">Retour dossiers</Link>
-            </Button>
-          </div>
-        ) : (
-          <ClosingActionZone model={cockpitModel} onPanelChange={setActivePanel} />
-        )
+          ) : (
+            <ClosingActionZone model={cockpitModel} onPanelChange={setActivePanel} />
+          )}
+          {sessionActions}
+        </div>
       }
       breadcrumb={[
         { label: "Dossiers de closing", href: "/" },
@@ -4386,19 +4359,166 @@ function formatImportValidationError(error: BalanceImportValidationError) {
   return error.message;
 }
 
-const routeDefinitions = [
-  {
-    path: "/",
-    element: <ClosingFoldersEntrypointRoute />
-  },
-  {
-    path: "/closing-folders/:closingFolderId",
-    element: <ClosingFolderRoute />
-  }
-];
+type SessionCoordinator = ReturnType<typeof createSessionCoordinator>;
 
-export const browserRouter = createBrowserRouter(routeDefinitions);
+function SessionBoundary({ coordinator, closing = false }: {
+  coordinator: SessionCoordinator;
+  closing?: boolean;
+}) {
+  const snapshot = useSyncExternalStore(coordinator.subscribe, coordinator.getSnapshot);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const statusRef = useRef<HTMLHeadingElement>(null);
+
+  useEffect(() => {
+    coordinator.setReturnPath(`${location.pathname}${location.search}${location.hash}`);
+  }, [coordinator, location.pathname, location.search, location.hash]);
+
+  useEffect(() => {
+    void coordinator.initialize();
+  }, [coordinator]);
+
+  useEffect(() => {
+    if (snapshot.mode === "EXPIRED" || snapshot.mode === "FORBIDDEN" ||
+        snapshot.mode === "LOGOUT_UNCONFIRMED") {
+      statusRef.current?.focus();
+    }
+  }, [snapshot.mode]);
+
+  async function login(actorKey: string) {
+    await coordinator.login(actorKey);
+    if (coordinator.getSnapshot().mode === "SESSION_READY") {
+      void navigate(coordinator.getReturnPath(), { replace: true });
+    }
+  }
+
+  const meState = snapshot.meState;
+  if ((snapshot.mode === "SESSION_READY" || snapshot.mode === "LEGACY_PROXY_TRANSITION") &&
+      meState?.kind === "ready") {
+    const sessionActions = snapshot.mode === "SESSION_READY" ? (
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t pt-3 text-sm">
+        <p className="min-w-0 break-words">
+          Session connectée{meState.displayName ? ` · ${meState.displayName}` : ""}
+          {meState.effectiveRoles?.length ? ` · ${meState.effectiveRoles.join(", ")}` : ""}
+        </p>
+        <Button type="button" variant="outline" onClick={() => void coordinator.logout()}>
+          Déconnexion
+        </Button>
+      </div>
+    ) : null;
+
+    return closing ? (
+      <ClosingFolderRoute key={`${snapshot.generation}:${location.pathname}`} meState={meState} sessionActions={sessionActions} />
+    ) : (
+      <ClosingFoldersEntrypointRoute key={snapshot.generation} meState={meState} sessionActions={sessionActions} />
+    );
+  }
+
+  const busy = snapshot.mode === "INITIALIZING" || snapshot.mode === "AUTHENTICATING" ||
+    snapshot.mode === "LOGGING_OUT";
+  const legacy = snapshot.mode === "LEGACY_PROXY_TRANSITION";
+  const title = snapshot.mode === "EXPIRED" ? "Session expirée"
+    : snapshot.mode === "FORBIDDEN" ? "Accès refusé"
+    : snapshot.mode === "LOGOUT_UNCONFIRMED" ? "Déconnexion non confirmée"
+    : snapshot.mode === "AUTHENTICATING" ? "Connexion en cours"
+    : snapshot.mode === "LOGGING_OUT" ? "Déconnexion en cours"
+    : snapshot.mode === "ANONYMOUS" ? "Se connecter"
+    : snapshot.mode === "CONTEXT_REQUIRED" ? "contexte tenant requis"
+    : busy ? "Initialisation de la session"
+    : legacy && meState?.kind === "auth_required" ? "authentification requise"
+    : legacy && meState?.kind === "tenant_context_required" ? "contexte tenant requis"
+    : "profil indisponible";
+
+  return (
+    <AppShell
+      eyebrow="Accès au closing"
+      title={closing ? "Dossier de closing" : "Dossiers de closing"}
+      description="Connectez-vous pour retrouver votre contexte de travail."
+      breadcrumb={[{ label: "Dossiers de closing" }]}
+      sidebarItems={[{ href: "/", label: "Dossiers" }]}
+      actionZone={<p className="text-sm text-muted-foreground">{busy ? "Veuillez patienter." : "Accès au dossier contrôlé par le serveur."}</p>}
+    >
+      <section className="panel grid min-w-0 gap-4 p-6" aria-busy={busy} aria-labelledby="session-status-title">
+        <h3 id="session-status-title" ref={statusRef} tabIndex={-1} className="text-xl font-semibold outline-offset-4">
+          {title}
+        </h3>
+        <div role="status" aria-live="polite">
+          {busy ? <p>{closing ? "chargement du contexte dossier" : "chargement dossiers"}</p> : null}
+          {snapshot.mode === "EXPIRED" ? <p>Votre session a expiré. Reconnectez-vous pour poursuivre.</p> : null}
+          {snapshot.mode === "FORBIDDEN" ? <p>Vous ne disposez pas de l’accès demandé.</p> : null}
+          {snapshot.mode === "LOGOUT_UNCONFIRMED" ? <p>Le contexte local est effacé. La fermeture côté serveur n’a pas pu être confirmée.</p> : null}
+          {snapshot.error ? <p>{sessionErrorMessage(snapshot.error)}</p> : null}
+          {legacy && meState?.kind === "profile_unavailable" && meState.reason ? <p>{sessionErrorMessage(meState.reason)}</p> : null}
+          {legacy && meState?.kind === "auth_required" ? <p>La connexion locale n’est pas disponible dans cette configuration.</p> : null}
+        </div>
+        {snapshot.mode === "ANONYMOUS" && snapshot.localLoginAvailable ? (
+          <div className="flex flex-wrap gap-3" aria-label="Choix de connexion locale">
+            {snapshot.actors.map((actor, index) => (
+              <Button key={index} type="button" onClick={() => void login(actor.actorKey)}>
+                {actor.displayLabel}
+              </Button>
+            ))}
+            {snapshot.actors.length === 0 ? <p>Aucun accès local disponible.</p> : null}
+          </div>
+        ) : null}
+        {snapshot.mode === "EXPIRED" ? (
+          <Button type="button" className="justify-self-start" onClick={() => void coordinator.retry()}>Se reconnecter</Button>
+        ) : null}
+        {snapshot.mode === "CONTEXT_REQUIRED" ? (
+          <Button type="button" variant="outline" className="justify-self-start" onClick={() => void coordinator.logout()}>Déconnexion</Button>
+        ) : null}
+        {snapshot.mode === "ERROR" || snapshot.mode === "FORBIDDEN" || snapshot.mode === "LOGOUT_UNCONFIRMED" ? (
+          <Button type="button" className="justify-self-start" onClick={() => void coordinator.retry()}>Réessayer</Button>
+        ) : null}
+      </section>
+    </AppShell>
+  );
+}
+
+function sessionErrorMessage(error: string): string {
+  switch (error.toLowerCase()) {
+    case "network_error": return "Connexion réseau indisponible.";
+    case "timeout": return "Le serveur n’a pas répondu dans le délai prévu.";
+    case "server_error": return "Le serveur est momentanément indisponible.";
+    case "not_found": return "Le contexte demandé est indisponible.";
+    case "forbidden":
+    case "access_denied": return "L’accès demandé est refusé.";
+    case "access_revoked": return "Votre accès a été révoqué.";
+    case "csrf_rejected": return "La session doit être actualisée avant une nouvelle action.";
+    case "authentication_failed": return "La connexion demandée a été refusée.";
+    case "capability_unavailable": return "La connexion locale n’est plus disponible.";
+    default: return "La réponse du serveur ne permet pas de poursuivre.";
+  }
+}
+
+function createRouteDefinitions(coordinator: SessionCoordinator) {
+  return [
+    { path: "/", element: <SessionBoundary coordinator={coordinator} /> },
+    { path: "/closing-folders/:closingFolderId", element: <SessionBoundary coordinator={coordinator} closing /> }
+  ];
+}
+
+function bindSession<T extends { dispose(): void }>(router: T, coordinator: SessionCoordinator) {
+  const disposeRouter = router.dispose.bind(router);
+  return Object.assign(router, {
+    sessionCoordinator: coordinator,
+    dispose() {
+      coordinator.dispose();
+      disposeRouter();
+    }
+  });
+}
+
+function createAppBrowserRouter() {
+  const coordinator = createSessionCoordinator();
+  coordinator.install();
+  return bindSession(createBrowserRouter(createRouteDefinitions(coordinator)), coordinator);
+}
+
+export const browserRouter = createAppBrowserRouter();
 
 export function createAppMemoryRouter(initialEntries: string[]) {
-  return createMemoryRouter(routeDefinitions, { initialEntries });
+  const coordinator = createSessionCoordinator();
+  coordinator.install();
+  return bindSession(createMemoryRouter(createRouteDefinitions(coordinator), { initialEntries }), coordinator);
 }

@@ -1,5 +1,5 @@
 import { RouterProvider } from "react-router-dom";
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { createAppMemoryRouter } from "./router";
@@ -359,8 +359,11 @@ function textResponse(status: number, body: string, contentType = "text/plain") 
   });
 }
 
+const activeRouters: ReturnType<typeof createAppMemoryRouter>[] = [];
+
 function renderClosingRoute() {
   const router = createAppMemoryRouter([CLOSING_ROUTE]);
+  activeRouters.push(router);
   return render(<RouterProvider router={router} />);
 }
 
@@ -451,10 +454,16 @@ function expectNodeBefore(first: HTMLElement, second: HTMLElement) {
 
 describe("router financial statements structured", () => {
   beforeEach(() => {
-    vi.stubGlobal("fetch", vi.fn());
+    vi.stubGlobal("fetch", vi.fn().mockImplementationOnce((input, init) => {
+      expect(String(input)).toBe("/api/session/bootstrap");
+      expect(init?.method).toBe("GET");
+      return Promise.resolve(jsonResponse(404, {}));
+    }));
   });
 
   afterEach(() => {
+    cleanup();
+    activeRouters.splice(0).forEach((router) => router.dispose());
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -475,6 +484,7 @@ describe("router financial statements structured", () => {
 
     const paths = getRequestPaths(fetchMock);
     expect(paths).toEqual([
+      "/api/session/bootstrap",
       "/api/me",
       `/api/closing-folders/${CLOSING_FOLDER.id}`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/controls`,
@@ -507,7 +517,7 @@ describe("router financial statements structured", () => {
         "Previsualisation structuree non statutaire. Pas un livrable statutaire final. Ne pas utiliser pour un depot officiel."
       )
     ).not.toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(12);
+    expect(fetchMock).toHaveBeenCalledTimes(13);
   });
 
   it.each([

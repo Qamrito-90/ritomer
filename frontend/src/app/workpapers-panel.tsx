@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { Button } from "../components/ui/button";
 import type { ClosingFolderSummary } from "../lib/api/closing-folders";
 import type { ActiveTenant, EffectiveRolesHint } from "../lib/api/me";
+import { captureSessionGuard } from "../lib/api/http";
 import {
   downloadWorkpaperDocument,
   loadWorkpapersShellState,
@@ -111,7 +112,7 @@ export function WorkpapersPanel({
   });
   const workpaperMutationInFlightRef = useRef(false);
   const documentUploadInFlightRef = useRef(false);
-  const documentDownloadInFlightRef = useRef(false);
+  const documentDownloadInFlightRef = useRef<symbol | null>(null);
   const documentDecisionInFlightRef = useRef(false);
   const workpaperDecisionInFlightRef = useRef(false);
   const workpapersState = workpapersStateOverride ?? initialState;
@@ -416,38 +417,50 @@ export function WorkpapersPanel({
       return;
     }
 
-    documentDownloadInFlightRef.current = true;
+    const isCurrentSession = captureSessionGuard();
+    const attempt = Symbol();
+    documentDownloadInFlightRef.current = attempt;
     setDocumentDownloadState({ kind: "submitting", documentId });
 
-    const result = await downloadWorkpaperDocument(closingFolderId, activeTenant, { documentId });
+    try {
+      const result = await downloadWorkpaperDocument(closingFolderId, activeTenant, { documentId });
 
-    if (result.kind === "success") {
-      try {
-        triggerDocumentDownload(
-          result.blob,
-          resolveDocumentDownloadMediaType(
-            result.contentType,
-            getFallbackDocumentMediaType(resolvedDocument.document)
-          ),
-          resolveDocumentDownloadFileName(
-            result.contentDisposition,
-            getFallbackDocumentFileName(resolvedDocument.document),
-            documentId
-          )
-        );
-
-        documentDownloadInFlightRef.current = false;
-        setDocumentDownloadState({ kind: "idle" });
-        return;
-      } catch {
-        documentDownloadInFlightRef.current = false;
-        setDocumentDownloadState({ kind: "unexpected", documentId });
+      if (!isCurrentSession()) {
         return;
       }
-    }
 
-    documentDownloadInFlightRef.current = false;
-    setDocumentDownloadState(mapDocumentDownloadResult(result, documentId));
+      if (result.kind === "success") {
+        const mediaType = resolveDocumentDownloadMediaType(
+          result.contentType,
+          getFallbackDocumentMediaType(resolvedDocument.document)
+        );
+        const fileName = resolveDocumentDownloadFileName(
+          result.contentDisposition,
+          getFallbackDocumentFileName(resolvedDocument.document),
+          documentId
+        );
+
+        if (!isCurrentSession()) {
+          return;
+        }
+        triggerDocumentDownload(result.blob, mediaType, fileName);
+
+        if (isCurrentSession()) {
+          setDocumentDownloadState({ kind: "idle" });
+        }
+        return;
+      }
+
+      setDocumentDownloadState(mapDocumentDownloadResult(result, documentId));
+    } catch {
+      if (isCurrentSession()) {
+        setDocumentDownloadState({ kind: "unexpected", documentId });
+      }
+    } finally {
+      if (documentDownloadInFlightRef.current === attempt) {
+        documentDownloadInFlightRef.current = null;
+      }
+    }
   }
 
   function handleDocumentDecisionChange(documentId: string, decision: string) {

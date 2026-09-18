@@ -1,8 +1,10 @@
 import { RouterProvider } from "react-router-dom";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act } from "react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createAppMemoryRouter } from "./router";
+import * as workpapersApi from "../lib/api/workpapers";
 
 const ACTIVE_TENANT = {
   tenantId: "11111111-1111-1111-1111-111111111111",
@@ -271,8 +273,11 @@ function jsonResponse(status: number, payload: unknown) {
   });
 }
 
+const activeRouters: ReturnType<typeof createAppMemoryRouter>[] = [];
+
 function renderClosingRoute() {
   const router = createAppMemoryRouter([CLOSING_ROUTE]);
+  activeRouters.push(router);
   return render(<RouterProvider router={router} />);
 }
 
@@ -282,7 +287,7 @@ async function waitForNominalShell(fetchMock: ReturnType<typeof vi.fn>) {
   await screen.findByRole("tab", { name: "Previsualisations" });
   await screen.findByRole("tab", { name: "Preuves" });
   await waitFor(() => {
-    expect(fetchMock).toHaveBeenCalledTimes(12);
+    expect(fetchMock).toHaveBeenCalledTimes(13);
   });
 }
 
@@ -327,10 +332,16 @@ function expectNodeBefore(first: HTMLElement, second: HTMLElement) {
 
 describe("router workpapers smoke", () => {
   beforeEach(() => {
-    vi.stubGlobal("fetch", vi.fn());
+    vi.stubGlobal("fetch", vi.fn().mockImplementationOnce((input, init) => {
+      expect(String(input)).toBe("/api/session/bootstrap");
+      expect(init?.method).toBe("GET");
+      return Promise.resolve(jsonResponse(404, {}));
+    }));
   });
 
   afterEach(() => {
+    cleanup();
+    activeRouters.splice(0).forEach((router) => router.dispose());
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -352,6 +363,7 @@ describe("router workpapers smoke", () => {
     expect(await screen.findByRole("heading", { name: "Continuer les preuves" })).toBeVisible();
     expect(screen.getByText("Justifications / Preuves")).toBeVisible();
     expect(getRequestPaths(fetchMock)).toEqual([
+      "/api/session/bootstrap",
       "/api/me",
       `/api/closing-folders/${CLOSING_FOLDER.id}`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/controls`,
@@ -420,5 +432,152 @@ describe("router workpapers smoke", () => {
     ).toHaveLength(2);
     expect(getRequestPaths(fetchMock).filter((path) => path.includes("/diff-previous"))).toHaveLength(1);
     expect(getRequestPaths(fetchMock).some((path) => path.includes("/ai"))).toBe(false);
+  });
+});
+
+const SESSION_DOCUMENT = {
+  id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1",
+  fileName: "session-support.pdf",
+  mediaType: "application/pdf",
+  sourceLabel: "ERP",
+  verificationStatus: "UNVERIFIED",
+  reviewComment: null
+};
+
+function deferredSessionValue<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+function primeSessionDocumentRoute(content: () => Response | Promise<Response>) {
+  const folder = `/api/closing-folders/${CLOSING_FOLDER.id}`;
+  const payloads: Record<string, unknown> = {
+    "/api/session/bootstrap": {
+      sessionState: "AUTHENTICATED", localLoginAvailable: true,
+      csrf: { headerName: "X-CSRF-TOKEN", token: "document-session-token" }
+    },
+    "/api/me": ACCOUNTANT_ME,
+    [folder]: CLOSING_FOLDER,
+    [`${folder}/controls`]: READY_CONTROLS,
+    [`${folder}/mappings/manual`]: READY_MANUAL_MAPPING,
+    [`${folder}/financial-summary`]: READY_FINANCIAL_SUMMARY,
+    [`${folder}/financial-statements/structured`]: READY_FINANCIAL_STATEMENTS_STRUCTURED,
+    [`${folder}/workpapers`]: {
+      ...READY_WORKPAPERS,
+      summaryCounts: { ...READY_WORKPAPERS.summaryCounts, totalCurrentAnchors: 1, withWorkpaperCount: 1 },
+      items: [{
+        anchorCode: "BS.ASSET.CURRENT_SECTION", anchorLabel: "Current assets",
+        statementKind: "BALANCE_SHEET", breakdownType: "SECTION", isCurrentStructure: true,
+        workpaper: { status: "DRAFT", noteText: "Support session", evidences: [] },
+        documents: [SESSION_DOCUMENT],
+        documentVerificationSummary: { documentsCount: 1, unverifiedCount: 1, verifiedCount: 0, rejectedCount: 0 }
+      }]
+    },
+    [`${folder}/imports/balance/versions`]: DEFAULT_IMPORT_VERSIONS,
+    [`${folder}/imports/balance/versions/2/diff-previous`]: DEFAULT_IMPORT_DIFF,
+    [`${folder}/mappings/suggestions`]: EMPTY_MAPPING_SUGGESTIONS,
+    [`${folder}/export-packs`]: EMPTY_EXPORT_PACKS,
+    [`${folder}/minimal-annex`]: BLOCKED_MINIMAL_ANNEX
+  };
+  const served = new Set<string>();
+  const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const path = String(input);
+    const key = `${init?.method ?? "GET"} ${path}`;
+    if (served.has(key)) throw new Error(`Repeated document fixture request: ${key}`);
+    served.add(key);
+    if (key === "POST /api/session/logout") return new Promise<Response>(() => {});
+    if (key === `GET ${folder}/documents/${SESSION_DOCUMENT.id}/content`) return Promise.resolve(content());
+    if ((init?.method ?? "GET") !== "GET" || !(path in payloads)) {
+      throw new Error(`Unexpected document fixture request: ${key}`);
+    }
+    return Promise.resolve(jsonResponse(200, payloads[path]));
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  const router = createAppMemoryRouter([CLOSING_ROUTE]);
+  activeRouters.push(router);
+  const view = render(<RouterProvider router={router} />);
+  return { ...view, router, fetchMock };
+}
+
+function mockDocumentBrowserDownload() {
+  const createObjectURL = vi.fn(() => "blob:session-document");
+  const revokeObjectURL = vi.fn();
+  Object.defineProperty(URL, "createObjectURL", { configurable: true, value: createObjectURL });
+  Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: revokeObjectURL });
+  return {
+    createObjectURL,
+    revokeObjectURL,
+    append: vi.spyOn(document.body, "append"),
+    click: vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined)
+  };
+}
+
+describe("router workpaper session downloads", () => {
+  afterEach(() => {
+    cleanup();
+    activeRouters.splice(0).forEach((router) => router.dispose());
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("downloads with the real document client and revokes its browser object URL", async () => {
+    const browser = mockDocumentBrowserDownload();
+    const { fetchMock, container } = primeSessionDocumentRoute(() => new Response(new Blob(["pdf"]), {
+      headers: { "Content-Type": "application/pdf", "Content-Disposition": "attachment; filename=session-support.pdf" }
+    }));
+    await screen.findByText("session-support.pdf");
+    await userEvent.setup().click(screen.getByRole("tab", { name: "Preuves" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Telecharger la piece" }));
+    await waitFor(() => { expect(browser.createObjectURL).toHaveBeenCalledTimes(1); });
+    expect(browser.click).toHaveBeenCalledTimes(1);
+    expect(browser.revokeObjectURL).toHaveBeenCalledWith("blob:session-document");
+    expect(container.querySelector("a[download]")).toBeNull();
+    const downloadInit = fetchMock.mock.calls.find(([path]) => String(path).endsWith(`/${SESSION_DOCUMENT.id}/content`))?.[1];
+    expect(downloadInit?.headers).toEqual({ "X-Tenant-Id": ACTIVE_TENANT.tenantId });
+    expect(downloadInit?.credentials).toBe("same-origin");
+  });
+
+  it.each(["headers", "blob", "panel"] as const)("suppresses every browser side effect when logout invalidates a document at %s", async (phase) => {
+    const browser = mockDocumentBrowserDownload();
+    const headers = deferredSessionValue<Response>();
+    const blob = deferredSessionValue<Blob>();
+    const bodyStarted = deferredSessionValue<void>();
+    const clientFinished = deferredSessionValue<void>();
+    const releaseClient = deferredSessionValue<void>();
+    const response = new Response(new Blob(["pdf"]), { headers: { "Content-Type": "application/pdf" } });
+    if (phase === "blob") {
+      vi.spyOn(response, "blob").mockImplementation(() => {
+        bodyStarted.resolve();
+        return blob.promise;
+      });
+    }
+    if (phase === "panel") {
+      const realDownload = workpapersApi.downloadWorkpaperDocument;
+      vi.spyOn(workpapersApi, "downloadWorkpaperDocument").mockImplementation(async (...args) => {
+        const result = await realDownload(...args);
+        expect(result.kind).toBe("success");
+        clientFinished.resolve();
+        await releaseClient.promise;
+        return result;
+      });
+    }
+    const { router, fetchMock } = primeSessionDocumentRoute(() => phase === "headers" ? headers.promise : response);
+    await screen.findByText("session-support.pdf");
+    await userEvent.setup().click(screen.getByRole("tab", { name: "Preuves" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Telecharger la piece" }));
+    await waitFor(() => { expect(fetchMock.mock.calls.some(([path]) => String(path).endsWith(`/${SESSION_DOCUMENT.id}/content`))).toBe(true); });
+    if (phase === "blob") await bodyStarted.promise;
+    if (phase === "panel") await clientFinished.promise;
+    await act(async () => { void router.sessionCoordinator.logout(); });
+    await act(async () => {
+      headers.resolve(response);
+      blob.resolve(new Blob(["late pdf"]));
+      releaseClient.resolve();
+    });
+    expect(browser.createObjectURL).not.toHaveBeenCalled();
+    expect(browser.append).not.toHaveBeenCalled();
+    expect(browser.click).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("tenant actif")).not.toBeInTheDocument();
   });
 });
