@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "../components/ui/button";
 import type { ActiveTenant } from "../lib/api/me";
+import { captureSessionGuard } from "../lib/api/http";
 import {
   createExportPack,
   downloadExportPackContent,
@@ -48,7 +49,7 @@ export function ExportAuditPackPanel({
   const [createState, setCreateState] = useState<CreateUiState>({ kind: "idle" });
   const [downloadState, setDownloadState] = useState<DownloadUiState>({ kind: "idle" });
   const createInFlightRef = useRef(false);
-  const downloadInFlightByPackRef = useRef<Set<string>>(new Set());
+  const downloadInFlightByPackRef = useRef<Map<string, symbol>>(new Map());
   const createAttemptKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -116,42 +117,54 @@ export function ExportAuditPackPanel({
       return;
     }
 
-    downloadInFlightByPackRef.current.add(exportPack.exportPackId);
+    const isCurrentSession = captureSessionGuard();
+    const attempt = Symbol();
+    downloadInFlightByPackRef.current.set(exportPack.exportPackId, attempt);
     setDownloadState({ kind: "submitting", exportPackId: exportPack.exportPackId });
 
-    const result = await downloadExportPackContent(
-      closingFolderId,
-      activeTenant,
-      exportPack.exportPackId
-    );
+    try {
+      const result = await downloadExportPackContent(
+        closingFolderId,
+        activeTenant,
+        exportPack.exportPackId
+      );
 
-    if (result.kind === "success") {
-      try {
-        triggerExportPackBrowserDownload(
-          result.blob,
-          resolveDownloadMediaType(result.contentType),
-          resolveExportPackDownloadFileName(
-            result.contentDisposition,
-            exportPack.fileName,
-            exportPack.exportPackId
-          )
-        );
-
-        downloadInFlightByPackRef.current.delete(exportPack.exportPackId);
-        setDownloadState({ kind: "success", exportPackId: exportPack.exportPackId });
-        return;
-      } catch {
-        downloadInFlightByPackRef.current.delete(exportPack.exportPackId);
-        setDownloadState({ kind: "unexpected", exportPackId: exportPack.exportPackId });
+      if (!isCurrentSession()) {
         return;
       }
-    }
 
-    downloadInFlightByPackRef.current.delete(exportPack.exportPackId);
-    setDownloadState({
-      ...result,
-      exportPackId: exportPack.exportPackId
-    });
+      if (result.kind === "success") {
+        const mediaType = resolveDownloadMediaType(result.contentType);
+        const fileName = resolveExportPackDownloadFileName(
+          result.contentDisposition,
+          exportPack.fileName,
+          exportPack.exportPackId
+        );
+
+        if (!isCurrentSession()) {
+          return;
+        }
+        triggerExportPackBrowserDownload(result.blob, mediaType, fileName);
+
+        if (isCurrentSession()) {
+          setDownloadState({ kind: "success", exportPackId: exportPack.exportPackId });
+        }
+        return;
+      }
+
+      setDownloadState({
+        ...result,
+        exportPackId: exportPack.exportPackId
+      });
+    } catch {
+      if (isCurrentSession()) {
+        setDownloadState({ kind: "unexpected", exportPackId: exportPack.exportPackId });
+      }
+    } finally {
+      if (downloadInFlightByPackRef.current.get(exportPack.exportPackId) === attempt) {
+        downloadInFlightByPackRef.current.delete(exportPack.exportPackId);
+      }
+    }
   }
 
   return (
@@ -249,8 +262,7 @@ function ExportPackList({
                   exportPack={exportPack}
                   technicalLines={[
                     `format technique : ${exportPack.mediaType}`,
-                    `empreinte sha256 : ${exportPack.checksumSha256}`,
-                    `utilisateur createur : ${exportPack.createdByUserId}`
+                    `empreinte sha256 : ${exportPack.checksumSha256}`
                   ]}
                 />
               </div>

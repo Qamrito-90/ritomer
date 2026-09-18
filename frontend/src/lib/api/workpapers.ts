@@ -1,8 +1,11 @@
 import { z } from "zod";
 import type { ClosingFolderSummary } from "./closing-folders";
 import {
-  DEFAULT_REQUEST_TIMEOUT_MS,
+  captureSessionGuard,
+  requestBlob,
+  RequestBlobBodyError,
   requestJson,
+  SessionInvalidatedError,
   type Fetcher
 } from "./http";
 import type { ActiveTenant } from "./me";
@@ -620,44 +623,37 @@ export async function downloadWorkpaperDocument(
   request: DownloadWorkpaperDocumentRequest,
   fetcher: Fetcher = fetch
 ): Promise<DownloadWorkpaperDocumentState> {
-  const controller = new AbortController();
-  let timeoutId = 0;
+  const isCurrentSession = captureSessionGuard();
 
   try {
-    const response = await Promise.race([
-      fetcher(
-        `/api/closing-folders/${encodeURIComponent(closingFolderId)}/documents/${encodeURIComponent(request.documentId)}/content`,
-        {
-          method: "GET",
-          headers: {
-            "X-Tenant-Id": activeTenant.tenantId
-          },
-          signal: controller.signal
+    const { response, blob } = await requestBlob(
+      `/api/closing-folders/${encodeURIComponent(closingFolderId)}/documents/${encodeURIComponent(request.documentId)}/content`,
+      {
+        method: "GET",
+        headers: {
+          "X-Tenant-Id": activeTenant.tenantId
         }
-      ),
-      new Promise<never>((_, reject) => {
-        timeoutId = window.setTimeout(() => {
-          controller.abort();
-          reject(new Error("timeout"));
-        }, DEFAULT_REQUEST_TIMEOUT_MS);
-      })
-    ]);
+      },
+      fetcher
+    );
+
+    if (!isCurrentSession()) {
+      return { kind: "auth_required" };
+    }
 
     if (response.status === 200) {
-      try {
-        const blob = await response.blob();
-
-        return {
-          kind: "success",
-          blob,
-          contentDisposition: normalizeOptionalHeaderValue(
-            response.headers.get("Content-Disposition")
-          ),
-          contentType: normalizeOptionalHeaderValue(response.headers.get("Content-Type"))
-        };
-      } catch {
+      if (blob === undefined) {
         return { kind: "unexpected" };
       }
+
+      return {
+        kind: "success",
+        blob,
+        contentDisposition: normalizeOptionalHeaderValue(
+          response.headers.get("Content-Disposition")
+        ),
+        contentType: normalizeOptionalHeaderValue(response.headers.get("Content-Type"))
+      };
     }
 
     if (response.status === 401) {
@@ -678,13 +674,17 @@ export async function downloadWorkpaperDocument(
 
     return { kind: "unexpected" };
   } catch (error) {
+    if (error instanceof SessionInvalidatedError || !isCurrentSession()) {
+      return { kind: "auth_required" };
+    }
+    if (error instanceof RequestBlobBodyError) {
+      return { kind: "unexpected" };
+    }
     if (error instanceof Error && error.message === "timeout") {
       return { kind: "timeout" };
     }
 
     return { kind: "network_error" };
-  } finally {
-    window.clearTimeout(timeoutId);
   }
 }
 

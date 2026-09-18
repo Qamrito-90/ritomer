@@ -1,5 +1,5 @@
 import { RouterProvider } from "react-router-dom";
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { createAppMemoryRouter } from "./router";
@@ -537,8 +537,11 @@ function jsonResponse(status: number, payload: unknown) {
   });
 }
 
+const activeRouters: ReturnType<typeof createAppMemoryRouter>[] = [];
+
 function renderClosingRoute() {
   const router = createAppMemoryRouter([CLOSING_ROUTE]);
+  activeRouters.push(router);
   return render(<RouterProvider router={router} />);
 }
 
@@ -789,10 +792,16 @@ function expectNoOutOfScopePaths(
 
 describe("router manual mapping", () => {
   beforeEach(() => {
-    vi.stubGlobal("fetch", vi.fn());
+    vi.stubGlobal("fetch", vi.fn().mockImplementationOnce((input, init) => {
+      expect(String(input)).toBe("/api/session/bootstrap");
+      expect(init?.method).toBe("GET");
+      return Promise.resolve(jsonResponse(404, {}));
+    }));
   });
 
   afterEach(() => {
+    cleanup();
+    activeRouters.splice(0).forEach((router) => router.dispose());
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -823,6 +832,7 @@ describe("router manual mapping", () => {
     expect(screen.queryByRole("heading", { name: "Revue des imports balance" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Etat de preparation" })).not.toBeInTheDocument();
     expect(getRequestPaths(fetchMock)).toEqual([
+      "/api/session/bootstrap",
       "/api/me",
       `/api/closing-folders/${CLOSING_FOLDER.id}`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/controls`,
@@ -836,8 +846,7 @@ describe("router manual mapping", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/export-packs`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/minimal-annex`
     ]);
-    expect(getRequestHeaders(fetchMock, 0)["X-Tenant-Id"]).toBeUndefined();
-    expect(getRequestHeaders(fetchMock, 1)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
+    expect(getRequestHeaders(fetchMock, 1)["X-Tenant-Id"]).toBeUndefined();
     expect(getRequestHeaders(fetchMock, 2)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
     expect(getRequestHeaders(fetchMock, 3)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
     expect(getRequestHeaders(fetchMock, 4)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
@@ -847,6 +856,7 @@ describe("router manual mapping", () => {
     expect(getRequestHeaders(fetchMock, 8)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
     expect(getRequestHeaders(fetchMock, 9)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
     expect(getRequestHeaders(fetchMock, 10)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
+    expect(getRequestHeaders(fetchMock, 11)["X-Tenant-Id"]).toBe(ACTIVE_TENANT.tenantId);
     expectNoOutOfScopePaths(getRequestPaths(fetchMock));
   });
 
@@ -1211,13 +1221,13 @@ describe("router manual mapping", () => {
 
     await user.selectOptions(getLineTargetSelect("2000"), "PL.REVENUE");
 
-    expect(fetchMock).toHaveBeenCalledTimes(12);
+    expect(fetchMock).toHaveBeenCalledTimes(13);
     expect(getLineSaveButton("2000")).toBeEnabled();
 
     await user.click(getLineSaveButton("2000"));
 
     expect(await screen.findByText("enregistrement mapping en cours")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(13);
+    expect(fetchMock).toHaveBeenCalledTimes(14);
     expect(getLineTargetSelect("1000")).toBeDisabled();
     expect(getLineTargetSelect("2000")).toBeDisabled();
     expect(within(getLine("1000")).queryByRole("button", { name: "Mettre à jour" })).not.toBeInTheDocument();
@@ -1225,7 +1235,7 @@ describe("router manual mapping", () => {
     expect(getLineDeleteButton("1000")).toBeDisabled();
 
     await user.click(getLineDeleteButton("1000"));
-    expect(fetchMock).toHaveBeenCalledTimes(13);
+    expect(fetchMock).toHaveBeenCalledTimes(14);
     expectNoOutOfScopePaths(getRequestPaths(fetchMock));
   });
 
@@ -1259,7 +1269,7 @@ describe("router manual mapping", () => {
     await waitForNominalShell();
     await screen.findByLabelText("suggestion mapping 2000 a revoir");
 
-    expect(fetchMock).toHaveBeenCalledTimes(12);
+    expect(fetchMock).toHaveBeenCalledTimes(13);
     expect(getRequestPaths(fetchMock)).not.toContain(
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions/2000/decision`
     );
@@ -1274,6 +1284,7 @@ describe("router manual mapping", () => {
 
     expect(await screen.findByText(/Decision humaine enregistree : accepter/)).toBeInTheDocument();
     expect(getRequestPaths(fetchMock)).toEqual([
+      "/api/session/bootstrap",
       "/api/me",
       `/api/closing-folders/${CLOSING_FOLDER.id}`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/controls`,
@@ -1295,7 +1306,7 @@ describe("router manual mapping", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`
     ]);
 
-    const postInit = fetchMock.mock.calls[12]?.[1] as RequestInit;
+    const postInit = fetchMock.mock.calls[13]?.[1] as RequestInit;
     const postHeaders = postInit.headers as Record<string, string>;
     expect(postInit.method).toBe("POST");
     expect(postHeaders.Accept).toBe("application/json");
@@ -1358,6 +1369,7 @@ describe("router manual mapping", () => {
 
     expect(await screen.findByText(/Decision humaine enregistree : corriger/)).toBeInTheDocument();
     expect(getRequestPaths(fetchMock)).toEqual([
+      "/api/session/bootstrap",
       "/api/me",
       `/api/closing-folders/${CLOSING_FOLDER.id}`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/controls`,
@@ -1378,7 +1390,7 @@ describe("router manual mapping", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/financial-statements/structured`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`
     ]);
-    expect(JSON.parse(String((fetchMock.mock.calls[12]?.[1] as RequestInit).body))).toEqual({
+    expect(JSON.parse(String((fetchMock.mock.calls[13]?.[1] as RequestInit).body))).toEqual({
       decision: "CORRECT",
       latestImportVersion: 2,
       suggestionFingerprint:
@@ -1420,6 +1432,7 @@ describe("router manual mapping", () => {
 
     expect(await screen.findByText(/Decision humaine enregistree : rejeter/)).toBeInTheDocument();
     expect(getRequestPaths(fetchMock)).toEqual([
+      "/api/session/bootstrap",
       "/api/me",
       `/api/closing-folders/${CLOSING_FOLDER.id}`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/controls`,
@@ -1435,7 +1448,7 @@ describe("router manual mapping", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions/2000/decision`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`
     ]);
-    expect(JSON.parse(String((fetchMock.mock.calls[12]?.[1] as RequestInit).body))).toEqual({
+    expect(JSON.parse(String((fetchMock.mock.calls[13]?.[1] as RequestInit).body))).toEqual({
       decision: "REJECT",
       latestImportVersion: 2,
       suggestionFingerprint:
@@ -1466,7 +1479,7 @@ describe("router manual mapping", () => {
 
     expect(await screen.findByText("Decision humaine en cours : accepter.")).toBeInTheDocument();
     expect(getLineTargetSelect("2000")).toHaveValue("");
-    expect(fetchMock).toHaveBeenCalledTimes(13);
+    expect(fetchMock).toHaveBeenCalledTimes(14);
   });
 
   it("sends the exact PUT payload on explicit save, shows success before refresh, and refreshes mapping plus controls", async () => {
@@ -1505,6 +1518,7 @@ describe("router manual mapping", () => {
 
     expect(await screen.findByText("mapping enregistre avec succes")).toBeInTheDocument();
     expect(getRequestPaths(fetchMock)).toEqual([
+      "/api/session/bootstrap",
       "/api/me",
       `/api/closing-folders/${CLOSING_FOLDER.id}`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/controls`,
@@ -1525,7 +1539,7 @@ describe("router manual mapping", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/workpapers`
     ]);
 
-    const putInit = fetchMock.mock.calls[12]?.[1] as RequestInit;
+    const putInit = fetchMock.mock.calls[13]?.[1] as RequestInit;
     const putHeaders = putInit.headers as Record<string, string>;
     expect(putInit.method).toBe("PUT");
     expect(putHeaders.Accept).toBe("application/json");
@@ -1564,7 +1578,7 @@ describe("router manual mapping", () => {
     expect(
       await screen.findByText("mapping bloque par securite, donnees incoherentes")
     ).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(13);
+    expect(fetchMock).toHaveBeenCalledTimes(14);
   });
 
   it.each([
@@ -1646,7 +1660,7 @@ describe("router manual mapping", () => {
     await user.click(getLineSaveButton("2000"));
 
     expect(await screen.findByText(text)).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(13);
+    expect(fetchMock).toHaveBeenCalledTimes(14);
   });
 
   it("sends the exact DELETE query param, keeps no body, and refreshes mapping plus controls after success", async () => {
@@ -1671,6 +1685,7 @@ describe("router manual mapping", () => {
 
     expect(await screen.findByText("mapping supprime avec succes")).toBeInTheDocument();
     expect(getRequestPaths(fetchMock)).toEqual([
+      "/api/session/bootstrap",
       "/api/me",
       `/api/closing-folders/${CLOSING_FOLDER.id}`,
       `/api/closing-folders/${CLOSING_FOLDER.id}/controls`,
@@ -1692,7 +1707,7 @@ describe("router manual mapping", () => {
       `/api/closing-folders/${CLOSING_FOLDER.id}/mappings/suggestions`
     ]);
 
-    const deleteInit = fetchMock.mock.calls[12]?.[1] as RequestInit;
+    const deleteInit = fetchMock.mock.calls[13]?.[1] as RequestInit;
     const deleteHeaders = deleteInit.headers as Record<string, string>;
     expect(deleteInit.method).toBe("DELETE");
     expect(deleteHeaders.Accept).toBe("application/json");

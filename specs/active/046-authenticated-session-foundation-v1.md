@@ -15,7 +15,9 @@ M1_1_FINAL_OUTCOME_DELIVERED=NO
 
 M1_1B_SCOPE=BACKEND_SESSION_KERNEL_PROCESS_LOCAL_DEFAULT_OFF
 M1_1B_IMPLEMENTED=YES
-M1_1C_IMPLEMENTED=NO
+M1_1C_IMPLEMENTED=YES
+M1_1C_LOCAL_FRONTEND_VALIDATION=PASS
+M1_1C_DELIVERED=NO
 M1_1D_IMPLEMENTED=NO
 
 PROMETHEUS_WEB_EXPOSURE=CLOSED_FAIL_CLOSED
@@ -24,7 +26,7 @@ PUBLIC_MANAGEMENT_ENDPOINTS=HEALTH_INFO_ONLY
 SESSION_CREATED=YES
 COOKIE_CREATED=YES
 CSRF_CREATED=YES
-FRONTEND_MODIFIED=NO
+FRONTEND_MODIFIED=YES
 BROWSER_SESSION_INTEGRATION=NO
 SHARED_OIDC_INTEGRATION=NO
 DISTRIBUTED_SESSION=NO
@@ -34,7 +36,7 @@ AGENT_RUNTIME=NO
 MCP_RUNTIME=NO
 ```
 
-Cette spec reste active pendant les quatre slices cumulatives. Le checkpoint A borne le principal applicatif, la lecture d'autorité fraîche aux frontières métier protégées et la sûreté tenant. Le correctif M8 ferme fail-closed l'exposition HTTP de Prometheus ; seuls health et info restent exposés. Le checkpoint B implémente le kernel de session backend process-local, désactivé par défaut, sans intégration frontend ou navigateur. Les checkpoints C et D ne sont pas implémentés. La fermeture et le déplacement vers `specs/done/` appartiennent exclusivement à M1.1D.
+Cette spec reste active pendant les quatre slices cumulatives. Le checkpoint A borne le principal applicatif, la lecture d'autorité fraîche aux frontières métier protégées et la sûreté tenant. Le correctif M8 ferme fail-closed l'exposition HTTP de Prometheus ; seuls health et info restent exposés. Le checkpoint B implémente le kernel de session backend process-local, désactivé par défaut, sans intégration frontend ou navigateur. Le checkpoint C est implémenté et validé localement sur le frontend simulé ; sa delivery n'est pas réalisée. D n'est pas implémenté : activation intégrée, preuve navigateur et clôture restent à réaliser. La fermeture et le déplacement vers `specs/done/` appartiennent exclusivement à M1.1D.
 
 ## 2. Outcome M1.1 et outcomes bornés M1.1A/M1.1B
 
@@ -62,7 +64,7 @@ M1.1B implémente uniquement le kernel backend de session process-local :
 - le confinement local/test fail-closed, le firewall strict et la coexistence bornée du bearer backend historique ;
 - le contrat OpenAPI auth-session et l'ADR de frontière process-local.
 
-M1.1B n'ajoute aucun frontend, coordinator navigateur, OIDC réel ou partagé, session distribuée, dépendance, migration, provisioning, runtime IA, agent ou MCP. M1.1C, M1.1D et l'outcome final M1.1 restent non implémentés.
+M1.1B n'ajoute aucun frontend, coordinator navigateur, OIDC réel ou partagé, session distribuée, dépendance, migration, provisioning, runtime IA, agent ou MCP. Au checkpoint B historique, M1.1C, M1.1D et l'outcome final M1.1 restaient non implémentés ; le statut local C actuel figure en §1 et ci-dessous.
 
 ## 3. Architecture gelée
 
@@ -237,13 +239,44 @@ Le tracking effectif est le singleton `{COOKIE}`. `StrictHttpFirewall` refuse le
 
 Les cinq filtres custom sont des beans uniques, chacun avec une registration Servlet disabled et une politique REQUEST-only : `SessionCredentialConflictFilter`, `SessionExpiryFilter`, `LocalAuthBoundaryFilter`, `TenantMdcFilter`, `SessionAuthorityFreshnessFilter`. Le conteneur les invoque zéro fois et la chaîne Security exactement une fois ; ASYNC et ERROR ne créent aucune invocation secondaire. L'ordre complet par instances est : `SecurityContextHolderFilter` → conflict → expiry → local boundary → tenant MDC → authority freshness → `CsrfFilter` → `LogoutFilter` → `BearerTokenAuthenticationFilter` seulement avec decoder legacy explicite → `AuthorizationFilter`.
 
-## 8. Contrat cible M1.1C — coordinator frontend
+## 8. Contrat M1.1C — coordinator frontend
 
-M1.1C introduira, après autorisation distincte, un coordinator unique pour bootstrap, login, rebootstrap, `/api/me` et logout. Les requêtes seront same-origin avec credentials. Le CSRF restera uniquement en mémoire.
+Le contrat ci-dessous est implémenté localement dans le file-set C de §10. Le 17 septembre 2026, la validation finale a obtenu 253 tests sur les sept suites ciblées et 955 tests sur les 34 fichiers de la campagne frontend complète, tous PASS, sans échec, pending ou todo ; lint et build ont terminé avec un code de sortie 0. Les deux régressions de corps `403` reçu après timeout ont été reproduites puis corrigées : une continuation annulée ne peut plus purger la session ni lancer une reprise CSRF. Les sorties exactes et le diff sont remis dans le Fresh Evidence Pack local. Ces preuves simulées ne démontrent aucune intégration navigateur réelle et n'autorisent aucune delivery.
 
-Aucun bearer, cookie, SID, identifiant acteur ou secret ne sera stocké ou rendu dans le DOM, URL, storage, IndexedDB ou channel. Une mutation en état `SESSION_READY` sans CSRF courant sera bloquée avant le réseau. Les états initial, expired, forbidden, network et capability 404 resteront distincts.
+M1.1C introduira un coordinator unique dans `session.ts` pour bootstrap, login, rebootstrap, `/api/me` et logout, installé synchroniquement par le router avant les enfants protégés. L'import du module et les clients isolés ne déclencheront aucun bootstrap. `http.ts` portera la politique commune sans importer le coordinator. Une promesse partagée dédupliquera l'initialisation et la revalidation, y compris sous StrictMode ; une génération monotone interdira toute publication de contexte ou de CSRF provenant d'une opération périmée.
 
-Le safe return sera limité à `/` et `/closing-folders/{UUID canonique}`, sans query ni fragment. StrictMode, focus et `BroadcastChannel` seront dédupliqués. Les contrôles accessibles, dont logout, resteront utilisables au clavier et sur viewport étroit.
+Les requêtes utiliseront `credentials: "same-origin"`. Le CSRF restera uniquement en mémoire et son header contractuel sera `X-CSRF-TOKEN`. Les mutations métier en `SESSION_READY` recevront le token courant ; son absence les bloquera avant le réseau. Login et logout emploieront le transport interne avec le CSRF exigé par leur contrat, sans attendre récursivement leur propre initialisation. Aucun endpoint session ne recevra `X-Tenant-Id`. Les corps, `FormData` sans Content-Type forcé, headers métier, idempotence, fetchers injectables et signatures publiques resteront compatibles.
+
+Le parcours sera bootstrap → login local explicite → `204` → effacement de l'ancien CSRF → rebootstrap → `/api/me` → contexte prêt. Seul le `404` du bootstrap initial autorisera `LEGACY_PROXY_TRANSITION`, suivi de `/api/me` et du parcours existant, sans ajout Authorization ou CSRF. Aucune panne réseau, réponse `5xx`, erreur de payload ou perte ultérieure de capability ne permettra ce fallback. Ce mode ne promettra aucun login ou logout serveur disponible.
+
+Les états initial, connexion requise, expiration, refus, contexte indisponible, réseau, timeout, serveur et payload invalide resteront distincts. Un `401` initial orientera vers la connexion, avec au plus une reprise anonyme bornée si nécessaire. Un `401` après disponibilité ou une révocation globale effacera immédiatement le contexte utilisateur/tenant/dossier et le CSRF, invalidera les opérations anciennes et démontera le contenu protégé. Un `403 ACCESS_DENIED` restera contextualisé ; un `404` métier restera opaque. Un `403 CSRF_REJECTED` suspendra les mutations pendant le renouvellement contrôlé du contexte CSRF. Aucune mutation ne sera rejouée automatiquement.
+
+Login et logout seront sérialisés et protégés du double clic. Logout effacera immédiatement le contexte local, puis un seul POST avec le CSRF courant attendra la confirmation `204` avant le bootstrap anonyme. Une panne laissant le résultat serveur incertain affichera « Déconnexion non confirmée », sans succès inventé ni réouverture silencieuse sur focus ou message inter-onglets.
+
+### Téléchargements et générations
+
+Les lectures binaires de documents et de packs utiliseront un transport Blob dédié dans `http.ts`, partageant la politique session de `requestJson`, sans header JSON imposé, remplacement global de fetch ou modification des DTO et signatures publiques. Chaque parcours contrôlera les frontières suivantes :
+
+1. capture de la garde de génération dans le panneau avant l'appel asynchrone ;
+2. capture et vérification de génération au départ HTTP, avec annulation enregistrée ;
+3. contrôle à réception des en-têtes avant toute notification, notamment `401` ; une ancienne réponse ne pourra pas expirer une nouvelle session ;
+4. lecture `response.blob()` uniquement sur `200`, puis nouveau contrôle de génération ;
+5. vérification avant publication du résultat API ;
+6. dans chacun des deux panneaux, garde après `await` avant toute publication, puis immédiatement avant le helper créant l'URL objet, sans `await` intermédiaire.
+
+Le délai unique de 5 000 ms couvrira départ, en-têtes et fin du Blob, sans redémarrage à réception des en-têtes. La course de promesses couvrira l'opération entière. Timeout et invalidation termineront aussi l'attente d'un fetcher ou d'un corps simulé ignorant `AbortSignal`. Timer et abonnements seront nettoyés en `finally`. Une continuation tardive vérifiera sa génération avant tout effet.
+
+Les classifications resteront : timeout → `timeout`, panne réseau → `network_error`, échec ordinaire de lecture Blob → `unexpected`. Une invalidation de session produira un résultat sans succès et ne notifiera pas une nouvelle expiration. Une garde finale périmée abandonnera le résultat sans succès, URL objet, lien ou clic et libérera seulement le verrou de sa propre tentative.
+
+### Privacy, retour et accessibilité
+
+Aucun bearer, cookie, SID, UUID acteur, subject ou secret ne sera rendu dans le DOM, URL, storage, IndexedDB ou channel. Le choix local n'affichera que les `displayLabel` reçus ; `actorKey` restera en mémoire, jamais en valeur DOM. Aucun identifiant technique ne servira de libellé utilisateur de secours. Le panneau export retirera uniquement la ligne `createdByUserId` ; DTO, données métier et audit resteront inchangés.
+
+Le safe return restera en mémoire, limité à `/` et `/closing-folders/{UUID canonique lowercase}`, sans query ni fragment. Schémas, doubles slashs, backslashes, contrôles et encodages non autorisés seront refusés avec retour à `/`. Ce retour ne conférera aucun droit d'accès au dossier.
+
+Focus et visibility seront coalescés, sans polling. `BroadcastChannel("ritomer:session:v1")` portera uniquement `{type: "SESSION_CHANGED"}`, sans identité, secret ou écho. Si ce canal est indisponible, focus/visibility subsisteront sans fallback storage. Les abonnements seront nettoyables. Les composants et zones d'action existants porteront les états et le logout : libellés explicites, clavier, focus visible et disposition adaptée au viewport étroit.
+
+Les validations C établiront uniquement le comportement frontend simulé. Cookies réels, attributs `Secure`/`HttpOnly`, proxy, deux jars, concurrence navigateur et rendu réel sur viewport étroit resteront à prouver en D. Aucun résultat C n'activera Vite, le harness ou le backend, ni ne vaudra delivery ou clôture de 046.
 
 ## 9. Activation M1.1D
 
@@ -489,7 +522,7 @@ Ce correctif n'a exécuté ni `psql`, ni `Preflight`, ni `Lifecycle`, ni
 ne prouve donc pas le comportement DB réel ; le statut reste
 `INCONCLUSIVE_PENDING_DB_EXECUTION` jusqu'à une mission sensible distincte.
 
-### M1.1C — 12 paths, `A=2, M=10`
+### M1.1C — 17 paths, `A=2, M=15`
 
 | Action | Path |
 |---|---|
@@ -505,6 +538,11 @@ ne prouve donc pas le comportement DB réel ; le statut reste
 | M | `frontend/src/app/router.manual-mapping.test.tsx` |
 | M | `frontend/src/app/router.workpapers.test.tsx` |
 | M | `docs/ui/ui-foundations-v1.md` |
+| M | `frontend/src/app/export-audit-pack-panel.tsx` |
+| M | `frontend/src/lib/api/exports.ts` |
+| M | `frontend/src/lib/api/workpapers.ts` |
+| M | `frontend/src/app/workpapers-panel.tsx` |
+| M | `specs/active/046-authenticated-session-foundation-v1.md` |
 
 ### M1.1D — 22 logical artifacts, 23 physical endpoints, `M=21, R=1`
 
@@ -538,12 +576,12 @@ M1_1A_BASE_SCOPE=12_PATHS_A3_M9
 M1_1A_M8_SCOPE=8_PATHS_M8
 M1_1A_WITH_M8_SCOPE=17_PATHS_A3_M14
 M1_1B=17_PATHS_A6_M11_IMPLEMENTED
-M1_1C=12_PATHS_A2_M10_NOT_IMPLEMENTED
+M1_1C=17_PATHS_A2_M15_IMPLEMENTED_LOCAL_NOT_DELIVERED
 M1_1D=22_LOGICAL_23_PHYSICAL_M21_R1_NOT_IMPLEMENTED
 M1_1_FINAL_OUTCOME_DELIVERED=NO
 ```
 
-Le tableau A décrit le scope de base. Le delta correctif M8 modifie exactement huit paths et porte l'union A+M8 à `A=3, M=14, total=17`. Le file-set B implémenté contient exactement 17 paths, `A=6, M=11`. Les file-sets C et D restent des contrats futurs non implémentés ; leurs comptages devront être revalidés dans leur slice respective.
+Le tableau A décrit le scope de base. Le delta correctif M8 modifie exactement huit paths et porte l'union A+M8 à `A=3, M=14, total=17`. Le file-set B implémenté contient exactement 17 paths, `A=6, M=11`. Le changement local C couvre les 17 chemins exacts ci-dessus, `A=2, M=15`, sans rename ni delete. D reste un contrat futur non implémenté ; son comptage devra être revalidé dans sa slice.
 
 ## 11. Tests, gates et stops
 
@@ -689,9 +727,15 @@ M1.1C doit prouver :
 - safe return mémoire limité à `/` et `/closing-folders/{UUID canonique}`, sans query/hash et refus des schémas, slashes, backslashes, contrôles ou encodages invalides ;
 - focus/visibility dédupliqué et channel `ritomer:session:v1` avec payload exact `{type: SESSION_CHANGED}` ;
 - aucun UUID acteur, subject, token, cookie ou SID dans DOM, URL, storage, IndexedDB ou channel ;
+- deux vrais clients binaires : succès, Blob, headers et classifications préservés ; `401` courant observé ; ancien `401` après nouvelle session sans invalidation de celle-ci ;
+- invalidation pendant les en-têtes puis pendant le Blob, timeout couvrant la lecture du corps même si l'abort est ignoré, et résolution tardive sans succès exploitable ni restauration de contexte ;
+- deux vrais panneaux : téléchargement nominal et révocation de l'URL conservés ; invalidation contrôlée entre succès du vrai client et reprise du handler ; zéro URL objet, lien ou clic après invalidation ;
+- absence du `createdByUserId` du pack dans tout le DOM, détails fermés puis ouverts, sans modification du DTO ou de l'audit ;
 - sept fichiers ciblés, `pnpm test:ci`, `pnpm lint`, `pnpm build`, validateur file-set et scan secret.
 
-Stops C : ordre indéterministe ; StrictMode dupliqué ; redirect dangereux ; boucle `403` ; credential stocké ; mutation non fail-closed ; bearer client ajouté ; test skipped ; treizième path.
+Les assertions métier existantes restent requises. Les attentes modifiées pour une expiration de session doivent conserver séparément les preuves legacy. Les suites directes des clients et panneaux restent inchangées et sont exécutées par `pnpm test:ci`. Le contrôle du file-set couvre aussi les deux ajouts non suivis, sans validateur permanent supplémentaire.
+
+Stops C : ordre indéterministe ; StrictMode dupliqué ; redirect dangereux ; boucle `403` ; credential stocké ; mutation non fail-closed ; bearer client ajouté ; test skipped ; tout chemin extérieur à la liste exacte des 17, même si le total reste inférieur ou égal à 17.
 
 ### Gates et stops M1.1D
 
@@ -705,13 +749,13 @@ M1.1D doit prouver :
 - conservation des marqueurs runbook contrôlés par `DemoSeedLocalSourceGuardTest` inchangé ;
 - PostgreSQL réel non skipped, backend ciblé/complet/Modulith/build, frontend ciblé/test:ci/lint/build, validateurs et `git diff --check` ;
 - après D seulement, E2E complet pour deux jars puis navigateur/version/origine exacts, cookie/CSRF/expiry/re-auth/focus/multi-tab/safe-return/accessibilité/privacy ;
-- lifecycle final : source active absente, done présent, active count zéro, rename exact, overlap unique et matrice finale 57.
+- lifecycle final : source active absente, done présent, active count zéro, rename exact et matrice finale issue de l'union dédupliquée par chemin des file-sets effectivement livrés. L'artefact 046 modifié en C puis renommé en D reste un unique artefact logique ; ses chemins source et destination sont distingués dans le comptage physique. La mention historique « overlap unique et matrice finale 57 » ne constitue pas un total final revalidé : les tables historiques et le composite B n'ont pas le même domaine de comptage. Aucun nouveau total n'est présumé ici ; le file-set D reste 22 artefacts logiques / 23 chemins physiques, `M=21, R=1`.
 
 Stops D : cookie `Secure __Host-` ne round-trip pas sur HTTP loopback ; navigateur/version/origine absent ; bearer/HMAC dans le parcours canonique, Vite, harness, docs ou `.env.example` ; séparation `application-dev` non prouvée ; contrat/scheme/refus manquant ; `closing-api` réactivé ; proxy non loopback ; DB/E2E/check skipped ; spec non fermée ; compte divergent ; vingt-quatrième endpoint ou path caché.
 
 ## 12. Autorisations et frontières
 
-Cette spec ne constitue aucune autorisation. M1.1A avec son correctif M8 et M1.1B sont implémentés dans leurs file-sets bornés. M1.1C et M1.1D ne sont pas implémentés et l'outcome final M1.1 n'est pas livré.
+Cette spec ne constitue aucune autorisation. M1.1A avec son correctif M8 et M1.1B sont implémentés dans leurs file-sets bornés. M1.1C est implémenté et validé localement, sans delivery ; M1.1D n'est pas implémenté et l'outcome final M1.1 n'est pas livré.
 
 Les états de review, delivery, merge, décision owner et autorisation vivent uniquement dans les Evidence Packs, la pull request et les records spécialisés.
 
@@ -745,9 +789,9 @@ sans changer le sequencing V1, un contrat, une ADR, un cadrage du présent,
 README, frontend, dépendance ou migration. Son unique overlap avec B est cette
 spec ; le composite observé reste `A=8/M=17/25`.
 
-Les impacts ultérieurs sont bornés ainsi :
+Les impacts C et D sont bornés ainsi :
 
-- C : `docs/ui/ui-foundations-v1.md` ;
+- C : `docs/ui/ui-foundations-v1.md` et cette spec, réalignées dans le même changement que l'implémentation C, sans delivery documentaire séparée. Le statut d'implémentation reflète uniquement les preuves locales obtenues après les checks ; delivery et intégration navigateur D restent distinctes ;
 - D : README, local-dev, v1-plan, product-roadmap, trois cadrages, huit OpenAPI, `.env.example`, puis rename de la spec.
 
 `contracts/db/core-persistence-foundation.md` ne change pas : aucun schéma, table, contrainte ou migration n'est ajouté. `contracts/openapi/closing-api.yaml` reste protégé. Les autres OpenAPI ne sont alignés à la session qu'en D. Toute contradiction réellement bloquante impose un stop de file-set ; elle n'autorise pas un path supplémentaire en A.
