@@ -102,17 +102,38 @@ Une mission est terminée seulement si :
 - Luis décide l’action exacte et en porte la responsabilité d’owner ; il ne certifie pas techniquement le code.
 
 Les prompts et rôles actifs sont exclusivement ceux désignés par `docs/governance/ai-first/README.md`.
-Une version plus récente, locale, téléchargée ou simplement accessible n’est jamais active sans mise à jour revue et mergée de cet index.
+Cet index est l’unique autorité d’activation : les versions effectives sont celles des chemins qu’il désigne au head courant observable de la branche par défaut, selon son mécanisme existant. Une édition locale, même approuvée pour implémentation, reste candidate jusqu’à sa livraison revue sur cette branche ; elle ne s’active ni ne s’autorise elle-même. Pendant une mission de modification de gouvernance, conserver les versions actives identifiées au départ comme autorité de la mission.
 
 Les surfaces canoniques sont : `BACKEND`, `FRONTEND`, `DB`, `CONTRACTS`, `CI_GIT`, `GITHUB_GOVERNANCE`, `DOCS`, `FULLSTACK`, `QA_MANUAL`, `OFF_REPOSITORY_ARTIFACT`, `SENSITIVE_EXECUTION`, `PRODUCTION` et `NON_DÉTERMINÉ`.
 
 ### 2. Responsabilités
 
-- **Codex Builder** — réalise le scope autorisé, effectue le self-check et produit des preuves proportionnées et accessibles.
-- **Codex Reviewer séparé** — utilise un contexte distinct, reste read-only, inspecte le SHA ou l’artefact exact et ne corrige rien pendant la review.
-- **ChatGPT CPO** — contrôle scope, risque, preuves et cohérence ; challenge les contradictions ; traduit le résultat pour la décision owner.
+- **OWNER — Luis** — définit le résultat métier, les priorités, les engagements et les risques acceptés ; choisit l’action et son timing sur la base des preuves.
+- **CPO — ChatGPT** — cadre le besoin, identifie les preuves décisives, arbitre et contrôle la proportionnalité ; challenge les contradictions et traduit le résultat pour la décision owner.
+- **DEV — Codex Bureau**, habituellement **Builder** — réalise complètement le scope autorisé, effectue le self-check et produit des preuves proportionnées et accessibles.
+- **REVUE — Codex VS Code**, habituellement **Reviewer séparé** — utilise un contexte distinct, inspecte le SHA ou l’artefact exact en lecture seule et ne corrige pas les sources.
+- **VS Code sans agent actif** — éditeur de consultation.
 - **GitHub / CI** — établissent les faits mécaniques sur SHA, diff, PR et checks, sans certifier le sens métier ni le risque résiduel.
-- **Luis** — choisit l’action, le timing et le risque accepté sur la base des preuves.
+
+Ces affectations sont des conventions de travail, pas des limitations techniques des applications. Un mandat peut désigner explicitement une autre affectation. Le Builder ainsi désigné garde sa mission jusqu’à sa clôture, y compris la delivery lorsqu’elle est séparément autorisée ; un changement de Builder exige une passation explicite après vérification de l’étape convenue.
+
+#### Copie partagée et passation
+
+Un seul Builder écrit sur une copie de travail partagée. Deux applications ouvertes sur le même dossier local utilisent les mêmes fichiers enregistrés, pas deux copies synchronisées. Un worktree ou un environnement Cloud est un environnement distinct. Des fichiers partagés ne fusionnent ni les conversations ni les autorisations.
+
+Une sauvegarde locale n’est pas un commit, un commit n’est pas un push et un push n’est pas un merge. Aucune modification manuelle concurrente sur les mêmes fichiers ; le changement de Builder se fait par passation, jamais par doublonnage.
+
+La passation minimale indique : mission, rôle, dossier, branche/HEAD, modifications conservées, preuves utiles, droits encore applicables et prochaine action. Aucun système de verrouillage ni registre de coordination supplémentaire n’est requis.
+
+La REVUE porte sur une version identifiée, dans un contexte distinct. Le Builder stabilise l’objet pendant l’examen ; les findings reviennent au DEV. Le mandat de lecture seule est une obligation de conduite : rapporter séparément les permissions effectivement disponibles, sans prétendre à une restriction technique non constatée.
+
+#### Autonomie dans le mandat
+
+Dans le scope, les critères d’acceptation et les permissions autorisés, DEV réalise → teste → diagnostique → corrige → reteste, sans micro-validation de Luis. Une erreur de compilation, une fixture incorrecte, un test rouge ou un défaut in-scope relève de cette même boucle.
+
+Un changement matériel de besoin, contrat, file-set, coût, sécurité ou environnement exige un retour consolidé au CPO avant toute extension. Un refus réel de permission ou une action sensible non autorisée arrête l’action concernée, sans contournement. DEV ne redéfinit jamais ses propres limites.
+
+Un test négatif attendu n’est pas un incident opérationnel. Un échec de test n’est ni un succès ni une autorisation de supprimer le test ou d’affaiblir ses assertions. La correction renouvelle les preuves affectées selon la section Invalidation.
 
 Toute review du Codex Reviewer porte les classifications `AI_GENERATED_REVIEW`, `NOT_HUMAN_SIGNED` et `FUNCTIONAL_INDEPENDENCE_ONLY` ; elle ne vaut ni signature humaine, ni expertise professionnelle, ni séparation réelle des fonctions.
 
@@ -207,6 +228,7 @@ Pour `FULL`, ce pack couvre uniquement : baseline ; file-set et diff ; fichiers 
 
 Si le hash d’un diff est requis, il porte sur les octets exacts du fichier `DIFF.patch` livré.
 `FULL` n’impose aucune arborescence de bundle complexe.
+Aucun ZIP systématique si les reviewers ont déjà accès aux mêmes fichiers. Si le destinataire n’y a pas accès, transmettre les octets nécessaires par le moyen disponible ; un simple chemin local ne remplace pas la preuve.
 Aucun secret ne doit être extrait ni reproduit dans les preuves.
 
 ### 6. Autorisations distinctes
@@ -242,7 +264,7 @@ de production exacts. Un `YES` sans binding exact est invalide.
 
 ### 7. Invalidation
 
-Toute review, autorisation ou décision devient invalide si l’un des éléments suivants change matériellement :
+Toute review, autorisation ou décision doit être réexaminée et devient invalide pour ce qu’elle couvrait si l’un des éléments suivants change matériellement dans son binding ou ses conditions :
 
 - le scope ou le file-set ;
 - le comportement ou le contrat sémantique ;
@@ -252,7 +274,9 @@ Toute review, autorisation ou décision devient invalide si l’un des élément
 - le niveau de risque ;
 - une condition owner.
 
-La boucle concernée doit alors être reprise sur l’état exact mis à jour.
+La boucle concernée doit alors être reprise sur l’état exact mis à jour. Une correction conforme au mandat d’implémentation peut invalider les preuves de l’ancienne version sans annuler automatiquement l’autorisation de réaliser le scope convenu : vérifier que scope, critères, file-set, permissions et conditions restent couverts, puis renouveler les preuves et reviews affectées sur l’objet final. Cette continuité ne permet aucune extension du mandat.
+
+Une autorisation de delivery liée au diff exact, de merge liée à une PR et un SHA, ou d’exécution sensible liée à des octets, un environnement et une commande exacts ne couvre pas un objet changé. La même exigence vaut pour une action de production. Aucun record consommé n’est réactivé, aucun auto-merge ni aucune permission implicite ne découle d’une correction ou d’un nouveau résultat vert.
 
 ### 8. Expertise humaine externe
 
@@ -273,19 +297,25 @@ La validation professionnelle métier réelle reste distincte de la review techn
 
 ### 9. Proportionnalité et anti-usine à gaz
 
+Choisir la solution la plus simple qui satisfait le besoin actuel et maîtrise les risques identifiés. Minimiser le coût total de construction, de vérification, d’utilisation et de maintenance, sans affaiblir la sécurité, l’intégrité des données ni les exigences métier.
+
 - Choisir la plus petite boucle qui maîtrise le risque.
 - Ne pas créer un gate sans question précise.
 - Ne pas demander `FULL` pour un changement A ou B sans déclencheur.
 - Ne pas répéter une règle commune dans chaque prompt ou rôle.
-- Utiliser Git, la CI et les services standards avant de créer une preuve custom.
-- Simplifier ou arrêter lorsque le coût du contrôle dépasse la valeur attendue.
+- Réutiliser l’existant, Git, la CI et les outils standards avant le sur-mesure ; aucune abstraction, infrastructure ou dépendance pour un besoin hypothétique.
+- Justifier toute complexité supplémentaire par un bénéfice ou un risque concret. Si une capacité externe conditionne la faisabilité, rechercher tôt une petite preuve réelle dans les permissions autorisées ; ne pas confondre simulation et intégration.
+- Cibler les tests selon l’impact et conserver la couverture pertinente. Chaque demande de preuve doit débloquer une décision identifiable ; réutiliser les preuves encore applicables en les datant, sans les présenter comme fraîches.
+- Deux cycles sur le même blocage sans information nouvelle déclenchent un réexamen de méthode par le CPO, pas une répétition automatique.
+- Compter le temps, la maintenance et les interventions de Luis dans le coût total. Le CPO challenge aussi ses propres demandes de preuve et recommande une simplification lorsque la boucle ne progresse plus.
+- Préférer un résultat utile et maintenable au volume de tests ou de documents. La simplicité est un critère d’acceptation, y compris pour les prompts, rapports et moyens de contrôle ; simplifier ou arrêter lorsque le coût du contrôle dépasse la valeur attendue.
 
 ### 10. Utilisation de `/plan` et `/goal`
 
 - Utiliser `/plan` pour tout nouveau scope B ou C, toute tâche multi-étapes, ou lorsque des décisions de conception, de file-set, de tests ou de delivery restent ouvertes.
 - Dans le workflow Ritomer, `/plan` est plan-only : il prépare ou corrige le plan et n’autorise aucune modification par lui-même.
 - Utiliser `/goal` seulement lorsque le résultat attendu, le scope, le hors-scope, le file-set, les checks, les conditions de stop et les autorisations sont suffisamment fermés.
-- Un correctif déjà strictement borné et décision-complete peut passer directement en `/goal` ; sinon, utiliser `/plan` d’abord.
+- Un mandat ou correctif déjà strictement borné et décision-complete peut passer directement en `/goal` ; ne pas imposer un nouveau plan pour le redécrire. Une correction ordinaire couverte se poursuit dans la mission en cours ; sinon, utiliser `/plan` pour fermer les décisions restantes.
 - Si un objectif Codex non lié peut encore être actif, demander `/goal clear` avant le nouveau `/goal`.
 - Un `/goal` n’élargit jamais une autorisation existante. Il doit lier l’objectif métier, le scope, le file-set, les checks, les conditions de stop, les actions interdites, les autorisations courantes et le Fresh Evidence Pack attendu.
 - Si la surface Codex utilisée n’expose pas ces commandes, utiliser le mode Plan ou Goal équivalent de l’interface ; ne jamais traiter une commande non reconnue comme une instruction ordinaire implicitement autorisée.
@@ -441,7 +471,10 @@ Mandatory delivery sequence:
 3. Create one dedicated branch.
 4. Modify only the authorized file-set.
 5. Run all checks required by the declared surface and risk.
-6. Stop on any failed, skipped, stale, missing or indeterminate required check.
+6. Stop delivery on any failed, skipped, stale, missing or indeterminate required
+   check. In-scope corrections remain subject to the implementation mandate and
+   the common autonomy and invalidation rules; delivery resumes only on renewed,
+   valid evidence and applicable authorization.
 7. Produce the proportionate Fresh Evidence Pack and complete the applicable
    post-code review before delivery.
 8. Verify `DELIVERY_AUTHORIZED` and its applicable record against the exact

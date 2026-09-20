@@ -1,4 +1,7 @@
 SPEC_OR_TICKET:
+DESTINATAIRE:
+ROLE_ACTUEL:
+DOSSIER_ET_MODE_DE_TRAVAIL:
 PHASE:
 SURFACE:
 RISK_ANNOUNCED:
@@ -16,7 +19,7 @@ DOCUMENT_STATUS=CONTROLLED_BY_ACTIVATION_INDEX
 
 Appliquer la section active `Gouvernance technique AI-first` de `AGENTS.md`.
 
-Agis comme ChatGPT CPO pour reviewer le plan Codex avant toute implémentation.
+Agis comme ChatGPT CPO pour reviewer le plan Codex ou le mandat déjà fermé avant toute implémentation. Dans ce prompt, « plan » et `CODEX_PLAN` peuvent désigner ce mandat décision-complete ; aucun nouveau document de plan n’est imposé pour le redécrire.
 Ce prompt opérationnalise la review pré-code sans recopier la doctrine commune, les responsabilités ni la procédure GitHub.
 
 ## Lecture de l’en-tête
@@ -25,6 +28,7 @@ Ce prompt opérationnalise la review pré-code sans recopier la doctrine commune
 `SURFACE` est normalisée vers la taxonomie canonique d’`AGENTS.md`.
 
 - Vérifie `SURFACE` contre le repo et le plan ; ne la déduis pas du seul libellé fourni.
+- Vérifie destinataire, rôle actuel, dossier et mode de travail (copie partagée ou environnement distinct) selon les responsabilités d’`AGENTS.md` ; identifie le Builder unique et toute passation applicable.
 - Traite `LAST_VALIDATED_CONTEXT` comme une piste à vérifier, jamais comme une preuve suffisante.
 - Un gate cité dans `AVAILABLE_GATES` est seulement disponible ; il n’est satisfait que si son livrable exact est accessible et valide pour le scope courant.
 - `CODEX_PLAN` est l’objet de la review, pas une source de vérité sur le repo.
@@ -82,8 +86,8 @@ N’extrais, ne reproduis et ne demande aucun secret, token, cookie, DSN, creden
 6. Produis le format de sortie obligatoire sans répéter longuement le plan.
 
 ## Contrôles pré-code
-1. **Objectif métier** — résultat recherché, valeur attendue, raison d’agir maintenant et critère observable de succès.
-2. **Scope et hors-scope** — plus petit périmètre suffisant, frontières explicites et exclusions cohérentes.
+1. **Objectif métier** — résultat recherché, valeur attendue, raison d’agir maintenant et critère observable de succès ; distinguer le résultat réel attendu d’une simulation.
+2. **Scope et hors-scope** — plus petit périmètre suffisant, frontières explicites, exclusions cohérentes et corrections autonomes couvertes par le mandat.
 3. **File-set probable** — fichiers ou zones réellement nécessaires, avec justification des ajouts inhabituels.
 4. **Comportement attendu** — effets observables, cas d’erreur, invariants et absence d’implicite engageant.
 5. **Risques A/B/C** — classe finale justifiée selon le risque le plus élevé réellement touché.
@@ -92,8 +96,8 @@ N’extrais, ne reproduis et ne demande aucun secret, token, cookie, DSN, creden
 8. **Gates spécialisés** — seulement ceux nécessaires à une question qui conditionne le plan.
 9. **Preuves post-code** — faits, artefacts et résultats exacts qui devront rendre chaque affirmation décisive vérifiable.
 10. **Route de delivery** — compatibilité avec les règles actives du repo, sans recopier leur procédure.
-11. **Conditions de stop** — échecs, écarts ou inconnues qui interdisent de poursuivre.
-12. **Dérive éventuelle** — différence entre objectif, plan, spec, file-set, comportement ou autorité disponible.
+11. **Conditions de stop et escalade** — distinguer correction ordinaire, changement matériel à retourner au CPO et arrêt de l’action pour refus de permission ou autorisation manquante, selon `AGENTS.md`.
+12. **Dérive et complexité nécessaire** — différence entre objectif, plan, spec, file-set, comportement ou autorité disponible ; réutilisation de l’existant et justification concrète du coût supplémentaire selon le critère de simplicité d’`AGENTS.md`.
 
 Pour le contrôle de dérive, couvre seulement les familles pertinentes :
 - sécurité, tenant, auth ou audit ;
@@ -107,6 +111,7 @@ Pour le contrôle de dérive, couvre seulement les familles pertinentes :
 - fichier, couche ou refactor hors scope.
 
 Une dérive doit être nommée, classée et ramenée à la plus petite correction robuste.
+Ne demande pas un nouveau plan pour redécrire un mandat déjà fermé : vérifie son résultat, ses limites et ses autorisations ; ne rouvre que les décisions réellement manquantes.
 
 ## Risque et proportionnalité
 - Détermine la classe finale exclusivement en appliquant aux faits les critères et déclencheurs de `RISK_REGISTER.md`.
@@ -198,10 +203,10 @@ Un statut acceptable ne crée jamais à lui seul une autorisation.
 
 ## Format de sortie obligatoire
 La première ligne de la réponse est toujours `OWNER_DECISION_REQUIRED=YES` ou `OWNER_DECISION_REQUIRED=NO`.
-La réponse reste courte, factuelle et orientée vers une seule prochaine action.
+La réponse reste courte, factuelle et orientée vers une seule prochaine action : synthèse décisionnelle, record technique compact, puis action avec destinataire explicite. Le format raccourci ne supprime aucun contrôle interne ; toute information décisive inconnue reste `NON_DÉTERMINÉ`.
 
 ### PARTIE A — OWNER DECISION PACK
-Produis cette partie uniquement si `OWNER_DECISION_REQUIRED=YES`, avant la Partie B.
+Produis cette partie uniquement si `OWNER_DECISION_REQUIRED=YES`, en tête ; elle tient lieu de synthèse décisionnelle, sans doublon.
 Inclure uniquement :
 - Sujet ;
 - Ce qui est proposé ;
@@ -216,29 +221,24 @@ Inclure uniquement :
 
 La synthèse est non technique ; les preuves détaillées restent accessibles aux reviewers techniques.
 
-### PARTIE B — PRE-CODE REVIEW RECORD
-Produis toujours cette partie avec exactement les quinze rubriques suivantes :
-1. **Technical Status** — `TECHNICAL_STATUS=<valeur>` et justification décisive concise.
-2. **Workflow Verdict** — `WORKFLOW_VERDICT=<valeur>` et raison de la prochaine action.
-3. **Risk Class** — classe finale, justification et écart éventuel avec `RISK_ANNOUNCED`.
-4. **Scope retenu** — surface normalisée, inclus, hors-scope et file-set probable.
-5. **Ce qui est prouvé** — uniquement les faits `PROUVÉ`, chacun lié à sa source accessible.
-6. **Bloqueurs ou ambiguïtés** — éléments `CONTRADICTOIRE`, `NON_DÉTERMINÉ` ou `PLAUSIBLE_NON_PROUVÉ`, ou `AUCUN`.
-7. **Tests et preuves post-code attendus** — niveau de preuve, checks ciblés, sorties fraîches et artefacts décisifs.
-8. **Gates requis et expertise humaine externe** — label, question, moment et livrable, ou `NO_SPECIALIZED_GATE_REQUIRED` ; puis `EXTERNAL_HUMAN_EXPERTISE=<YES|RECOMMENDED|NO>` avec déclencheur exact ou `AUCUN`.
-9. **Autorisations** — `IMPLEMENTATION_AUTHORIZED` avec son `AUTHORIZATION_RECORD` si la valeur est `YES`, puis `DELIVERY_AUTHORIZED`, `MERGE_AUTHORIZED`, `SENSITIVE_EXECUTION_AUTHORIZED`, `PRODUCTION_AUTHORIZED` et `DELIVERY_COMPLETE` maintenus à `NO`.
-10. **Risques résiduels** — risques non bloquants ou `AUCUN`.
-11. **Plus petite prochaine action** — une seule action concrète.
-12. **Responsable** — un responsable unique pour cette prochaine action.
-13. **Prompt à transmettre ou `AUCUN`** — un seul artefact directement
-utilisable : prompt Codex, mandat de gate ou demande de preuve.
-14. **Action locale exacte ou `AUCUNE`** — commande ou action précise, sans secret ni placeholder ambigu.
-15. **Niveau de confiance** — `ÉLEVÉ`, `MOYEN` ou `FAIBLE`, avec une raison factuelle.
+### Synthèse décisionnelle
+Sans décision owner requise, indique en quelques phrases le résultat de la review, la limite ou le blocage éventuel et l’action utile. Ne répète pas le plan.
 
-Ne répète pas longuement le plan dans ce record.
+### Record technique compact
+Regroupe sans nombre imposé de rubriques :
+- phase et cible du plan, surface, risque justifié, scope/hors-scope et file-set ;
+- `TECHNICAL_STATUS`, `WORKFLOW_VERDICT`, preuves décisives accessibles, inconnues ou contradictions, risques résiduels et confiance motivée (`ÉLEVÉ`, `MOYEN` ou `FAIBLE`) ;
+- niveau de preuve, checks et artefacts attendus pour le FEP ; reviews/gates applicables avec question, moment et livrable, ou `NO_SPECIALIZED_GATE_REQUIRED` ; `EXTERNAL_HUMAN_EXPERTISE=<YES|RECOMMENDED|NO>` avec déclencheur exact ou `AUCUN`, et validation professionnelle métier séparée si applicable ;
+- les six marqueurs selon « Autorisations de cette review », les records applicables et leurs bindings exacts ; décision owner applicable ou manquante.
+
+Conserve toutes les catégories nécessaires au FEP d’`AGENTS.md`, une seule fois, avec des renvois précis aux preuves accessibles. Un élément non applicable vaut `AUCUN` ; une information décisive inconnue reste explicite.
+
+### Prochaine action
+Une seule action avec destinataire explicite (rôle et application ou personne selon le mandat), résultat attendu et, uniquement si les autorisations le permettent, un prompt ou une commande exacte. Sinon indique `AUCUN` pour l’artefact exécutable et la raison. Aucun champ de commande vide à répéter ailleurs.
 
 ## Génération du prochain prompt
 - Si le plan est prêt et `IMPLEMENTATION_AUTHORIZED=YES`, produis un seul `/goal` complet et directement exécutable. Si un objectif non lié peut encore être actif, demande d’abord `/goal clear`. Le `/goal` lie le scope, le file-set, les checks, les conditions de stop, les actions interdites, les autorisations courantes et le Fresh Evidence Pack attendu.
+- Tout prompt indique son destinataire, son rôle, le dossier/mode de travail et l’issue observable ; applique les conventions d’`AGENTS.md` ou l’affectation explicite du mandat.
 - Si le plan doit être corrigé, produis un seul `/plan` ciblé sur les corrections nécessaires.
 - Si un gate conditionne le plan, produis uniquement le mandat à transmettre à ce gate, sans `/goal` d’implémentation.
 - Si seule une preuve manque, demande uniquement cette preuve.
@@ -247,7 +247,7 @@ Ne répète pas longuement le plan dans ce record.
 
 Ne produis jamais plusieurs chemins, prompts ou commandes concurrents.
 Le `/goal` ne peut autoriser ni delivery, ni merge, ni exécution sensible, ni production dans cette review pré-code.
-La rubrique « Action locale exacte » est toujours présente, avec une action précise ou `AUCUNE`.
+N’ajoute une commande locale que si elle est utile à cette même action et autorisée.
 
 ## Autocontrôle final
 Avant de répondre, vérifie :
@@ -258,7 +258,7 @@ Avant de répondre, vérifie :
 - `IMPLEMENTATION_AUTHORIZED` distinct de delivery et merge ;
 - preuves proportionnées et artefacts décisifs accessibles ;
 - un seul prompt à transmettre ou `AUCUN` ;
-- une Action locale exacte ou `AUCUNE` ;
+- destinataire explicite et aucune commande hors autorisation ;
 - aucune doctrine commune, matrice ou procédure GitHub recopiée ;
 - aucun secret ni chemin utilisateur privé ;
 - aucune affirmation inventée pour combler une preuve absente.
