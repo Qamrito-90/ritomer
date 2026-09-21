@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx",
     "test": "vitest",
-    "test:ci": "vitest run"
+    "test:ci": "vitest run",
+    "test:browser": "playwright test"
   },
   "dependencies": {
     "@hookform/resolvers": "3",
@@ -29,6 +30,7 @@
   },
   "devDependencies": {
     "@eslint/js": "9",
+    "@playwright/test": "1.63.0",
     "@testing-library/jest-dom": "6",
     "@testing-library/react": "16",
     "@testing-library/user-event": "14",

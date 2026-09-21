@@ -606,3 +606,68 @@ try {
 - pas de violation des frontières modulaires
 - pas de régression cross-tenant
 - contrats mis à jour si nécessaire
+
+
+## Qualification autonome de l'outillage Playwright
+
+Ce smoke test utilise exclusivement une page HTTP factice sur 127.0.0.1,
+un port attribué automatiquement et des données synthétiques. Il ne démarre
+ni Ritomer, ni Vite applicatif, ni PostgreSQL, ni le rail ou les anciens témoins.
+Il ne valide pas M1.1D, l'authentification Ritomer, le cookie Secure __Host-,
+le CSRF, l'expiration ou les contrôles métier.
+
+La devDependency @playwright/test est verrouillée à 1.63.0 dans le manifeste
+et le lockfile. Utiliser le Node et le pnpm du projet ; aucune extension,
+connexion CDP, configuration de navigateur personnel ou profil persistant
+n'est nécessaire. Le navigateur est Chromium Headless Shell géré par Playwright.
+
+Après installation des dépendances frontend, exécuter depuis frontend dans
+un mandat local autorisé. La protection du cache empêche la collecte des
+navigateurs préexistants ; restaurer la présence et la valeur initiales du flag.
+
+```powershell
+$toolingHadGc = Test-Path -LiteralPath 'Env:\PLAYWRIGHT_SKIP_BROWSER_GC'
+$toolingPreviousGc = $env:PLAYWRIGHT_SKIP_BROWSER_GC
+try {
+  $env:PLAYWRIGHT_SKIP_BROWSER_GC = '1'
+  pnpm exec playwright install chromium --only-shell
+  if ($LASTEXITCODE -ne 0) { throw 'Échec de l’installation du navigateur de test.' }
+} finally {
+  if ($toolingHadGc) {
+    $env:PLAYWRIGHT_SKIP_BROWSER_GC = $toolingPreviousGc
+  } else {
+    Remove-Item -LiteralPath 'Env:\PLAYWRIGHT_SKIP_BROWSER_GC' -ErrorAction SilentlyContinue
+  }
+}
+pnpm test:browser
+if ($LASTEXITCODE -ne 0) { throw 'Échec du smoke Playwright.' }
+pnpm test:ci
+if ($LASTEXITCODE -ne 0) { throw 'Échec de Vitest.' }
+pnpm lint
+if ($LASTEXITCODE -ne 0) { throw 'Échec du lint frontend.' }
+pnpm build
+if ($LASTEXITCODE -ne 0) { throw 'Échec du build frontend.' }
+```
+
+Un seul test vérifie le cookie HttpOnly factice reçu par HTTP et réellement
+renvoyé au serveur, localStorage après rechargement, le partage entre deux
+onglets A, l'isolation du contexte B et sa survie après fermeture de A.
+Les fixtures ferment serveur et contexte B en finally ; le runner possède
+le contexte A et le navigateur et les ferme aussi après un échec. Les erreurs
+de teardown restent rapportées par Playwright sans remplacer l'erreur du test.
+
+La configuration impose un worker, zéro retry, un délai de test de 20 s,
+5 s pour assertions/actions/navigations et fixtures locales, 10 s au lancement
+du navigateur et 60 s pour le run. Le reporter list est textuel, avec étapes
+et version effective du navigateur. Trace, vidéo et screenshot sont désactivés ;
+aucun HAR ou état d'authentification n'est enregistré.
+
+Le répertoire frontend/out/playwright-tooling-smoke est réservé aux sorties
+ordinaires du runner, qui peut le réutiliser et en supprimer les sorties
+précédentes. Ne jamais y placer de pièce historique. Aucun nettoyage de cache,
+profil ou autre processus n'accompagne ce test.
+
+Vitest conserve sa commande test:ci et ses exclusions par défaut ; seul e2e/**
+est exclu. Les tests existants à la racine frontend restent exécutés.
+Playwright découvre uniquement e2e/**/*.spec.ts. Le contrôle TypeScript et le
+lint incluent la configuration et le smoke ; aucune règle n'est désactivée.
