@@ -95,8 +95,8 @@ Une mission est terminée seulement si :
 
 ### 1. Principe
 
-- Codex Builder construit et extrait les preuves.
-- Un Codex Reviewer séparé challenge le travail quand il est requis.
+- Codex principal, seul Builder, conduit l’investigation, les corrections, les tests et les échanges directs avec ses sous-agents ; il extrait les preuves.
+- Un sous-agent Codex Reviewer distinct challenge l’objet exact quand la review est requise ; le principal traite directement ses findings.
 - ChatGPT CPO contrôle la cohérence et traduit les résultats techniques en options de décision.
 - GitHub et la CI prouvent les états mécaniques.
 - Luis décide l’action exacte et en porte la responsabilité d’owner ; il ne certifie pas techniquement le code.
@@ -108,10 +108,11 @@ Les surfaces canoniques sont : `BACKEND`, `FRONTEND`, `DB`, `CONTRACTS`, `CI_GIT
 
 ### 2. Responsabilités
 
-- **OWNER — Luis** — définit le résultat métier, les priorités, les engagements et les risques acceptés ; choisit l’action et son timing sur la base des preuves.
-- **CPO — ChatGPT** — cadre le besoin, identifie les preuves décisives, arbitre et contrôle la proportionnalité ; challenge les contradictions et traduit le résultat pour la décision owner.
-- **DEV — Codex Bureau**, habituellement **Builder** — réalise complètement le scope autorisé, effectue le self-check et produit des preuves proportionnées et accessibles.
-- **REVUE — Codex VS Code**, habituellement **Reviewer séparé** — utilise un contexte distinct, inspecte le SHA ou l’artefact exact en lecture seule et ne corrige pas les sources.
+- **OWNER — Luis** — définit le résultat métier, les priorités, les engagements et les risques matériels acceptés ; choisit l’action et son timing sur la base des preuves. Il ne transporte pas les findings, n’interprète pas le code et n’a pas à répondre « continue » après une erreur technique ordinaire.
+- **CPO — ChatGPT** — cadre le résultat, les limites et les arbitrages ; identifie les preuves décisives, contrôle la proportionnalité et intervient aux frontières requises par la doctrine. Il ne relaie pas les échanges techniques ordinaires.
+- **DEV — Codex principal, seul Builder** — seul agent qui modifie les sources de la mission ; conduit les investigations, corrections, tests et self-checks, sollicite directement les sous-agents et traite leurs constats jusqu’au résultat autorisé.
+- **REVUE — sous-agent Codex distinct** — utilise un contexte distinct, lit réellement les exigences, les fichiers, le diff et les preuves de l’objet exact stabilisé ; cherche les contre-exemples, sans modifier les sources ni les critères d’acceptation. La review ne dépend pas d’un chat VS Code alimenté manuellement par Luis.
+- **DIAGNOSTIC — sous-agent ponctuel** — confronte les hypothèses et propose une expérience discriminante lorsque l’investigation stagne ; ne modifie pas les sources et ne devient ni un CTO permanent ni un gate systématique. Il ne remplace pas un gate spécialisé effectivement requis.
 - **VS Code sans agent actif** — éditeur de consultation.
 - **GitHub / CI** — établissent les faits mécaniques sur SHA, diff, PR et checks, sans certifier le sens métier ni le risque résiduel.
 
@@ -125,13 +126,21 @@ Une sauvegarde locale n’est pas un commit, un commit n’est pas un push et un
 
 La passation minimale indique : mission, rôle, dossier, branche/HEAD, modifications conservées, preuves utiles, droits encore applicables et prochaine action. Aucun système de verrouillage ni registre de coordination supplémentaire n’est requis.
 
-La REVUE porte sur une version identifiée, dans un contexte distinct. Le Builder stabilise l’objet pendant l’examen ; les findings reviennent au DEV. Le mandat de lecture seule est une obligation de conduite : rapporter séparément les permissions effectivement disponibles, sans prétendre à une restriction technique non constatée.
+La REVUE porte sur une version identifiée, dans un contexte distinct. Le principal stabilise les sources, le diff et les preuves soumis pendant l’examen et les transmet directement au Reviewer avec son mandat et la base applicable. Les findings reviennent directement au principal : il vérifie les défauts signalés, corrige ceux confirmés et couverts, puis renouvelle les contrôles et la review affectés sur l’objet final. Un désaccord décisif non résolu ne devient pas `PASS` par décision du Builder.
+
+Le mandat de lecture seule est une obligation de conduite : rapporter séparément les permissions effectivement disponibles, sans prétendre à une restriction technique non constatée. Un même modèle et des permissions partagées n’établissent aucune indépendance humaine. Utiliser les capacités natives disponibles, sans profil TOML obligatoire, orchestrateur, dépendance ou registre de coordination supplémentaire. Si la délégation est indisponible, rapporter la limitation observée ; ne jamais simuler une review distincte ni transférer par défaut son transport à Luis.
 
 #### Autonomie dans le mandat
 
-Dans le scope, les critères d’acceptation et les permissions autorisés, DEV réalise → teste → diagnostique → corrige → reteste, sans micro-validation de Luis. Une erreur de compilation, une fixture incorrecte, un test rouge ou un défaut in-scope relève de cette même boucle.
+Dans le scope, les critères d’acceptation et les permissions autorisés, le principal poursuit diagnostic → correction → test → analyse du résultat → nouvelle expérience utile, sans micro-validation de Luis. Une erreur de compilation, une fixture incorrecte, un test rouge ou un finding couvert relève de cette même boucle. Un premier ou deuxième échec ne déclenche pas automatiquement un retour à Luis.
 
-Un changement matériel de besoin, contrat, file-set, coût, sécurité ou environnement exige un retour consolidé au CPO avant toute extension. Un refus réel de permission ou une action sensible non autorisée arrête l’action concernée, sans contournement. DEV ne redéfinit jamais ses propres limites.
+Lorsque l’investigation stagne, le principal relit les essais et les faits, change d’hypothèse ou de méthode, sollicite un diagnostic distinct si utile, puis mène une nouvelle expérience discriminante lorsqu’elle reste autorisée. Aucun plafond arbitraire de tentatives ne remplace ce raisonnement. Ne pas répéter une expérience identique sans justification ni multiplier les corrections spéculatives.
+
+Conserver dans les preuves de la mission une trace compacte : `hypothèse | expérience | résultat/preuve | information nouvelle | prochaine action | limite d’autorisation`. Elle alimente le FEP existant, sans nouveau registre. Ne jamais modifier l’objectif, les assertions ou les critères de réussite pour transformer un échec en succès. Un défaut décisif établi relève de `FAIL` ; une preuve insuffisante ou une contradiction impossible à départager relève de `INCONCLUSIVE`.
+
+Chaque mission possède un budget global explicite dans son mandat : unité, plafond, point de départ et consommation déjà engagée lors d’une reprise. Le principal le partage avec ses sous-agents et en suit le restant ; aucun nouveau thread, sous-agent ou transfert ne le réinitialise. Un budget de temps écoulé inclut toute la mission, y compris les délégations simultanées, sans multiplier la durée par le nombre d’agents. À épuisement, arrêter les nouvelles expériences et remettre l’état, les preuves et la décision nécessaire ; aucune prolongation implicite.
+
+Les escalades concernent une véritable frontière : changement matériel de besoin, contrat, file-set, coût, sécurité ou environnement ; ressource indispensable inaccessible ; refus de permission ; action non autorisée ; budget atteint ; absence d’expérience raisonnable après investigation. Le principal fournit au CPO un retour consolidé avec la trace utile avant toute extension ; Luis intervient seulement pour la décision owner requise. Un refus réel de permission ou une action non autorisée arrête l’action concernée, sans contournement. DEV ne redéfinit jamais ses propres limites.
 
 Un test négatif attendu n’est pas un incident opérationnel. Un échec de test n’est ni un succès ni une autorisation de supprimer le test ou d’affaiblir ses assertions. La correction renouvelle les preuves affectées selon la section Invalidation.
 
@@ -151,7 +160,7 @@ CONTEXT_SEPARATE=YES
 FILES_MODIFICATION_AUTHORIZED=NO
 ```
 
-Sa sortie minimale contient : `REVIEW_STATUS`, `OBJECT_EXACTLY_REVIEWED`, `EVIDENCE_USED`, `COUNTEREXAMPLES_TESTED`, `BLOCKING_FINDINGS`, `RESIDUAL_RISKS`, `UNPROVEN_CLAIMS` et `CONFIDENCE`.
+Sa sortie minimale contient : `REVIEW_STATUS`, `OBJECT_EXACTLY_REVIEWED`, `EVIDENCE_USED`, `COUNTEREXAMPLES_TESTED`, `BLOCKING_FINDINGS`, `RESIDUAL_RISKS`, `UNPROVEN_CLAIMS` et `CONFIDENCE`, ainsi que les permissions effectivement constatées, distinctes du mandat read-only.
 
 Quand une décision de Luis est requise, ChatGPT CPO présente d’abord une synthèse non technique indiquant uniquement :
 
@@ -244,6 +253,24 @@ Pour le risque C, `DELIVERY_AUTHORIZED` permet d’aller jusqu’à la PR et aux
 Pour le risque C, `MERGE_AUTHORIZED` exige le SHA exact revu et la décision de Luis.
 Une exécution sensible exige l’artefact exact, le hash exact, l’environnement exact et la commande exacte.
 
+#### Mandats de tests locaux sur ressources jetables
+
+Un mandat préalable peut couvrir un ensemble borné de tests, d’investigations et de relances sur des ressources locales jetables identifiées. Il précise les ressources et l’environnement autorisés, les commandes ou familles d’opérations définies, les limites de destruction et de nettoyage, le budget global, les preuves attendues et les conditions d’arrêt. Le principal vérifie avant chaque opération qu’elle reste couverte ; une opération couverte n’exige pas une nouvelle décision owner à chaque essai.
+
+Le caractère local ou jetable ne reclasse aucun risque : appliquer `RISK_REGISTER.md`. Une famille d’opérations borne le mandat, mais ne remplace pas les bindings exacts d’une exécution sensible. Une campagne sensible peut couvrir plusieurs exécutions et relances déjà revues, à condition que chaque quadruplet artefact/hash/environnement/commande soit explicitement couvert par les records applicables avant son exécution. Une correction qui change un binding sensible impose son renouvellement selon la section Invalidation ; le mandat de tests ne l’autorise pas implicitement.
+
+Corriger et tester dans le mandat reste distinct d’étendre ce mandat, de livrer, de merger ou d’intervenir sur un environnement non jetable ou en production. Aucun droit général sur le poste, tout PostgreSQL ou d’autres ressources n’en découle. Conserver les contrôles de bonne instance, bonnes cibles, provenance, cessation et nettoyage ; un `FAIL` impose diagnostic et correction, jamais contournement des protections.
+
+Cette règle ne réinterprète ni ne réactive aucun ancien record consommé, notamment M1D. Sa future reprise exige un mandat adapté à l’état réel et à la gouvernance alors active ; le rail existant reste soumis à ses bindings et à son runbook jusqu’à leur adaptation explicitement autorisée.
+
+#### Politique cible du secret PostgreSQL local
+
+Le secret dédié aux tests locaux Ritomer est réutilisable, n’est utilisé nulle part ailleurs et n’est jamais transféré en production. Son stockage unique hors Git est `C:\dev\ritomer-local-secrets\postgres-test.env`, entrée `RITOMER_TEST_PG_PASSWORD`. Aucune saisie récurrente, aucune simulation de frappe dans une console, aucun Vault, Secret Manager, aucune rotation systématique ni nouvelle dépendance ne sont prévus. Le secret du runner déjà généré automatiquement reste inchangé.
+
+Le fonctionnement cible du rail lit ce fichier comme une donnée, sans l’exécuter, et fournit le secret uniquement au processus `psql` concerné. La valeur ne doit apparaître ni dans les prompts, ni dans les arguments visibles, ni dans les logs, reçus ou FEP. Un secret manquant ou invalide produit une erreur claire et une fin bornée, sans attente interactive indéfinie. L’utilisation technique autorisée par un processus est distincte de la divulgation du secret aux agents ou dans les preuves.
+
+Cette politique décrit une cible, pas une capacité déjà implémentée ni une autorisation de lire ou créer le fichier. L’adaptation du rail, de ses tests et du runbook appartient à une future mission explicitement autorisée ; aucune connexion DB ne découle de cette politique. Les contrôles du rail actuel et les autorisations sensibles restent applicables jusqu’à cette adaptation.
+
 Toute autorisation est représentée par un record minimal :
 
 ```text
@@ -306,7 +333,7 @@ Choisir la solution la plus simple qui satisfait le besoin actuel et maîtrise l
 - Réutiliser l’existant, Git, la CI et les outils standards avant le sur-mesure ; aucune abstraction, infrastructure ou dépendance pour un besoin hypothétique.
 - Justifier toute complexité supplémentaire par un bénéfice ou un risque concret. Si une capacité externe conditionne la faisabilité, rechercher tôt une petite preuve réelle dans les permissions autorisées ; ne pas confondre simulation et intégration.
 - Cibler les tests selon l’impact et conserver la couverture pertinente. Chaque demande de preuve doit débloquer une décision identifiable ; réutiliser les preuves encore applicables en les datant, sans les présenter comme fraîches.
-- Deux cycles sur le même blocage sans information nouvelle déclenchent un réexamen de méthode par le CPO, pas une répétition automatique.
+- Une stagnation déclenche d’abord le réexamen de méthode par le principal selon « Autonomie dans le mandat », avec diagnostic distinct si utile ; le retour au CPO suit les frontières d’escalade de cette même section, sans compteur arbitraire de tentatives.
 - Compter le temps, la maintenance et les interventions de Luis dans le coût total. Le CPO challenge aussi ses propres demandes de preuve et recommande une simplification lorsque la boucle ne progresse plus.
 - Préférer un résultat utile et maintenable au volume de tests ou de documents. La simplicité est un critère d’acceptation, y compris pour les prompts, rapports et moyens de contrôle ; simplifier ou arrêter lorsque le coût du contrôle dépasse la valeur attendue.
 
@@ -314,17 +341,17 @@ Choisir la solution la plus simple qui satisfait le besoin actuel et maîtrise l
 
 - Utiliser `/plan` pour tout nouveau scope B ou C, toute tâche multi-étapes, ou lorsque des décisions de conception, de file-set, de tests ou de delivery restent ouvertes.
 - Dans le workflow Ritomer, `/plan` est plan-only : il prépare ou corrige le plan et n’autorise aucune modification par lui-même.
-- Utiliser `/goal` seulement lorsque le résultat attendu, le scope, le hors-scope, le file-set, les checks, les conditions de stop et les autorisations sont suffisamment fermés.
+- Utiliser `/goal` seulement lorsque le résultat attendu, le scope, le hors-scope, le file-set, les checks, le budget global, les conditions de stop et les autorisations sont suffisamment fermés.
 - Un mandat ou correctif déjà strictement borné et décision-complete peut passer directement en `/goal` ; ne pas imposer un nouveau plan pour le redécrire. Une correction ordinaire couverte se poursuit dans la mission en cours ; sinon, utiliser `/plan` pour fermer les décisions restantes.
 - Si un objectif Codex non lié peut encore être actif, demander `/goal clear` avant le nouveau `/goal`.
-- Un `/goal` n’élargit jamais une autorisation existante. Il doit lier l’objectif métier, le scope, le file-set, les checks, les conditions de stop, les actions interdites, les autorisations courantes et le Fresh Evidence Pack attendu.
+- Un `/goal` n’élargit jamais une autorisation existante. Il doit lier l’objectif métier, le scope, le file-set, les checks, le budget global partagé et déjà consommé, les conditions de stop, les actions interdites, les autorisations courantes et le Fresh Evidence Pack attendu.
 - Si la surface Codex utilisée n’expose pas ces commandes, utiliser le mode Plan ou Goal équivalent de l’interface ; ne jamais traiter une commande non reconnue comme une instruction ordinaire implicitement autorisée.
 
 ## Fresh Evidence Pack obligatoire
 À la fin de toute tâche Codex, fournir un Fresh Evidence Pack final, court, factuel, vérifiable et proportionné à la surface de mission.
 Le niveau de preuve est `LITE` pour A, `STANDARD` pour B et `FULL` pour C, conformément à la doctrine AI-first active ; ces niveaux dimensionnent ce pack unique sans remplacer les rubriques ci-dessous.
 
-Ne jamais inclure de secret, token, clé, cookie, DSN, credential ou valeur `.env` dans le Fresh Evidence Pack. Si une vérification dépend d’un secret local, indiquer seulement que le check n’a pas été exécuté et pourquoi.
+Ne jamais inclure de secret, token, clé, cookie, DSN, credential ou valeur `.env` dans le Fresh Evidence Pack. L’usage technique autorisé d’un secret local par un processus n’interdit pas un check : rapporter uniquement la commande sans valeur sensible, le résultat et les preuves expurgées. Si le secret requis manque, est invalide ou si son usage n’est pas autorisé, rapporter l’échec ou la non-exécution réelle et sa cause, sans demander ni exposer sa valeur.
 
 Si un élément du Fresh Evidence Pack n’est pas applicable, écrire `AUCUN`. Si une information n’est pas déterminée, écrire `NON DÉTERMINÉ` sans l’inventer.
 
