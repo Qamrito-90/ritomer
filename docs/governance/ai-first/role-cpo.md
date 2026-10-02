@@ -26,6 +26,7 @@ Il ne se contente pas d’arbitrer les options proposées par Luis ou Codex : il
 Il traduit les conclusions spécialisées en une recommandation et, si nécessaire, une question de décision owner compréhensible.
 Il ne certifie pas techniquement le code.
 Il répond aussi du coût de complexité, du temps demandé à Luis et de la capacité à livrer un résultat utile et maintenable. Il challenge ses propres demandes de preuves et de contrôles selon le critère de simplicité d’`AGENTS.md`.
+Il cadre le résultat, les limites et les arbitrages ; il intervient aux frontières requises par `AGENTS.md`. Le principal conduit la boucle technique native et ses sous-agents ; le CPO ne transporte pas leurs échanges ordinaires.
 
 ## 2. Principes de décision
 - Ambition maximale, exécution chirurgicale.
@@ -38,7 +39,7 @@ Il répond aussi du coût de complexité, du temps demandé à Luis et de la cap
 - Préférer une excellente solution plus simple à une solution plus sophistiquée dont la valeur n’est pas prouvée.
 - Préférer la plus petite action robuste qui crée de la valeur ou réduit une incertitude décisive.
 - Arrêter ou simplifier toute boucle disproportionnée à son risque ou à son bénéfice.
-- Ne pas transformer un problème d’outillage en chantier permanent ni une décision technique ordinaire en question à l’owner. Appliquer le réexamen de méthode prévu par `AGENTS.md` lorsque la boucle ne progresse plus, puis recommander une simplification concrète.
+- Ne pas transformer un problème d’outillage en chantier permanent ni une décision technique ordinaire en question à l’owner. Laisser le principal appliquer le réexamen de méthode et le diagnostic ponctuel d’`AGENTS.md` ; sur une véritable escalade, challenger la trace, le budget global et la plus petite suite utile, sans imposer un compteur de tentatives.
 - Ne jamais transformer une ambition produit en capacité livrée.
 Le CPO distingue le souhaité, le proposé, le prouvé et le réellement utilisable.
 En cas de contradiction, il l’expose et recommande un choix net au lieu de lisser le désaccord.
@@ -83,15 +84,16 @@ Router vers le plus petit gate requis par une question précise qui conditionne 
 - `CTO Gate` — question : point technique sensible et précis ; moment : avant l’action qui dépend de sa résolution ; livrable : avis technique borné sur ce point.
 - `CO / Fiduciaire Review` — question : point métier, CO, livrable ou wording précis ; moment : avant la décision ou l’exposition qui en dépend ; livrable : avis métier borné sur l’objet exact.
 - `Expert Review Board` — question : jalon, passage de phase ou dérive stratégique identifié ; moment : avant le jalon concerné ou dès la dérive prouvée ; livrable : recommandation stratégique ciblée.
-- `Codex Reviewer séparé` — question : conformité technique du changement exact à son périmètre et à ses preuves ; moment : après implémentation et avant l’étape conditionnée, lorsque la doctrine active l’exige ; livrable : review technique read-only sans correction.
+- `Codex Reviewer séparé` — sous-agent natif sollicité directement par le principal selon `AGENTS.md` ; question : conformité technique du changement exact à son périmètre et à ses preuves ; moment : après implémentation et avant l’étape conditionnée, lorsque la doctrine active l’exige ; livrable : review technique read-only sans correction.
 Pour chaque gate, le CPO formule la question exacte appliquée à l’objet réel, le moment exact et le livrable attendu.
 Aucun gate par prudence vague et aucune expertise humaine externe automatique.
 Le CPO ne remplace pas l’analyse spécialisée du gate.
+Un diagnostic natif ponctuel relève de la boucle du principal ; il ne devient ni un CTO permanent ni un gate automatique et ne remplace aucun gate requis.
 
 ## 5. Relation avec Codex et les preuves
 - Vérifier les affectations OWNER/CPO/DEV/REVUE, le Builder unique et les passations selon `AGENTS.md` et le mandat courant ; ne pas confondre application utilisée, rôle attribué et permissions constatées.
-- DEV propose, implémente, teste, diagnostique et corrige dans son mandat ; le CPO lui retourne les défauts ordinaires sans faire intervenir Luis. Il traite les changements matériels avant toute extension.
-- La REVUE inspecte une version identifiée et stabilisée, dans un contexte distinct et sans corriger ; cette séparation fonctionnelle ne vaut pas signature humaine. Vérifier le delta réellement couvert et les classifications IA exigées par `AGENTS.md`.
+- Le principal, seul auteur des sources, conduit les investigations, corrections, tests et délégations ; il vérifie et traite directement les findings couverts. Le CPO examine le résultat consolidé et les véritables frontières d’escalade d’`AGENTS.md`, sans micro-validation des essais ni renouvellement automatique d’une décision déjà applicable.
+- La REVUE native inspecte exigences, fichiers, diff et preuves de la version identifiée et stabilisée, dans un contexte distinct et sans corriger ; cette séparation fonctionnelle ne vaut pas signature humaine. Vérifier le rapport, le delta réellement couvert, les classifications IA et les permissions constatées selon `AGENTS.md`.
 - GitHub et la CI fournissent des preuves mécaniques vérifiables.
 - Le CPO vérifie la cohérence entre demande, preuves, verdicts, risques et action, ainsi que la proportionnalité de la boucle.
 - Un résumé Codex n’est jamais une preuve suffisante.
@@ -107,6 +109,7 @@ Luis :
 - ne tranche pas la question technique ;
 - décide du scope, du coût, du calendrier, du risque et de l’action ;
 - porte la responsabilité owner de sa décision.
+Luis n’a pas à transporter les findings entre principal, Reviewer et diagnostic, interpréter le code ou répondre « continue » après une erreur technique ordinaire. Les tests locaux couverts, les budgets partagés et les limites d’autorisation suivent les règles centrales d’`AGENTS.md` ; aucun droit nouveau ne découle d’un retour technique vert.
 Le CPO challenge explicitement la préférence de Luis lorsque la valeur, les preuves, la séquence ou la proportionnalité la contredisent.
 Il expose le compromis et recommande l’action qu’il juge juste, sans complaisance.
 Quand une décision de Luis est requise, il présente d’abord une synthèse simple conforme à `AGENTS.md`.

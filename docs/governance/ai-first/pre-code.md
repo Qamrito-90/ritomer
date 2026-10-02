@@ -10,6 +10,7 @@ LAST_VALIDATED_CONTEXT:
 AVAILABLE_GATES:
 OWNER_DECISION_RECORD:
 CODEX_PLAN:
+MISSION_BUDGET:
 
 # Ritomer — Review pré-code AI-first Lean
 
@@ -28,7 +29,8 @@ Ce prompt opérationnalise la review pré-code sans recopier la doctrine commune
 `SURFACE` est normalisée vers la taxonomie canonique d’`AGENTS.md`.
 
 - Vérifie `SURFACE` contre le repo et le plan ; ne la déduis pas du seul libellé fourni.
-- Vérifie destinataire, rôle actuel, dossier et mode de travail (copie partagée ou environnement distinct) selon les responsabilités d’`AGENTS.md` ; identifie le Builder unique et toute passation applicable.
+- Vérifie destinataire, rôle actuel, dossier et mode de travail selon les responsabilités d’`AGENTS.md` ; identifie le principal, seul Builder, la délégation native au Reviewer distinct et toute passation applicable. Luis n’assure pas le transport des échanges techniques.
+- Vérifie le budget global explicite, son point de départ, le déjà consommé et son partage avec les sous-agents selon « Autonomie dans le mandat » d’`AGENTS.md`.
 - Traite `LAST_VALIDATED_CONTEXT` comme une piste à vérifier, jamais comme une preuve suffisante.
 - Un gate cité dans `AVAILABLE_GATES` est seulement disponible ; il n’est satisfait que si son livrable exact est accessible et valide pour le scope courant.
 - `CODEX_PLAN` est l’objet de la review, pas une source de vérité sur le repo.
@@ -76,6 +78,7 @@ Classe chaque affirmation importante dans une seule catégorie :
 Un chemin, un hash ou un résumé déclaré seul ne rend pas un artefact accessible.
 Si une source décisive est inaccessible, impose `TECHNICAL_STATUS=INCONCLUSIVE` et n’émets aucune autorisation correspondante.
 N’extrais, ne reproduis et ne demande aucun secret, token, cookie, DSN, credential ou valeur `.env`.
+Pour l’usage technique d’un secret local par un processus, appliquer la politique centrale d’`AGENTS.md` : la review inspecte le mécanisme et ses preuves expurgées, jamais la valeur. Une politique cible n’est ni une implémentation ni une permission d’exécution.
 
 ## Méthode de review
 1. Valide l’en-tête et identifie les inconnues décisives.
@@ -96,7 +99,7 @@ N’extrais, ne reproduis et ne demande aucun secret, token, cookie, DSN, creden
 8. **Gates spécialisés** — seulement ceux nécessaires à une question qui conditionne le plan.
 9. **Preuves post-code** — faits, artefacts et résultats exacts qui devront rendre chaque affirmation décisive vérifiable.
 10. **Route de delivery** — compatibilité avec les règles actives du repo, sans recopier leur procédure.
-11. **Conditions de stop et escalade** — distinguer correction ordinaire, changement matériel à retourner au CPO et arrêt de l’action pour refus de permission ou autorisation manquante, selon `AGENTS.md`.
+11. **Conditions de stop et escalade** — vérifier la boucle autonome, le traitement de la stagnation, le budget partagé et les véritables frontières d’escalade selon « Autonomie dans le mandat » d’`AGENTS.md`, sans plafond arbitraire d’essais ni micro-validation owner.
 12. **Dérive et complexité nécessaire** — différence entre objectif, plan, spec, file-set, comportement ou autorité disponible ; réutilisation de l’existant et justification concrète du coût supplémentaire selon le critère de simplicité d’`AGENTS.md`.
 
 Pour le contrôle de dérive, couvre seulement les familles pertinentes :
@@ -120,6 +123,7 @@ Ne demande pas un nouveau plan pour redécrire un mandat déjà fermé : vérifi
 - Ne demande pas `FULL` pour A ou B sans déclencheur concret.
 - Ne demande pas tous les tests si des checks ciblés et proportionnés prouvent la surface.
 - Pour `EXECUTION_PLANNING`, exige artefact, environnement, commande, rollback, preuve et condition de stop exacts.
+- Pour un ensemble de tests locaux jetables, vérifier le bornage prévu par « Mandats de tests locaux sur ressources jetables » d’`AGENTS.md` ; les familles d’opérations ne dispensent pas des bindings et autorisations sensibles applicables. Ne réinterpréter aucun record historique consommé.
 - Exige que les futures preuves décisives soient réellement accessibles aux reviewers techniques.
 
 ## Gates spécialisés
@@ -134,7 +138,7 @@ Pour chaque gate requis, donne uniquement :
 - le moment exact ;
 - le livrable attendu.
 
-Pour un Codex Reviewer séparé, utilise le mandat minimal défini dans `AGENTS.md`.
+Pour le sous-agent Codex Reviewer distinct, utilise le mandat minimal et le circuit direct avec le principal définis dans `AGENTS.md`. Un diagnostic ponctuel ne remplace pas un gate requis.
 
 N’ajoute aucun gate par prudence vague, préférence ou seniorité supposée.
 Le CPO ne réalise pas à la place du gate une analyse spécialisée complète.
@@ -237,10 +241,11 @@ Conserve toutes les catégories nécessaires au FEP d’`AGENTS.md`, une seule f
 Une seule action avec destinataire explicite (rôle et application ou personne selon le mandat), résultat attendu et, uniquement si les autorisations le permettent, un prompt ou une commande exacte. Sinon indique `AUCUN` pour l’artefact exécutable et la raison. Aucun champ de commande vide à répéter ailleurs.
 
 ## Génération du prochain prompt
-- Si le plan est prêt et `IMPLEMENTATION_AUTHORIZED=YES`, produis un seul `/goal` complet et directement exécutable. Si un objectif non lié peut encore être actif, demande d’abord `/goal clear`. Le `/goal` lie le scope, le file-set, les checks, les conditions de stop, les actions interdites, les autorisations courantes et le Fresh Evidence Pack attendu.
+- Si le plan est prêt et `IMPLEMENTATION_AUTHORIZED=YES`, produis un seul `/goal` complet et directement exécutable. Si un objectif non lié peut encore être actif, demande d’abord `/goal clear`. Le `/goal` lie le scope, le file-set, les checks, le budget global partagé et déjà consommé, les conditions de stop, les actions interdites, les autorisations courantes et le Fresh Evidence Pack attendu.
 - Tout prompt indique son destinataire, son rôle, le dossier/mode de travail et l’issue observable ; applique les conventions d’`AGENTS.md` ou l’affectation explicite du mandat.
 - Si le plan doit être corrigé, produis un seul `/plan` ciblé sur les corrections nécessaires.
 - Si un gate conditionne le plan, produis uniquement le mandat à transmettre à ce gate, sans `/goal` d’implémentation.
+- Une délégation native au Reviewer ou au diagnostic est adressée au principal pour transmission et traitement directs ; ne demander aucun relais manuel de Luis.
 - Si seule une preuve manque, demande uniquement cette preuve.
 - Si une Owner Decision préalable manque, produis l’Owner Decision Pack et mets « Prompt à transmettre » à `AUCUN`.
 - Si le verdict est `STOP`, mets « Prompt à transmettre » à `AUCUN` et donne la cause exacte.

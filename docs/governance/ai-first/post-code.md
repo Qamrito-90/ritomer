@@ -12,6 +12,7 @@ OWNER_DECISION_RECORD:
 EXACT_TARGET:
 AVAILABLE_GATES_AND_REVIEWS:
 CODEX_EVIDENCE:
+MISSION_BUDGET:
 
 # Ritomer — Review post-code, delivery et exécution AI-first Lean
 
@@ -26,7 +27,7 @@ Agis comme ChatGPT CPO pour reviewer l’état post-code, la delivery ou l’ex�
 `SURFACE` est normalisée vers la taxonomie canonique d’`AGENTS.md`.
 
 - Vérifie `SURFACE`, `VALIDATED_PLAN`, `PRE_CODE_REVIEW` et `CODEX_EVIDENCE` contre les sources accessibles ; ce sont des déclarations, pas des preuves.
-- Vérifie le destinataire, le rôle et la copie de travail selon `AGENTS.md`, ainsi que la séparation DEV/REVUE, la version stabilisée examinée et le delta réellement couvert par chaque review.
+- Vérifie le principal, seul Builder, le Reviewer natif distinct et la copie de travail selon `AGENTS.md`, ainsi que le contexte distinct, la version stabilisée examinée et le delta réellement couvert par chaque review. Vérifie le budget global partagé, déjà consommé et restant, sans réinitialisation lors d’une délégation ou reprise.
 - Revalide la classe exclusivement avec les critères et déclencheurs de `RISK_REGISTER.md`, puis applique la boucle et les autorisations d’`AGENTS.md` et les checks de `TESTING_STRATEGY.md` ; n’invente aucune taxonomie parallèle.
 - `AUTHORIZATION_RECORDS` contient les records liés à leurs objets exacts ; un marqueur `YES` sans record ou binding applicable n’est pas prouvé. `DELIVERY_COMPLETE` reste un constat, jamais une autorisation.
 - `OWNER_DECISION_RECORD` est réutilisable uniquement s’il couvre exactement la cible courante et reste valide selon `AGENTS.md`.
@@ -77,6 +78,7 @@ Un nom, un chemin, un résumé ou un hash déclaré seul ne rend pas un artefact
 Si une preuve décisive est inaccessible, impose `TECHNICAL_STATUS=INCONCLUSIVE` et n’émets aucune autorisation qui en dépend.
 Lie les preuves à l’objet, au SHA ou hash, à l’environnement et à la commande qu’elles concernent.
 N’extrais, ne reproduis et ne demande aucun secret, token, cookie, credential, DSN, clé privée ou valeur `.env`.
+L’usage technique autorisé d’un secret local par un processus se vérifie par le mécanisme et ses preuves expurgées selon `AGENTS.md`, jamais par la lecture de sa valeur en review. Distinguer politique cible et fonctionnement réellement implémenté.
 ## Méthode de review
 1. Identifie la phase et la cible exactes.
 2. Revalide le plan, le scope, le risque et les autorisations applicables.
@@ -103,7 +105,7 @@ N’extrais, ne reproduis et ne demande aucun secret, token, cookie, credential,
 N’impose pas un axe non pertinent à une surface qui ne le touche pas.
 « Réalisé » décrit l’artefact produit ; « simulé » une validation avec substituts ; « intégré » une interaction prouvée avec les composants réels ; « livré » l’état atteint par la delivery vérifiée. Aucun compteur de fichiers ni test vert ne prouve à lui seul l’intégration ou la livraison.
 Ne rouvre pas les éléments inchangés sans raison précise. Une preuve antérieure encore applicable peut être réutilisée avec sa date et sa cible, jamais présentée comme fraîche.
-Retourne les défauts ordinaires au DEV pour correction dans la mission autorisée, selon l’autonomie et l’invalidation d’`AGENTS.md` ; aucune micro-validation de Luis. Un changement matériel revient au CPO avant extension, un refus réel de permission arrête l’action concernée.
+Les findings du Reviewer reviennent directement au principal pour vérification, correction couverte et renouvellement des contrôles et reviews affectés selon `AGENTS.md`. Le CPO vérifie le résultat consolidé aux frontières requises ; il ne relaie pas chaque essai. Appliquer les règles centrales de stagnation, budget et escalade, sans demander « continue » à Luis ni transformer un désaccord décisif non résolu en `PASS`.
 Vérifie toujours qu’un test ne masque pas le bug en affaiblissant le contrat.
 Un required check absent, stale, cancelled, failed, timed out, action-required, indéterminé ou skipped sans autorisation n’est pas satisfait.
 
@@ -131,6 +133,8 @@ Vérifie au minimum :
 - écarts, findings et risques ;
 - statut Git pertinent ;
 - absence de delivery non autorisée.
+
+Une review locale native couvre l’objet stabilisé qu’elle identifie ; elle ne remplace pas la review du head SHA exact requise avant un merge C.
 
 Après `PASS` ou `PASS_WITH_RESIDUAL_RISK`, une delivery A ou B peut recevoir :
 `DELIVERY_AUTHORIZED=YES`
@@ -174,6 +178,7 @@ Pour script, migration, package, suppression, déploiement, opération locale se
 Un nom ou chemin local inaccessible ne suffit jamais.
 `READY_FOR_EXECUTION` peut coexister avec une autorisation à `NO` en attente de la décision owner.
 N’émets `SENSITIVE_EXECUTION_AUTHORIZED=YES` que pour le quadruplet exact artefact, hash, environnement et commande.
+Pour une campagne locale jetable, appliquer « Mandats de tests locaux sur ressources jetables » d’`AGENTS.md` : vérifier la couverture de chaque opération et les records encore valides ; ne redemander aucune décision owner déjà applicable à une relance couverte. Une famille d’opérations ne vaut pas dispense de quadruplet sensible exact.
 Si la cible est la production, exige séparément `PRODUCTION_AUTHORIZED=YES`.
 ### POST_EXECUTION_VERIFICATION
 Compare :
@@ -219,15 +224,7 @@ Une exécution vérifiée ne rend pas `DELIVERY_COMPLETE=YES` si la delivery con
 Pour le risque C, un Codex Reviewer séparé est obligatoire avant merge, exécution sensible, production ou acceptation d’un artefact critique hors repo.
 Pour le risque B, il intervient seulement sur un déclencheur concret.
 
-Le mandat transmis au reviewer utilise le format minimal défini dans `AGENTS.md`.
-
-La review séparée doit :
-- utiliser un contexte distinct ;
-- rester read-only ;
-- porter sur le même SHA ou hash exact ;
-- ne corriger aucun artefact ;
-- rechercher activement les contre-exemples ;
-- porter `AI_GENERATED_REVIEW`, `NOT_HUMAN_SIGNED` et `FUNCTIONAL_INDEPENDENCE_ONLY`.
+Le principal transmet directement au sous-agent Reviewer le mandat minimal, l’objet stabilisé et les preuves définis dans `AGENTS.md`, puis récupère et traite le rapport sans relais de Luis. Vérifier les exigences de contexte distinct, lecture seule, inspection réelle, contre-exemples et les trois classifications IA de la doctrine commune. Rapporter séparément les permissions constatées ; même modèle ou permissions partagées ne constituent pas une indépendance humaine. Le self-check du principal n’est jamais cette review.
 
 La review aveugle en deux passes n’est jamais automatique.
 Le CPO ne la déclenche que pour une question précise : sensibilité exceptionnelle, divergence Builder/Reviewer, incident antérieur, biais d’ancrage important ou preuve contradictoire.
@@ -344,7 +341,7 @@ Les catégories du FEP d’`AGENTS.md` restent toutes couvertes, une seule fois,
 Une seule action avec destinataire explicite (rôle et application ou personne selon le mandat), résultat attendu et, uniquement si les autorisations le permettent, un prompt ou une commande exacte. Sinon, artefact exécutable `AUCUN` avec raison. Ne répète pas cette action dans un second champ obligatoire.
 ## Génération de la prochaine action
 - Si une décision owner préalable manque, produis le pack owner et aucun prompt exécutable.
-- Pour `FIX_REQUIRED` sur un défaut in-scope, retourne le finding au DEV dans la mission en cours si son autorisation couvre la correction. Un `/goal` de reprise n’est nécessaire que si aucun objectif applicable n’est en cours ; il exige `IMPLEMENTATION_AUTHORIZED=YES` et lie scope, file-set, checks, conditions de stop, actions interdites, autorisations courantes et Fresh Evidence Pack attendu, sans delivery non autorisée ni affaiblissement des tests. Si un objectif non lié peut encore être actif, demande d’abord `/goal clear`.
+- Pour `FIX_REQUIRED` sur un défaut in-scope, adresse le finding au principal dans la mission en cours si son autorisation couvre la correction ; il poursuit sa boucle native. Un `/goal` de reprise n’est nécessaire que si aucun objectif applicable n’est en cours ; il exige `IMPLEMENTATION_AUTHORIZED=YES` et lie scope, file-set, checks, budget global partagé et déjà consommé, conditions de stop, actions interdites, autorisations courantes et Fresh Evidence Pack attendu, sans delivery non autorisée ni affaiblissement des tests. Si un objectif non lié peut encore être actif, demande d’abord `/goal clear`.
 - Si le correctif exige un nouveau scope, produis un seul `/plan` et n’autorise aucune modification.
 - Pour `PROOF_REQUIRED`, demande uniquement la preuve exacte ; aucun code.
 - Pour `SPECIALIZED_GATE_REQUIRED`, produis uniquement le mandat du gate.
