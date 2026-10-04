@@ -4103,6 +4103,14 @@ class DemoSeedLocalSourceGuardTest {
           Get-FixtureRelativeTick §stageTicks
         })
         "`nM1D_PARENT_TIMING entry=" + §parentTiming[0] + ' extractEnter=' + §parentTiming[1] + ' extractReturn=' + §parentTiming[2] + ' importEnter=' + §parentTiming[3] + ' importReturn=' + §parentTiming[4] + ' wait=' + (Get-FixtureRelativeTick §waitEndTicks)
+        §importTiming = @(foreach (§stage in @('body-enter','assembly-enter','assembly-return','root-enter','root-return','body-return')) {
+          §stagePath = [IO.Path]::Combine(§root, ('parent-import-' + §stage))
+          if (-not [IO.File]::Exists(§stagePath)) { 'MISSING'; continue }
+          §stageTicks = 0L
+          if (-not [long]::TryParse([IO.File]::ReadAllText(§stagePath), [ref]§stageTicks) -or §stageTicks -le 0) { 'INVALID'; continue }
+          Get-FixtureRelativeTick §stageTicks
+        })
+        'M1D_PARENT_IMPORT bodyEnter=' + §importTiming[0] + ' assemblyEnter=' + §importTiming[1] + ' assemblyReturn=' + §importTiming[2] + ' rootEnter=' + §importTiming[3] + ' rootReturn=' + §importTiming[4] + ' bodyReturn=' + §importTiming[5]
         §bootstrapFailurePath = Join-Path §root 'parent-bootstrap-failure'
         if ([IO.File]::Exists(§bootstrapFailurePath)) {
           §bootstrapFailure = [IO.File]::ReadAllText(§bootstrapFailurePath)
@@ -4210,7 +4218,8 @@ class DemoSeedLocalSourceGuardTest {
         [IO.Directory]::Delete(§root, §true)
       }
       'M1D_PARENT_DEATH_JOB_ABSENCE_NAMESPACE=PASS'
-      """.trimIndent()
+      """.trimIndent(),
+      traceParentBootstrap = true
     )
     assertThat(output).contains("M1D_PARENT_DEATH_JOB_ABSENCE_NAMESPACE=PASS")
     output.lineSequence().filter { it.startsWith("T1_PARENT_") }.forEach(::println)
@@ -6922,7 +6931,11 @@ class DemoSeedLocalSourceGuardTest {
     }
   }
 
-  private fun runRailPowerShell(body: String, startProcess: (ProcessBuilder) -> Process = { it.start() }): String {
+  private fun runRailPowerShell(
+    body: String,
+    traceParentBootstrap: Boolean = false,
+    startProcess: (ProcessBuilder) -> Process = { it.start() }
+  ): String {
     val scriptPath = Path.of("scripts/m1-1b-postgresql-rail.ps1")
       .toAbsolutePath()
       .normalize()
@@ -7022,12 +7035,27 @@ class DemoSeedLocalSourceGuardTest {
       // dispatch. Extract exact functions and the validated inert initializers.
       appendLine("§offlineParts = [Collections.Generic.List[string]]::new()")
       appendLine("§offlineParts.Add(§railAst.ParamBlock.Extent.Text)")
+      fun traceStatement(stage: String): String =
+        "if (§Campaign -ceq 'D' -and §Mode -ceq 'Lifecycle') { [IO.File]::WriteAllText([IO.Path]::Combine(§RunRoot, 'parent-import-$stage'), [string][Diagnostics.Stopwatch]::GetTimestamp()) }"
+          .replace("'", "''")
+      if (traceParentBootstrap) appendLine("§offlineParts.Add('${traceStatement("body-enter")}')")
       appendLine("foreach (§statement in §railAst.EndBlock.Statements) {")
       appendLine("  if (§statement -is [System.Management.Automation.Language.IfStatementAst] -and §statement.Clauses[0].Item1.Extent.Text.Trim() -ceq §expectedFooterCondition) { continue }")
       appendLine("  §part = §statement.Extent.Text")
       appendLine("  if (§statement -is [System.Management.Automation.Language.AssignmentStatementAst] -and §statement.Left.Extent.Text -ceq '§script:BackendRoot') { §part = '§script:BackendRoot = ' + [char]39 + (Split-Path -Parent (Split-Path -Parent §railPath)).Replace([string][char]39, ([string][char]39 + [char]39)) + [char]39 }")
+      if (traceParentBootstrap) {
+        appendLine("  §traceAssembly = §statement -is [System.Management.Automation.Language.PipelineAst] -and (§statement.Extent.Text -replace '\\s+', ' ').Trim() -ceq §assemblyLoad")
+        appendLine("  §traceRoot = §statement -is [System.Management.Automation.Language.AssignmentStatementAst] -and §statement.Left.Extent.Text -ceq '§script:RepoRoot'")
+        appendLine("  if (§traceAssembly) { §offlineParts.Add('${traceStatement("assembly-enter")}') }")
+        appendLine("  if (§traceRoot) { §offlineParts.Add('${traceStatement("root-enter")}') }")
+      }
       appendLine("  §offlineParts.Add(§part)")
+      if (traceParentBootstrap) {
+        appendLine("  if (§traceAssembly) { §offlineParts.Add('${traceStatement("assembly-return")}') }")
+        appendLine("  if (§traceRoot) { §offlineParts.Add('${traceStatement("root-return")}') }")
+      }
       appendLine("}")
+      if (traceParentBootstrap) appendLine("§offlineParts.Add('${traceStatement("body-return")}')")
       appendLine("§offlineRailSource = §offlineParts -join [Environment]::NewLine")
       appendLine("§offlineRailPath = [IO.Path]::ChangeExtension(§PSCommandPath, '.functions.ps1')")
       appendLine("if ([IO.File]::Exists(§offlineRailPath)) { throw 'EXTRACTION_FIXTURE_COLLISION' }")
