@@ -607,7 +607,7 @@ listOf("test", "windowsTest").forEach { taskName ->
           val timeValue = "([0-9]{1,5}|MISSING|INVALID|PRE_ORIGIN|OUT_OF_RANGE)"
           val timingSchemas = listOf(
             Regex("M1D_PARENT_TIMING entry=$timeValue extractEnter=$timeValue extractReturn=$timeValue importEnter=$timeValue importReturn=$timeValue wait=$timeValue"),
-            Regex("M1D_PARENT_IMPORT bodyEnter=$timeValue assemblyEnter=$timeValue assemblyReturn=$timeValue rootEnter=$timeValue resolveEnter=$timeValue resolveReturn=$timeValue rootReturn=$timeValue bodyReturn=$timeValue")
+            Regex("M1D_PARENT_IMPORT bodyEnter=$timeValue assemblyEnter=$timeValue assemblyReturn=$timeValue rootEnter=$timeValue moduleEnter=$timeValue moduleReturn=$timeValue rootReturn=$timeValue bodyReturn=$timeValue")
           )
           timingSchemas.forEach { timing ->
             lines.firstOrNull { line ->
@@ -617,7 +617,7 @@ listOf("test", "windowsTest").forEach { taskName ->
               } == true
             }?.let { logger.lifecycle(it) }
           }
-          val bootstrap = Regex("M1D_PARENT_BOOTSTRAP stage=(EXTRACT|IMPORT|INVALID) category=(UNEXPECTED_FAILURE|ACCESS_DENIED|IO_FAILURE|COMMAND_NOT_FOUND|INVALID)")
+          val bootstrap = Regex("M1D_PARENT_BOOTSTRAP stage=(EXTRACT|IMPORT|INVALID) category=(UNEXPECTED_FAILURE|ACCESS_DENIED|IO_FAILURE|COMMAND_NOT_FOUND|MODULE_MANIFEST_MISSING|INVALID)")
           lines.firstOrNull(bootstrap::matches)?.let { logger.lifecycle(it) }
           val stream = Regex("M1D_PARENT_STREAM stream=(STDOUT|STDERR) state=(STOP_UNCONFIRMED|PENDING|EOF_EMPTY|EOF_NONEMPTY|LIMIT_REACHED|READ_FAULT) sampled=([0-9]{1,4}) clixml=[01] progress=[01] error=[01]")
           lines.filter { line -> stream.matchEntire(line)?.groupValues?.get(3)?.toIntOrNull()?.let { it in 0..8192 } == true }
