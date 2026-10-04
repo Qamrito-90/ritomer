@@ -3,15 +3,18 @@
 ## 1. Statut, surface et risque
 
 ```text
-SPEC_STATUS=ACTIVE
-ACTIVE_SPEC=046
+STATUS=DONE
+SPEC_STATUS=DONE
+ACTIVE_SPEC=AUCUNE
+ACTIVE_SPEC_COUNT=0
+FINAL_OUTCOME=LOCAL_SYNTHETIC_SESSION_FOUNDATION_DELIVERED
 MILESTONE=M1_1_AUTHENTICATED_SESSION_FOUNDATION
 RISK_CLASS=C
 EVIDENCE_LEVEL=FULL
 
 M1_1A_SCOPE=BACKEND_AUTH_TENANT_FOUNDATION_WITH_CORRECTIVE_M8
 M1_1A_IMPLEMENTED=YES
-M1_1_FINAL_OUTCOME_DELIVERED=NO
+M1_1_FINAL_OUTCOME_DELIVERED=YES
 
 M1_1B_SCOPE=BACKEND_SESSION_KERNEL_PROCESS_LOCAL_DEFAULT_OFF
 M1_1B_IMPLEMENTED=YES
@@ -21,7 +24,7 @@ M1_1C_DELIVERED=YES
 M1_1D_OFFLINE_IMPLEMENTATION=YES
 M1_1D_INTEGRATED_VALIDATION=PASS
 M1_1D_VALIDATION_SCOPE=LOCAL_SYNTHETIC_CANDIDATE_05_20261003
-M1_1D_DELIVERED=NO
+M1_1D_DELIVERED=YES
 
 PROMETHEUS_WEB_EXPOSURE=CLOSED_FAIL_CLOSED
 PUBLIC_MANAGEMENT_ENDPOINTS=HEALTH_INFO_ONLY
@@ -39,15 +42,17 @@ AGENT_RUNTIME=NO
 MCP_RUNTIME=NO
 ```
 
-Cette spec reste active pendant les quatre slices cumulatives. Le checkpoint A borne le principal applicatif, la lecture d'autorité fraîche aux frontières métier protégées et la sûreté tenant. Le correctif M8 ferme fail-closed l'exposition HTTP de Prometheus ; seuls health et info restent exposés. Le checkpoint B implémente le kernel de session backend process-local, désactivé par défaut, sans intégration frontend ou navigateur. Le checkpoint C est livré ; ses preuves frontend simulées restent distinctes de l'intégration D. D est implémenté dans le worktree et son intégration locale sur données synthétiques a été vérifiée sur candidate-05 le 03.10.2026. Delivery D, clôture de 046 et outcome complet M1 restent non effectués ; aucun déplacement vers `specs/done/` n'est effectué.
+Cette spec est classée Done pour la fondation M1.1 locale/synthétique : les quatre slices A/B/C/D sont livrées. A et son correctif M8 établissent le principal applicatif, l'autorité PostgreSQL, la sûreté tenant et la fermeture de Prometheus ; B le kernel de session process-local default-off ; C le coordinator frontend ; D leur raccordement local. D est livré par la [PR #127](https://github.com/Qamrito-90/ritomer/pull/127), squash `3d1fad45cf930f446aba50d2e328958cfb1d812a` du 04.10.2026. Sa preuve intégrée reste candidate-05 du 03.10.2026, jamais le squash. Le §15 rapproche les critères et les preuves.
+
+Le classement Done de 046 décrit ce candidat documentaire local ; sa publication reste à autoriser séparément. Il ne livre ni M1 complet, ni M1.2, ni OIDC partagé, ni session distribuée, ni IA/agent/MCP, ni usage externe ou production. La classe C/FULL ci-dessus reste celle de la spec d'authentification ; le seul delta de clôture documentaire est DOCS/B/STANDARD. Les checkpoints, file-sets et restrictions historiques ci-dessous conservent leur portée d'origine ; ils ne réactivent aucun mandat.
 
 ### Preuve intégrée locale du 03.10.2026
 
-La mission `RITOMER-M1D-AUTONOMOUS-RESOLUTION-20261003-01` a établi C1 PASS puis C2 PASS sur candidate-05 : PostgreSQL ciblé 13/13, complet 55/55 et parcours navigateur intégré. Cleanup confirmé et cessation corroborée sont des observations datées du 03.10.2026, pas un constat actuel de la machine. Le statut technique consolidé reste `PASS_WITH_RESIDUAL_RISK`. Les fichiers, empreintes et preuves exacts restent dans le FEP final, sa review native et les deux archives déjà remises ; le complément des reçus ferme l'omission de conditionnement CPO-PACK-01.
+La mission `RITOMER-M1D-AUTONOMOUS-RESOLUTION-20261003-01` a établi C1 PASS puis C2 PASS sur candidate-05, RunId `966fa4bc77034e158d4602431b77f606` : PostgreSQL ciblé 13/13, complet 55/55 et parcours navigateur intégré. Cleanup confirmé et cessation corroborée sont des observations datées du 03.10.2026, pas un constat actuel de la machine. Le statut technique consolidé reste `PASS_WITH_RESIDUAL_RISK`. Les fichiers, empreintes et preuves exacts restent dans le FEP final, sa review native et les deux archives déjà remises ; le complément des reçus ferme l'omission de conditionnement CPO-PACK-01.
 
 Les preuves applicables comprennent 1 277 tests frontend avec `--no-file-parallelism` et 593 résultats backend datés réutilisés, sans nouvelle exécution complète backend sur candidate-05. La réserve historique logout02 non bloquante et les limites IA, mémoire, runtime et portée restent celles du FEP. Aucun résultat ne livre OIDC partagé, session distribuée, M1 complet, IA/MCP, usage externe ou production. Les records C1-04/C2-04 restent consommés, sans autorisation sensible ouverte.
 
-Le réalignement documentaire postérieur conserve les octets exécutables de candidate-05 ; son delta et son composite ont une identité distincte de l'objet exécuté. La C2 n'a pas exécuté ce nouvel objet documentaire. La réutilisation des preuves repose sur ces octets exécutables inchangés et l'absence d'effet comportemental ; les required checks GitHub restent à obtenir lors d'une delivery séparément autorisée.
+Au checkpoint de réalignement documentaire précédant #127, les octets exécutables de candidate-05 étaient conservés ; son delta et son composite avaient une identité distincte de l'objet exécuté. La C2 n'avait pas exécuté cet objet documentaire et ses required checks GitHub restaient à obtenir. La correction CI ultérieure et la delivery #127 sont désormais prouvées séparément au §15 ; elles ne réattribuent pas C1/C2 à un autre objet.
 
 ## 2. Outcome M1.1 et outcomes bornés M1.1A/M1.1B
 
@@ -287,11 +292,11 @@ Le safe return restera en mémoire, limité à `/` et `/closing-folders/{UUID ca
 
 Focus et visibility seront coalescés, sans polling. `BroadcastChannel("ritomer:session:v1")` portera uniquement `{type: "SESSION_CHANGED"}`, sans identité, secret ou écho. Si ce canal est indisponible, focus/visibility subsisteront sans fallback storage. Les abonnements seront nettoyables. Les composants et zones d'action existants porteront les états et le logout : libellés explicites, clavier, focus visible et disposition adaptée au viewport étroit.
 
-Les validations C établiront uniquement le comportement frontend simulé. Cookies réels, attributs `Secure`/`HttpOnly`, proxy, deux jars, concurrence navigateur et rendu réel sur viewport étroit resteront à prouver en D. Aucun résultat C n'activera Vite, le harness ou le backend, ni ne vaudra delivery ou clôture de 046.
+Au checkpoint C, les validations établissaient uniquement le comportement frontend simulé. Cookies réels, attributs `Secure`/`HttpOnly`, proxy, deux jars, concurrence navigateur et rendu réel sur viewport étroit restaient à prouver en D. Les preuves C n'autorisaient aucune activation Vite, harness ou backend. La validation intégrée D puis sa delivery sont rapprochées séparément au §15.
 
 ## 9. Activation M1.1D
 
-M1.1D implémente le raccordement : Vite loopback strict sans header `Authorization`, deux jars session mémoire isolées pour trois rôles, profil local session canonique sans HMAC/decoder et huit OpenAPI alignés. Le kernel B et les écrans restent réutilisés ; le coordinator C reçoit le correctif borné de drainage bootstrap 401 décrit dans le raccordement Playwright ci-dessous. Les tests offline restent distincts de la C2 intégrée locale acquise sur candidate-05 (§1) ; la spec reste active et D non livré.
+M1.1D implémente le raccordement : Vite loopback strict sans header `Authorization`, deux jars session mémoire isolées pour trois rôles, profil local session canonique sans HMAC/decoder et huit OpenAPI alignés. Le kernel B et les écrans restent réutilisés ; le coordinator C reçoit le correctif borné de drainage bootstrap 401 décrit dans le raccordement Playwright ci-dessous. Les tests offline restent distincts de la C2 intégrée locale acquise sur candidate-05 (§1) ; D est livré par #127 et la clôture locale est proposée dans ce candidat (§15).
 
 F1 : `PostgresTestRailDBootstrap`, dans le fichier support existant, expose seulement `seed` et `backend`. Il neutralise pgJDBC, fixe le profil local unique, installe une projection prioritaire fermée et la garde commune avant refresh/Flyway. Après refresh, DataSource et Flyway sont contrôlés avant seed/READY. Le runtime main est complété par les seuls propriétaires support sélectionnés et leurs closures réellement compilées ; JUnit, fixtures, ressources de test et testRuntimeClasspath complet en sont exclus. Readiness et digest existants lient ce runtime ; aucune nouvelle tâche rail ni compilation sous credential runner. `d-seed` et `d-backend` partagent le storage intégré ; les deux primitives SQL destructives et le helper de reset storage les refusent avant connexion. Les contrats targeted/full B sont conservés.
 
@@ -388,7 +393,9 @@ Chaque contrat métier publie deux Security Requirement Objects pour exprimer `c
 
 `application-dev.yml` reste protégé, optionnel et explicitement backend bearer/HMAC. Le parcours local/browser canonique utilise `application-local.yml` sans HMAC ni decoder bearer ; Vite, le harness, les docs vivantes et `.env.example` ne l'activent ni ne le présentent comme prérequis.
 
-## 10. File-sets exacts et comptages
+## 10. File-sets historiques exacts et comptages
+
+Ces inventaires décrivent leurs checkpoints respectifs. Les chemins `active/046` et marqueurs négatifs du rail sont préservés pour leur traçabilité et leurs guards. Le bilan des livraisons réelles et le delta de clôture sont séparés au §15.
 
 ### M1.1A — scope de base — 12 paths, `A=3, M=9`
 
@@ -696,9 +703,11 @@ M1_1D_FUTURE_CLOSURE=28_LOGICAL_29_PHYSICAL_M27_R1_NOT_AUTHORIZED
 M1_1_FINAL_OUTCOME_DELIVERED=NO
 ```
 
-Le tableau A décrit le scope de base. Le delta correctif M8 modifie exactement huit paths et porte l'union A+M8 à `A=3, M=14, total=17`. Le file-set B historique contient exactement 17 paths, `A=6, M=11`. C couvre les 17 chemins ci-dessus, `A=2, M=15`. Le mandat D amendé remplace son ancien budget 22/23 par 28 modifications sans ajout, rename ou delete. Les deux supports Kotlin sont déjà présents dans le composite A/B/C. La clôture future, non autorisée ici, aurait 28 artefacts logiques/29 chemins physiques, `M=27/R=1`; ses comptes et l'union finale devront être recalculés sur les livraisons réelles. Aucun déplacement de 046 n'est effectué offline.
+Le tableau A décrit le scope de base. Le delta correctif M8 modifie exactement huit paths et porte l'union A+M8 à `A=3, M=14, total=17`. Le file-set B historique contient exactement 17 paths, `A=6, M=11`. C couvre les 17 chemins ci-dessus, `A=2, M=15`. Le mandat D offline amendé remplaçait son ancien budget 22/23 par 28 modifications sans ajout, rename ou delete. Les deux supports Kotlin étaient déjà présents dans le composite A/B/C. Le budget de clôture alors envisagé, non autorisé par ce checkpoint, était 28 artefacts logiques/29 chemins physiques, `M=27/R=1`. Cette prévision historique n'est pas le delta de clôture actuel : l'union des livraisons et le delta M8/R1 sont recalculés au §15. Aucun déplacement de 046 n'avait été effectué offline.
 
-## 11. Tests, gates et stops
+## 11. Tests, gates et stops historiques
+
+Les critères et commandes ci-dessous conservent les mandats successifs de réalisation ; ils ne donnent aucun droit d’exécution actuel. Leur couverture finale et les réserves acceptées sont rapprochées au §15. Les gates de déplacement active/done concernent désormais le seul candidat documentaire de clôture.
 
 M1.1A doit prouver avec des sorties fraîches :
 
@@ -874,7 +883,7 @@ Stops intégrés futurs : cookie `Secure __Host-` sans round-trip sur HTTP loopb
 
 ## 12. Autorisations et frontières
 
-Cette spec ne constitue aucune autorisation. A/B et C sont livrés ; D est implémenté dans le worktree et son intégration locale sur données synthétiques est vérifiée sur candidate-05 (§1). Delivery D, clôture de 046 et outcome final M1.1 ne sont pas effectués. Les records de la campagne finale restent consommés. La finalisation documentaire n'autorise ni staging, commit, push, PR, merge, accès PostgreSQL, Preflight, Lifecycle, CleanupOnly opérationnel, seed ni QA navigateur réelle.
+Cette spec ne constitue aucune autorisation. A/B/C/D sont livrés et l'outcome M1.1 local/synthétique est accompli ; la preuve intégrée reste candidate-05 du 03.10.2026 (§1), la delivery D est #127 (§15). La clôture documentaire Done est proposée dans ce candidat, sans publication acquise. Les records C1-04/C2-04 et les records de delivery/merge #127 restent consommés. La finalisation documentaire n'autorise ni staging réel, commit, push, PR, merge, accès PostgreSQL, Preflight, Lifecycle, CleanupOnly opérationnel, seed ni QA navigateur réelle.
 
 Les états de review, delivery, merge, décision owner et autorisation vivent uniquement dans les Evidence Packs, la pull request et les records spécialisés.
 
@@ -887,7 +896,7 @@ manifeste preflight, à l'environnement et à la commande exacts.
 
 ## 13. Frontière M1.2 et hors-scope
 
-M1.2 conserve :
+M1.2 reste une suite à cadrer et autoriser, sans nouvelle spec réservée. Sa frontière future conserve :
 
 - l'IdP OIDC réel et la clé stable `issuer + subject` ;
 - l'environnement partagé ;
@@ -896,7 +905,9 @@ M1.2 conserve :
 
 Restent hors M1.1 : Redis, nouvelle dépendance, migration DB, JIT provisioning, SDK IdP, MFA, ABAC, RLS généralisée, microservice auth, cache d'autorité, production, donnée réelle, utilisateur externe et runtime IA/agent/MCP.
 
-## 14. Impacts documentaires et contractuels
+## 14. Historique des impacts documentaires et contractuels
+
+Cette section conserve les scopes et les constats des checkpoints A/B/C puis D offline, antérieurs à la campagne intégrée du 03.10.2026 et à la delivery #127. Ses mentions de spec active, de validation intégrée future ou non prouvée et de rename non autorisé décrivent ces objets datés, pas le candidat de clôture décrit au §15.
 
 Le scope de base M1.1A ajoute seulement cette spec. Le correctif M8 modifie cette spec, `docs/product/v1-plan.md` et les trois cadrages du présent afin d'aligner la vérité durable de périmètre, en plus de la fermeture Prometheus et de ses preuves. Il ne modifie aucun contrat, ADR, runbook, README, roadmap ou fondation UI et n'anticipe aucune capacité B, C ou D.
 
@@ -1088,3 +1099,66 @@ L'état intégré demeure **NON PROUVÉ** jusqu'à review indépendante et campa
 sensiblement autorisée sur cet objet exact. Aucune exécution Preflight,
 Lifecycle, readiness opérationnelle, navigateur, serveur ou DB n'est incluse
 dans le présent mandat. La spec reste active ; delivery et clôture sont séparées.
+
+## 15. Bilan de clôture documentaire locale du 04.10.2026
+
+### Résultat et portée
+
+Les critères A/B/C/D sont couverts dans la portée locale/synthétique de M1.1, avec les réserves ci-dessous : session serveur same-origin, cookie opaque, PostgreSQL autoritaire, parcours frontend et intégration locale. Le classement `DONE` au §1 est celui du candidat documentaire de clôture, sans spec active ; sa publication n'est pas accomplie par ce constat. La delivery du runtime D est, elle, acquise par [#127](https://github.com/Qamrito-90/ritomer/pull/127), mergée le 04.10.2026 à 11:14 UTC : head revu `9dec3b12b69034e74b4349b303af4ecca7774c1b`, squash `3d1fad45cf930f446aba50d2e328958cfb1d812a`, même arbre `ab752268205721627c4ae1fcfe7010179396f278`.
+
+M1 complet reste incomplet. M1.2, l'OIDC partagé, la session distribuée, l'usage externe, les données réelles, la production et les runtimes IA/agent/MCP ne sont pas livrés par 046. Aucun choix d'IdP, dimensionnement Cloud SQL, budget ou délai M1.2 n'est approuvé ici ; aucune nouvelle spec n'est créée ou réservée.
+
+### Critères rapprochés des preuves
+
+| Critère de 046 | Preuve applicable et objet | Limite conservée |
+|---|---|---|
+| A : principal applicatif, relecture d'autorité, tenant/MDC, Prometheus fermé | [#121](https://github.com/Qamrito-90/ritomer/pull/121), A + M8 livrés le 27.08.2026 ; contrôles backend, Modulith et PostgreSQL du checkpoint A | A seul ne créait ni session ni frontend ; aucun provisioning implicite |
+| B : bootstrap/login/logout, cookie opaque, CSRF, rotation, expiration, révocation | [#122](https://github.com/Qamrito-90/ritomer/pull/122), kernel, rail et correctif livrés le 17.09.2026 ; preuves ciblées, backend et DB de ce checkpoint | Kernel process-local, default-off ; sans OIDC réel ni session distribuée |
+| C : coordinator, écrans, refus, téléchargements périmés, privacy, régression C-LOGOUT-01 | [#123](https://github.com/Qamrito-90/ritomer/pull/123), livrée le 18.09.2026 ; 969 tests frontend, lint/build | Frontend simulé ; distinct des cookies et du navigateur réels de D |
+| D : profil local, Vite loopback, huit OpenAPI, deux jars et trois rôles, contrats et protections du rail | [#127](https://github.com/Qamrito-90/ritomer/pull/127), 37 chemins ; [review du head corrigé](https://github.com/Qamrito-90/ritomer/pull/127#issuecomment-5979073847) | Correction de CI distincte du composite de campagne ; aucune nouvelle DB sur ce head |
+| D intégré : cookie/CSRF, action autorisée et refus, expiry/relogin/logout, focus/multi-tab, safe return, clavier, viewport étroit, privacy et cessation | C1 puis C2 du 03.10.2026 sur candidate-05 ; RunId `966fa4bc77034e158d4602431b77f606` ; DB ciblé 13 tests / 2 classes et complet 55 / 12, zéro failure/error/skipped ; cinq scénarios cookie et douze scénarios navigateur ; 22 scans privacy du parcours navigateur et quatre du smoke cookie, zéro violation et zéro observation perdue | Chromium 143.0.7499.4, PostgreSQL 17.11, données synthétiques ; couverture bornée, pas une certification générale ; cleanup daté |
+| Régressions après correction CI et après merge D | 593 backend = 417 portables + 176 Windows natifs, zéro failure/error/skipped ; frontend 1 267 réussites + dix skips Windows-only, lint/build ; sources ci-dessous | Les 1 277 réussites Windows locales sérielles du 03.10.2026 sont une preuve historique distincte |
+| Clôture documentaire locale | Huit documents actualisés et déplacement unique active → done de 046 ; contrôle de l'union, des liens, marqueurs, encodages, diff et guard existant dans le FEP de ce candidat | DOCS/B/STANDARD ; publication/delivery de ce delta restant à autoriser séparément ; aucun code ni contrat modifié |
+
+### Identité et fraîcheur des preuves
+
+La campagne `RITOMER-M1D-AUTONOMOUS-RESOLUTION-20261003-01` conserve son identité candidate-05 : `OBJECT.json` SHA-256 `2b13923a3f942f5cafe9a3a588e5d83d9a5df08c56f253ce6cd989a7e708ddca` ; `DIFF.patch` SHA-256 `09c8a138dd272f7f46aad97aa7efd846450f2fe7de2ebc194c0d4ae2ae2e573d`. C1 PASS à 17:49:32 UTC puis C2 PASS à 18:55:05 UTC le 03.10.2026 portent sur cet objet, pas sur le head corrigé ni le squash de #127. Les 593 résultats backend réutilisés dans cette campagne ne sont pas présentés comme une exécution complète fraîche de candidate-05.
+
+La correction CI de #127 renouvelle les suites sur le head `9dec3b12b69034e74b4349b303af4ecca7774c1b` : [Backend CI 37193488665](https://github.com/Qamrito-90/ritomer/actions/runs/37193488665) et [Frontend CI 37193488557](https://github.com/Qamrito-90/ritomer/actions/runs/37193488557). Le push post-merge renouvelle séparément ces résultats sur le squash `3d1fad45cf930f446aba50d2e328958cfb1d812a` : [Backend CI 37198032249](https://github.com/Qamrito-90/ritomer/actions/runs/37198032249) et [Frontend CI 37198032234](https://github.com/Qamrito-90/ritomer/actions/runs/37198032234). Les comptes sont 593 backend et 1 267 frontend + dix skips Windows-only à chacune de ces deux étapes. Ces CI du 04.10.2026 ne rejouent pas C1/C2.
+
+Le [commentaire de remise post-merge de #127](https://github.com/Qamrito-90/ritomer/pull/127#issuecomment-5979725873) contient les checks, hashes, réserves, rapport intégral et records consommés. Ce texte conserve son snapshot préparé avant publication : son `DELIVERY_COMPLETE=NO` ne devient pas rétrospectivement YES. C'est le reçu final `FINAL-PUBLICATION-VERIFIED.json`, relu à `2026-10-04T12:03:50.1000553Z`, qui constate `deliveryComplete=true` pour #127. Il lie le commentaire publié de 24 556 caractères à son SHA-256 `b1e4963977b86044869d92f5c4f100247de2e4d552dc04df93415b3087d55489`, au head revu et au squash ci-dessus. Le reçu exact est accessible avec le FEP de clôture ; cette preuve historique n'autorise aucune nouvelle delivery. Le présent delta documentaire n'est ni committé ni livré par cette clôture locale ; sa remise de review est dans le FEP distinct `RITOMER-046-LOCAL-DOC-CLOSURE-20261004-01`.
+
+### Union historique et delta de clôture
+
+Le recalcul du 04.10.2026 utilise les file-sets GitHub des PR effectivement mergées, sans cumuler deux fois un chemin :
+
+| PR | Périmètre livré | Chemins | Statuts GitHub | Squash |
+|---|---|---:|---|---|
+| [#121](https://github.com/Qamrito-90/ritomer/pull/121/files) | A + correctif M8 | 17 | 3 A / 14 M | `5ad31ed828487bed88de524231b0c7f43984cac1` |
+| [#122](https://github.com/Qamrito-90/ritomer/pull/122/files) | B + rail + correction CI | 27 | 8 A / 19 M | `2c07743c06a6bffed2105e5576097d45eed187ee` |
+| [#123](https://github.com/Qamrito-90/ritomer/pull/123/files) | C frontend | 17 | 2 A / 15 M | `a9af4160551d26aab9865aed356bfa7e944863a2` |
+| [#127](https://github.com/Qamrito-90/ritomer/pull/127/files) | D intégré + corrections | 37 | 4 A / 33 M | `3d1fad45cf930f446aba50d2e328958cfb1d812a` |
+
+L'union dédupliquée de #121/#122/#123/#127 compte **75 chemins historiques**, avant la présente clôture. Ces PR ne contiennent aucun rename. Le chemin de spec y est `specs/active/046-authenticated-session-foundation-v1.md` ; il reste littéral dans les inventaires historiques du §10 et du rail.
+
+La dépendance tooling [#125](https://github.com/Qamrito-90/ritomer/pull/125/files), squash `c7857e3180f4ba02c49f6713ecedba3f7d3eb7c5`, compte **sept chemins, 2 A / 5 M**, avec deux recouvrements : `frontend/playwright.config.ts` et `runbooks/local-dev.md`. Elle ajoute cinq chemins distincts à l'union :
+
+- `frontend/e2e/tooling-smoke.spec.ts`
+- `frontend/package.json`
+- `frontend/pnpm-lock.yaml`
+- `frontend/tsconfig.json`
+- `frontend/vitest.config.ts`
+
+L'union avec tooling compte donc **80 chemins historiques**. Les changements de gouvernance #124/#126 ne font pas partie de ces unions. La liste exacte dédupliquée et les réponses GitHub utiles sont remises avec le FEP de clôture ; elles ne remplacent pas les file-sets GitHub sourcés ci-dessus.
+
+Le delta de clôture est séparé : **M8/R1, neuf artefacts logiques et dix chemins physiques**, soit README, local-dev, v1-plan, product-roadmap, les trois cadrages du présent, UI foundations et le déplacement avec modifications de `specs/active/046-authenticated-session-foundation-v1.md` vers `specs/done/046-authenticated-session-foundation-v1.md`. Les 75/80 sont des unions de chemins historiques, pas le nombre de fichiers modifiés par ce delta ; la destination done n'est pas rétrospectivement ajoutée aux PR historiques. Aucune source exécutable, assertion, règle de gouvernance, migration ou contrat ne change.
+
+### Réserves conservées et autorisations
+
+- `F-FINAL-HISTORY-01` demeure non bloquant : le diagnostic exact `logout02` est indisponible ; le snapshot intermédiaire n'a pas été exécuté. Aucun diagnostic manquant n'est reconstruit ni ancien échec transformé en PASS. Les régressions finales et C2 sont des preuves indépendantes, bornées à leurs objets.
+- La variabilité Windows et le mécanisme interne de découverte PowerShell ne sont pas entièrement isolés. Sur un hôte jeune, l'ancien cas `campaign-expired` peut tester le refus `CLOCK_BINDING_INVALID` avant la branche expiration ; aucun renforcement de preuve n'est inventé.
+- Les dix skips Ubuntu sont Windows-only : neuf cas browser-evidence et un harness. La preuve Windows locale de 1 277 tests / 35 fichiers reste celle du 03.10.2026, en mode sériel `--no-file-parallelism` ; elle n'est pas une nouvelle exécution sur le squash.
+- Les limites de mémoire/runtime et le caractère local/synthétique restent applicables. Cleanup et cessation ne décrivent que la campagne datée, pas l'état actuel de la machine. Aucune nouvelle campagne DB/navigateur n'est revendiquée sur #127 ou sur ce candidat documentaire.
+- Les reviews IA sont `AI_GENERATED_REVIEW / NOT_HUMAN_SIGNED / FUNCTIONAL_INDEPENDENCE_ONLY` : aucune signature humaine ni séparation réelle des fonctions. La clôture ne vaut aucune validation professionnelle métier.
+
+Les records C1-04/C2-04 et ceux de delivery/merge #127 restent consommés. Ce document n'active aucun droit de delivery, merge, exécution sensible ou production. Une éventuelle régression future relève d'une décision corrective distincte ; aucun rollback n'est implicitement autorisé. M1.2 doit encore être cadré et autorisé sur ses propres critères.

@@ -4,17 +4,29 @@ Le raccordement Playwright M1.1D du 21 septembre 2026 et ses correctifs sont
 décrits en fin de runbook. Leurs preuves hors DB restent distinctes du résultat
 intégré ultérieur de candidate-05, résumé ci-dessous.
 
-## Parcours courant M1.1D — intégration locale vérifiée, non livrée
+## Parcours courant M1.1D — fondation locale livrée
 
-La spec 046 reste active. C est livré ; D est implémenté dans le worktree et
-validé par C1 puis C2 sur candidate-05 le 03.10.2026, avec PostgreSQL et
-navigateur réels sur données synthétiques : targeted 13/13 et full 55/55.
-Cleanup confirmé et cessation corroborée sont les observations de cette date,
-sans nouvelle observation de la machine. Portée et réserves restent celles de
-la [spec 046](../specs/active/046-authenticated-session-foundation-v1.md) et du
-FEP final déjà remis. D n'est pas livré et 046 n'est pas close. Les records
-C1-04/C2-04 restent consommés ; ce runbook n'autorise aucune relance, setup,
-connexion PostgreSQL, exécution navigateur ou cleanup.
+A/B/C et D accomplissent la fondation M1.1 locale/synthétique. D est livré par
+la [PR #127](https://github.com/Qamrito-90/ritomer/pull/127), squash
+`3d1fad45cf930f446aba50d2e328958cfb1d812a` du 04.10.2026. La
+[spec 046 Done](../specs/done/046-authenticated-session-foundation-v1.md) est classée close
+dans ce candidat documentaire, sans spec active ; sa publication reste à
+autoriser. M1 complet et M1.2 restent non livrés.
+
+C1 puis C2 ont validé candidate-05 le 03.10.2026, RunId
+`966fa4bc77034e158d4602431b77f606`, avec PostgreSQL et navigateur réels sur
+données synthétiques : targeted 13/13 et full 55/55. Cleanup confirmé et
+cessation corroborée sont des observations datées, sans constat actuel de la
+machine ni réexécution sur le squash. La correction CI et le push post-merge
+du 04.10.2026 ont renouvelé 593 résultats backend et 1 267 réussites frontend
+avec dix skips Windows-only ; les 1 277 réussites Windows locales du
+03.10.2026 restent distinctes. Le bilan, les sources et les réserves
+`F-FINAL-HISTORY-01`/logout02 figurent au §15 de la spec.
+
+Les records C1-04/C2-04 et ceux de #127 restent consommés ; ce runbook
+n'autorise aucune relance, setup, connexion PostgreSQL, exécution navigateur
+ou cleanup. Les inventaires et marqueurs négatifs des checkpoints historiques
+ci-dessous conservent leur portée d'origine, même lorsqu'ils citent active/046.
 
 Le parcours local canonique utilise le profil `local`, la session serveur et
 le cookie `__Host-ritomer-session`, sans HMAC ni bearer. Un seul Vite écoute

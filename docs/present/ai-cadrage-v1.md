@@ -9,8 +9,8 @@ Il ne remplace ni la vision IA, ni le playbook IA, ni les contrats et garde-fous
 ## Ce qui est vrai maintenant
 
 - Le produit est AI-ready, mais pas encore AI-native dans le runtime.
-- La spec 046 reste l'unique spec active. A/B et C sont livres ; D est implemente dans le worktree et valide par integration PostgreSQL/navigateur locale sur donnees synthetiques le 03.10.2026 (candidate-05), avec les limites datees dans [046](../../specs/active/046-authenticated-session-foundation-v1.md). D et l'outcome final M1.1 ne sont pas livres. Aucun provider, agent ou runtime MCP n'est ajoute ou active par D.
-- Ce cadrage ne constitue aucune autorisation. La validation locale D ne livre ni M1 complet, ni OIDC partage, ni session distribuee, ni capacite IA/MCP, externe ou de production. Les etats de review, delivery, merge, decision owner et autorisation vivent uniquement dans les Evidence Packs, la pull request et les records specialises.
+- La fondation M1.1 locale/synthetique A/B/C/D est livree ; D par la [PR #127](https://github.com/Qamrito-90/ritomer/pull/127), squash `3d1fad45cf930f446aba50d2e328958cfb1d812a` du 04.10.2026. [046](../../specs/done/046-authenticated-session-foundation-v1.md) est Done et aucune spec n'est active dans ce candidat documentaire, dont la publication reste separee. La preuve integree de candidate-05 du 03.10.2026 et les CI du 04.10.2026 restent distinctes, avec leurs reserves. M1 complet, M1.2, OIDC partage, session distribuee et IA/agent/MCP restent non livres par cette cloture.
+- Ce cadrage ne constitue aucune autorisation. La cloture locale M1.1 ne livre ni M1 complet, ni OIDC partage, ni session distribuee, ni capacite IA/MCP, externe ou de production. Les etats de review, delivery, merge, decision owner et autorisation vivent uniquement dans les Evidence Packs, la pull request et les records specialises.
 - Le coeur metier reste deterministe, tenant-scoped, audit-ready et utilisable sans IA.
 - `030` livre une capacite de mapping assiste no-provider, evidence-first et human-in-the-loop.
 - La capacite livree expose des suggestions structurees de mapping, des preuves visibles et une decision humaine unitaire `ACCEPT`, `CORRECT` ou `REJECT`.
@@ -85,7 +85,7 @@ Il ne remplace ni la vision IA, ni le playbook IA, ni les contrats et garde-fous
 - `specs/done/043-controlled-fiduciary-pilot-readiness-v1.md`
 - `specs/done/044-design-partner-readiness-v1.md`
 - `specs/done/045-design-partner-research-protocol-v1.md`
-- `specs/active/046-authenticated-session-foundation-v1.md`
+- `specs/done/046-authenticated-session-foundation-v1.md`
 - `docs/vision/ai-native.md`
 - `docs/playbooks/ai.md`
 

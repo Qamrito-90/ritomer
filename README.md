@@ -18,7 +18,7 @@ Le parcours cible est : utilisateur authentifié → tenant et rôle → dossier
 | Statut | État actuel |
 | --- | --- |
 | `DELIVERED_AND_PROVED` | Noyau déterministe du closing, tenancy et RBAC applicatifs, import, mapping manuel, contrôles, previews, workpapers, documents, export, annexe minimale, audit append-only et mapping assisté no-provider. |
-| `LOCAL_OR_SYNTHETIC_ONLY` | Session process-local et coordinator frontend C livré ; raccordement D intégré validé localement sur données synthétiques le 03.10.2026 (candidate-05), présent dans le worktree mais non livré ; simulation offline `mapping-suggestion-v2`. Aucune session partagée. |
+| `LOCAL_OR_SYNTHETIC_ONLY` | Fondation de session M1.1 locale livrée : A/B/C et raccordement D ([PR #127](https://github.com/Qamrito-90/ritomer/pull/127), squash `3d1fad45cf930f446aba50d2e328958cfb1d812a`). Intégration PostgreSQL/navigateur sur données synthétiques prouvée le 03.10.2026 sur candidate-05 ; simulation offline `mapping-suggestion-v2`. Aucune session partagée. |
 | `DOCUMENTED_NOT_IMPLEMENTED` | Auth/session SaaS durables, cible Cloud Run/Cloud SQL, provider IA réel, gateway provider générale, tracing IA et MCP. |
 | `NOT_STARTED` | Runtime agentique goal/run/tools, site public, bêta externe et production opérable. |
 
@@ -58,7 +58,7 @@ LOCAL_DEV_MUST_USE_REAL_SYNTHETIC_USERS_MEMBERSHIPS_ROLES_AND_TENANTS=YES
 SHARED_INTERNAL_ENVIRONMENT_REQUIRES_REAL_OIDC=YES
 ```
 
-Le mode local/test simplifie l'entrée seulement. Le kernel backend et le coordinator frontend sont livrés ; la preuve intégrée locale de D est acquise sur candidate-05, avec les limites datées de la [spec 046](specs/active/046-authenticated-session-foundation-v1.md). D reste non livré et 046 active ; cette preuve ne clôt ni M1.1 ni M1 et n'autorise aucune nouvelle exécution. Memberships, rôles, contrôles serveur et isolation tenant restent effectifs.
+Le mode local/test simplifie l'entrée seulement. La fondation M1.1 locale est livrée, D par la [PR #127](https://github.com/Qamrito-90/ritomer/pull/127). La preuve intégrée de candidate-05 reste datée du 03.10.2026, avec les limites de la [spec 046](specs/done/046-authenticated-session-foundation-v1.md). Memberships, rôles, contrôles serveur et isolation tenant restent effectifs. M1 complet et M1.2 restent non livrés ; aucune nouvelle exécution n'est autorisée par ce constat.
 
 ### IA, agent et MCP
 
@@ -114,13 +114,13 @@ Les tests sans DB et les builds restent exécutables séparément dans `backend`
 
 Le parcours canonique local validé sur candidate-05 est session serveur + cookie opaque : un Vite `http://127.0.0.1:5173`, proxy `/api` vers `http://127.0.0.1:8080`, sans injection bearer ni réécriture de cookie ou d'Origin. Le profil `local` active cette frontière ; aucun HMAC n'est requis. `application-dev.yml` conserve la compatibilité bearer backend explicitement séparée.
 
-Le démarrage intégré appartient exclusivement au rail existant en campagne D : bootstrap gardé avant Flyway, seed puis backend, Vite provisoire puis harness à deux jars, preuves navigateur, arrêt attesté, targeted/full puis cleanup. Voir [le runbook](runbooks/local-dev.md) et [la spec active 046](specs/active/046-authenticated-session-foundation-v1.md). Ne pas remplacer ce cycle par des commandes `bootRun`, seed ou `dbIntegrationTest` autonomes.
+Le démarrage intégré appartient exclusivement au rail existant en campagne D : bootstrap gardé avant Flyway, seed puis backend, Vite provisoire puis harness à deux jars, preuves navigateur, arrêt attesté, targeted/full puis cleanup. Voir [le runbook](runbooks/local-dev.md) et [la spec 046 Done](specs/done/046-authenticated-session-foundation-v1.md). Ne pas remplacer ce cycle par des commandes `bootRun`, seed ou `dbIntegrationTest` autonomes.
 
 Le code et les tests offline ne valent ni Preflight, ni preuve PostgreSQL, ni QA navigateur. Ces exécutions nécessitent leurs objets, commandes et autorisations sensibles exacts. Les tests offline utilisent des valeurs fictives. La campagne locale D lit uniquement `C:\dev\ritomer-local-secrets\postgres-test.env`, configuré une seule fois sans écrasement avec le mot de passe de test existant ; voir le [runbook](runbooks/local-dev.md). Ce fichier est une donnée littérale hors Git, jamais un script ni une configuration de production. [backend/.env.example](backend/.env.example) reste une référence non exécutable.
 
 ## État présent M1.1
 
-La spec 046 reste active. A/B et C sont livrés ; D est implémenté dans le worktree et son intégration locale sur données synthétiques est vérifiée sur candidate-05 le 03.10.2026. D, l'outcome final M1.1, M1 complet, la clôture de 046, M1.2, l'OIDC partagé et la production restent non livrés ou non effectués. Les records spécialisés portent les autorisations ; les records C1-04/C2-04 restent consommés et ce document n'en crée aucune.
+Les quatre slices A/B/C/D accomplissent l'outcome M1.1 local/synthétique ; D est livré par la [PR #127](https://github.com/Qamrito-90/ritomer/pull/127), squash `3d1fad45cf930f446aba50d2e328958cfb1d812a` du 04.10.2026. 046 est classée Done et aucune spec n'est active dans ce candidat. Le classement Done de 046 décrit ce candidat documentaire local ; sa publication reste à autoriser séparément. M1 complet, M1.2, l'OIDC partagé, les sessions distribuées, l'IA/MCP, l'usage externe et la production restent non livrés. Les records C1-04/C2-04 et ceux de delivery/merge de #127 restent consommés ; aucune autorisation nouvelle n'en découle.
 
 ## État de séquencement et historique
 
