@@ -1,1234 +1,544 @@
 import { Buffer } from "node:buffer";
 import { spawn as spawnProcess } from "node:child_process";
-import { createHmac, randomBytes as secureRandomBytes } from "node:crypto";
 import { readdir } from "node:fs/promises";
 import { createServer } from "node:net";
 import { dirname, resolve } from "node:path";
+import { performance } from "node:perf_hooks";
 import process from "node:process";
-import {
-  clearTimeout,
-  setTimeout
-} from "node:timers";
 import { fileURLToPath, pathToFileURL, URL } from "node:url";
 
 const FRONTEND_ROOT = dirname(fileURLToPath(import.meta.url));
 const VITE_ENTRY = resolve(FRONTEND_ROOT, "node_modules", "vite", "bin", "vite.js");
-
 export const BACKEND_ORIGIN = "http://127.0.0.1:8080";
+export const FRONTEND_ORIGIN = "http://127.0.0.1:5173";
 export const BACKEND_HEALTH_URL = `${BACKEND_ORIGIN}/actuator/health`;
-export const JWT_TTL_SECONDS = 3600;
-
-const HMAC_SECRET_ENV = "RITOMER_SECURITY_JWT_HMAC_SECRET";
-const LEGACY_HMAC_SECRET = "local-dev-only-jwt-hmac-secret-change-me";
-const INVALID_RUNTIME_SECRET_SENTINEL = "__INVALID_RUNTIME_SECRET_REQUIRED__";
-const BACKEND_TARGET_ENV = "RITOMER_LOCAL_DEMO_BACKEND_TARGET";
-const PROXY_AUTH_ENABLED_ENV = "RITOMER_LOCAL_DEMO_PROXY_AUTH_ENABLED";
-const BEARER_TOKEN_ENV = "RITOMER_LOCAL_DEMO_BEARER_TOKEN";
-const FORBIDDEN_CHILD_ENV_NAME = /(TOKEN|SECRET|PASSWORD|CREDENTIAL|API_KEY)/i;
-const JWT_LIKE_VALUE = /[A-Za-z0-9_-]{2,}\.[A-Za-z0-9_-]{2,}\.[A-Za-z0-9_-]{2,}/g;
-const AUTHORIZATION_HEADER = /\bAuthorization\s*(?:\\?["'])?\s*[:=][^\r\n]*/gi;
-const SENSITIVE_ME_PAYLOAD_FIELD = /(?:actor|userId|externalSubject|email|displayName|memberships|activeTenant|effectiveRoles|tenantId|tenantSlug|tenantName|roles|jti)\s*["']?\s*[:=]/i;
-const MAX_BUFFERED_LOG_LINE = 64 * 1024;
-export const READINESS_POLICY = Object.freeze({
-  attempts: 100,
-  intervalMilliseconds: 100,
-  requestTimeoutMilliseconds: 2_000
-});
-const REQUEST_TIMEOUT_MILLISECONDS = 2_000;
-const PROCESS_STOP_TIMEOUT_MILLISECONDS = 2_000;
-const PORT_RELEASE_ATTEMPTS = 20;
-const PORT_RELEASE_INTERVAL_MILLISECONDS = 50;
-export const IDENTITY_MONITOR_INTERVAL_MILLISECONDS = 1_000;
-export const IDENTITY_MONITOR_TRANSIENT_FAILURE_THRESHOLD = 3;
-const READINESS_PHASE = "API_ME";
-const READINESS_CATEGORIES = new Set([
-  "CONNECTION",
-  "TIMEOUT",
-  "HTTP_STATUS",
-  "INVALID_JSON",
-  "IDENTITY_MISMATCH",
-  "TENANT_MISMATCH",
-  "ROLE_MISMATCH",
-  "MEMBERSHIP_MISMATCH",
-  "CHILD_EXITED",
-  "UNKNOWN"
-]);
-const READINESS_INVALID_FIELDS = new Set([
-  "actor",
-  "activeTenant",
-  "effectiveRoles",
-  "memberships",
-  "payload"
-]);
-const MONITOR_DIAGNOSTIC_LEVELS = new Set(["DEGRADED", "FAILED"]);
-const MONITOR_DIAGNOSTIC_THRESHOLDS = new Set([
-  1,
-  IDENTITY_MONITOR_TRANSIENT_FAILURE_THRESHOLD
-]);
-
-const TENANT = Object.freeze({
+const COOKIE_NAME = "__Host-ritomer-session";
+export const REQUEST_TIMEOUT_MILLISECONDS = 2_000;
+export const INTEGRATION_TIMEOUT_MILLISECONDS = 60 * 60 * 1_000;
+export const SHUTDOWN_TIMEOUT_MILLISECONDS = 15_000;
+const MAX_RESPONSE_BYTES = 64 * 1024;
+const MAX_CHILD_OUTPUT_BYTES = 256 * 1024;
+const RUN_ID = /^[0-9a-f]{32}$/;
+const SHA256 = /^[0-9a-f]{64}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+export const TENANT = Object.freeze({
   tenantId: "036a0000-0000-4000-8000-000000000001",
   tenantSlug: "ritomer-demo-036a",
   tenantName: "Ritomer Demo Fiduciaire SA (synthetic)"
 });
-
+// These are synthetic fixture bindings, never a product actor registry.
 export const ACTORS = Object.freeze({
-  ACCOUNTANT: Object.freeze({
-    name: "ACCOUNTANT",
-    port: 5173,
-    subject: "ritomer-demo-user-036a",
-    userId: "036a0000-0000-4000-8000-000000000002",
-    email: "demo.accountant@example.invalid",
-    displayName: "Demo Accountant 036a",
-    role: "ACCOUNTANT"
-  }),
-  REVIEWER: Object.freeze({
-    name: "REVIEWER",
-    port: 5174,
-    subject: "ritomer-demo-reviewer-043b",
-    userId: "043b0000-0000-4000-8000-000000000002",
-    email: "demo.reviewer.043b@example.invalid",
-    displayName: "Demo Reviewer 043b",
-    role: "REVIEWER"
-  })
+  ACCOUNTANT: Object.freeze({ actorKey: "actor-01", userId: "036a0000-0000-4000-8000-000000000002", subject: "ritomer-demo-user-036a", email: "demo.accountant@example.invalid", displayName: "Demo Accountant 036a" }),
+  REVIEWER: Object.freeze({ actorKey: "actor-02", userId: "043b0000-0000-4000-8000-000000000002", subject: "ritomer-demo-reviewer-043b", email: "demo.reviewer.043b@example.invalid", displayName: "Demo Reviewer 043b" }),
+  ADMIN: Object.freeze({ actorKey: "actor-03", userId: "046b0000-0000-4000-8000-000000000002", subject: "ritomer-demo-admin-046b", email: "demo.admin.046b@example.invalid", displayName: "Demo Admin 046b" })
 });
 
-const ACTOR_SEQUENCE = Object.freeze([ACTORS.ACCOUNTANT, ACTORS.REVIEWER]);
-const HARNESS_IDENTITY_VALUES = Object.freeze([
-  TENANT.tenantId,
-  TENANT.tenantSlug,
-  TENANT.tenantName,
-  ...ACTOR_SEQUENCE.flatMap((actor) => [
-    actor.subject,
-    actor.userId,
-    actor.email,
-    actor.displayName
-  ])
+// Wire enums are mirrored by Assert-M1DHarnessDiagnostic and checked together
+// by the offline producer/consumer tests. No exception text is wire data.
+export const HARNESS_FAILURE_CODES = Object.freeze([
+  "HARNESS_FAILED", "HARNESS_ARGUMENTS_FORBIDDEN", "BACKEND_TARGET_MUST_BE_EXACT_LOOPBACK",
+  "HARNESS_INHERITED_CONFIGURATION_REFUSED", "HARNESS_D_BINDING_REQUIRED", "ENVIRONMENT_FILE_GUARD_FAILED",
+  "ENVIRONMENT_FILE_PRESENT", "AMBIGUOUS_SYSTEM_ENVIRONMENT", "UNKNOWN_ACTOR", "ME_CONTEXT_MISMATCH",
+  "NON_LOOPBACK_REQUEST_FORBIDDEN", "PORT_UNAVAILABLE", "GET_SET_COOKIE_REQUIRED", "SESSION_COOKIE_CONTRACT_REJECTED",
+  "OPERATION_CANCELLED", "REQUEST_TIMEOUT", "RESPONSE_TOO_LARGE", "INVALID_JSON", "REQUEST_PATH_REFUSED", "NO_STORE_REQUIRED",
+  "HTTP_STATUS_MISMATCH", "HTTP_RESPONSE_UNAVAILABLE", "BOOTSTRAP_CONTRACT_MISMATCH", "EXPLICIT_LOGOUT_REQUIRED",
+  "ACTOR_OPTION_MISMATCH", "SESSION_ROTATION_REQUIRED", "CSRF_ROTATION_REQUIRED", "LOGOUT_FAILED", "LOGOUT_COOKIE_NOT_EXPIRED",
+  "CSRF_REJECTION_REQUIRED", "FOLDER_CONTEXT_MISMATCH", "ARCHIVE_RESULT_MISMATCH", "CHILD_STDIO_MUST_BE_PIPED",
+  "CHILD_CONTROL_OUTPUT_REFUSED", "CHILD_OUTPUT_LIMIT", "CHILD_OUTPUT_FAILED", "HARNESS_ALREADY_STARTED",
+  "PRIVATE_PARENT_STDIN_REQUIRED", "CONTROL_INPUT_LIMIT", "CONTROL_INPUT_REFUSED", "PARENT_EOF", "PARENT_INPUT_FAILED",
+  "HARNESS_INTERRUPTED", "INTEGRATION_TIMEOUT", "BACKEND_PREFLIGHT_FAILED", "VITE_EXITED", "VITE_PROCESS_FAILED",
+  "VITE_READINESS_FAILED", "EXPLICIT_FINISH_REQUIRED", "VITE_STOP_TIMEOUT", "VITE_STOP_FAILED", "INCOMPLETE_HARNESS_RESULT"
 ]);
-const ALLOWED_HTTP_ORIGINS = new Set([
-  BACKEND_ORIGIN,
-  ...ACTOR_SEQUENCE.map((actor) => `http://127.0.0.1:${actor.port}`)
+export const HARNESS_FAILURE_STEPS = Object.freeze([
+  "BINDING", "ENVIRONMENT", "BACKEND_HEALTH", "PORT_CHECK", "VITE_START", "VITE_READY", "LOGIN_ACCOUNTANT", "LOGIN_REVIEWER",
+  "CSRF_REFUSALS", "ME_ACCOUNTANT", "FOLDER_CREATE", "FOLDER_UPDATE", "ACCOUNTANT_ARCHIVE_REFUSAL", "REVIEWER_READ",
+  "REVIEWER_WRITE_REFUSAL", "LOGOUT_ACCOUNTANT", "ANONYMOUS_ME", "ME_REVIEWER", "LOGIN_ADMIN", "ARCHIVE", "WAIT_FINISH",
+  "LOGOUT", "STOP", "COMPLETE", "UNAVAILABLE"
 ]);
-
+const httpStatus = (value) => Number.isInteger(value) && value >= 100 && value <= 599;
+const validFailure = ({ code, step, expectedStatus, receivedStatus }) => HARNESS_FAILURE_CODES.includes(code)
+  && HARNESS_FAILURE_STEPS.includes(step)
+  && (code === "HTTP_STATUS_MISMATCH" ? httpStatus(expectedStatus) && httpStatus(receivedStatus) && expectedStatus !== receivedStatus
+    : code === "HTTP_RESPONSE_UNAVAILABLE" ? httpStatus(expectedStatus) && receivedStatus === null
+      : expectedStatus === null && receivedStatus === null);
 export class HarnessFailure extends Error {
-  constructor(code) {
-    super(code);
-    this.name = "HarnessFailure";
-    this.code = code;
+  constructor(code, { step = "UNAVAILABLE", expectedStatus = null, receivedStatus = null } = {}) {
+    const detail = { code, step, expectedStatus, receivedStatus };
+    const safe = validFailure(detail) ? detail : { code: "HARNESS_FAILED", step: "UNAVAILABLE", expectedStatus: null, receivedStatus: null };
+    super(safe.code); this.name = "HarnessFailure"; Object.assign(this, safe); Object.freeze(this);
   }
 }
-
-function failure(code) {
-  return new HarnessFailure(code);
-}
+const failure = (code, detail) => new HarnessFailure(code, detail);
+const safeFailure = (error, code, step = "UNAVAILABLE") => error instanceof HarnessFailure && validFailure(error)
+  ? failure(error.code, { step: error.step === "UNAVAILABLE" ? step : error.step, expectedStatus: error.expectedStatus, receivedStatus: error.receivedStatus })
+  : failure(code, { step });
 
 export function validateHarnessInvocation(argv, environment) {
-  if (!Array.isArray(argv) || argv.length !== 0) {
-    throw failure("HARNESS_ARGUMENTS_FORBIDDEN");
+  if (!Array.isArray(argv) || argv.length !== 0) throw failure("HARNESS_ARGUMENTS_FORBIDDEN");
+  const target = environment.RITOMER_LOCAL_DEMO_BACKEND_TARGET;
+  if (target !== undefined && target !== BACKEND_ORIGIN) throw failure("BACKEND_TARGET_MUST_BE_EXACT_LOOPBACK");
+  if (Object.keys(environment).some((name) =>
+    /^(RITOMER_SECURITY_JWT_HMAC_SECRET|RITOMER_LOCAL_DEMO_PROXY_AUTH_ENABLED|RITOMER_LOCAL_DEMO_BEARER_TOKEN|NODE_OPTIONS|NODE_PATH|HTTP_PROXY|HTTPS_PROXY|ALL_PROXY|RITOMER_DB_TEST_PASSWORD)$/i.test(name)
+    || /^VITE_/i.test(name))) throw failure("HARNESS_INHERITED_CONFIGURATION_REFUSED");
+  if (environment.RITOMER_DB_RAIL_CAMPAIGN !== "D"
+    || !RUN_ID.test(environment.RITOMER_DB_RAIL_RUN_ID ?? "")
+    || !SHA256.test(environment.RITOMER_DB_RAIL_REVIEWED_OBJECT_SHA256 ?? "")
+    || !SHA256.test(environment.RITOMER_DB_RAIL_RUNTIME_SHA256 ?? "")) {
+    throw failure("HARNESS_D_BINDING_REQUIRED");
   }
-
-  const requestedTarget = environment?.[BACKEND_TARGET_ENV];
-  if (requestedTarget !== undefined && requestedTarget !== BACKEND_ORIGIN) {
-    throw failure("BACKEND_TARGET_MUST_BE_EXACT_LOOPBACK");
-  }
+  return Object.freeze({ runId: environment.RITOMER_DB_RAIL_RUN_ID,
+    objectSha: environment.RITOMER_DB_RAIL_REVIEWED_OBJECT_SHA256,
+    runtimeSha: environment.RITOMER_DB_RAIL_RUNTIME_SHA256 });
 }
 
 export async function assertNoEnvironmentFiles(readdirFunction = readdir) {
   let entries;
-  try {
-    entries = await readdirFunction(FRONTEND_ROOT, { withFileTypes: true });
-  } catch {
-    throw failure("ENVIRONMENT_FILE_GUARD_FAILED");
-  }
-
-  const hasEnvironmentFile = entries.some((entry) => {
-    const name = typeof entry === "string" ? entry : entry.name;
-    return typeof name === "string" && name.toLowerCase().startsWith(".env");
-  });
-
-  if (hasEnvironmentFile) {
+  try { entries = await readdirFunction(FRONTEND_ROOT, { withFileTypes: true }); }
+  catch { throw failure("ENVIRONMENT_FILE_GUARD_FAILED"); }
+  if (entries.some((entry) => (typeof entry === "string" ? entry : entry.name).toLowerCase().startsWith(".env"))) {
     throw failure("ENVIRONMENT_FILE_PRESENT");
   }
 }
 
-export function requireHmacSecret(environment) {
-  const secret = environment?.[HMAC_SECRET_ENV];
-
-  if (typeof secret !== "string" || secret.length === 0 || secret.trim().length === 0) {
-    throw failure("JWT_HMAC_SECRET_MISSING");
+export function buildChildEnvironment(parentEnvironment, platform = process.platform) {
+  const names = platform === "win32"
+    ? ["PATH", "SystemRoot", "WINDIR", "ComSpec", "PATHEXT", "TEMP", "TMP"]
+    : ["PATH", "HOME", "TMPDIR"];
+  const result = {};
+  for (const name of names) {
+    const matches = Object.keys(parentEnvironment).filter((key) => platform === "win32"
+      ? key.toLowerCase() === name.toLowerCase() : key === name);
+    if (matches.length > 1) throw failure("AMBIGUOUS_SYSTEM_ENVIRONMENT");
+    const value = parentEnvironment[matches[0]];
+    if (typeof value === "string" && value.length > 0) result[name] = value;
   }
-
-  if (Buffer.byteLength(secret, "utf8") < 32) {
-    throw failure("JWT_HMAC_SECRET_TOO_SHORT");
-  }
-  if (secret === LEGACY_HMAC_SECRET || secret === INVALID_RUNTIME_SECRET_SENTINEL) {
-    throw failure("JWT_HMAC_SECRET_PLACEHOLDER_FORBIDDEN");
-  }
-
-  return secret;
+  result.RITOMER_LOCAL_DEMO_BACKEND_TARGET = BACKEND_ORIGIN;
+  return result;
 }
 
-function encodeJson(value) {
-  return Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
+export function buildViteLaunch(parentEnvironment, { execPath = process.execPath, platform = process.platform } = {}) {
+  return { command: execPath,
+    args: [VITE_ENTRY, "--host", "127.0.0.1", "--port", "5173", "--strictPort", "--force"],
+    options: { cwd: FRONTEND_ROOT, env: buildChildEnvironment(parentEnvironment, platform),
+      shell: false, detached: false, stdio: ["ignore", "pipe", "pipe"], windowsHide: true } };
 }
 
-function signJwt(subject, secret, issuedAtSeconds, randomBytesFunction) {
-  const header = { alg: "HS256", typ: "JWT" };
-  const jti = Buffer.from(randomBytesFunction(32)).toString("base64url");
-  const payload = {
-    sub: subject,
-    iat: issuedAtSeconds,
-    exp: issuedAtSeconds + JWT_TTL_SECONDS,
-    jti
-  };
-  const unsignedToken = `${encodeJson(header)}.${encodeJson(payload)}`;
-  const signature = createHmac("sha256", Buffer.from(secret, "utf8"))
-    .update(unsignedToken, "ascii")
-    .digest("base64url");
-
-  return {
-    value: `${unsignedToken}.${signature}`,
-    iat: payload.iat,
-    exp: payload.exp,
-    jti: payload.jti
-  };
-}
-
-export function createActorTokens(
-  secret,
-  {
-    nowMilliseconds = Date.now(),
-    randomBytesFunction = secureRandomBytes
-  } = {}
-) {
-  if (!Number.isFinite(nowMilliseconds)) {
-    throw failure("JWT_CLOCK_INVALID");
-  }
-
-  const issuedAtSeconds = Math.floor(nowMilliseconds / 1_000);
-  const accountant = signJwt(
-    ACTORS.ACCOUNTANT.subject,
-    secret,
-    issuedAtSeconds,
-    randomBytesFunction
-  );
-  const reviewer = signJwt(
-    ACTORS.REVIEWER.subject,
-    secret,
-    issuedAtSeconds,
-    randomBytesFunction
-  );
-
-  if (accountant.jti === reviewer.jti || accountant.value === reviewer.value) {
-    throw failure("JWT_ACTOR_VALUES_NOT_DISTINCT");
-  }
-
-  return Object.freeze({ ACCOUNTANT: accountant, REVIEWER: reviewer });
-}
-
-function systemEnvironmentNames(platform) {
-  if (platform === "win32") {
-    return ["PATH", "SystemRoot", "WINDIR", "ComSpec", "PATHEXT", "TEMP", "TMP"];
-  }
-
-  return ["PATH", "HOME", "TMPDIR"];
-}
-
-function environmentValue(environment, requestedName, platform) {
-  if (platform !== "win32") {
-    return environment?.[requestedName];
-  }
-
-  const actualName = Object.keys(environment ?? {}).find(
-    (name) => name.toLowerCase() === requestedName.toLowerCase()
-  );
-  return actualName === undefined ? undefined : environment[actualName];
-}
-
-export function buildChildEnvironment(
-  parentEnvironment,
-  bearerToken,
-  platform = process.platform
-) {
-  const childEnvironment = {};
-
-  for (const name of systemEnvironmentNames(platform)) {
-    const value = environmentValue(parentEnvironment, name, platform);
-    if (typeof value === "string" && value.length > 0) {
-      childEnvironment[name] = value;
-    }
-  }
-
-  childEnvironment[BACKEND_TARGET_ENV] = BACKEND_ORIGIN;
-  childEnvironment[PROXY_AUTH_ENABLED_ENV] = "true";
-  childEnvironment[BEARER_TOKEN_ENV] = bearerToken;
-
-  for (const name of Object.keys(childEnvironment)) {
-    if (name.toUpperCase().startsWith("VITE_")) {
-      throw failure("SENSITIVE_VITE_ENVIRONMENT_FORBIDDEN");
-    }
-    if (FORBIDDEN_CHILD_ENV_NAME.test(name) && name !== BEARER_TOKEN_ENV) {
-      throw failure("SENSITIVE_CHILD_ENVIRONMENT_FORBIDDEN");
-    }
-  }
-
-  return childEnvironment;
-}
-
-function actorByName(actorName) {
-  const actor = ACTORS[actorName];
-  if (actor === undefined) {
-    throw failure("UNKNOWN_ACTOR");
-  }
-  return actor;
-}
-
-export function buildViteLaunch(
-  actorName,
-  bearerToken,
-  parentEnvironment,
-  {
-    execPath = process.execPath,
-    platform = process.platform
-  } = {}
-) {
-  const actor = actorByName(actorName);
-
-  return {
-    command: execPath,
-    args: [
-      VITE_ENTRY,
-      "--host",
-      "127.0.0.1",
-      "--port",
-      String(actor.port),
-      "--strictPort"
-    ],
-    options: {
-      cwd: FRONTEND_ROOT,
-      env: buildChildEnvironment(parentEnvironment, bearerToken, platform),
-      shell: false,
-      stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true
-    }
-  };
-}
-
-function exactJsonValue(actual, expected) {
-  if (Array.isArray(expected)) {
-    return Array.isArray(actual)
-      && actual.length === expected.length
-      && expected.every((value, index) => exactJsonValue(actual[index], value));
-  }
-
-  if (expected !== null && typeof expected === "object") {
-    if (actual === null || typeof actual !== "object" || Array.isArray(actual)) {
-      return false;
-    }
-    const actualKeys = Object.keys(actual).sort();
-    const expectedKeys = Object.keys(expected).sort();
-    return exactJsonValue(actualKeys, expectedKeys)
-      && expectedKeys.every((key) => exactJsonValue(actual[key], expected[key]));
-  }
-
+function exactJson(actual, expected) {
+  if (Array.isArray(expected)) return Array.isArray(actual) && actual.length === expected.length
+    && expected.every((value, index) => exactJson(actual[index], value));
+  if (expected !== null && typeof expected === "object") return actual !== null && typeof actual === "object"
+    && !Array.isArray(actual) && exactJson(Object.keys(actual).sort(), Object.keys(expected).sort())
+    && Object.keys(expected).every((key) => exactJson(actual[key], expected[key]));
   return actual === expected;
 }
-
-export function expectedMePayload(actorName) {
-  const actor = actorByName(actorName);
-  const tenantMembership = {
-    tenantId: TENANT.tenantId,
-    tenantSlug: TENANT.tenantSlug,
-    tenantName: TENANT.tenantName,
-    roles: [actor.role]
-  };
-
-  return {
-    actor: {
-      userId: actor.userId,
-      externalSubject: actor.subject,
-      email: actor.email,
-      displayName: actor.displayName
-    },
-    memberships: [tenantMembership],
-    activeTenant: {
-      tenantId: TENANT.tenantId,
-      tenantSlug: TENANT.tenantSlug,
-      tenantName: TENANT.tenantName
-    },
-    effectiveRoles: [actor.role]
-  };
+export function expectedMePayload(role) {
+  const actor = ACTORS[role];
+  if (!actor) throw failure("UNKNOWN_ACTOR");
+  return { actor: { userId: actor.userId, externalSubject: actor.subject, email: actor.email, displayName: actor.displayName },
+    memberships: [{ ...TENANT, roles: [role] }], activeTenant: { ...TENANT }, effectiveRoles: [role] };
 }
-
-export function classifyMePayload(actorName, payload) {
-  const expected = expectedMePayload(actorName);
-
-  if (!exactJsonValue(payload?.actor, expected.actor)) {
-    return { category: "IDENTITY_MISMATCH", invalidField: "actor" };
-  }
-  if (!exactJsonValue(payload?.activeTenant, expected.activeTenant)) {
-    return { category: "TENANT_MISMATCH", invalidField: "activeTenant" };
-  }
-  if (!exactJsonValue(payload?.effectiveRoles, expected.effectiveRoles)) {
-    return { category: "ROLE_MISMATCH", invalidField: "effectiveRoles" };
-  }
-  if (!exactJsonValue(payload?.memberships, expected.memberships)) {
-    return { category: "MEMBERSHIP_MISMATCH", invalidField: "memberships" };
-  }
-  if (!exactJsonValue(payload, expected)) {
-    return { category: "INVALID_JSON", invalidField: "payload" };
-  }
-
-  return undefined;
-}
-
-export function assertExpectedMe(actorName, payload) {
-  if (classifyMePayload(actorName, payload) !== undefined) {
-    throw failure(`${actorName}_ME_IDENTITY_MISMATCH`);
-  }
-}
-
-export function formatReadinessDiagnostic(actorName, readinessState) {
-  actorByName(actorName);
-  const category = READINESS_CATEGORIES.has(readinessState?.category)
-    ? readinessState.category
-    : "UNKNOWN";
-  const attempts = Number.isInteger(readinessState?.attempts) && readinessState.attempts >= 0
-    ? readinessState.attempts
-    : 0;
-  const lastHttpStatus = Number.isInteger(readinessState?.lastHttpStatus)
-    && readinessState.lastHttpStatus >= 100
-    && readinessState.lastHttpStatus <= 599
-    ? String(readinessState.lastHttpStatus)
-    : "NONE";
-  const invalidField = READINESS_INVALID_FIELDS.has(readinessState?.invalidField)
-    ? ` invalidField=${readinessState.invalidField}`
-    : "";
-
-  return `HARNESS_READINESS_FAILED actor=${actorName} phase=${READINESS_PHASE} category=${category} attempts=${attempts} lastHttpStatus=${lastHttpStatus}${invalidField}`;
-}
-
-export function formatMonitorDiagnostic(actorName, level, monitorState) {
-  actorByName(actorName);
-  const safeLevel = MONITOR_DIAGNOSTIC_LEVELS.has(level) ? level : "FAILED";
-  const category = READINESS_CATEGORIES.has(monitorState?.category)
-    ? monitorState.category
-    : "UNKNOWN";
-  const consecutiveFailures = Number.isInteger(monitorState?.consecutiveFailures)
-    && monitorState.consecutiveFailures >= 1
-    && monitorState.consecutiveFailures <= IDENTITY_MONITOR_TRANSIENT_FAILURE_THRESHOLD
-    ? monitorState.consecutiveFailures
-    : 1;
-  const threshold = MONITOR_DIAGNOSTIC_THRESHOLDS.has(monitorState?.threshold)
-    ? monitorState.threshold
-    : 1;
-  const httpStatus = category === "HTTP_STATUS"
-    && Number.isInteger(monitorState?.lastHttpStatus)
-    && monitorState.lastHttpStatus >= 100
-    && monitorState.lastHttpStatus <= 599
-    ? ` httpStatus=${monitorState.lastHttpStatus}`
-    : "";
-  const invalidField = READINESS_INVALID_FIELDS.has(monitorState?.invalidField)
-    ? ` invalidField=${monitorState.invalidField}`
-    : "";
-
-  return `HARNESS_MONITOR_${safeLevel} actor=${actorName} category=${category} consecutiveFailures=${consecutiveFailures} threshold=${threshold}${httpStatus}${invalidField}`;
-}
-
-function replaceExact(value, sensitiveValue, replacement) {
-  if (typeof sensitiveValue !== "string" || sensitiveValue.length === 0) {
-    return value;
-  }
-  return value.split(sensitiveValue).join(replacement);
-}
-
-export function redactSensitiveText(
-  text,
-  { tokens = [], secret = "", sensitiveValues = [] } = {}
-) {
-  const rawText = String(text);
-  if (SENSITIVE_ME_PAYLOAD_FIELD.test(rawText)) {
-    return "[REDACTED_SENSITIVE_PAYLOAD]";
-  }
-
-  let redacted = rawText.replace(AUTHORIZATION_HEADER, "[REDACTED_AUTHORIZATION]");
-
-  for (const token of tokens) {
-    redacted = replaceExact(redacted, token, "[REDACTED_TOKEN]");
-  }
-  redacted = replaceExact(redacted, secret, "[REDACTED_SECRET]");
-  for (const sensitiveValue of sensitiveValues) {
-    redacted = replaceExact(redacted, sensitiveValue, "[REDACTED_SENSITIVE]");
-  }
-
-  return redacted.replace(JWT_LIKE_VALUE, "[REDACTED_JWT]");
-}
-
-function attachLineForwarder(stream, actorName, write, redactionMaterial, onFailure) {
-  let buffered = "";
-
-  const emitLine = (line) => {
-    write(`[${actorName}] ${redactSensitiveText(line, redactionMaterial)}\n`);
-  };
-  const onData = (chunk) => {
-    buffered += String(chunk);
-    if (buffered.length > MAX_BUFFERED_LOG_LINE) {
-      buffered = "";
-      onFailure("CHILD_LOG_LINE_TOO_LONG");
-      return;
-    }
-
-    let lineBreak = buffered.indexOf("\n");
-    while (lineBreak >= 0) {
-      const rawLine = buffered.slice(0, lineBreak);
-      buffered = buffered.slice(lineBreak + 1);
-      emitLine(rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine);
-      lineBreak = buffered.indexOf("\n");
-    }
-  };
-  const onEnd = () => {
-    if (buffered.length > 0) {
-      emitLine(buffered.endsWith("\r") ? buffered.slice(0, -1) : buffered);
-      buffered = "";
-    }
-  };
-  const onError = () => onFailure("CHILD_LOG_STREAM_FAILED");
-
-  stream.on("data", onData);
-  stream.once("end", onEnd);
-  stream.once("error", onError);
-
-  return () => {
-    stream.off("data", onData);
-    stream.off("end", onEnd);
-    stream.off("error", onError);
-  };
-}
-
-export function attachRedactedChildOutput(
-  child,
-  actorName,
-  redactionMaterial,
-  {
-    writeStdout = (value) => process.stdout.write(value),
-    writeStderr = (value) => process.stderr.write(value),
-    onFailure = () => undefined
-  } = {}
-) {
-  if (child.stdout === null || child.stderr === null) {
-    throw failure("CHILD_STDIO_MUST_BE_PIPED");
-  }
-
-  const detachStdout = attachLineForwarder(
-    child.stdout,
-    actorName,
-    writeStdout,
-    redactionMaterial,
-    onFailure
-  );
-  const detachStderr = attachLineForwarder(
-    child.stderr,
-    actorName,
-    writeStderr,
-    redactionMaterial,
-    onFailure
-  );
-
-  return () => {
-    detachStdout();
-    detachStderr();
-  };
+export function assertExpectedMe(role, payload) {
+  if (!exactJson(payload, expectedMePayload(role))) throw failure("ME_CONTEXT_MISMATCH");
 }
 
 export function assertLoopbackUrl(rawUrl) {
   let parsed;
-  try {
-    parsed = new URL(rawUrl);
-  } catch {
+  try { parsed = new URL(rawUrl); } catch { throw failure("NON_LOOPBACK_REQUEST_FORBIDDEN"); }
+  if (![FRONTEND_ORIGIN, BACKEND_ORIGIN].includes(parsed.origin) || parsed.username || parsed.password || parsed.hash) {
     throw failure("NON_LOOPBACK_REQUEST_FORBIDDEN");
   }
-
-  if (
-    parsed.protocol !== "http:"
-    || parsed.hostname !== "127.0.0.1"
-    || !ALLOWED_HTTP_ORIGINS.has(parsed.origin)
-  ) {
-    throw failure("NON_LOOPBACK_REQUEST_FORBIDDEN");
-  }
-
   return parsed;
 }
-
-export function assertPortAvailable(
-  port,
-  { createServerFunction = createServer } = {}
-) {
+export function assertPortAvailable(port, { createServerFunction = createServer } = {}) {
   return new Promise((resolvePromise, rejectPromise) => {
     const server = createServerFunction();
-    let settled = false;
-
-    const reject = () => {
-      if (settled) return;
-      settled = true;
-      rejectPromise(failure("PORT_UNAVAILABLE"));
-    };
-
-    server.once("error", reject);
-    server.listen({ host: "127.0.0.1", port, exclusive: true }, () => {
-      server.close((closeError) => {
-        if (settled) return;
-        settled = true;
-        if (closeError !== undefined) {
-          rejectPromise(failure("PORT_PROBE_CLOSE_FAILED"));
-        } else {
-          resolvePromise();
-        }
-      });
-    });
+    server.once("error", () => rejectPromise(failure("PORT_UNAVAILABLE")));
+    server.listen({ host: "127.0.0.1", port, exclusive: true }, () =>
+      server.close((error) => error ? rejectPromise(failure("PORT_UNAVAILABLE")) : resolvePromise()));
   });
 }
 
-function createDefaultDependencies() {
-  return {
-    spawnFunction: spawnProcess,
-    fetchFunction: (...args) => globalThis.fetch(...args),
-    readdirFunction: readdir,
-    createServerFunction: createServer,
-    randomBytesFunction: secureRandomBytes,
-    nowFunction: () => Date.now(),
-    setTimeoutFunction: setTimeout,
-    clearTimeoutFunction: clearTimeout,
-    processReference: process,
-    platform: process.platform,
-    execPath: process.execPath,
-    writeStdout: (value) => process.stdout.write(value),
-    writeStderr: (value) => process.stderr.write(value),
-    readinessPolicy: READINESS_POLICY
-  };
+// Only the single contract cookie is accepted. No general cookie parser or persistence.
+export function sessionCookieFromHeaders(headers, previous) {
+  if (typeof headers?.getSetCookie !== "function") throw failure("GET_SET_COOKIE_REQUIRED");
+  const values = headers.getSetCookie();
+  if (!Array.isArray(values) || values.length > 1) throw failure("SESSION_COOKIE_CONTRACT_REJECTED");
+  if (values.length === 0) return previous;
+  const raw = values[0];
+  if (typeof raw !== "string" || raw.length > 4096 || /[\r\n]/.test(raw)) throw failure("SESSION_COOKIE_CONTRACT_REJECTED");
+  const parts = raw.split(";").map((part) => part.trim());
+  const first = parts.shift();
+  const match = /^__Host-ritomer-session=([A-Za-z0-9_-]*)$/.exec(first);
+  if (!match || new Set(parts.map((part) => part.toLowerCase())).size !== parts.length
+    || !["Secure", "HttpOnly", "Path=/", "SameSite=Lax"].every((part) => parts.includes(part))
+    || parts.some((part) => !["Secure", "HttpOnly", "Path=/", "SameSite=Lax", "Max-Age=0", "Expires=Thu, 01 Jan 1970 00:00:00 GMT"].includes(part))) {
+    throw failure("SESSION_COOKIE_CONTRACT_REJECTED");
+  }
+  if (parts.includes("Max-Age=0")) {
+    if (match[1] !== "") throw failure("SESSION_COOKIE_CONTRACT_REJECTED");
+    return undefined;
+  }
+  if (parts.some((part) => part.startsWith("Expires="))) throw failure("SESSION_COOKIE_CONTRACT_REJECTED");
+  if (match[1].length < 16) throw failure("SESSION_COOKIE_CONTRACT_REJECTED");
+  return `${COOKIE_NAME}=${match[1]}`;
 }
 
-function delay(milliseconds, dependencies) {
-  return new Promise((resolvePromise) => {
-    dependencies.setTimeoutFunction(resolvePromise, milliseconds);
+const defaults = () => ({ spawnFunction: spawnProcess, fetchFunction: (...args) => globalThis.fetch(...args),
+  readdirFunction: readdir, createServerFunction: createServer,
+  nowFunction: () => performance.now(), setTimeoutFunction: globalThis.setTimeout, clearTimeoutFunction: globalThis.clearTimeout,
+  processReference: process, input: process.stdin, execPath: process.execPath, platform: process.platform,
+  writeStdout: (value) => process.stdout.write(value) });
+
+// The timer races the entire operation including the response body, even for doubles ignoring AbortSignal.
+export async function boundedOperation(operation, milliseconds, dependencies, signal, code = "REQUEST_TIMEOUT") {
+  if (signal?.aborted) throw failure("OPERATION_CANCELLED");
+  let timeout;
+  let cancel;
+  const controller = new globalThis.AbortController();
+  const stop = new Promise((_, rejectPromise) => {
+    timeout = dependencies.setTimeoutFunction(() => { controller.abort(); rejectPromise(failure(code)); }, milliseconds);
+    cancel = () => { controller.abort(); rejectPromise(failure("OPERATION_CANCELLED")); };
+    signal?.addEventListener("abort", cancel, { once: true });
   });
+  try { return await Promise.race([Promise.resolve().then(() => operation(controller.signal)), stop]); }
+  finally { dependencies.clearTimeoutFunction(timeout); signal?.removeEventListener("abort", cancel); }
 }
 
-async function fetchWithTimeout(url, dependencies) {
-  assertLoopbackUrl(url);
-  const controller = new globalThis.AbortController();
-  const timeout = dependencies.setTimeoutFunction(
-    () => controller.abort(),
-    REQUEST_TIMEOUT_MILLISECONDS
-  );
-
-  try {
-    return await dependencies.fetchFunction(url, {
-      method: "GET",
-      redirect: "manual",
-      headers: { Accept: "application/json" },
-      signal: controller.signal
-    });
-  } finally {
-    dependencies.clearTimeoutFunction(timeout);
-  }
-}
-
-function isAbortError(error) {
-  return error !== null
-    && typeof error === "object"
-    && "name" in error
-    && error.name === "AbortError";
-}
-
-function readinessFailureResult(category, lastHttpStatus = undefined, invalidField = undefined) {
-  return { ready: false, category, lastHttpStatus, invalidField };
-}
-
-export function isTransientReadinessFailure(result) {
-  return result?.category === "CONNECTION"
-    || result?.category === "TIMEOUT"
-    || (result?.category === "HTTP_STATUS"
-      && Number.isInteger(result.lastHttpStatus)
-      && result.lastHttpStatus >= 500
-      && result.lastHttpStatus <= 599);
-}
-
-async function probeActorReadiness(actor, dependencies, cancellationSignal = undefined) {
-  const url = `http://127.0.0.1:${actor.port}/api/me`;
-  assertLoopbackUrl(url);
-  if (cancellationSignal?.aborted === true) {
-    return { ready: false, cancelled: true };
-  }
-
-  const controller = new globalThis.AbortController();
-  let requestTimedOut = false;
-  const cancelRequest = () => controller.abort();
-  cancellationSignal?.addEventListener("abort", cancelRequest, { once: true });
-  const timeout = dependencies.setTimeoutFunction(() => {
-    requestTimedOut = true;
-    controller.abort();
-  }, dependencies.readinessPolicy.requestTimeoutMilliseconds);
-  let response;
-
-  try {
+async function readResponse(response) {
+  let text;
+  if (response.body?.getReader) {
+    const reader = response.body.getReader();
+    const chunks = [];
+    let bytes = 0;
     try {
-      response = await dependencies.fetchFunction(url, {
-        method: "GET",
-        redirect: "manual",
-        headers: { Accept: "application/json" },
-        signal: controller.signal
-      });
-    } catch (error) {
-      if (cancellationSignal?.aborted === true) {
-        return { ready: false, cancelled: true };
+      for (;;) {
+        const next = await reader.read();
+        if (next.done) break;
+        bytes += next.value.byteLength;
+        if (bytes > MAX_RESPONSE_BYTES) { void reader.cancel(); throw failure("RESPONSE_TOO_LARGE"); }
+        chunks.push(Buffer.from(next.value));
       }
-      return readinessFailureResult(
-        requestTimedOut || isAbortError(error) ? "TIMEOUT" : "CONNECTION"
-      );
-    }
-
-    const lastHttpStatus = Number.isInteger(response?.status) ? response.status : undefined;
-    if (lastHttpStatus !== 200) {
-      return readinessFailureResult("HTTP_STATUS", lastHttpStatus);
-    }
-
-    let payload;
-    try {
-      payload = await response.json();
-    } catch (error) {
-      if (cancellationSignal?.aborted === true) {
-        return { ready: false, cancelled: true };
-      }
-      return readinessFailureResult(
-        requestTimedOut || isAbortError(error) ? "TIMEOUT" : "INVALID_JSON",
-        lastHttpStatus
-      );
-    }
-
-    if (cancellationSignal?.aborted === true) {
-      return { ready: false, cancelled: true };
-    }
-    if (requestTimedOut) {
-      return readinessFailureResult("TIMEOUT", lastHttpStatus);
-    }
-
-    const mismatch = classifyMePayload(actor.name, payload);
-    if (mismatch !== undefined) {
-      return readinessFailureResult(
-        mismatch.category,
-        lastHttpStatus,
-        mismatch.invalidField
-      );
-    }
-
-    return { ready: true, lastHttpStatus };
-  } finally {
-    dependencies.clearTimeoutFunction(timeout);
-    cancellationSignal?.removeEventListener("abort", cancelRequest);
-  }
-}
-
-async function preflightBackend(dependencies) {
-  let response;
-  try {
-    response = await fetchWithTimeout(BACKEND_HEALTH_URL, dependencies);
-  } catch {
-    throw failure("BACKEND_PREFLIGHT_FAILED");
-  }
-
-  if (response.status !== 200) {
-    throw failure("BACKEND_PREFLIGHT_FAILED");
-  }
-
+      text = Buffer.concat(chunks).toString("utf8");
+    } finally { reader.releaseLock(); }
+  } else text = await response.text();
+  if (typeof text !== "string" || Buffer.byteLength(text) > MAX_RESPONSE_BYTES) throw failure("RESPONSE_TOO_LARGE");
   let payload;
-  try {
-    payload = await response.json();
-  } catch {
-    throw failure("BACKEND_PREFLIGHT_FAILED");
-  }
-
-  if (payload?.status !== "UP") {
-    throw failure("BACKEND_PREFLIGHT_FAILED");
-  }
+  try { payload = text === "" ? undefined : JSON.parse(text); } catch { throw failure("INVALID_JSON"); }
+  return { status: response.status, headers: response.headers, payload };
 }
 
-function timeoutPromise(promise, milliseconds, dependencies) {
-  return new Promise((resolvePromise, rejectPromise) => {
-    const timeout = dependencies.setTimeoutFunction(
-      () => rejectPromise(failure("PROCESS_STOP_TIMEOUT")),
-      milliseconds
-    );
-    promise.then(
-      (value) => {
-        dependencies.clearTimeoutFunction(timeout);
-        resolvePromise(value);
-      },
-      () => {
-        dependencies.clearTimeoutFunction(timeout);
-        rejectPromise(failure("PROCESS_STOP_FAILED"));
+export function createSessionJar(dependencyOverrides = {}, cancellationSignal) {
+  const dependencies = { ...defaults(), ...dependencyOverrides };
+  let cookie;
+  let csrf;
+  let authenticated = false;
+  let epoch = 0;
+  const clear = () => { cookie = undefined; csrf = undefined; authenticated = false; epoch += 1; };
+  const request = async (path, { method = "GET", body, token = csrf, tenant = false, cleanup = false, expectedStatus } = {}) => {
+    if (!/^\/api\/(?:session\/(?:bootstrap|local|logout)|me|closing-folders(?:\/[0-9a-f-]{36}(?:\/archive)?)?)$/.test(path)) {
+      throw failure("REQUEST_PATH_REFUSED");
+    }
+    const version = epoch;
+    const headers = { Accept: "application/json", Origin: FRONTEND_ORIGIN };
+    if (cookie) headers.Cookie = cookie;
+    if (method !== "GET" && token !== null && token !== undefined) headers["X-CSRF-TOKEN"] = token;
+    if (tenant) headers["X-Tenant-Id"] = TENANT.tenantId;
+    if (body !== undefined) headers["Content-Type"] = "application/json";
+    let responseReceived = false;
+    let result;
+    try {
+      result = await boundedOperation(async (signal) => {
+        const response = await dependencies.fetchFunction(`${FRONTEND_ORIGIN}${path}`, {
+          method, headers, redirect: "manual", signal, ...(body === undefined ? {} : { body: JSON.stringify(body) })
+        });
+        responseReceived = response !== null && typeof response === "object";
+        return readResponse(response);
+      }, REQUEST_TIMEOUT_MILLISECONDS, dependencies, cleanup ? undefined : cancellationSignal);
+    } catch (error) {
+      if (!responseReceived && httpStatus(expectedStatus) && !(error instanceof HarnessFailure && error.code !== "REQUEST_TIMEOUT")) {
+        throw failure("HTTP_RESPONSE_UNAVAILABLE", { expectedStatus });
       }
-    );
-  });
+      throw error;
+    }
+    if (version !== epoch || (!cleanup && cancellationSignal?.aborted)) throw failure("OPERATION_CANCELLED");
+    cookie = sessionCookieFromHeaders(result.headers, cookie);
+    if (result.status === 401 || result.payload?.code === "ACCESS_REVOKED") clear();
+    if ((path.startsWith("/api/session/") || path === "/api/me") && result.headers.get("cache-control") !== "no-store") {
+      throw failure("NO_STORE_REQUIRED");
+    }
+    return result;
+  };
+  const expect = async (path, status, options) => {
+    const result = await request(path, { ...options, expectedStatus: status });
+    if (result.status !== status) throw failure("HTTP_STATUS_MISMATCH", { expectedStatus: status, receivedStatus: result.status });
+    return result.payload;
+  };
+  const bootstrap = async (state) => {
+    const payload = await expect("/api/session/bootstrap", 200);
+    const keys = state === "ANONYMOUS" ? ["actors", "csrf", "localLoginAvailable", "sessionState"] : ["csrf", "localLoginAvailable", "sessionState"];
+    if (!payload || !exactJson(Object.keys(payload).sort(), keys) || payload.sessionState !== state
+      || payload.localLoginAvailable !== true || payload.csrf?.headerName !== "X-CSRF-TOKEN"
+      || !exactJson(Object.keys(payload.csrf).sort(), ["headerName", "token"])
+      || typeof payload.csrf.token !== "string" || payload.csrf.token.length < 1 || payload.csrf.token.length > 4096
+      || !cookie) throw failure("BOOTSTRAP_CONTRACT_MISMATCH");
+    csrf = payload.csrf.token;
+    authenticated = state === "AUTHENTICATED";
+    return payload;
+  };
+  const login = async (role) => {
+    if (authenticated) throw failure("EXPLICIT_LOGOUT_REQUIRED");
+    const initial = await bootstrap("ANONYMOUS");
+    const actor = ACTORS[role];
+    if (!actor || !Array.isArray(initial.actors) || initial.actors.length > 50
+      || initial.actors.filter((item) => item.actorKey === actor.actorKey).length !== 1) throw failure("ACTOR_OPTION_MISMATCH");
+    const oldCookie = cookie;
+    const oldCsrf = csrf;
+    await expect("/api/session/local", 204, { method: "POST", body: { actorKey: actor.actorKey } });
+    if (!cookie || cookie === oldCookie) throw failure("SESSION_ROTATION_REQUIRED");
+    await bootstrap("AUTHENTICATED");
+    if (csrf === oldCsrf) throw failure("CSRF_ROTATION_REQUIRED");
+    assertExpectedMe(role, await expect("/api/me", 200));
+    return oldCsrf;
+  };
+  const logout = async (cleanup = false) => {
+    if (authenticated) {
+      const result = await request("/api/session/logout", { method: "POST", cleanup, expectedStatus: 204 });
+      const expired = result.status === 401 && result.payload?.code === "SESSION_EXPIRED"
+        && result.headers.getSetCookie().length === 1
+        && sessionCookieFromHeaders(result.headers) === undefined;
+      if (result.status !== 204 && !expired) throw failure("HTTP_STATUS_MISMATCH", { expectedStatus: 204, receivedStatus: result.status });
+      if (cookie !== undefined) throw failure("LOGOUT_COOKIE_NOT_EXPIRED");
+    }
+    clear();
+  };
+  return Object.freeze({ request, expect, login, logout, clear, getCsrf: () => csrf,
+    hasCredentials: () => cookie !== undefined || csrf !== undefined });
 }
 
-function normalizeFailure(error, fallbackCode) {
-  return error instanceof HarnessFailure ? error : failure(fallbackCode);
+export async function exerciseTwoJars(jarA, jarB, runId, onStep = () => {}) {
+  onStep("LOGIN_ACCOUNTANT");
+  const oldCsrfA = await jarA.login("ACCOUNTANT");
+  onStep("LOGIN_REVIEWER");
+  await jarB.login("REVIEWER");
+  onStep("CSRF_REFUSALS");
+  for (const token of [null, "synthetic-invalid-csrf", oldCsrfA, jarB.getCsrf()]) {
+    const rejection = await jarA.expect("/api/session/logout", 403, { method: "POST", token });
+    if (rejection?.code !== "CSRF_REJECTED") throw failure("CSRF_REJECTION_REQUIRED");
+  }
+  onStep("ME_ACCOUNTANT");
+  assertExpectedMe("ACCOUNTANT", await jarA.expect("/api/me", 200));
+  onStep("FOLDER_CREATE");
+  const folder = await jarA.expect("/api/closing-folders", 201, { method: "POST", tenant: true,
+    body: { name: `M1.1D ${runId} (synthetic)`, periodStartOn: "2025-01-01", periodEndOn: "2025-12-31" } });
+  if (!UUID.test(folder?.id ?? "") || folder.tenantId !== TENANT.tenantId) throw failure("FOLDER_CONTEXT_MISMATCH");
+  const path = `/api/closing-folders/${folder.id}`;
+  onStep("FOLDER_UPDATE");
+  await jarA.expect(path, 200, { method: "PATCH", tenant: true, body: { externalRef: `M1D-${runId}` } });
+  onStep("ACCOUNTANT_ARCHIVE_REFUSAL");
+  await jarA.expect(`${path}/archive`, 403, { method: "POST", tenant: true });
+  onStep("REVIEWER_READ");
+  const read = await jarB.expect(path, 200, { tenant: true });
+  if (read?.id !== folder.id || read.tenantId !== TENANT.tenantId) throw failure("FOLDER_CONTEXT_MISMATCH");
+  onStep("REVIEWER_WRITE_REFUSAL");
+  await jarB.expect(path, 403, { method: "PATCH", tenant: true, body: { name: "Must be refused" } });
+  onStep("LOGOUT_ACCOUNTANT");
+  await jarA.logout();
+  onStep("ANONYMOUS_ME");
+  await jarA.expect("/api/me", 401);
+  onStep("ME_REVIEWER");
+  assertExpectedMe("REVIEWER", await jarB.expect("/api/me", 200));
+  onStep("LOGIN_ADMIN");
+  await jarA.login("ADMIN");
+  onStep("ARCHIVE");
+  const archived = await jarA.expect(`${path}/archive`, 200, { method: "POST", tenant: true });
+  if (archived?.id !== folder.id || archived.tenantId !== TENANT.tenantId || archived.status !== "ARCHIVED") {
+    throw failure("ARCHIVE_RESULT_MISMATCH");
+  }
 }
 
-export function createHarnessRuntime({
-  environment = process.env,
-  argv = process.argv.slice(2),
-  dependencies: dependencyOverrides = {}
-} = {}) {
-  const dependencies = { ...createDefaultDependencies(), ...dependencyOverrides };
-  const children = [];
-  const processListeners = [];
-  let expirationTimer;
-  let identityMonitorTimer;
-  let identityMonitorInFlight;
-  let identityMonitorAbortController;
-  let stopRequest;
+// Drain both streams concurrently, suppressing all child content. Only owner-produced records reach stdout.
+export function drainChildOutput(child, onFailure) {
+  if (!child.stdout || !child.stderr) throw failure("CHILD_STDIO_MUST_BE_PIPED");
+  const detach = [];
+  for (const stream of [child.stdout, child.stderr]) {
+    let bytes = 0;
+    let tail = "";
+    const data = (chunk) => {
+      bytes += Buffer.byteLength(chunk);
+      const text = tail + String(chunk);
+      if (text.includes("M1D_")) onFailure("CHILD_CONTROL_OUTPUT_REFUSED");
+      tail = text.slice(-4);
+      if (bytes > MAX_CHILD_OUTPUT_BYTES) onFailure("CHILD_OUTPUT_LIMIT");
+    };
+    const error = () => onFailure("CHILD_OUTPUT_FAILED");
+    stream.on("data", data); stream.on("error", error);
+    detach.push(() => { stream.off("data", data); stream.off("error", error); });
+  }
+  return () => detach.forEach((remove) => remove());
+}
+
+export function createHarnessRuntime({ environment = process.env, argv = process.argv.slice(2), dependencies: overrides = {} } = {}) {
+  const dependencies = { ...defaults(), ...overrides };
+  const cancellation = new globalThis.AbortController();
+  const jars = [createSessionJar(dependencies, cancellation.signal), createSessionJar(dependencies, cancellation.signal)];
+  let started = false;
+  let jarsPassed = false;
+  let finishing = false;
+  let child;
+  let childClosed = false;
+  let detachOutput;
+  let stopRequested = false;
+  let firstFailure;
   let stopResolve;
   let readyResolve;
   let readyReject;
-  let started = false;
-  let shuttingDown = false;
-  let readySettled = false;
-  const monitorConsecutiveFailures = new Map(
-    ACTOR_SEQUENCE.map((actor) => [actor.name, 0])
-  );
-
-  const stopPromise = new Promise((resolvePromise) => {
-    stopResolve = resolvePromise;
-  });
-  const ready = new Promise((resolvePromise, rejectPromise) => {
-    readyResolve = resolvePromise;
-    readyReject = rejectPromise;
-  });
+  let step = "BINDING";
+  const stop = new Promise((resolvePromise) => { stopResolve = resolvePromise; });
+  const ready = new Promise((resolvePromise, rejectPromise) => { readyResolve = resolvePromise; readyReject = rejectPromise; });
   ready.catch(() => undefined);
-
-  const requestStop = (code, exitCode = 1) => {
-    if (stopRequest !== undefined) return;
-    stopRequest = { code, exitCode };
-    stopResolve(stopRequest);
+  // Every terminal failure uses the same immutable observation, including
+  // events during finalization. Later cleanup still runs but cannot replace it.
+  const observeFailure = (error, code, observedStep = step) => {
+    firstFailure ??= safeFailure(error, code, observedStep);
+    return firstFailure;
   };
-
-  const raceStop = async (operation) => {
-    const outcome = await Promise.race([
-      Promise.resolve(operation).then(
-        (value) => ({ kind: "value", value }),
-        (error) => ({ kind: "error", error })
-      ),
-      stopPromise.then((request) => ({ kind: "stop", request }))
-    ]);
-
-    if (outcome.kind === "stop") {
-      throw failure(outcome.request.code);
-    }
-    if (outcome.kind === "error") {
-      throw outcome.error;
-    }
-    return outcome.value;
+  const fail = (code) => {
+    observeFailure(failure(code), "HARNESS_FAILED");
+    if (!stopRequested) { stopRequested = true; cancellation.abort(); stopResolve(); }
   };
-
-  const installProcessListener = (eventName, listener) => {
-    dependencies.processReference.on(eventName, listener);
-    processListeners.push([eventName, listener]);
-  };
-
-  const installProcessGuards = () => {
-    installProcessListener("SIGINT", () => requestStop("SIGINT", 0));
-    installProcessListener("SIGTERM", () => requestStop("SIGTERM", 0));
-    installProcessListener("uncaughtException", () => requestStop("UNCAUGHT_EXCEPTION", 1));
-    installProcessListener("unhandledRejection", () => requestStop("UNHANDLED_REJECTION", 1));
-  };
-
-  const removeProcessGuards = () => {
-    for (const [eventName, listener] of processListeners) {
-      dependencies.processReference.off(eventName, listener);
-    }
-    processListeners.length = 0;
-  };
-
-  const registerChild = (actor, child, detachOutput) => {
-    let closeResolve;
-    const closePromise = new Promise((resolvePromise) => {
-      closeResolve = resolvePromise;
-    });
-    const record = {
-      actor,
-      child,
-      detachOutput,
-      closed: false,
-      closePromise
-    };
-    const onExit = () => {
-      if (!shuttingDown) requestStop(`${actor.name}_PROCESS_EXITED`, 1);
-    };
-    const onClose = () => {
-      record.closed = true;
-      closeResolve();
-      if (!shuttingDown) requestStop(`${actor.name}_PROCESS_EXITED`, 1);
-    };
-    const onError = () => {
-      if (!shuttingDown) requestStop(`${actor.name}_PROCESS_FAILED`, 1);
-    };
-
-    child.once("exit", onExit);
-    child.once("close", onClose);
-    child.once("error", onError);
-    record.onExit = onExit;
-    record.onClose = onClose;
-    record.onError = onError;
-    children.push(record);
-    return record;
-  };
-
-  const startActor = (actor, token, redactionMaterial) => {
-    const launch = buildViteLaunch(actor.name, token, environment, {
-      execPath: dependencies.execPath,
-      platform: dependencies.platform
-    });
-    let child;
-    try {
-      child = dependencies.spawnFunction(launch.command, launch.args, launch.options);
-    } catch {
-      throw failure(`${actor.name}_START_FAILED`);
-    }
-
-    const record = registerChild(actor, child, () => undefined);
-    try {
-      record.detachOutput = attachRedactedChildOutput(child, actor.name, redactionMaterial, {
-        writeStdout: dependencies.writeStdout,
-        writeStderr: dependencies.writeStderr,
-        onFailure: (code) => requestStop(code, 1)
-      });
-    } catch {
-      throw failure(`${actor.name}_START_FAILED`);
-    }
-
-    return record;
-  };
-
-  const waitForActorReadiness = async (actor, readinessState) => {
-    for (
-      let attempt = 1;
-      attempt <= dependencies.readinessPolicy.attempts;
-      attempt += 1
-    ) {
-      readinessState.attempts = attempt;
-      let result;
-      try {
-        result = await probeActorReadiness(actor, dependencies);
-      } catch {
-        result = readinessFailureResult("UNKNOWN");
-      }
-      if (result.ready) return;
-
-      readinessState.category = result.category;
-      readinessState.lastHttpStatus = result.lastHttpStatus;
-      readinessState.invalidField = result.invalidField;
-      if (!isTransientReadinessFailure(result)) {
-        throw failure(`${actor.name}_READINESS_FAILED`);
-      }
-      if (attempt < dependencies.readinessPolicy.attempts) {
-        await raceStop(delay(dependencies.readinessPolicy.intervalMilliseconds, dependencies));
-      }
-    }
-    throw failure(`${actor.name}_READINESS_FAILED`);
-  };
-
-  const awaitActorReadiness = async (actor) => {
-    const readinessState = {
-      attempts: 0,
-      category: "UNKNOWN",
-      lastHttpStatus: undefined,
-      invalidField: undefined
-    };
-
-    try {
-      await raceStop(waitForActorReadiness(actor, readinessState));
-    } catch (error) {
-      const readinessCode = `${actor.name}_READINESS_FAILED`;
-      const childExited = error instanceof HarnessFailure
-        && (error.code === `${actor.name}_PROCESS_EXITED`
-          || error.code === `${actor.name}_PROCESS_FAILED`);
-
-      if (!childExited && (!(error instanceof HarnessFailure) || error.code !== readinessCode)) {
-        throw error;
-      }
-      if (childExited) {
-        readinessState.category = "CHILD_EXITED";
-        readinessState.lastHttpStatus = undefined;
-        readinessState.invalidField = undefined;
-      }
-
-      dependencies.writeStderr(
-        `${formatReadinessDiagnostic(actor.name, readinessState)}\n`
-      );
-      throw failure(readinessCode);
-    }
-  };
-
-  const stopChild = async (record) => {
-    if (!record.closed) {
-      try {
-        record.child.kill("SIGTERM");
-      } catch {
-        throw failure("PROCESS_STOP_FAILED");
-      }
-
-      try {
-        await timeoutPromise(
-          record.closePromise,
-          PROCESS_STOP_TIMEOUT_MILLISECONDS,
-          dependencies
-        );
-      } catch {
-        if (!record.closed) {
-          try {
-            record.child.kill("SIGKILL");
-          } catch {
-            throw failure("PROCESS_STOP_FAILED");
-          }
-          await timeoutPromise(
-            record.closePromise,
-            PROCESS_STOP_TIMEOUT_MILLISECONDS,
-            dependencies
-          );
-        }
-      }
-    }
-    record.detachOutput();
-    record.child.off("exit", record.onExit);
-    record.child.off("close", record.onClose);
-    record.child.off("error", record.onError);
-  };
-
-  const verifyOwnedPortsReleased = async () => {
-    const ownedPorts = [...new Set(children.map((record) => record.actor.port))];
-    for (const port of ownedPorts) {
-      let released = false;
-      for (let attempt = 0; attempt < PORT_RELEASE_ATTEMPTS; attempt += 1) {
-        try {
-          await assertPortAvailable(port, {
-            createServerFunction: dependencies.createServerFunction
-          });
-          released = true;
-          break;
-        } catch {
-          if (attempt + 1 < PORT_RELEASE_ATTEMPTS) {
-            await delay(PORT_RELEASE_INTERVAL_MILLISECONDS, dependencies);
-          }
-        }
-      }
-      if (!released) throw failure("PORT_RELEASE_FAILED");
-    }
-  };
-
-  const cancelIdentityMonitor = async () => {
-    identityMonitorAbortController?.abort();
-    if (identityMonitorTimer !== undefined) {
-      dependencies.clearTimeoutFunction(identityMonitorTimer);
-      identityMonitorTimer = undefined;
-    }
-    if (identityMonitorInFlight !== undefined) {
-      await identityMonitorInFlight;
-    }
-  };
-
-  const shutdownChildren = async () => {
-    shuttingDown = true;
-    if (expirationTimer !== undefined) {
-      dependencies.clearTimeoutFunction(expirationTimer);
-      expirationTimer = undefined;
-    }
-    await cancelIdentityMonitor();
-
-    const results = await Promise.allSettled(children.map((record) => stopChild(record)));
-    if (results.some((result) => result.status === "rejected")) {
-      throw failure("PROCESS_STOP_FAILED");
-    }
-    await verifyOwnedPortsReleased();
-  };
-
-  const monitorActorIdentity = async (actor) => {
-    let result;
-    try {
-      result = await probeActorReadiness(
-        actor,
-        dependencies,
-        identityMonitorAbortController.signal
-      );
-    } catch {
-      result = readinessFailureResult("UNKNOWN");
-    }
-
-    if (result.cancelled === true || stopRequest !== undefined) return false;
-    if (result.ready) {
-      monitorConsecutiveFailures.set(actor.name, 0);
-      return true;
-    }
-
-    const transient = isTransientReadinessFailure(result);
-    const consecutiveFailures = transient
-      ? (monitorConsecutiveFailures.get(actor.name) ?? 0) + 1
-      : 1;
-    const threshold = transient ? IDENTITY_MONITOR_TRANSIENT_FAILURE_THRESHOLD : 1;
-    monitorConsecutiveFailures.set(actor.name, consecutiveFailures);
-    const failed = consecutiveFailures >= threshold;
-    dependencies.writeStderr(
-      `${formatMonitorDiagnostic(actor.name, failed ? "FAILED" : "DEGRADED", {
-        ...result,
-        consecutiveFailures,
-        threshold
-      })}\n`
-    );
-
-    if (failed) {
-      requestStop(`${actor.name}_ME_REQUEST_FAILED`, 1);
-      return false;
-    }
-    return true;
-  };
-
-  const runIdentityMonitorCycle = async () => {
-    for (const actor of ACTOR_SEQUENCE) {
-      if (!await monitorActorIdentity(actor)) return;
-    }
-  };
-
-  const scheduleIdentityMonitor = () => {
-    if (stopRequest !== undefined || identityMonitorAbortController.signal.aborted) return;
-    identityMonitorTimer = dependencies.setTimeoutFunction(async () => {
-      identityMonitorTimer = undefined;
-      if (stopRequest !== undefined || identityMonitorAbortController.signal.aborted) return;
-
-      const cyclePromise = runIdentityMonitorCycle();
-      identityMonitorInFlight = cyclePromise;
-      try {
-        await cyclePromise;
-      } finally {
-        if (identityMonitorInFlight === cyclePromise) {
-          identityMonitorInFlight = undefined;
-        }
-        scheduleIdentityMonitor();
-      }
-    }, IDENTITY_MONITOR_INTERVAL_MILLISECONDS);
-  };
-
-  const startIdentityMonitor = () => {
-    identityMonitorAbortController = new globalThis.AbortController();
-    scheduleIdentityMonitor();
-  };
-
+  const listeners = [];
+  const listen = (emitter, event, callback) => { emitter.on(event, callback); listeners.push(() => emitter.off(event, callback)); };
+  const raceStop = (operation) => Promise.race([operation, stop.then(() => { if (stopRequested) throw firstFailure; })]);
   const run = async () => {
     if (started) throw failure("HARNESS_ALREADY_STARTED");
     started = true;
-    installProcessGuards();
-
-    let primaryFailure;
-    let requestedExitCode = 1;
+    let binding;
+    let integrationTimer;
+    let closeResolve;
+    const closed = new Promise((resolvePromise) => { closeResolve = resolvePromise; });
     try {
-      validateHarnessInvocation(argv, environment);
-      await assertNoEnvironmentFiles(dependencies.readdirFunction);
-      const secret = requireHmacSecret(environment);
-      const tokens = createActorTokens(secret, {
-        nowMilliseconds: dependencies.nowFunction(),
-        randomBytesFunction: dependencies.randomBytesFunction
+      binding = validateHarnessInvocation(argv, environment);
+      if (!dependencies.input || dependencies.input.isTTY === true) throw failure("PRIVATE_PARENT_STDIN_REQUIRED");
+      let buffered = "";
+      let finishSeen = false;
+      listen(dependencies.input, "data", (chunk) => {
+        buffered += String(chunk);
+        if (buffered.length > 128) { fail("CONTROL_INPUT_LIMIT"); return; }
+        if (!buffered.includes("\n")) return;
+        if (finishSeen || !jarsPassed || buffered !== `M1D_FINISH ${binding.runId}\n`) {
+          fail("CONTROL_INPUT_REFUSED"); return;
+        }
+        finishSeen = true; buffered = ""; finishing = true; stopResolve();
       });
-      const redactionMaterial = {
-        tokens: ACTOR_SEQUENCE.map((actor) => tokens[actor.name].value),
-        secret,
-        sensitiveValues: [
-          ...HARNESS_IDENTITY_VALUES,
-          ...ACTOR_SEQUENCE.map((actor) => tokens[actor.name].jti)
-        ]
-      };
-
-      const expirationMilliseconds = Math.max(
-        0,
-        tokens.ACCOUNTANT.exp * 1_000 - dependencies.nowFunction()
-      );
-      expirationTimer = dependencies.setTimeoutFunction(
-        () => requestStop("JWT_EXPIRED", 1),
-        expirationMilliseconds
-      );
-
-      await raceStop(preflightBackend(dependencies));
-      for (const actor of ACTOR_SEQUENCE) {
+      listen(dependencies.input, "end", () => { if (!finishing) fail("PARENT_EOF"); });
+      listen(dependencies.input, "error", () => fail("PARENT_INPUT_FAILED"));
+      for (const signal of ["SIGINT", "SIGTERM", "uncaughtException", "unhandledRejection"]) {
+        listen(dependencies.processReference, signal, () => fail("HARNESS_INTERRUPTED"));
+      }
+      const deadline = dependencies.nowFunction() + INTEGRATION_TIMEOUT_MILLISECONDS;
+      integrationTimer = dependencies.setTimeoutFunction(() => fail("INTEGRATION_TIMEOUT"),
+        Math.max(0, deadline - dependencies.nowFunction()));
+      step = "ENVIRONMENT";
+      await raceStop(assertNoEnvironmentFiles(dependencies.readdirFunction));
+      step = "BACKEND_HEALTH";
+      await raceStop(boundedOperation(async (signal) => {
+        const response = await dependencies.fetchFunction(BACKEND_HEALTH_URL, { method: "GET", redirect: "manual", signal });
+        const result = await readResponse(response);
+        if (result.status !== 200) throw failure("HTTP_STATUS_MISMATCH", { expectedStatus: 200, receivedStatus: result.status });
+        if (result.payload?.status !== "UP") throw failure("BACKEND_PREFLIGHT_FAILED");
+      }, REQUEST_TIMEOUT_MILLISECONDS, dependencies, cancellation.signal));
+      step = "PORT_CHECK";
+      await raceStop(boundedOperation(() => assertPortAvailable(5173, dependencies), REQUEST_TIMEOUT_MILLISECONDS, dependencies, cancellation.signal));
+      step = "VITE_START";
+      const launch = buildViteLaunch(environment, dependencies);
+      child = dependencies.spawnFunction(launch.command, launch.args, launch.options);
+      listen(child, "exit", () => { if (!finishing) fail("VITE_EXITED"); });
+      listen(child, "error", () => fail("VITE_PROCESS_FAILED"));
+      listen(child, "close", () => { childClosed = true; closeResolve(); if (!finishing) fail("VITE_EXITED"); });
+      detachOutput = drainChildOutput(child, fail);
+      // Only the unauthenticated root is retried during startup. No session keepalive.
+      step = "VITE_READY";
+      let available = false;
+      for (let attempt = 0; attempt < 40 && !available; attempt += 1) {
         try {
-          await raceStop(assertPortAvailable(actor.port, {
-            createServerFunction: dependencies.createServerFunction
-          }));
+          await raceStop(boundedOperation(async (signal) => {
+            const response = await dependencies.fetchFunction(`${FRONTEND_ORIGIN}/`, { method: "GET", redirect: "manual", signal });
+            if (response.status !== 200) throw failure("HTTP_STATUS_MISMATCH", { expectedStatus: 200, receivedStatus: response.status });
+            await response.body?.cancel();
+          }, REQUEST_TIMEOUT_MILLISECONDS, dependencies, cancellation.signal));
+          available = true;
         } catch (error) {
-          throw normalizeFailure(error, `PORT_${actor.port}_UNAVAILABLE`);
+          if (stopRequested) throw firstFailure;
+          if (attempt === 39) throw safeFailure(error, "VITE_READINESS_FAILED");
+          await raceStop(new Promise((resolvePromise) => dependencies.setTimeoutFunction(resolvePromise, 100)));
         }
       }
-
-      for (const actor of ACTOR_SEQUENCE) {
-        startActor(actor, tokens[actor.name].value, redactionMaterial);
-        await awaitActorReadiness(actor);
-      }
-
-      dependencies.writeStdout("HARNESS_READY\n");
-      readySettled = true;
+      await raceStop(exerciseTwoJars(jars[0], jars[1], binding.runId, (value) => { step = value; }));
+      if (stopRequested) throw firstFailure;
+      jarsPassed = true;
+      dependencies.writeStdout(`M1D_JARS_RESULT ${binding.runId} ${binding.objectSha} ${binding.runtimeSha} PASS\n`);
       readyResolve();
-      startIdentityMonitor();
-
-      const request = await stopPromise;
-      requestedExitCode = request.exitCode;
-      if (request.exitCode !== 0) {
-        primaryFailure = failure(request.code);
-      }
+      step = "WAIT_FINISH";
+      await stop;
+      if (stopRequested) throw firstFailure;
+      if (!finishing) throw failure("EXPLICIT_FINISH_REQUIRED");
     } catch (error) {
-      primaryFailure = normalizeFailure(error, "HARNESS_START_FAILED");
-      if (!readySettled) {
-        readySettled = true;
-        readyReject(primaryFailure);
-      }
+      readyReject(observeFailure(error, "HARNESS_FAILED"));
     }
-
+    dependencies.clearTimeoutFunction(integrationTimer);
+    // Cancel active work first; cleanup may only close the existing sessions, never reopen them.
+    finishing = true;
+    cancellation.abort();
+    step = "LOGOUT";
     try {
-      await shutdownChildren();
-    } catch (error) {
-      if (primaryFailure === undefined) {
-        primaryFailure = normalizeFailure(error, "HARNESS_SHUTDOWN_FAILED");
-      }
-    } finally {
-      removeProcessGuards();
+      await boundedOperation(async () => {
+        await Promise.allSettled(jars.map(async (jar) => {
+          try { await jar.logout(true); }
+          catch (error) { observeFailure(error, "LOGOUT_FAILED", "LOGOUT"); }
+        }));
+      }, 5_000, dependencies);
+    } catch (error) { observeFailure(error, "LOGOUT_FAILED"); }
+    cancellation.abort();
+    jars.forEach((jar) => jar.clear());
+    step = "STOP";
+    try {
+      await boundedOperation(async () => {
+        if (child && !childClosed) {
+          child.kill("SIGTERM");
+          try { await boundedOperation(() => closed, 2_000, dependencies, undefined, "VITE_STOP_TIMEOUT"); }
+          catch { if (!childClosed) child.kill("SIGKILL"); await closed; }
+        }
+        if (child) await assertPortAvailable(5173, dependencies);
+      }, SHUTDOWN_TIMEOUT_MILLISECONDS, dependencies, undefined, "VITE_STOP_TIMEOUT");
+    } catch (error) { observeFailure(error, "VITE_STOP_FAILED"); }
+    finally {
+      detachOutput?.();
+      listeners.forEach((remove) => remove());
+      // Release the private stdin pipe after consuming the single terminal command.
+      dependencies.input?.pause();
     }
-
-    if (primaryFailure !== undefined) throw primaryFailure;
-    return { exitCode: requestedExitCode };
+    if (firstFailure) throw firstFailure;
+    if (!jarsPassed || !childClosed) throw observeFailure(failure("INCOMPLETE_HARNESS_RESULT"), "HARNESS_FAILED", "COMPLETE");
+    dependencies.writeStdout(`M1D_HARNESS_STOPPED ${binding.runId} JARS=PASS VITE_STOP=PASS\n`);
+    return { exitCode: 0 };
   };
-
-  const shutdown = (code = "SHUTDOWN_REQUESTED", exitCode = 0) => {
-    requestStop(code, exitCode);
-    return stopPromise;
-  };
-
-  return Object.freeze({ run, ready, shutdown });
+  return Object.freeze({ run, ready, shutdown: () => fail("HARNESS_INTERRUPTED") });
 }
 
-export async function runHarness(options) {
-  return createHarnessRuntime(options).run();
-}
-
-async function runCli() {
+export const runHarness = (options) => createHarnessRuntime(options).run();
+export async function runCli(options, { writeStderr = (text) => process.stderr.write(text), setExitCode = (code) => { process.exitCode = code; } } = {}) {
+  let binding;
   try {
-    const result = await runHarness();
-    process.exitCode = result.exitCode;
+    binding = validateHarnessInvocation(options?.argv ?? process.argv.slice(2), options?.environment ?? process.env);
+    setExitCode((await runHarness(options)).exitCode);
   } catch (error) {
-    const safeFailure = normalizeFailure(error, "HARNESS_FAILED");
-    process.stderr.write(`HARNESS_FAILED code=${safeFailure.code}\n`);
-    process.exitCode = 1;
+    const { code, step, expectedStatus, receivedStatus } = safeFailure(error, "HARNESS_FAILED");
+    // A rejected invocation has no trusted identity. Do not echo its environment
+    // or manufacture a bound diagnostic; the rail refuses this incomplete line.
+    const line = binding ? `HARNESS_FAILED ${JSON.stringify({ schemaVersion: 1, ...binding,
+      diagnostic: { code, step, expectedStatus, receivedStatus } })}\n` : "HARNESS_FAILED UNAVAILABLE\n";
+    writeStderr(Buffer.byteLength(line, "utf8") <= 2048 ? line : "HARNESS_FAILED UNAVAILABLE\n");
+    setExitCode(1);
   }
 }
-
-const IS_DIRECT_EXECUTION = process.argv[1] !== undefined
-  && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
-
-if (IS_DIRECT_EXECUTION) {
-  await runCli();
-}
+if (process.argv[1] !== undefined && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) await runCli();

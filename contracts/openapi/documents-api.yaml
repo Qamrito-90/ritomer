@@ -6,6 +6,10 @@ paths:
   /api/closing-folders/{closingFolderId}/workpapers/{anchorCode}/documents:
     post:
       operationId: uploadWorkpaperDocument
+      security:
+        - cookieSession: []
+          csrfToken: []
+        - bearerAuth: []
       summary: Upload a single immutable document to a persisted workpaper
       description: >
         Uploads a single binary document to a persisted current-anchor workpaper. Writes are blocked on
@@ -48,11 +52,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/DocumentSummary"
         "400":
-          description: Invalid multipart payload or media type
+          description: Invalid multipart payload or media type. Security refusals include INVALID_TENANT_HEADER, AMBIGUOUS_CREDENTIALS (cookie plus bearer), and REQUEST_REJECTED.
         "401":
-          description: Authentication required
+          description: Authentication required. Includes AUTHENTICATION_REQUIRED and SESSION_EXPIRED; expired sessions are invalidated.
         "403":
-          description: Tenant inaccessible or role insufficient
+          description: Tenant inaccessible or role insufficient. Includes ACCESS_DENIED and ACCESS_REVOKED; global revocation invalidates the session. Unsafe session requests also reject absent, incorrect or stale CSRF with CSRF_REJECTED; legacy bearer requests do not require CSRF.
         "404":
           description: Persisted workpaper missing on anchor, or closing inaccessible
         "409":
@@ -61,6 +65,9 @@ paths:
           description: File exceeds 25 MiB
     get:
       operationId: listWorkpaperDocuments
+      security:
+        - cookieSession: []
+        - bearerAuth: []
       summary: List immutable documents attached to a workpaper
       description: >
         Lists metadata-only documents for a persisted workpaper. Reads remain available on current,
@@ -86,16 +93,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/WorkpaperDocuments"
         "400":
-          description: Invalid identifiers
+          description: Invalid identifiers. Security refusals include INVALID_TENANT_HEADER, AMBIGUOUS_CREDENTIALS (cookie plus bearer), and REQUEST_REJECTED.
         "401":
-          description: Authentication required
+          description: Authentication required. Includes AUTHENTICATION_REQUIRED and SESSION_EXPIRED; expired sessions are invalidated.
         "403":
-          description: Tenant inaccessible or role insufficient
+          description: Tenant inaccessible or role insufficient. Includes ACCESS_DENIED and ACCESS_REVOKED; global revocation invalidates the session.
         "404":
           description: Persisted workpaper missing on anchor, or closing inaccessible
   /api/closing-folders/{closingFolderId}/documents/{documentId}/verification-decision:
     post:
       operationId: reviewDocumentVerification
+      security:
+        - cookieSession: []
+          csrfToken: []
+        - bearerAuth: []
       summary: Apply a reviewer verification decision to a document
       description: >
         Reviewer-side verification on a persisted document only. Writes are allowed only when the
@@ -129,11 +140,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/DocumentSummary"
         "400":
-          description: Invalid request payload, including missing comment for REJECTED or comment present for VERIFIED
+          description: Invalid request payload, including missing comment for REJECTED or comment present for VERIFIED. Security refusals include INVALID_TENANT_HEADER, AMBIGUOUS_CREDENTIALS (cookie plus bearer), and REQUEST_REJECTED.
         "401":
-          description: Authentication required
+          description: Authentication required. Includes AUTHENTICATION_REQUIRED and SESSION_EXPIRED; expired sessions are invalidated.
         "403":
-          description: Tenant inaccessible or role insufficient
+          description: Tenant inaccessible or role insufficient. Includes ACCESS_DENIED and ACCESS_REVOKED; global revocation invalidates the session. Unsafe session requests also reject absent, incorrect or stale CSRF with CSRF_REJECTED; legacy bearer requests do not require CSRF.
         "404":
           description: Document absent from tenant or closing
         "409":
@@ -141,6 +152,9 @@ paths:
   /api/closing-folders/{closingFolderId}/documents/{documentId}/content:
     get:
       operationId: downloadDocumentContent
+      security:
+        - cookieSession: []
+        - bearerAuth: []
       summary: Stream immutable document content through the backend
       description: >
         Returns binary content through the backend only. Storage keys and object URLs are never
@@ -172,14 +186,30 @@ paths:
                 type: string
                 format: binary
         "400":
-          description: Invalid identifiers
+          description: Invalid identifiers. Security refusals include INVALID_TENANT_HEADER, AMBIGUOUS_CREDENTIALS (cookie plus bearer), and REQUEST_REJECTED.
         "401":
-          description: Authentication required
+          description: Authentication required. Includes AUTHENTICATION_REQUIRED and SESSION_EXPIRED; expired sessions are invalidated.
         "403":
-          description: Tenant inaccessible or role insufficient
+          description: Tenant inaccessible or role insufficient. Includes ACCESS_DENIED and ACCESS_REVOKED; global revocation invalidates the session.
         "404":
           description: Document absent from tenant or closing
 components:
+  securitySchemes:
+    cookieSession:
+      type: apiKey
+      in: cookie
+      name: __Host-ritomer-session
+      description: Opaque server session; Secure, HttpOnly, Path=/, SameSite=Lax, no Domain.
+    csrfToken:
+      type: apiKey
+      in: header
+      name: X-CSRF-TOKEN
+      description: Current session-bound CSRF token, required only for unsafe cookie-session requests.
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Explicit legacy backend compatibility only; never browser authentication. Cannot be combined with the session cookie.
   schemas:
     WorkpaperDocuments:
       type: object

@@ -162,6 +162,95 @@ describe("session negotiation and protected transport", () => {
     expect(session.getSnapshot()).toMatchObject({ mode: "ERROR", error: "capability_unavailable" });
   });
 
+  it("consumes the expired bootstrap stream without retaining its content or parsing JSON", async () => {
+    const { session, fetcher } = await ready();
+    vi.useFakeTimers();
+    let pulls = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulls++;
+        if (pulls <= 3) controller.enqueue(new TextEncoder().encode("not JSON or session state"));
+        else controller.close();
+      }
+    });
+    const response = new Response(stream, { status: 401 });
+    fetcher.mockResolvedValueOnce(response);
+    await session.revalidate();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(session.getSnapshot()).toMatchObject({ mode: "EXPIRED", meState: null, actors: [] });
+    expect(pulls).toBe(4); expect(response.bodyUsed).toBe(true); expect(stream.locked).toBe(false);
+    expect(vi.getTimerCount()).toBe(0); expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(JSON.stringify(session.getSnapshot())).not.toContain("not JSON");
+  });
+
+  it("purges on expired bootstrap and permits explicit retry while its body is stalled", async () => {
+    const { session, fetcher } = await ready();
+    vi.useFakeTimers();
+    const cancel = vi.fn();
+    const stream = new ReadableStream<Uint8Array>({ cancel });
+    fetcher.mockResolvedValueOnce(new Response(stream, { status: 401 }));
+    await session.revalidate();
+    expect(session.getSnapshot()).toMatchObject({ mode: "EXPIRED", meState: null, actors: [] });
+    expect(stream.locked).toBe(true); expect(cancel).not.toHaveBeenCalled();
+    const mutation = vi.fn();
+    await expect(requestJson("/api/protected", { method: "POST" }, mutation)).rejects.toBeInstanceOf(SessionInvalidatedError);
+    expect(mutation).not.toHaveBeenCalled(); expect(fetcher).toHaveBeenCalledTimes(3);
+    fetcher.mockResolvedValueOnce(bootstrap(false));
+    await session.retry();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(session.getSnapshot()).toMatchObject({ mode: "ANONYMOUS", actors: [actor] });
+    expect(fetcher).toHaveBeenCalledTimes(4); expect(cancel).toHaveBeenCalledOnce();
+    expect(stream.locked).toBe(false); expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each(["timeout", "size", "dispose"] as const)("cancels expired response drainage on %s without waiting for cancellation", async mode => {
+    const { session, fetcher } = await ready();
+    vi.useFakeTimers();
+    const cancellation = deferred<void>();
+    const cancel = vi.fn(() => cancellation.promise);
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) { if (mode === "size") controller.enqueue(new Uint8Array(64 * 1024 + 1)); }, cancel
+    });
+    fetcher.mockResolvedValueOnce(new Response(stream, { status: 401 }));
+    await session.revalidate();
+    expect(session.getSnapshot()).toMatchObject({ mode: "EXPIRED", meState: null, actors: [] });
+    if (mode === "timeout") {
+      await vi.advanceTimersByTimeAsync(4999); expect(cancel).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+    } else if (mode === "dispose") session.dispose();
+    await vi.advanceTimersByTimeAsync(0);
+    const stable = session.getSnapshot();
+    expect(cancel).toHaveBeenCalledOnce(); expect(stream.locked).toBe(false); expect(vi.getTimerCount()).toBe(0);
+    cancellation.reject(new Error("synthetic cancellation failure"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(session.getSnapshot()).toBe(stable); expect(fetcher).toHaveBeenCalledTimes(3);
+  });
+
+  it("keeps expiration final when reading the discarded stream fails", async () => {
+    const { session, fetcher } = await ready();
+    vi.useFakeTimers();
+    const stream = new ReadableStream<Uint8Array>({ pull(controller) { controller.error(new Error("synthetic body failure")); } });
+    fetcher.mockResolvedValueOnce(new Response(stream, { status: 401 }));
+    await session.revalidate();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(session.getSnapshot()).toMatchObject({ mode: "EXPIRED", meState: null, actors: [] });
+    expect(stream.locked).toBe(false); expect(vi.getTimerCount()).toBe(0); expect(fetcher).toHaveBeenCalledTimes(3);
+  });
+
+  it("cancels the expired body when a subscriber disposes during immediate expiry publication", async () => {
+    const { session, fetcher } = await ready();
+    vi.useFakeTimers();
+    const cancel = vi.fn();
+    const stream = new ReadableStream<Uint8Array>({ cancel });
+    session.subscribe(() => { if (session.getSnapshot().mode === "EXPIRED") session.dispose(); });
+    fetcher.mockResolvedValueOnce(new Response(stream, { status: 401 }));
+    await session.revalidate();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(session.getSnapshot().meState).toBeNull();
+    expect(cancel).toHaveBeenCalledOnce(); expect(stream.locked).toBe(false); expect(vi.getTimerCount()).toBe(0);
+    expect(fetcher).toHaveBeenCalledTimes(3);
+  });
+
   it.each([403, 404])("leaves contextual business %s local and does not reauthenticate", async (status) => {
     const { session, fetcher } = await ready();
     const response = await requestJson("/api/protected", {}, vi.fn().mockResolvedValue(json({ code: status === 403 ? "ACCESS_DENIED" : "NOT_FOUND" }, status)));

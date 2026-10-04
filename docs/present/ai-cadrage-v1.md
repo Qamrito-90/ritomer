@@ -9,8 +9,8 @@ Il ne remplace ni la vision IA, ni le playbook IA, ni les contrats et garde-fous
 ## Ce qui est vrai maintenant
 
 - Le produit est AI-ready, mais pas encore AI-native dans le runtime.
-- La spec 046 est l'unique spec active. M1.1A avec son correctif M8 borne la fondation backend auth/tenant et M1.1B implemente le kernel backend de session process-local, desactive par defaut. Aucun des deux checkpoints ne modifie l'IA, les agents ou MCP. L'outcome final M1.1 n'est pas livre et C et D ne sont pas implementes.
-- Ce cadrage ne constitue aucune autorisation. Les slices futures C et D restent distinctes. Les etats de review, delivery, merge, decision owner et autorisation vivent uniquement dans les Evidence Packs, la pull request et les records specialises.
+- La spec 046 reste l'unique spec active. A/B et C sont livres ; D est implemente dans le worktree et valide par integration PostgreSQL/navigateur locale sur donnees synthetiques le 03.10.2026 (candidate-05), avec les limites datees dans [046](../../specs/active/046-authenticated-session-foundation-v1.md). D et l'outcome final M1.1 ne sont pas livres. Aucun provider, agent ou runtime MCP n'est ajoute ou active par D.
+- Ce cadrage ne constitue aucune autorisation. La validation locale D ne livre ni M1 complet, ni OIDC partage, ni session distribuee, ni capacite IA/MCP, externe ou de production. Les etats de review, delivery, merge, decision owner et autorisation vivent uniquement dans les Evidence Packs, la pull request et les records specialises.
 - Le coeur metier reste deterministe, tenant-scoped, audit-ready et utilisable sans IA.
 - `030` livre une capacite de mapping assiste no-provider, evidence-first et human-in-the-loop.
 - La capacite livree expose des suggestions structurees de mapping, des preuves visibles et une decision humaine unitaire `ACCEPT`, `CORRECT` ou `REJECT`.

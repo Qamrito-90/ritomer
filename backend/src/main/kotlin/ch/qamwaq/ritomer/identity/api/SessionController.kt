@@ -15,7 +15,6 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Profile
-import org.springframework.http.CacheControl
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
@@ -51,7 +50,6 @@ class SessionController(
     val authenticated = authenticatedActor != null
 
     return ResponseEntity.ok()
-      .cacheControl(NO_STORE)
       .body(
         SessionBootstrapResponse(
           sessionState = if (authenticated) SessionState.AUTHENTICATED else SessionState.ANONYMOUS,
@@ -80,7 +78,7 @@ class SessionController(
     val actorKey = parseActorKey(rawBody)
     val actor = sessionAuthenticationService.authenticateLocalActor(actorKey)
     authenticatedActorContextInstaller.installAuthenticatedActor(actor)
-    return ResponseEntity.noContent().cacheControl(NO_STORE).build()
+    return ResponseEntity.noContent().build()
   }
 
   private fun parseActorKey(rawBody: String?): String {
@@ -105,10 +103,6 @@ class SessionController(
 
   private fun LocalSessionActorOption.toResponse(): LocalSessionActorResponse =
     LocalSessionActorResponse(actorKey = actorKey, displayLabel = displayLabel)
-
-  private companion object {
-    val NO_STORE: CacheControl = CacheControl.noStore()
-  }
 }
 
 enum class SessionState {
@@ -180,6 +174,5 @@ class SessionControllerAdvice {
     message: String
   ): ResponseEntity<SessionErrorResponse> =
     ResponseEntity.status(status)
-      .cacheControl(CacheControl.noStore())
       .body(SessionErrorResponse(code, message))
 }

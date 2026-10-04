@@ -61,6 +61,7 @@ import org.junit.jupiter.params.provider.ValueSource
 import org.slf4j.MDC
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
+import org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrint
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
@@ -98,7 +99,6 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
-import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.yaml.snakeyaml.LoaderOptions
 import org.yaml.snakeyaml.Yaml
@@ -111,7 +111,7 @@ import org.yaml.snakeyaml.constructor.SafeConstructor
     "server.port=8080"
   ]
 )
-@AutoConfigureMockMvc
+@AutoConfigureMockMvc(print = MockMvcPrint.NONE)
 @ActiveProfiles("test")
 @Import(IdentityTestConfiguration::class, SessionTestClockConfiguration::class)
 class LocalTestSessionControllerSecurityTest {
@@ -338,7 +338,7 @@ class LocalTestSessionControllerSecurityTest {
 
     assertThat(result.response.status).isEqualTo(204)
     assertThat(result.response.contentAsByteArray).isEmpty()
-    assertThat(result.response.getHeader(HttpHeaders.CACHE_CONTROL)).isEqualTo("no-store")
+    assertNoStore(result)
     val authenticatedSession = result.request.getSession(false) as MockHttpSession
     val savedContext = authenticatedSession.getAttribute(
       HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY
@@ -359,7 +359,7 @@ class LocalTestSessionControllerSecurityTest {
     )
     assertThat(login.response.status).isEqualTo(204)
     assertThat(login.response.contentAsByteArray).isEmpty()
-    assertThat(login.response.getHeader(HttpHeaders.CACHE_CONTROL)).isEqualTo("no-store")
+    assertNoStore(login)
 
     val authenticatedSession = login.request.getSession(false) as MockHttpSession
     assertThat(authenticatedSession).isSameAs(anonymous.session)
@@ -383,7 +383,7 @@ class LocalTestSessionControllerSecurityTest {
 
     val me = mockMvc.perform(get("/api/me").session(authenticatedSession).onLocalTopology())
       .andExpect(status().isOk)
-      .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
+      .andExpect { assertNoStore(it) }
       .andReturn()
     val meBody = objectMapper.readTree(me.response.contentAsString)
     assertThat(meBody.at("/actor/userId").asText()).isEqualTo(LOCAL_SESSION_ACCOUNTANT_ACTOR_ID.toString())
@@ -496,7 +496,7 @@ class LocalTestSessionControllerSecurityTest {
     )
       .andExpect(status().isNoContent)
       .andExpect(content().string(""))
-      .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
+      .andExpect { assertNoStore(it) }
       .andReturn()
     assertThat(authenticated.session.isInvalid).isTrue()
     assertExpiredCookie(logout)
@@ -990,7 +990,7 @@ class LocalTestSessionControllerSecurityTest {
     if (session != null) builder = builder.session(session)
     val result = mockMvc.perform(builder)
       .andExpect(status().isOk)
-      .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
+      .andExpect { assertNoStore(it) }
       .andReturn()
     val rawBody = result.response.contentAsString
     val body = objectMapper.readTree(rawBody)
@@ -1035,6 +1035,13 @@ class LocalTestSessionControllerSecurityTest {
       request
     }
 
+  private fun assertNoStore(result: MvcResult) {
+    val values = result.response.getHeaders(HttpHeaders.CACHE_CONTROL)
+    // Keep failures categorical: session response headers and bodies must not be dumped.
+    assertThat(values.size).describedAs("CACHE_CONTROL_CARDINALITY").isEqualTo(1)
+    assertThat(values.single() == "no-store").describedAs("CACHE_CONTROL_CONTRACT_VALUE").isTrue()
+  }
+
   private fun assertError(
     result: MvcResult,
     expectedStatus: Int,
@@ -1042,7 +1049,7 @@ class LocalTestSessionControllerSecurityTest {
     expectedMessage: String
   ) {
     assertThat(result.response.status).isEqualTo(expectedStatus)
-    assertThat(result.response.getHeader(HttpHeaders.CACHE_CONTROL)).isEqualTo("no-store")
+    assertNoStore(result)
     val body = objectMapper.readTree(result.response.contentAsString)
     assertThat(body.fieldNames().asSequence().toSet()).containsExactlyInAnyOrder("code", "message")
     assertThat(body.path("code").asText()).isEqualTo(expectedCode)

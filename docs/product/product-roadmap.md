@@ -26,7 +26,7 @@ Le `pack final` actuel reste un export audit-ready non statutaire soumis à revu
 | Statut | Vérité actuelle | Limite |
 | --- | --- | --- |
 | `DELIVERED_AND_PROVED` | Cœur déterministe du closing, identity et memberships applicatifs, tenancy/RBAC, import, mapping manuel, contrôles, previews, workpapers, documents, export, annexe minimale, audit append-only et mapping assisté no-provider. | Preuves de repo et de delivery, sans hébergement SaaS ni validation professionnelle. |
-| `LOCAL_OR_SYNTHETIC_ONLY` | Démo PostgreSQL/JWT/Vite, shell courant, fixtures et simulation offline `mapping-suggestion-v2`. | Pas de login/session SaaS durables, d'environnement partagé ni de donnée réelle. |
+| `LOCAL_OR_SYNTHETIC_ONLY` | Session process-local et coordinator frontend C ; D intégré validé localement sur données synthétiques le 03.10.2026 (candidate-05), présent dans le worktree mais non livré ; fixtures et simulation offline `mapping-suggestion-v2`. | Pas de session SaaS durable, d'environnement partagé ni de donnée réelle ; 046 reste active. |
 | `DOCUMENTED_NOT_IMPLEMENTED` | Cible Cloud Run/Cloud SQL, provider gateway réel, tracing/coûts IA, MCP client/serveur et préparation design-partner. | La documentation ne vaut ni runtime, ni autorisation, ni preuve d'exploitation. |
 | `NOT_STARTED` | Goal/run agentique, registre d'outils exécutable, site public, bêta externe, support et production opérable. | Aucun de ces sujets n'est livré ou engagé par M0. |
 
@@ -227,6 +227,10 @@ NO_PREMATURE_MICROSERVICE=PRESERVE
 M0 n'introduit ni microservice, ni GraphQL, ni RLS généralisée, ni nouvelle infrastructure. Les providers, runs et outils futurs restent dans le monolithe modulaire derrière des ports explicites tant qu'aucun trigger réel ne justifie une autre architecture.
 
 ## 8. Statuts historiques et gouvernance
+
+Présent M1.1 : 046 est l'unique spec active ; A/B et C sont livrés. Le raccordement D et les protections du rail sont implémentés dans le worktree ; la preuve intégrée PostgreSQL/navigateur locale sur données synthétiques est acquise sur candidate-05 le 03.10.2026, avec les limites de la [spec 046](../../specs/active/046-authenticated-session-foundation-v1.md). Delivery D, clôture de 046 et outcome complet M1 restent non effectués. Aucun outcome M1.2, IA/MCP, externe ou production ni nouvelle autorisation n'en découle.
+
+Le bloc ci-dessous est le snapshot de rebaseline M0, antérieur à 046.
 
 ```text
 042=BACKLOG_OR_HISTORICAL_NOT_EXECUTABLE_AS_CURRENT_RAIL

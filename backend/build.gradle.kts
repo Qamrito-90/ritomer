@@ -22,6 +22,7 @@ val DB_TEST_DESTRUCTIVE_CONSENT = "TRUNCATE_RITOMER_043B_TEST"
 val DB_TEST_EXPECTED_JDBC_URL = "jdbc:postgresql://127.0.0.1:15432/$DB_TEST_DATABASE"
 
 val DB_RAIL_BUILD_ROOT_ENV = "RITOMER_DB_RAIL_BUILD_ROOT"
+val DB_RAIL_CAMPAIGN_ENV = "RITOMER_DB_RAIL_CAMPAIGN"
 val DB_RAIL_RUN_ID_ENV = "RITOMER_DB_RAIL_RUN_ID"
 val DB_RAIL_RUN_ROOT_ENV = "RITOMER_DB_RAIL_RUN_ROOT"
 val DB_RAIL_REVIEWED_OBJECT_SHA256_ENV = "RITOMER_DB_RAIL_REVIEWED_OBJECT_SHA256"
@@ -36,6 +37,7 @@ val DB_TEST_STORAGE_LOCAL_ROOT_ENV = "RITOMER_DB_TEST_STORAGE_LOCAL_ROOT"
 val DB_TEST_APPLICATION_NAME_ENV = "RITOMER_DB_TEST_APPLICATION_NAME"
 
 val DB_RAIL_COMMON_ENV = setOf(
+  DB_RAIL_CAMPAIGN_ENV,
   DB_RAIL_BUILD_ROOT_ENV,
   DB_RAIL_RUN_ID_ENV,
   DB_RAIL_RUN_ROOT_ENV,
@@ -130,6 +132,10 @@ private fun requireClosedPostgresRailEnvironment(allowedRailNames: Set<String>) 
 private fun allowlistedEnvironment(names: Set<String>): Map<String, String> {
   val normalized = names.map(String::uppercase).toSet()
   return System.getenv().filterKeys { it.uppercase() in normalized }
+}
+
+private fun postgresRailCampaign(): String = (exactEnvironmentValue("RITOMER_DB_RAIL_CAMPAIGN") ?: "B").also {
+  if (it !in setOf("B", "D")) throw GradleException("PostgreSQL rail campaign is invalid.")
 }
 
 private fun requireCanonicalRailBuildRoot(configuredBuildRoot: File) {
@@ -378,6 +384,32 @@ val m1BPostgresRailDetachedTestClassesDirs = files(providers.provider {
   testSourceSet.output.classesDirs.files.map(File::getAbsoluteFile)
 })
 val m1BPostgresRailDetachedRuntimeClasspath = files(m1BPostgresRailRuntimeClasspathFiles)
+val m1DPostgresRailSupportOwners = setOf(
+  "PostgresTestRailDBootstrap", "PostgresTestRailJdbcLogging",
+  "DisposablePostgresTestDatabaseGuardInitializer", "DisposablePostgresTestDatabase",
+  "DisposablePostgresTestDatabaseSupportKt", "CanonicalRuntimeConfiguration", "StartupDiagnostics",
+  "StartupStage", "StartupCategory", "StartupControl", "GuardInvariantFailure", "DestructivePrimitive"
+)
+val m1DPostgresRailSupportRoot = layout.buildDirectory.dir("m1d-integrated-support")
+val m1DPostgresRailManifest = layout.buildDirectory.file("m1d-integrated-runtime.json")
+val m1DPostgresRailBinding = layout.buildDirectory.file("m1d-integrated-binding.json")
+val m1DPostgresRailClasspathFiles = providers.provider {
+  mainSourceSet.runtimeClasspath.files.map(File::getAbsoluteFile) + m1DPostgresRailSupportRoot.get().asFile
+}
+val m1DPostgresRailRuntimeInputs = providers.provider {
+  m1DPostgresRailClasspathFiles.get().mapIndexed { index, file ->
+    "integrated-classpath/${index.toString().padStart(5, '0')}" to file
+  }
+}
+val m1DPostgresRailNativeWindows = System.getProperty("os.name").startsWith("Windows", ignoreCase = true)
+val m1DPostgresRailLauncherInput = providers.provider {
+  if (m1DPostgresRailNativeWindows) {
+    "integrated-launcher-jdk" to m1BPostgresRailJavaLauncher.get().metadata.installationPath.asFile
+  } else {
+    // Portable compilation proves the selected runtime; the Windows operational inventory is not produced here.
+    "integrated-launcher-executable" to m1BPostgresRailJavaLauncher.get().executablePath.asFile.toPath().toRealPath().toFile()
+  }
+}
 val m1BPostgresRailRuntimeInputs = providers.provider {
   m1BPostgresRailRuntimeClasspathFiles.get().mapIndexed { index, file ->
     "classpath/${index.toString().padStart(5, '0')}" to file
@@ -388,7 +420,9 @@ val m1BPostgresRailRuntimeInputs = providers.provider {
     "gradle-distribution" to requireNotNull(gradle.gradleHomeDir) {
       "Gradle home is required for PostgreSQL rail runtime binding."
     }
-  )
+  ) + if (postgresRailCampaign() == "D") {
+    m1DPostgresRailRuntimeInputs.get() + ("integrated-manifest" to m1DPostgresRailBinding.get().asFile)
+  } else emptyList()
 }
 
 providers.environmentVariable(DB_RAIL_BUILD_ROOT_ENV).orNull
@@ -396,6 +430,98 @@ providers.environmentVariable(DB_RAIL_BUILD_ROOT_ENV).orNull
   ?.let { layout.buildDirectory.set(file(it)) }
 
 mainSourceSet.resources.srcDir("../contracts/reference")
+
+// Compile-only output, also available to offline checks; no operational verdict or database call.
+tasks.named("testClasses") {
+  inputs.files(testSourceSet.output.classesDirs).withPropertyName("m1dCompiledSupportInputs")
+  inputs.files(mainSourceSet.runtimeClasspath).withPropertyName("m1dMainRuntimeInputs")
+  inputs.files(m1DPostgresRailLauncherInput.map { it.second }).withPropertyName("m1dLauncherInputs")
+  outputs.dir(m1DPostgresRailSupportRoot)
+  outputs.file(m1DPostgresRailManifest)
+  outputs.file(m1DPostgresRailBinding)
+  doLast {
+    val prefix = "ch/qamwaq/ritomer/testsupport/"
+    val selected = mutableMapOf<String, File>()
+    testSourceSet.output.classesDirs.files.forEach { root ->
+      root.resolve(prefix).listFiles()?.filter { file ->
+        file.isFile && file.extension == "class" &&
+          file.name.removeSuffix(".class").substringBefore('$') in m1DPostgresRailSupportOwners
+      }?.forEach { file ->
+        if (selected.put(prefix + file.name, file) != null) {
+          throw GradleException("Duplicate D support class owner.")
+        }
+      }
+    }
+    if (!m1DPostgresRailSupportOwners.all { selected.containsKey("$prefix$it.class") }) {
+      throw GradleException("D bootstrap support selection is incomplete.")
+    }
+    val supportRoot = m1DPostgresRailSupportRoot.get().asFile
+    sync {
+      into(supportRoot)
+      selected.toSortedMap().forEach { (relative, input) ->
+        from(input) { into(relative.substringBeforeLast('/')) }
+      }
+    }
+    val inputs = m1DPostgresRailRuntimeInputs.get() + m1DPostgresRailLauncherInput.get()
+    val structure = mutableListOf<Map<String, String>>()
+    val inventory = mutableListOf<Map<String, String>>()
+    inputs.forEach { (label, file) ->
+      val root = file.toPath().toAbsolutePath().normalize()
+      if (!Files.exists(root, LinkOption.NOFOLLOW_LINKS)) {
+        structure += mapOf("label" to label, "relativePath" to ".", "kind" to "M")
+      } else Files.walk(root).use { paths ->
+        paths.sorted().forEach { path ->
+          val attributes = Files.readAttributes(path, BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
+          if (attributes.isSymbolicLink || attributes.isOther) {
+            throw GradleException("D runtime input contains a link or special file.")
+          }
+          structure += mapOf(
+            "label" to label,
+            "relativePath" to root.relativize(path).toString().replace('\\', '/').ifEmpty { "." },
+            "kind" to if (attributes.isDirectory) "D" else "F"
+          )
+          if (attributes.isRegularFile) {
+            val digest = MessageDigest.getInstance("SHA-256")
+            Files.newInputStream(path).use { stream ->
+              val buffer = ByteArray(65536)
+              var size = stream.read(buffer)
+              while (size >= 0) {
+                if (size > 0) digest.update(buffer, 0, size)
+                size = stream.read(buffer)
+              }
+            }
+            inventory += mapOf("path" to path.toString(), "sha256" to digest.digest().joinToString("") {
+              "%02x".format(it.toInt() and 0xff)
+            })
+          }
+        }
+      }
+    }
+    val manifest = linkedMapOf<String, Any>(
+      "schemaVersion" to 1,
+      "mainClass" to "ch.qamwaq.ritomer.testsupport.PostgresTestRailDBootstrap",
+      "javaExecutablePath" to if (m1DPostgresRailNativeWindows) {
+        m1BPostgresRailJavaLauncher.get().executablePath.asFile.absolutePath
+      } else m1DPostgresRailLauncherInput.get().second.absolutePath,
+      "classpathEntries" to m1DPostgresRailClasspathFiles.get().map(File::getAbsolutePath),
+      "supportClasses" to selected.keys.sorted(),
+      "runtimeInputs" to inputs.map { (label, path) -> mapOf("label" to label, "path" to path.absolutePath) },
+      "structure" to structure,
+      "files" to inventory,
+      "seedArguments" to listOf("seed"),
+      "backendArguments" to listOf("backend")
+    )
+    val json = groovy.json.JsonOutput.toJson(manifest) + "\n"
+    m1DPostgresRailManifest.get().asFile.writeText(json, Charsets.UTF_8)
+    // Preflight/Lifecycle have separate build AND Gradle cache roots. Bind each logical input label.
+    var binding = json
+    inputs.sortedByDescending { it.second.absolutePath.length }.forEach { (label, path) ->
+      val encodedPath = groovy.json.JsonOutput.toJson(path.absolutePath).removeSurrounding("\"")
+      binding = binding.replace(encodedPath, "<$label>")
+    }
+    m1DPostgresRailBinding.get().asFile.writeText(binding, Charsets.UTF_8)
+  }
+}
 
 tasks.withType<Test>().configureEach {
   useJUnitPlatform()
@@ -507,6 +633,9 @@ tasks.register("m1BPostgresRailReadiness") {
   dependsOn(tasks.named("testClasses"))
 
   doFirst {
+    if (postgresRailCampaign() == "D" && !m1DPostgresRailNativeWindows) {
+      throw GradleException("D operational readiness requires the native Windows inventory.")
+    }
     requireCanonicalRailBuildRoot(layout.buildDirectory.get().asFile)
     listOf(
       DB_RAIL_RUN_ID_ENV,
@@ -515,7 +644,7 @@ tasks.register("m1BPostgresRailReadiness") {
     ).forEach(::requireNonBlankEnvironment)
     requireAbsentEnvironment(DB_RAIL_TEST_ENV)
     requireClosedPostgresRailEnvironment(
-      setOf(DB_RAIL_BUILD_ROOT_ENV, DB_RAIL_RUN_ID_ENV, DB_RAIL_RUN_ROOT_ENV, DB_RAIL_REVIEWED_OBJECT_SHA256_ENV)
+      setOf(DB_RAIL_BUILD_ROOT_ENV, DB_RAIL_RUN_ID_ENV, DB_RAIL_RUN_ROOT_ENV, DB_RAIL_REVIEWED_OBJECT_SHA256_ENV, DB_RAIL_CAMPAIGN_ENV)
     )
 
     val forbiddenTasks = gradle.taskGraph.allTasks.filter { candidate ->
@@ -564,6 +693,13 @@ tasks.register("m1BPostgresRailReadiness") {
       throw GradleException("PostgreSQL rail requires the exact reviewed pgJDBC runtime version.")
     }
     requireM1BPostgresRailCompiledClasses(m1BPostgresRailRequiredCompiledClasses)
+    if (postgresRailCampaign() == "D") {
+      val manifest = m1DPostgresRailManifest.get().asFile
+      if (!manifest.isFile) throw GradleException("D compiled runtime manifest is missing.")
+      val manifestSha256 = MessageDigest.getInstance("SHA-256").digest(manifest.readBytes())
+        .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+      logger.lifecycle("M1D_INTEGRATED_MANIFEST_SHA256=$manifestSha256")
+    }
     val runtimeSha256 = postgresRailRuntimeSha256(m1BPostgresRailRuntimeInputs.get())
     logger.lifecycle("M1B_POSTGRES_RAIL_READINESS=PASS")
     logger.lifecycle("M1B_POSTGRES_RAIL_RUNTIME_CLASSPATH=STRICT_RESOLUTION_PASS")
@@ -657,7 +793,7 @@ fun Test.configureM1BPostgresRailTest(
       "-XX:HeapDumpPath=${crashRoot.resolve("heapdump_pid%p.hprof")}",
       "-XX:-HeapDumpOnOutOfMemoryError"
     )
-    val expectedApplicationName = "ritomer-m1-1b-${requireNonBlankEnvironment(DB_RAIL_RUN_ID_ENV)}-$phase"
+    val expectedApplicationName = "ritomer-m1-1${postgresRailCampaign().lowercase()}-${requireNonBlankEnvironment(DB_RAIL_RUN_ID_ENV)}-$phase"
     if (System.getenv(DB_TEST_APPLICATION_NAME_ENV) != expectedApplicationName) {
       throw GradleException("PostgreSQL rail application name is not run-bound.")
     }
@@ -712,6 +848,13 @@ gradle.taskGraph.whenReady {
       "classes",
       "testClasses"
     ) || task.name.startsWith("kapt") || task.name.startsWith("ksp")
+  }
+  if (
+    (taskNames.contains("m1BPostgresRailReadiness") || taskNames.any(runnerCredentialTasks::contains)) &&
+    compileOrResourceTasks.isNotEmpty() &&
+    System.getenv().keys.any { it.equals(DB_TEST_PASSWORD_ENV, ignoreCase = true) }
+  ) {
+    throw GradleException("PostgreSQL runner credentials must never reach compilation or resource processing.")
   }
   if (
     taskNames.any(runnerCredentialTasks::contains) &&

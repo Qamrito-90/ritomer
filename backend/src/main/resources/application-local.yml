@@ -1,5 +1,6 @@
 server:
   address: 127.0.0.1
+  port: 8080
 
 spring:
   datasource:
@@ -10,7 +11,9 @@ spring:
 ritomer:
   security:
     jwt:
-      hmac-secret: ${RITOMER_SECURITY_JWT_HMAC_SECRET}
+      hmac-secret: ""
+    session:
+      enabled: true
   workpapers:
     documents:
       storage:

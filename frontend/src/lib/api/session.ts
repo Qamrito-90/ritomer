@@ -112,6 +112,40 @@ export function createSessionCoordinator(fetcher: Fetcher = fetch) {
     return "server_error";
   }
 
+  // A discarded fetch body can keep its network completion pending. Expiry is
+  // already published: consume without retaining data or blocking reconnect.
+  function drainExpiredBody(response: Response) {
+    if (!response.body) return;
+    let reader: ReadableStreamDefaultReader<Uint8Array>;
+    try { reader = response.body.getReader(); } catch { return; }
+    const signal = generationController.signal;
+    let stopped = false;
+    const stop = () => {
+      if (stopped) return;
+      stopped = true;
+      void reader.cancel().catch(() => {});
+    };
+    const timer = window.setTimeout(stop, 5000);
+    signal.addEventListener("abort", stop, { once: true });
+    if (disposed || signal.aborted) stop();
+    void (async () => {
+      let bytes = 0;
+      try {
+        while (!stopped) {
+          const { done, value } = await reader.read();
+          if (done) return;
+          bytes += value.byteLength;
+          if (bytes > 64 * 1024) { stop(); return; }
+        }
+      } catch { stop(); }
+      finally {
+        window.clearTimeout(timer);
+        signal.removeEventListener("abort", stop);
+        reader.releaseLock();
+      }
+    })();
+  }
+
   async function bootstrap() {
     bootstrapAttempted = true;
     const signal = generationController.signal;
@@ -153,6 +187,7 @@ export function createSessionCoordinator(fetcher: Fetcher = fetch) {
       }
       if (result.response.status === 401 && snapshot.mode === "SESSION_READY") {
         clear("EXPIRED");
+        drainExpiredBody(result.response);
         return;
       }
       if (!result.data) throw new SessionFailure(await responseError(result.response));

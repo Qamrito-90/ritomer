@@ -6,6 +6,9 @@ paths:
   /api/closing-folders/{closingFolderId}/workpapers:
     get:
       operationId: getClosingFolderWorkpapers
+      security:
+        - cookieSession: []
+        - bearerAuth: []
       summary: Return the anchor-driven workpapers read-model for a closing folder
       description: >
         Returns every current anchor from the financial structure in `items`, even when no workpaper is
@@ -28,16 +31,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/ClosingWorkpapers"
         "400":
-          description: Missing, blank or malformed X-Tenant-Id, or invalid closingFolderId
+          description: Missing, blank or malformed X-Tenant-Id, or invalid closingFolderId. Security refusals include INVALID_TENANT_HEADER, AMBIGUOUS_CREDENTIALS (cookie plus bearer), and REQUEST_REJECTED.
         "401":
-          description: Authentication required
+          description: Authentication required. Includes AUTHENTICATION_REQUIRED and SESSION_EXPIRED; expired sessions are invalidated.
         "403":
-          description: Tenant inaccessible or role insufficient
+          description: Tenant inaccessible or role insufficient. Includes ACCESS_DENIED and ACCESS_REVOKED; global revocation invalidates the session.
         "404":
           description: Closing folder absent or outside tenant
   /api/closing-folders/{closingFolderId}/workpapers/{anchorCode}:
     put:
       operationId: upsertWorkpaper
+      security:
+        - cookieSession: []
+          csrfToken: []
+        - bearerAuth: []
       summary: Create or update a workpaper on a current anchor
       description: >
         Maker-side upsert on a current anchor only. Accepted maker statuses are `DRAFT` and
@@ -75,11 +82,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/WorkpaperItem"
         "400":
-          description: Invalid request payload
+          description: Invalid request payload. Security refusals include INVALID_TENANT_HEADER, AMBIGUOUS_CREDENTIALS (cookie plus bearer), and REQUEST_REJECTED.
         "401":
-          description: Authentication required
+          description: Authentication required. Includes AUTHENTICATION_REQUIRED and SESSION_EXPIRED; expired sessions are invalidated.
         "403":
-          description: Tenant inaccessible or role insufficient
+          description: Tenant inaccessible or role insufficient. Includes ACCESS_DENIED and ACCESS_REVOKED; global revocation invalidates the session. Unsafe session requests also reject absent, incorrect or stale CSRF with CSRF_REJECTED; legacy bearer requests do not require CSRF.
         "404":
           description: Closing folder absent or outside tenant
         "409":
@@ -87,6 +94,10 @@ paths:
   /api/closing-folders/{closingFolderId}/workpapers/{anchorCode}/review-decision:
     post:
       operationId: reviewWorkpaper
+      security:
+        - cookieSession: []
+          csrfToken: []
+        - bearerAuth: []
       summary: Apply a review decision to a workpaper on a current anchor
       description: >
         Reviewer-side decision on a persisted current-anchor workpaper only. Allowed transitions are
@@ -120,16 +131,32 @@ paths:
               schema:
                 $ref: "#/components/schemas/WorkpaperItem"
         "400":
-          description: Invalid request payload
+          description: Invalid request payload. Security refusals include INVALID_TENANT_HEADER, AMBIGUOUS_CREDENTIALS (cookie plus bearer), and REQUEST_REJECTED.
         "401":
-          description: Authentication required
+          description: Authentication required. Includes AUTHENTICATION_REQUIRED and SESSION_EXPIRED; expired sessions are invalidated.
         "403":
-          description: Tenant inaccessible or role insufficient
+          description: Tenant inaccessible or role insufficient. Includes ACCESS_DENIED and ACCESS_REVOKED; global revocation invalidates the session. Unsafe session requests also reject absent, incorrect or stale CSRF with CSRF_REJECTED; legacy bearer requests do not require CSRF.
         "404":
           description: Closing folder absent or outside tenant, or current workpaper missing
         "409":
           description: Archived closing, controls.readiness not READY, non-current anchor, or REVIEWED gate failed
 components:
+  securitySchemes:
+    cookieSession:
+      type: apiKey
+      in: cookie
+      name: __Host-ritomer-session
+      description: Opaque server session; Secure, HttpOnly, Path=/, SameSite=Lax, no Domain.
+    csrfToken:
+      type: apiKey
+      in: header
+      name: X-CSRF-TOKEN
+      description: Current session-bound CSRF token, required only for unsafe cookie-session requests.
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Explicit legacy backend compatibility only; never browser authentication. Cannot be combined with the session cookie.
   schemas:
     ClosingWorkpapers:
       type: object
