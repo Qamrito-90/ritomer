@@ -1,12 +1,22 @@
-import { defineConfig, type ConfigEnv, type UserConfig } from "vite";
+import { defineConfig, type ConfigEnv, type ResolvedConfig, type UserConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 type ViteEnvironment = Record<string, string | undefined>;
 
-const DEFAULT_LOCAL_DEMO_BACKEND_TARGET = "http://localhost:8080";
-const LOCAL_DEMO_BACKEND_TARGET_ENV = "RITOMER_LOCAL_DEMO_BACKEND_TARGET";
-const LOCAL_DEMO_PROXY_AUTH_ENABLED_ENV = "RITOMER_LOCAL_DEMO_PROXY_AUTH_ENABLED";
-const LOCAL_DEMO_BEARER_TOKEN_ENV = "RITOMER_LOCAL_DEMO_BEARER_TOKEN";
+const BACKEND_TARGET = "http://127.0.0.1:8080";
+
+export function assertResolvedLocalSessionConfig(config: ResolvedConfig): void {
+  const server = config.server;
+  const proxy = server.proxy?.["/api"];
+  if (server.host !== "127.0.0.1" || server.port !== 5173 || server.strictPort !== true
+    || server.https !== undefined || server.origin !== undefined
+    || Object.keys(server.proxy ?? {}).length !== 1
+    || typeof proxy !== "object" || proxy.target !== BACKEND_TARGET
+    || proxy.changeOrigin !== true || proxy.xfwd !== false
+    || Object.keys(proxy).some((key) => !["target", "changeOrigin", "xfwd"].includes(key))) {
+    throw new Error("LOCAL_SESSION_RESOLVED_CONFIGURATION_REFUSED");
+  }
+}
 
 export function createRitomerViteConfig(
   configEnv: Pick<ConfigEnv, "command"> & { isPreview?: boolean },
@@ -20,84 +30,28 @@ export function createRitomerViteConfig(
     return baseConfig;
   }
 
+  if (Object.keys(environment).some((name) =>
+    /^(RITOMER_LOCAL_DEMO_PROXY_AUTH_ENABLED|RITOMER_LOCAL_DEMO_BEARER_TOKEN|RITOMER_SECURITY_JWT_HMAC_SECRET)$/i.test(name)
+  )) throw new Error("LOCAL_SESSION_LEGACY_AUTH_CONFIGURATION_REFUSED");
+  const target = environment.RITOMER_LOCAL_DEMO_BACKEND_TARGET;
+  if (target !== undefined && target !== BACKEND_TARGET) {
+    throw new Error("LOCAL_SESSION_BACKEND_TARGET_REFUSED");
+  }
+
   return {
     ...baseConfig,
+    plugins: [...(baseConfig.plugins ?? []), {
+      name: "ritomer-local-session-boundary",
+      enforce: "post",
+      configResolved: assertResolvedLocalSessionConfig
+    }],
     server: {
-      proxy: {
-        "/api": createLocalDemoApiProxy(environment)
-      }
+      host: "127.0.0.1",
+      port: 5173,
+      strictPort: true,
+      proxy: { "/api": { target: BACKEND_TARGET, changeOrigin: true, xfwd: false } }
     }
   };
-}
-
-function createLocalDemoApiProxy(environment: ViteEnvironment) {
-  const target = normalizeProxyTarget(
-    environment[LOCAL_DEMO_BACKEND_TARGET_ENV] ?? DEFAULT_LOCAL_DEMO_BACKEND_TARGET
-  );
-  const authEnabled = environment[LOCAL_DEMO_PROXY_AUTH_ENABLED_ENV] === "true";
-  const targetIsLocal = isLocalBackendTarget(target);
-
-  if (authEnabled && !targetIsLocal) {
-    throw new Error(
-      `${LOCAL_DEMO_PROXY_AUTH_ENABLED_ENV}=true is allowed only for localhost or 127.0.0.1 targets.`
-    );
-  }
-
-  if (!authEnabled) {
-    return {
-      target,
-      changeOrigin: true,
-      secure: false
-    };
-  }
-
-  const bearerToken = environment[LOCAL_DEMO_BEARER_TOKEN_ENV]?.trim();
-
-  if (bearerToken === undefined || bearerToken.length === 0) {
-    throw new Error(
-      `${LOCAL_DEMO_PROXY_AUTH_ENABLED_ENV}=true requires ${LOCAL_DEMO_BEARER_TOKEN_ENV} in the local shell environment.`
-    );
-  }
-
-  return {
-    target,
-    changeOrigin: true,
-    secure: false,
-    headers: {
-      Authorization: `Bearer ${bearerToken}`
-    }
-  };
-}
-
-function normalizeProxyTarget(rawTarget: string) {
-  const trimmedTarget = rawTarget.trim();
-
-  if (trimmedTarget.length === 0) {
-    return DEFAULT_LOCAL_DEMO_BACKEND_TARGET;
-  }
-
-  let parsedTarget: URL;
-
-  try {
-    parsedTarget = new URL(trimmedTarget);
-  } catch {
-    throw new Error(`${LOCAL_DEMO_BACKEND_TARGET_ENV} must be an absolute HTTP(S) URL.`);
-  }
-
-  if (parsedTarget.protocol !== "http:" && parsedTarget.protocol !== "https:") {
-    throw new Error(`${LOCAL_DEMO_BACKEND_TARGET_ENV} must use http or https.`);
-  }
-
-  if (parsedTarget.username.length > 0 || parsedTarget.password.length > 0) {
-    throw new Error(`${LOCAL_DEMO_BACKEND_TARGET_ENV} must not include credentials.`);
-  }
-
-  return parsedTarget.origin;
-}
-
-function isLocalBackendTarget(target: string) {
-  const hostname = new URL(target).hostname;
-  return hostname === "localhost" || hostname === "127.0.0.1";
 }
 
 export default defineConfig((configEnv) => createRitomerViteConfig(configEnv));

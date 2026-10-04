@@ -6,6 +6,9 @@ paths:
   /api/closing-folders/{closingFolderId}/mappings/manual:
     get:
       operationId: getManualMappings
+      security:
+        - cookieSession: []
+        - bearerAuth: []
       summary: Return the current manual mapping projection for a closing folder
       description: >
         Returns the current tenant-scoped manual mapping projection using the published V2 taxonomy
@@ -28,15 +31,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/ManualMappingProjection"
         "400":
-          description: Missing, blank or malformed X-Tenant-Id
+          description: Missing, blank or malformed X-Tenant-Id. Security refusals include INVALID_TENANT_HEADER, AMBIGUOUS_CREDENTIALS (cookie plus bearer), and REQUEST_REJECTED.
         "401":
-          description: Authentication required
+          description: Authentication required. Includes AUTHENTICATION_REQUIRED and SESSION_EXPIRED; expired sessions are invalidated.
         "403":
-          description: Tenant inaccessible or role insufficient
+          description: Tenant inaccessible or role insufficient. Includes ACCESS_DENIED and ACCESS_REVOKED; global revocation invalidates the session.
         "404":
           description: Closing folder absent or outside tenant
     put:
       operationId: upsertManualMapping
+      security:
+        - cookieSession: []
+          csrfToken: []
+        - bearerAuth: []
       summary: Create or update a manual mapping for a closing folder
       description: >
         The write contract remains based on `targetCode`. Selectable legacy V1 codes and selectable
@@ -71,17 +78,21 @@ paths:
               schema:
                 $ref: "#/components/schemas/ManualMappingEntry"
         "400":
-          description: Invalid payload, unknown accountCode in latest import, unknown targetCode, or non-selectable targetCode
+          description: Invalid payload, unknown accountCode in latest import, unknown targetCode, or non-selectable targetCode. Security refusals include INVALID_TENANT_HEADER, AMBIGUOUS_CREDENTIALS (cookie plus bearer), and REQUEST_REJECTED.
         "401":
-          description: Authentication required
+          description: Authentication required. Includes AUTHENTICATION_REQUIRED and SESSION_EXPIRED; expired sessions are invalidated.
         "403":
-          description: Tenant inaccessible or role insufficient
+          description: Tenant inaccessible or role insufficient. Includes ACCESS_DENIED and ACCESS_REVOKED; global revocation invalidates the session. Unsafe session requests also reject absent, incorrect or stale CSRF with CSRF_REJECTED; legacy bearer requests do not require CSRF.
         "404":
           description: Closing folder absent or outside tenant
         "409":
           description: Closing folder archived or no balance import available
     delete:
       operationId: deleteManualMapping
+      security:
+        - cookieSession: []
+          csrfToken: []
+        - bearerAuth: []
       summary: Delete a manual mapping for a closing folder
       parameters:
         - in: header
@@ -100,16 +111,32 @@ paths:
         "204":
           description: Mapping deleted or already absent
         "400":
-          description: accountCode is missing or blank
+          description: accountCode is missing or blank. Security refusals include INVALID_TENANT_HEADER, AMBIGUOUS_CREDENTIALS (cookie plus bearer), and REQUEST_REJECTED.
         "401":
-          description: Authentication required
+          description: Authentication required. Includes AUTHENTICATION_REQUIRED and SESSION_EXPIRED; expired sessions are invalidated.
         "403":
-          description: Tenant inaccessible or role insufficient
+          description: Tenant inaccessible or role insufficient. Includes ACCESS_DENIED and ACCESS_REVOKED; global revocation invalidates the session. Unsafe session requests also reject absent, incorrect or stale CSRF with CSRF_REJECTED; legacy bearer requests do not require CSRF.
         "404":
           description: Closing folder absent or outside tenant
         "409":
           description: Closing folder archived or no balance import available
 components:
+  securitySchemes:
+    cookieSession:
+      type: apiKey
+      in: cookie
+      name: __Host-ritomer-session
+      description: Opaque server session; Secure, HttpOnly, Path=/, SameSite=Lax, no Domain.
+    csrfToken:
+      type: apiKey
+      in: header
+      name: X-CSRF-TOKEN
+      description: Current session-bound CSRF token, required only for unsafe cookie-session requests.
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Explicit legacy backend compatibility only; never browser authentication. Cannot be combined with the session cookie.
   schemas:
     ManualMappingProjection:
       type: object

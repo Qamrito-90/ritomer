@@ -150,8 +150,10 @@ internal object DisposablePostgresTestDatabase {
     }
   }
 
-  fun requireRunBoundLocalStorageLeaf(environment: Environment): Path =
-    requireCanonicalRuntimeConfiguration(environment).storageLocalRoot
+  fun requireRunBoundLocalStorageLeaf(environment: Environment): Path {
+    requireDestructiveTestPhase(environment)
+    return requireCanonicalRuntimeConfiguration(environment).storageLocalRoot
+  }
 }
 
 private const val EXPECTED_DATABASE = "ritomer_043b_test"
@@ -169,6 +171,7 @@ private const val DB_TEST_PASSWORD_VARIABLE = "RITOMER_DB_TEST_PASSWORD"
 private const val DESTRUCTIVE_CONSENT_VARIABLE = "RITOMER_DB_TEST_DESTRUCTIVE_CONSENT"
 private const val DESTRUCTIVE_CONSENT_VALUE = "TRUNCATE_RITOMER_043B_TEST"
 private const val DB_RAIL_RUN_ID_VARIABLE = "RITOMER_DB_RAIL_RUN_ID"
+private const val DB_RAIL_CAMPAIGN_VARIABLE = "RITOMER_DB_RAIL_CAMPAIGN"
 private const val DB_RAIL_RUN_ROOT_VARIABLE = "RITOMER_DB_RAIL_RUN_ROOT"
 private const val DB_RAIL_REVIEWED_OBJECT_SHA256_VARIABLE = "RITOMER_DB_RAIL_REVIEWED_OBJECT_SHA256"
 private const val DB_RAIL_CLUSTER_SYSTEM_IDENTIFIER_VARIABLE = "RITOMER_DB_RAIL_CLUSTER_SYSTEM_IDENTIFIER"
@@ -431,9 +434,14 @@ private fun requireCanonicalRuntimeConfiguration(environment: Environment): Cano
   val databaseOid = parseOid(environment.requiredProcessEnvironmentValue(DB_RAIL_DATABASE_OID_VARIABLE), "database")
   val roleOid = parseOid(environment.requiredProcessEnvironmentValue(DB_RAIL_RUNNER_ROLE_OID_VARIABLE), "role")
   val phase = environment.requiredProcessEnvironmentValue(DB_TEST_PHASE_VARIABLE)
-  if (phase != "targeted" && phase != "full") fail("PostgreSQL test phase is invalid.")
+  val campaign = environment.processEnvironmentValue(DB_RAIL_CAMPAIGN_VARIABLE) ?: "B"
+  if (campaign !in setOf("B", "D")) fail("PostgreSQL rail campaign is invalid.")
+  val integrated = phase in setOf("d-seed", "d-backend")
+  if (phase !in setOf("targeted", "full") && !(campaign == "D" && integrated)) {
+    fail("PostgreSQL test phase is invalid.")
+  }
   val applicationName = environment.requiredProcessEnvironmentValue(DB_TEST_APPLICATION_NAME_VARIABLE)
-  requireExact(applicationName, "ritomer-m1-1b-$runId-$phase", "PostgreSQL application name")
+  requireExact(applicationName, "ritomer-m1-1${campaign.lowercase()}-$runId-$phase", "PostgreSQL application name")
 
   val runRoot = requireAbsoluteNormalizedLocalPath(
     environment.requiredProcessEnvironmentValue(DB_RAIL_RUN_ROOT_VARIABLE),
@@ -452,7 +460,8 @@ private fun requireCanonicalRuntimeConfiguration(environment: Environment): Cano
     environment.requiredProcessEnvironmentValue(DB_TEST_STORAGE_LOCAL_ROOT_VARIABLE),
     "storage leaf"
   )
-  val expectedStorageLeaf = runRoot.resolve("volatile").resolve(phase).resolve("local-fs").normalize()
+  val storagePhase = if (integrated) "integrated" else phase
+  val expectedStorageLeaf = runRoot.resolve("volatile").resolve(storagePhase).resolve("local-fs").normalize()
   if (storageLocalRoot != expectedStorageLeaf || !storageLocalRoot.startsWith(runRoot)) {
     fail("PostgreSQL test storage is not the exact run-bound leaf.")
   }
@@ -493,7 +502,7 @@ private fun requireCanonicalRuntimeConfiguration(environment: Environment): Cano
     roleOid = roleOid,
     postmasterStartUnixMicros = postmasterStartUnixMicros,
     storageLocalRoot = storageLocalRoot,
-    provenance = postgresTestRailProvenance(runId, reviewedObjectSha256, clusterSystemIdentifier)
+    provenance = postgresTestRailProvenance(runId, reviewedObjectSha256, clusterSystemIdentifier, campaign)
   )
 }
 
@@ -502,6 +511,7 @@ private fun runGuardedDestruction(
   environment: Environment,
   primitive: DestructivePrimitive
 ) {
+  requireDestructiveTestPhase(environment)
   if (!PostgresTestRailJdbcLogging.disableAndVerifyForTest()) {
     fail("PostgreSQL JDBC logging safety gate failed.")
   }
@@ -541,6 +551,12 @@ private fun runGuardedDestruction(
         }
       }
     }
+  }
+}
+
+private fun requireDestructiveTestPhase(environment: Environment) {
+  if (environment.processEnvironmentValue(DB_TEST_PHASE_VARIABLE) !in setOf("targeted", "full")) {
+    fail("PostgreSQL reset primitives are restricted to targeted/full test phases.")
   }
 }
 
@@ -696,8 +712,12 @@ private fun requireNoLinksOrReparsePoints(path: Path) {
 internal fun postgresTestRailProvenance(
   runId: String,
   reviewedObjectSha256: String,
-  clusterSystemIdentifier: String
-): String = "ritomer-m1-1b:$runId:$reviewedObjectSha256:$clusterSystemIdentifier"
+  clusterSystemIdentifier: String,
+  campaign: String = "B"
+): String {
+  if (campaign !in setOf("B", "D")) fail("PostgreSQL rail campaign is invalid.")
+  return "ritomer-m1-1${campaign.lowercase()}:$runId:$reviewedObjectSha256:$clusterSystemIdentifier"
+}
 
 private fun Environment.requiredProcessEnvironmentValue(name: String): String =
   processEnvironmentValue(name)?.takeIf { it.isNotBlank() }

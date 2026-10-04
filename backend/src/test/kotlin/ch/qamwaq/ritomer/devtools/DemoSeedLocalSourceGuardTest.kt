@@ -6,6 +6,7 @@ import ch.qamwaq.ritomer.testsupport.POSTGRES_TEST_RAIL_ADMINISTRATIVE_SETTINGS
 import ch.qamwaq.ritomer.testsupport.POSTGRES_TEST_RAIL_ALL_SAFE_SETTINGS
 import ch.qamwaq.ritomer.testsupport.POSTGRES_TEST_RAIL_SAFE_SESSION_SETTINGS
 import ch.qamwaq.ritomer.testsupport.PostgresTestRailJdbcLogging
+import ch.qamwaq.ritomer.testsupport.PostgresTestRailDBootstrap
 import ch.qamwaq.ritomer.testsupport.postgresTestRailProvenance
 import com.zaxxer.hikari.HikariConfig
 import java.io.File
@@ -68,6 +69,81 @@ import org.springframework.test.context.support.TestPropertySourceUtils
 import org.springframework.test.util.ReflectionTestUtils
 
 class DemoSeedLocalSourceGuardTest {
+  @Test
+  fun m1dBusinessContractsKeepSessionAndBearerAlternativesAndConditionalCsrf() {
+    val expectedUnsafe = linkedMapOf(
+      "mapping-suggestions" to setOf("recordMappingSuggestionDecision"),
+      "mapping-suggestions-v2" to emptySet(),
+      "closing-folders" to setOf("createClosingFolder", "patchClosingFolder", "archiveClosingFolder"),
+      "import-balance" to setOf("createBalanceImport"),
+      "manual-mapping" to setOf("upsertManualMapping", "deleteManualMapping"),
+      "workpapers" to setOf("upsertWorkpaper", "reviewWorkpaper"),
+      "documents" to setOf("uploadWorkpaperDocument", "reviewDocumentVerification"),
+      "exports" to setOf("createExportPack")
+    )
+    val yaml = org.yaml.snakeyaml.Yaml(org.yaml.snakeyaml.constructor.SafeConstructor(
+      org.yaml.snakeyaml.LoaderOptions().apply { isAllowDuplicateKeys = false }
+    ))
+    var unsafeCount = 0
+    expectedUnsafe.forEach { (contract, unsafeIds) ->
+      val document = yaml.load<Map<String, Any>>(
+        Path.of("../contracts/openapi/$contract-api.yaml").readText()
+      )
+      assertThat(document).doesNotContainKey("security")
+      val components = document["components"] as Map<*, *>
+      val schemes = components["securitySchemes"] as Map<*, *>
+      assertThat(schemes.keys.map { it.toString() })
+        .containsExactlyInAnyOrder("cookieSession", "csrfToken", "bearerAuth")
+      val cookie = schemes["cookieSession"] as Map<*, *>
+      assertThat(cookie["type"]).isEqualTo("apiKey")
+      assertThat(cookie["in"]).isEqualTo("cookie")
+      assertThat(cookie["name"]).isEqualTo("__Host-ritomer-session")
+      val csrf = schemes["csrfToken"] as Map<*, *>
+      assertThat(csrf["type"]).isEqualTo("apiKey")
+      assertThat(csrf["in"]).isEqualTo("header")
+      assertThat(csrf["name"]).isEqualTo("X-CSRF-TOKEN")
+      val bearer = schemes["bearerAuth"] as Map<*, *>
+      assertThat(bearer["type"]).isEqualTo("http")
+      assertThat(bearer["scheme"]).isEqualTo("bearer")
+      val foundUnsafe = linkedSetOf<String>()
+      val paths = document["paths"] as Map<*, *>
+      paths.forEach { (_, rawPath) ->
+        (rawPath as Map<*, *>).forEach { (method, rawOperation) ->
+          assertThat(method).isIn("get", "post", "put", "patch", "delete")
+          val operation = rawOperation as Map<*, *>
+          val unsafe = method != "get"
+          if (unsafe) {
+            unsafeCount++
+            foundUnsafe += operation["operationId"] as String
+          }
+          val expectedCookie = linkedMapOf("cookieSession" to emptyList<String>()).apply {
+            if (unsafe) put("csrfToken", emptyList())
+          }
+          assertThat(operation["security"]).isEqualTo(
+            listOf(expectedCookie, mapOf("bearerAuth" to emptyList<String>()))
+          )
+          val responses = operation["responses"] as Map<*, *>
+          assertThat(responses.keys.map { it.toString() }).contains("400", "401", "403")
+          if (operation["operationId"] !in setOf("createClosingFolder", "listClosingFolders")) {
+            assertThat(responses.keys.map { it.toString() }).contains("404")
+          }
+          val badRequest = responses["400"] as Map<*, *>
+          val unauthenticated = responses["401"] as Map<*, *>
+          val forbidden = responses["403"] as Map<*, *>
+          assertThat(badRequest["description"].toString())
+            .contains("INVALID_TENANT_HEADER", "AMBIGUOUS_CREDENTIALS", "REQUEST_REJECTED")
+          assertThat(unauthenticated["description"].toString()).contains("SESSION_EXPIRED")
+          assertThat(forbidden["description"].toString()).contains("ACCESS_DENIED", "ACCESS_REVOKED")
+          if (unsafe) assertThat(forbidden["description"].toString()).contains("CSRF_REJECTED")
+        }
+      }
+      assertThat(foundUnsafe).isEqualTo(unsafeIds)
+    }
+    assertThat(unsafeCount).isEqualTo(12)
+    val legacy = yaml.load<Map<String, Any>>(Path.of("../contracts/openapi/closing-api.yaml").readText())
+    assertThat(legacy["info"].toString()).contains("Legacy", "superseded")
+  }
+
   @Test
   fun dbtestPoolLimitsBindToHikariWithoutStartingAPool() {
     // Bind only the real YAML, with no system/environment sources or placeholder resolution.
@@ -408,7 +484,7 @@ class DemoSeedLocalSourceGuardTest {
     )
     val invoker = script.sliceBetween(
       "function Invoke-M1BDirectPsql",
-      "function Invoke-M1BGradleTask"
+      "\nfunction " // Bound only this function; adjacent Gradle helpers are a different control surface.
     )
     val binaryGuard = script.sliceBetween(
       "function Assert-M1BPsqlBinary",
@@ -458,7 +534,7 @@ class DemoSeedLocalSourceGuardTest {
       "System.Diagnostics.ProcessStartInfo",
       "\$startInfo.FileName = \$script:PsqlExeExact",
       "\$startInfo.UseShellExecute = \$false",
-      "\$startInfo.CreateNoWindow = \$false",
+      "\$startInfo.CreateNoWindow = (\$Campaign -ceq 'D')",
       "\$startInfo.RedirectStandardInput = \$true",
       "\$startInfo.EnvironmentVariables.Clear()",
       "Read-M1BBoundedProcessStreams",
@@ -521,6 +597,113 @@ class DemoSeedLocalSourceGuardTest {
       "\$salt = \$null",
       "\$verifier = \$null"
     )
+  }
+
+  @Test
+  fun postgresDLocalAdminPasswordIsBoundedLiteralDataAndNeverAnInheritedChannel() {
+    val output = runRailPowerShell(
+      """
+      §root=Join-Path ([IO.Path]::GetTempPath()) 'admin-password-data'
+      [void][IO.Directory]::CreateDirectory(§root)
+      §path=Join-Path §root 'fixture.env'
+      function Expect-PasswordStop { param(§Expected,§Operation)
+        §actual='NONE'; try { [void](& §Operation) } catch { §actual=Get-M1BStopCode §_ }
+        if(§actual -cne §Expected){throw 'PASSWORD_REFUSAL_NOT_PRESERVED'}
+      }
+      Expect-PasswordStop 'D_ADMIN_PASSWORD_FILE_MISSING' { Read-M1DAdminPasswordFile §path }
+      foreach(§text in @('', 'RITOMER_TEST_PG_PASSWORD=', 'RITOMER_TEST_PG_PASSWORD=   ',
+        'OTHER=synthetic', ' RITOMER_TEST_PG_PASSWORD=synthetic',
+        "RITOMER_TEST_PG_PASSWORD=a`nRITOMER_TEST_PG_PASSWORD=b", "RITOMER_TEST_PG_PASSWORD=a`n`n",
+        ('RITOMER_TEST_PG_PASSWORD=a'+[char]0), ('x'*4097))) {
+        [IO.File]::WriteAllText(§path,§text,(Get-M1BUtf8))
+        Expect-PasswordStop 'D_ADMIN_PASSWORD_FILE_INVALID' { Read-M1DAdminPasswordFile §path }
+      }
+      [IO.File]::WriteAllBytes(§path,[byte[]]@(0xc3,0x28))
+      Expect-PasswordStop 'D_ADMIN_PASSWORD_FILE_INVALID' { Read-M1DAdminPasswordFile §path }
+      §literal='synthetic-§(throw "NOT_CODE");#=quotes' + [char]39 + ' spaces '
+      foreach(§ending in @('',"`n","`r`n")) {
+        [IO.File]::WriteAllText(§path,('RITOMER_TEST_PG_PASSWORD='+§literal+§ending),(Get-M1BUtf8))
+        if((Read-M1DAdminPasswordFile §path) -cne §literal){throw 'PASSWORD_LITERAL_CHANGED'}
+      }
+      [IO.File]::WriteAllText(§path,('RITOMER_TEST_PG_PASSWORD='+§literal),[Text.UTF8Encoding]::new(§true,§true))
+      if((Read-M1DAdminPasswordFile §path) -cne §literal){throw 'PASSWORD_UTF8_BOM_CHANGED'}
+      §realFileReader=(Get-Command Read-M1DAdminPasswordFile).ScriptBlock
+      function Read-M1DAdminPasswordFile { param(§Path)
+        if(§Path -cne 'C:\dev\ritomer-local-secrets\postgres-test.env'){throw 'PASSWORD_PATH_NOT_FIXED'}
+        'synthetic-fixed-path-marker'
+      }
+      # Execute the real no-argument wrapper; only the file boundary is substituted.
+      if((& §realLocalAdminReader) -cne 'synthetic-fixed-path-marker'){throw 'PASSWORD_WRAPPER_FAILED'}
+      Set-Item Function:Read-M1DAdminPasswordFile §realFileReader
+      §env:RITOMER_TEST_PG_PASSWORD='synthetic-parent-forbidden'
+      try { Expect-PasswordStop 'PARENT_CREDENTIAL_CHANNEL_PRESENT' { Assert-M1BNoCredentialChannels } }
+      finally { Remove-Item Env:RITOMER_TEST_PG_PASSWORD }
+      Assert-M1BNoCredentialChannels
+      'D_ADMIN_PASSWORD_DATA_FIXTURES=PASS'
+      """.trimIndent()
+    )
+    assertThat(output).contains("D_ADMIN_PASSWORD_DATA_FIXTURES=PASS")
+      .doesNotContain("synthetic-parent-forbidden", "synthetic-fixed-path-marker", "NOT_CODE")
+  }
+
+  @Test
+  @Tag("windows-only")
+  fun postgresDLocalAdminPasswordReachesOnlyPsqlWithoutPromptAndPreservesFailures() {
+    val output = runRailPowerShell(
+      """
+      §Campaign='D'; §Mode='Preflight'
+      Assert-M1BInteractiveConsole
+      if(-not [Console]::IsInputRedirected -or -not [Console]::IsOutputRedirected){throw 'FIXTURE_NOT_NONINTERACTIVE'}
+      §Campaign='B'; §code='NONE'
+      try{Assert-M1BInteractiveConsole}catch{§code=Get-M1BStopCode §_}
+      if(§code -cne 'INTERACTIVE_CONSOLE_REQUIRED'){throw 'B_CONSOLE_GATE_CHANGED'}
+      §Campaign='D'
+      function Assert-M1BPsqlBinary { [pscustomobject]@{Path='C:\fixture\inert.exe';Sha256=('a'*64);FileVersion='fixture';ProductVersion='fixture'} }
+      function Write-M1DStopReceipt { param(§Role,§Process,§ReceiptContext) §script:events.Add('receipt') }
+      function Start-M1DContainedChild {
+        param(§StartInfo,§Role,§ReceiptContext)
+        §script:events.Add('start'); §script:lastStartInfo=§StartInfo
+        if(§Role -cne ('ADMIN_PSQL_'+§script:phase.ToUpperInvariant()) -or §StartInfo.FileName -cne §script:PsqlExeExact -or
+          -not §StartInfo.CreateNoWindow -or §StartInfo.UseShellExecute -or -not §StartInfo.RedirectStandardInput -or
+          §StartInfo.Arguments -cnotmatch '(^|\s)-w(\s|$)' -or §StartInfo.Arguments -cmatch '(^|\s)-W(\s|$)' -or
+          §StartInfo.Arguments.Contains('offline-fixed-admin-marker') -or
+          §StartInfo.EnvironmentVariables['PGPASSWORD'] -cne 'offline-fixed-admin-marker' -or
+          [Environment]::GetEnvironmentVariables().Contains('PGPASSWORD')){throw 'PASSWORD_CHILD_BOUNDARY_INVALID'}
+        if(§script:scenario -ceq 'start-failed'){Stop-M1BRail 'D_CHILD_START_FAILED'}
+        §p=[pscustomobject]@{Id=2000000000;HasExited=§true;ExitCode=$(if(§script:scenario -eq 'success'){0}else{2});StartInfo=§StartInfo;
+          StandardOutput=[IO.StringReader]::new('synthetic-output');StandardError=[IO.StringReader]::new('');StandardInput=[IO.StringWriter]::new()}
+        §p | Add-Member ScriptMethod WaitForExit { }
+        §p | Add-Member ScriptMethod TerminateTreeAndWait { param(§Budget) §script:events.Add('terminate'); return §true }
+        §p | Add-Member ScriptMethod Dispose {
+          §script:events.Add('dispose')
+          if(§this.StartInfo.EnvironmentVariables.ContainsKey('PGPASSWORD')){throw 'PASSWORD_RETAINED_AFTER_START'}
+          if(§script:scenario -ceq 'auth-plus-dispose'){throw [IO.IOException]::new('synthetic-finalization-fault')}
+        }
+        return §p
+      }
+      foreach(§phase in @('Preflight','Provision','Cleanup')) {
+        §script:phase=§phase
+        foreach(§scenario in @('success','auth-failed','auth-plus-dispose','start-failed')) {
+          §script:scenario=§scenario; §script:events=[Collections.Generic.List[string]]::new()
+          §script:PsqlProcessStarts=@{Preflight=0;Provision=0;Cleanup=0}; §script:DCampaignClock=§null
+          Start-M1DClock Preflight
+          §root=Join-Path ([IO.Path]::GetTempPath()) (§phase+'-'+§scenario)
+          §result=§null; §code='NONE'
+          try{§result=Invoke-M1BDirectPsql -Phase §phase -SqlText 'SYNTHETIC NOT SQL' -NeutralRoot §root}catch{§code=Get-M1BStopCode §_}
+          §expected=if(§scenario -ceq 'success'){'NONE'}elseif(§scenario -ceq 'start-failed'){'D_CHILD_START_FAILED'}else{'PSQL_'+§phase.ToUpperInvariant()+'_EXIT_NONZERO'}
+          §events=if(§scenario -ceq 'start-failed'){'start'}else{'start,terminate,receipt,dispose'}
+          if(§code -cne §expected -or (§script:events -join ',') -cne §events -or §script:lastStartInfo.EnvironmentVariables.Count -ne 0){throw 'PASSWORD_FAILURE_OR_FINALIZATION_LOST'}
+          if(§null -ne §result -and (ConvertTo-Json §result).Contains('offline-fixed-admin-marker')){throw 'PASSWORD_RESULT_EXPOSED'}
+          if(§scenario -ceq 'auth-plus-dispose' -and (Get-M1DDiagnostics).secondary.Count -ne 1){throw 'PASSWORD_SECONDARY_FAILURE_LOST'}
+        }
+      }
+      §neutral=New-M1BNeutralEnvironment (Join-Path ([IO.Path]::GetTempPath()) 'unrelated-child')
+      if(§neutral.Values.Contains('PGPASSWORD') -or [Environment]::GetEnvironmentVariables().Contains('PGPASSWORD')){throw 'PASSWORD_PROPAGATED'}
+      'D_ADMIN_PASSWORD_NONINTERACTIVE_FIXTURES=PASS'
+      """.trimIndent()
+    )
+    assertThat(output).contains("D_ADMIN_PASSWORD_NONINTERACTIVE_FIXTURES=PASS")
+      .doesNotContain("offline-fixed-admin-marker", "synthetic-finalization-fault")
   }
 
   @Test
@@ -780,6 +963,7 @@ class DemoSeedLocalSourceGuardTest {
           public int ExitCode { get { return 0; } }
           public static ContainedProcess Start(ProcessStartInfo info) {
             Starts++;
+            if (info.Arguments.Contains("--offline")) throw new InvalidOperationException("Campaign B unexpectedly offline");
             LastEnvironment = new Dictionary<string, string>(StringComparer.Ordinal);
             foreach (string key in info.EnvironmentVariables.Keys) LastEnvironment.Add(key, info.EnvironmentVariables[key]);
             string output;
@@ -1488,9 +1672,12 @@ class DemoSeedLocalSourceGuardTest {
     assertThat(scanner).doesNotContain("Get-Item", "::Exists(", "preflight-readiness", "cache", "GetFullPath(")
     assertThat(strictAncestors).contains(
       "[switch]\$RunnerArtifactScan",
-      "[System.IO.File]::GetAttributes((ConvertTo-M1BRunnerArtifactIoPath \$current))",
+      "[switch]\$AllowMissing",
+      "\$ioPath = ConvertTo-M1BRunnerArtifactIoPath \$current",
+      "if (-not \$AllowMissing -or [IO.File]::Exists(\$ioPath) -or [IO.Directory]::Exists(\$ioPath))",
+      "[System.IO.File]::GetAttributes(\$ioPath)",
       "REPARSE_POINT_ANCESTOR_REJECTED"
-    ).doesNotContain("::Exists(", "Get-Item")
+    ).doesNotContain("Get-Item")
     assertThat(ancestors.substringAfter("    return\n  }\n")).contains(
       "[System.IO.Path]::GetFullPath(\$Path)",
       "[System.IO.File]::Exists(\$current) -or [System.IO.Directory]::Exists(\$current)",
@@ -1688,6 +1875,2392 @@ class DemoSeedLocalSourceGuardTest {
   }
 
   @Test
+  fun postgresDReservesFollowExecutionContextAtExactBudgetBoundaries() {
+    val output = runRailPowerShell(
+      """
+      function FixtureClock([string]§kind, [long]§total, [long]§elapsed) {
+        §script:Mode = if (§kind -ceq 'Preflight') { 'Preflight' } else { 'Lifecycle' }
+        §script:LifecycleAction = if (§kind -ceq 'CleanupOnly') { 'CleanupOnly' } else { 'Run' }
+        §script:DCampaignClock = §null
+        Start-M1DClock §kind
+        §expectedTotal = switch (§kind) { 'Preflight' { 2400000L }; 'Lifecycle' { 9300000L }; 'CleanupOnly' { 720000L } }
+        if (§script:DTotalMilliseconds -ne §expectedTotal) { throw 'NOMINAL_TOTAL_CHANGED' }
+        §script:DCampaignClock.Stop()
+        # Only the elapsed-time input is synthetic; phase admission, deadlines,
+        # reentry and termination budgets below are the extracted real functions.
+        §script:DCampaignClock = [pscustomobject]@{ ElapsedMilliseconds = §elapsed }
+        §script:DTotalMilliseconds = §total
+      }
+      function ExpectStop([scriptblock]§action, [string]§expected) {
+        §code = 'NONE'
+        try { & §action } catch { §code = Get-M1BStopCode §_ }
+        if (§code -cne §expected) { throw ('T1_STOP:' + §code + ':' + §expected) }
+      }
+      §checks = 0
+      foreach (§nominal in @(
+        @('Preflight', 2400000L, 'readiness', 1800000L),
+        @('Lifecycle', 9300000L, 'readiness', 1800000L),
+        @('CleanupOnly', 720000L, 'cleanup', 300000L)
+      )) {
+        FixtureClock §nominal[0] §nominal[1] 0
+        Enter-M1DPhase §nominal[2]
+        if (§script:DPhaseDeadline -ne §nominal[3]) { throw 'NOMINAL_DEADLINE_CHANGED' }
+        §checks++
+      }
+      foreach (§minutes in @(40L,12L)) {
+        foreach (§delta in @(-1L,0L,1L)) {
+          foreach (§elapsed in @(0L,123456L)) {
+            FixtureClock 'Lifecycle' (§minutes * 60000L + §delta) §elapsed
+            ExpectStop { Enter-M1DPhase 'readiness' } 'D_DEADLINE_EXPIRED'
+            if (§script:DPhaseDeadline -ne (§script:DTotalMilliseconds - 7500000L)) { throw 'LIFECYCLE_RESERVE_ALIASED' }
+            §checks++
+          }
+        }
+      }
+      # Expected reserves are contractual test data, independent of the implementation.
+      §reserves = @(
+        @('Lifecycle','readiness',125L), @('Lifecycle','provision',120L),
+        @('Lifecycle','seed',115L), @('Lifecycle','backend',113L),
+        @('Lifecycle','integration',53L), @('Lifecycle','stop',52L),
+        @('Lifecycle','targeted',32L), @('Lifecycle','full',12L),
+        @('Lifecycle','cleanup',7L), @('Lifecycle','controls',0L),
+        @('Preflight','readiness',10L), @('Preflight','provision',0L),
+        @('CleanupOnly','cleanup',7L), @('CleanupOnly','controls',0L)
+      )
+      foreach (§case in §reserves) {
+        foreach (§elapsed in @(0L,123456L)) {
+          foreach (§delta in @(-1L,0L,1L)) {
+            FixtureClock §case[0] (§elapsed + §case[2] * 60000L + §delta) §elapsed
+            if (§delta -le 0) {
+              ExpectStop { Enter-M1DPhase §case[1] } 'D_DEADLINE_EXPIRED'
+            } else {
+              Enter-M1DPhase §case[1]
+              if (§script:DPhaseDeadline -ne §elapsed + 1L) { throw 'RESERVE_BOUNDARY_NOT_ONE_MILLISECOND' }
+              §deadline = §script:DPhaseDeadline
+              ExpectStop { Enter-M1DPhase §case[1] } 'D_PHASE_REENTRY_REJECTED'
+              if (§script:DPhaseDeadline -ne §deadline) { throw 'PHASE_DEADLINE_RENEWED' }
+              §script:DCampaignClock.ElapsedMilliseconds = §deadline
+              ExpectStop { Assert-M1DDeadline } 'D_DEADLINE_EXPIRED'
+            }
+            §checks++
+          }
+        }
+      }
+      FixtureClock 'Lifecycle' 60001L 1L
+      §script:DPhaseDeadline = 1L
+      ExpectStop { Assert-M1DDeadline } 'D_DEADLINE_EXPIRED'
+      foreach (§remaining in @(60000L,30000L,29999L,1L,0L,-1L)) {
+        §script:DCampaignClock.ElapsedMilliseconds = §script:DTotalMilliseconds - §remaining
+        if (§remaining -gt 0) {
+          if ((Get-M1DStopBudget) -ne [Math]::Min(30000L,§remaining)) { throw 'STOP_BUDGET_CHANGED' }
+        } else { ExpectStop { Get-M1DStopBudget } 'D_TERMINATION_BUDGET_EXHAUSTED' }
+        if (§script:DPhaseDeadline -ne 1L) { throw 'STOP_RENEWED_PHASE' }
+        §checks++
+      }
+      if (§checks -ne 105) { throw 'T1_CASE_OMITTED' }
+      'M1D_T1_RESERVES=PASS;CASES=105'
+      """.trimIndent()
+    )
+    assertThat(output).contains("M1D_T1_RESERVES=PASS;CASES=105")
+  }
+
+  @Test
+  fun postgresDSupervisionRejectsMissingDuplicateForeignAndPrematureResults() {
+    val output = runRailPowerShell(
+      """
+      §script:DRuntimeSha256 = '2' * 64
+      §script:DFinishSent = §false
+      §script:DBackendStopSent = §false
+      function FixtureDrain([string]§role, [string]§output, [string]§errorOutput = '') {
+        §outReader = [IO.StreamReader]::new([IO.MemoryStream]::new([Text.Encoding]::UTF8.GetBytes(§output)))
+        §errReader = [IO.StreamReader]::new([IO.MemoryStream]::new([Text.Encoding]::UTF8.GetBytes(§errorOutput)))
+        §process = [pscustomobject]@{ StandardOutput = §outReader; StandardError = §errReader; HasExited = §true; ExitCode = 0 }
+        return New-M1DDrain §process §role 'offline-runner-marker'
+      }
+      function ExpectStop([object]§drain, [string]§expected) {
+        §code = 'NONE'
+        try { 1..5 | ForEach-Object { Update-M1DDrain §drain } } catch { §code = Get-M1BStopCode §_ }
+        finally { §drain.Process.StandardOutput.Dispose(); §drain.Process.StandardError.Dispose() }
+        if (§code -cne §expected) { throw ('D_FIXTURE_STOP:' + §code + ':' + §expected) }
+      }
+      §jars = 'M1D_JARS_RESULT ' + §RunId + ' ' + §ReviewedObjectSha256 + ' ' + §script:DRuntimeSha256 + ' PASS'
+      §valid = FixtureDrain 'HARNESS' (§jars + "`n")
+      1..5 | ForEach-Object { Update-M1DDrain §valid }
+      if (-not §valid.Signals.ContainsKey(§jars)) { throw 'D_JARS_NOT_ACCEPTED' }
+      §valid.Process.StandardOutput.Dispose(); §valid.Process.StandardError.Dispose()
+      ExpectStop (FixtureDrain 'HARNESS' (§jars + "`n" + §jars + "`n")) 'D_CONTROL_MESSAGE_REJECTED'
+      ExpectStop (FixtureDrain 'HARNESS' (§jars + "`n" + §jars)) 'D_UNTERMINATED_CONTROL_MESSAGE'
+      ExpectStop (FixtureDrain 'BACKEND' (§jars + "`n")) 'D_CONTROL_MESSAGE_REJECTED'
+      ExpectStop (FixtureDrain 'HARNESS' ((§jars.Replace(§RunId, ('f' * 32))) + "`n")) 'D_CONTROL_MESSAGE_REJECTED'
+      ExpectStop (FixtureDrain 'HARNESS' '' (§jars + "`n")) 'D_CONTROL_MESSAGE_WRONG_CHANNEL'
+      ExpectStop (FixtureDrain 'HARNESS' ('M1D_HARNESS_STOPPED ' + §RunId + " JARS=PASS VITE_STOP=PASS`n")) 'D_PREMATURE_HARNESS_STOP'
+      ExpectStop (FixtureDrain 'BACKEND' "offline-runner-marker`n") 'RUNNER_SECRET_OUTPUT_CONTAMINATION'
+      §Mode = 'Lifecycle'; §LifecycleAction = 'Run'; Start-M1DClock 'Lifecycle'
+      Enter-M1DPhase 'integration'
+      §firstDeadline = §script:DPhaseDeadline
+      §empty = FixtureDrain 'HARNESS' ''
+      §script:DChildren['HARNESS'] = §empty
+      §code = 'NONE'
+      try { Wait-M1DSignal 'HARNESS' §jars -RequireExit } catch { §code = Get-M1BStopCode §_ }
+      if (§code -cne 'D_REQUIRED_RESULT_ABSENT') { throw 'ZERO_EXIT_WAS_NOT_REFUSED' }
+      §code = 'NONE'
+      try { Enter-M1DPhase 'integration' } catch { §code = Get-M1BStopCode §_ }
+      if (§code -cne 'D_PHASE_REENTRY_REJECTED' -or §script:DPhaseDeadline -ne §firstDeadline) { throw 'D_DEADLINE_WAS_RENEWED' }
+      §script:DPhaseDeadline = 0
+      §code = 'NONE'
+      try { Assert-M1DDeadline } catch { §code = Get-M1BStopCode §_ }
+      if (§code -cne 'D_DEADLINE_EXPIRED') { throw 'D_DEADLINE_NOT_ENFORCED' }
+      'M1D_PROTOCOL_DEADLINES=PASS'
+      """.trimIndent()
+    )
+    assertThat(output).contains("M1D_PROTOCOL_DEADLINES=PASS")
+  }
+
+  @Test
+  fun postgresDPlaywrightCompositionIsClosedAndKeepsBrowserOutsidePersonalProfiles() {
+    val source = postgresRailScriptSource()
+    val d = source.sliceBetween("if (\$Campaign -ceq 'D') {", "function Stop-M1BRail")
+      .substringAfter('{').substringBeforeLast('}').trimIndent()
+    val added = powershellLiteralArray(d, "ExpectedAddedFileSet")
+    val composite = powershellLiteralArray(d, "CompositeFileSet")
+    assertThat(added).containsExactly(
+      "frontend/e2e/m1d/playwright.config.ts", "frontend/e2e/m1d/session.spec.ts",
+      "frontend/e2e/m1d/evidence.ts", "frontend/m1d-browser-evidence.test.ts"
+    )
+    assertThat(composite).hasSize(37).doesNotHaveDuplicates().containsAll(added)
+      .contains(
+        "backend/src/main/kotlin/ch/qamwaq/ritomer/identity/api/SessionController.kt",
+        "backend/src/test/kotlin/ch/qamwaq/ritomer/identity/api/LocalTestSessionControllerSecurityTest.kt",
+        "frontend/src/lib/api/session.ts", "frontend/src/lib/api/session.test.ts"
+      )
+    assertThat(powershellLiteralArray(d, "CorrectiveFileSet")).hasSize(11).doesNotHaveDuplicates()
+      .contains("frontend/src/lib/api/session.ts", "frontend/src/lib/api/session.test.ts")
+    assertThat(d).contains("codex/m1-1d-playwright-integration", "c7857e3180f4ba02c49f6713ecedba3f7d3eb7c5", "A4_M33_R0_D0_TOTAL37", "A4_M7_R0_D0_TOTAL11")
+    val browser = source.sliceBetween("function Get-M1DBrowserDistribution", "function Write-M1DJavaArgumentFile")
+    assertThat(browser).contains("chromium-1200", "chrome-win64", "'chrome.exe'", "D_BROWSER_LINK_REJECTED", "Get-M1BSha256File", "BROWSER_PATH|")
+    assertThat(browser).doesNotContain("GetFolderPath", "UserProfile", "EnumerateDirectories")
+    val launch = source.sliceBetween("function Start-M1DIntegratedChild", "function Invoke-M1DIntegrated")
+    assertThat(launch).contains("BROWSER_COOKIE", "BROWSER_JOURNEY", "PLAYWRIGHT_NO_COPY_PROMPT", "D_BROWSER_RUNTIME_CHANGED", "Start-M1DContainedChild")
+    assertThat(launch).doesNotContain("--no-sandbox", "--ignore-certificate-errors", "--disable-web-security", "--reporter")
+  }
+
+  @Test
+  fun postgresDPlaywrightWaitRequiresRunnerReceiptAndEmptyJobTogether() {
+    val output = runRailPowerShell(
+      """
+      §Mode = 'Lifecycle'; §LifecycleAction = 'Run'; Start-M1DClock Lifecycle
+      Enter-M1DPhase integration
+      function Update-M1DChildren { }
+      §script:receiptRead = 0
+      function Read-M1DBrowserReceipt {
+        param(§Kind)
+        §script:receiptRead++
+        if (§script:missingReceipt) { Stop-M1BRail 'D_BROWSER_RECEIPT_MISSING' }
+        return 'SYNTHETIC_VALIDATED_RECEIPT'
+      }
+      function FixtureChild(§exitCode, §active) {
+        return [pscustomobject]@{ Process=[pscustomobject]@{ HasExited=§true; ExitCode=§exitCode; ActiveProcessCount=§active }; OutEnded=§true; ErrEnded=§true }
+      }
+      function ExpectBrowserStop(§code) {
+        §actual = 'NONE'; try { Wait-M1DBrowserReceipt cookie } catch { §actual = Get-M1BStopCode §_ }
+        if (§actual -cne §code) { throw ('BROWSER_STOP_DIVERGED:' + §actual + ':' + §code) }
+      }
+      §script:missingReceipt = §false
+      §script:DChildren = @{}
+      ExpectBrowserStop 'D_BROWSER_CHILD_MISSING'
+      §script:DChildren['BROWSER_COOKIE'] = FixtureChild 1 0
+      ExpectBrowserStop 'D_BROWSER_RUNNER_FAILED'
+      §script:DChildren['BROWSER_COOKIE'] = FixtureChild 0 1
+      ExpectBrowserStop 'D_BROWSER_DESCENDANT_ALIVE'
+      if (§script:receiptRead -ne 0) { throw 'RECEIPT_PRECEDED_RUNNER_CESSATION' }
+      §script:DChildren['BROWSER_COOKIE'] = FixtureChild 0 0
+      §script:missingReceipt = §true
+      ExpectBrowserStop 'D_BROWSER_RECEIPT_MISSING'
+      §script:missingReceipt = §false
+      if ((Wait-M1DBrowserReceipt cookie) -cne 'SYNTHETIC_VALIDATED_RECEIPT') { throw 'VALID_RESULT_LOST' }
+      §script:DChildren['BACKEND'] = FixtureChild 0 0
+      ExpectBrowserStop 'D_INTEGRATED_CHILD_DISAPPEARED'
+      'M1D_BROWSER_FINITE_CHILD_FAIL_CLOSED=PASS'
+      """.trimIndent()
+    )
+    assertThat(output).contains("M1D_BROWSER_FINITE_CHILD_FAIL_CLOSED=PASS")
+  }
+
+  @Test
+  fun postgresDPlaywrightStartupWaitsForHttpAndRejectsExitOrDeadline() {
+    val output = runRailPowerShell(
+      """
+      # Real integration and readiness loop, doubles only at process/HTTP edges.
+      function Assert-M1DPortsFree { }
+      function Read-M1DIntegratedRuntime { param(§Root) return [pscustomobject]@{ synthetic=§true } }
+      function Wait-M1DSignal { param(§Role,§Signal,[switch]§RequireExit) }
+      function Stop-M1DChild { param(§Role) §script:DChildren.Remove(§Role) }
+      function Update-M1DChildren { }
+      function Start-M1DIntegratedChild {
+        param(§Role,§Runtime,§Provision,§RunnerPassword,§Cluster)
+        if (§Role -ceq 'BROWSER_COOKIE') {
+          §script:browserStarts++
+          if (-not §script:httpReady) { throw 'BROWSER_NAVIGATED_BEFORE_HTTP_READY' }
+          Stop-M1BRail 'D_SYNTHETIC_BROWSER_BOUNDARY'
+        }
+        §script:DChildren[§Role] = [pscustomobject]@{ Process=[pscustomobject]@{ HasExited=§false } }
+        if (§Role -ceq 'VITE' -and §script:scenario -ceq 'already-exited') { §script:DChildren[§Role].Process.HasExited = §true }
+      }
+      function Test-M1DViteReady {
+        param(§TimeoutMilliseconds)
+        if (§TimeoutMilliseconds -lt 1 -or §TimeoutMilliseconds -gt 200) { throw 'UNBOUNDED_HTTP_PROBE' }
+        if (§script:browserStarts -ne 0) { throw 'PROBE_AFTER_BROWSER_START' }
+        §script:probes++
+        if (§script:scenario -ceq 'exit-during-probe') { §script:DChildren['VITE'].Process.HasExited = §true; return §true }
+        if (§script:scenario -ceq 'deadline') { §script:DPhaseDeadline = 0L; return §false }
+        if (§script:scenario -ceq 'backend-exit') { §script:DChildren['BACKEND'].Process.HasExited = §true; return §true }
+        §script:httpReady = §script:probes -ge 3
+        return §script:httpReady
+      }
+      foreach (§case in @('late-ready','already-exited','exit-during-probe','deadline','backend-exit')) {
+        §script:scenario = §case; §script:probes = 0; §script:browserStarts = 0; §script:httpReady = §false
+        §script:DChildren = @{}; §script:DCampaignClock = §null
+        §Mode = 'Lifecycle'; §LifecycleAction = 'Run'; Start-M1DClock Lifecycle
+        §readiness = [pscustomobject]@{ BuildRoot='SYNTHETIC'; Result=[pscustomobject]@{ RuntimeSha256='2' * 64 } }
+        §code = 'NONE'
+        try { Invoke-M1DIntegrated §readiness ([pscustomobject]@{}) 'SYNTHETIC' '999' } catch { §code = Get-M1BStopCode §_ }
+        §expected = if (§case -ceq 'late-ready') { 'D_SYNTHETIC_BROWSER_BOUNDARY' } elseif (§case -ceq 'deadline') { 'D_DEADLINE_EXPIRED' } else { 'D_INTEGRATED_CHILD_DISAPPEARED' }
+        if (§code -cne §expected) { throw ('STARTUP_STOP_DIVERGED:' + §case + ':' + §code) }
+        if (§case -ceq 'late-ready') {
+          if (§script:probes -ne 3 -or §script:browserStarts -ne 1) { throw 'LATE_READINESS_NOT_OBSERVED' }
+        } elseif (§script:browserStarts -ne 0) { throw 'FAILED_STARTUP_USED_BROWSER' }
+        if (§case -ceq 'already-exited' -and §script:probes -ne 0) { throw 'EXIT_NOT_CHECKED_BEFORE_PROBE' }
+      }
+      'M1D_VITE_READINESS_BEFORE_BROWSER=PASS'
+      """.trimIndent()
+    )
+    assertThat(output).contains("M1D_VITE_READINESS_BEFORE_BROWSER=PASS")
+  }
+
+  @Test
+  fun postgresDPlaywrightObservationsRejectMissingPrivacyAndChangedRuntime() {
+    val output = runRailPowerShell(
+      """
+      §script:DRuntimeSha256 = '3' * 64; §script:DFrontendRuntimeSha256 = '4' * 64
+      §values = [ordered]@{ emittedCookie=31; acceptedCookie=31; continuity=1; login=204; rotation=1; authenticated=1; me=200
+        privacyScans=2; privacyViolations=0; lostObservations=0; pagesClosed=1; contextsClosed=1; browserDisconnected=1 }
+      §items = @(); §time = 1
+      # Desktop 5.1 decodes fractional JSON performance.now() values as Decimal.
+      foreach (§key in §values.Keys) { §items += [pscustomobject]@{ event=§key; atMs=([decimal]§time + [decimal]'0.25'); value=§values[§key] }; §time++ }
+      §fixture = [pscustomobject]@{ schemaVersion=1; kind='cookie'; runId=§RunId; objectSha=§ReviewedObjectSha256
+        runtimeSha=§script:DRuntimeSha256; frontendSha=§script:DFrontendRuntimeSha256; browserVersion='153.0.8010.12'
+        observations=§items; windows=@('anonymous','authenticated') }
+      function ExpectObservationStop(§expected) {
+        §actual = 'NONE'; try { Assert-M1DBrowserObservations §fixture cookie '153.0.8010.12' } catch { §actual = Get-M1BStopCode §_ }
+        if (§actual -cne §expected) { throw ('OBSERVATION_STOP_DIVERGED:' + §actual) }
+      }
+      Assert-M1DBrowserObservations §fixture cookie '153.0.8010.12'
+      §fixture.observations[0].atMs = '1.25'
+      ExpectObservationStop 'D_BROWSER_OBSERVATION_INVALID'
+      §fixture.observations[0].atMs = [decimal]'1.25'
+      §fixture.frontendSha = '5' * 64
+      ExpectObservationStop 'D_BROWSER_OBSERVATION_BINDING_INVALID'
+      §fixture.frontendSha = §script:DFrontendRuntimeSha256
+      §fixture.observations += §items[0]
+      ExpectObservationStop 'D_BROWSER_OBSERVATION_INVALID'
+      §fixture.observations = §items
+      §fixture.windows = @('authenticated')
+      ExpectObservationStop 'D_BROWSER_PRIVACY_WINDOW_MISSING'
+      §fixture.windows = @('anonymous','authenticated')
+      (§fixture.observations | Where-Object event -ceq 'lostObservations').value = 1
+      ExpectObservationStop 'D_BROWSER_OBSERVATION_MISSING'
+      'M1D_BROWSER_OBSERVATION_BINDINGS=PASS'
+      """.trimIndent()
+    )
+    assertThat(output).contains("M1D_BROWSER_OBSERVATION_BINDINGS=PASS")
+  }
+
+  @Test
+  fun postgresDQuarantinePersistsWithoutProcessLockAndRejectsIncompleteRecovery() {
+    val output = runRailPowerShell(
+      """
+      §tempBase = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
+      §root = Join-Path §tempBase ('m1d-receipts-' + [Guid]::NewGuid().ToString('N'))
+      [void][IO.Directory]::CreateDirectory(§root)
+      §script:DRunRoot = §root
+      §script:DQuarantinePath = Join-Path §root '.m1d-unreleased.json'
+      function Get-M1DNamespaceIdentity { '00000000000000000000000000000001:0000000000000001:1' }
+      try {
+        Enter-M1DQuarantine ([ordered]@{
+          preflightAuthorizationRecordId = 'AUTH-FIXTURE-PREFLIGHT'; preflightSha256 = '0' * 64; psqlSha256 = '0' * 64
+          cluster = '999'; adminRoleOid = 10; maintenanceDatabaseOid = 11
+          provenance = Get-M1BProvenance §RunId §ReviewedObjectSha256 '999'
+          runtimeSha256 = '0' * 64; integratedManifestSha256 = '0' * 64; frontendRuntimeSha256 = '0' * 64
+          controllerProcessId = §PID; controllerCreationTicks = [string][Diagnostics.Process]::GetCurrentProcess().StartTime.ToUniversalTime().Ticks
+        })
+        §code = 'NONE'; try { Assert-M1DNoQuarantine } catch { §code = Get-M1BStopCode §_ }
+        if (§code -cne 'D_PREVIOUS_CAMPAIGN_UNRELEASED') { throw 'D_SECOND_RUN_NOT_BLOCKED' }
+        # Dot-prefixed files are hidden on Unix; reproduce that property on Windows too.
+        if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
+          [IO.File]::SetAttributes(§script:DQuarantinePath, ([IO.File]::GetAttributes(§script:DQuarantinePath) -bor [IO.FileAttributes]::Hidden))
+        }
+        [void](Assert-M1DQuarantineBinding)
+        §markerBytes = [IO.File]::ReadAllBytes(§script:DQuarantinePath)
+        foreach (§invalidMarker in @('missing','oversized','runId','root','receiptSha256')) {
+          try {
+            if (§invalidMarker -ceq 'missing') { [IO.File]::Delete(§script:DQuarantinePath) }
+            elseif (§invalidMarker -ceq 'oversized') { [IO.File]::WriteAllText(§script:DQuarantinePath, ('x' * 4097), (Get-M1BUtf8)) }
+            else {
+              §forgedMarker = ConvertFrom-Json ((Get-M1BUtf8).GetString(§markerBytes))
+              §forgedMarker.§invalidMarker = switch (§invalidMarker) { 'runId' { 'f' * 32 }; 'root' { §root + '-foreign' }; 'receiptSha256' { 'f' * 64 } }
+              [IO.File]::WriteAllText(§script:DQuarantinePath, (ConvertTo-Json §forgedMarker -Compress), (Get-M1BUtf8))
+            }
+            §code = 'NONE'; try { [void](Assert-M1DQuarantineBinding) } catch { §code = Get-M1BStopCode §_ }
+            §expected = if (§invalidMarker -cin @('missing','oversized')) { 'D_QUARANTINE_MARKER_MISSING' } else { 'D_QUARANTINE_BINDING_INVALID' }
+            if (§code -cne §expected -or (§invalidMarker -cne 'missing' -and -not [IO.File]::Exists(§script:DQuarantinePath))) { throw ('D_INVALID_MARKER_ACCEPTED:' + §invalidMarker) }
+          } finally { [IO.File]::WriteAllBytes(§script:DQuarantinePath, §markerBytes) }
+        }
+        [void](Assert-M1DQuarantineBinding)
+        §code = 'NONE'; try { Exit-M1DQuarantine 'cleanup' } catch { §code = Get-M1BStopCode §_ }
+        if (§code -cne 'D_RECEIPT_MISSING' -or -not [IO.File]::Exists(§script:DQuarantinePath)) { throw 'D_QUARANTINE_RELEASED_WITHOUT_CLEANUP' }
+        §code = 'NONE'; try { Read-M1DReceipt 'provision' } catch { §code = Get-M1BStopCode §_ }
+        if (§code -cne 'D_RECEIPT_MISSING') { throw 'D_INCOMPLETE_PROVISION_ACCEPTED' }
+        §Campaign = 'D'
+        §script:DExpectedPostmasterStart = '1789722000123456'
+        §provenance = Get-M1BProvenance §RunId §ReviewedObjectSha256 '999'
+        §code = 'NONE'
+        try { Get-M1BCleanupSql §provenance §RunId '999' 0 20 10 11 } catch { §code = Get-M1BStopCode §_ }
+        if (§code -cne 'D_CLEANUP_EXACT_PROVISION_RECEIPT_REQUIRED') { throw 'D_ZERO_OID_ACCEPTED' }
+        §sql = Get-M1BCleanupSql §provenance §RunId '999' 19 20 10 11
+        if (§sql.Contains('pg_terminate_backend(') -or -not §sql.Contains('session remains after stop barrier') -or -not §sql.Contains('postmaster binding mismatch')) { throw 'D_CLEANUP_SQL_GUARDS_MISSING' }
+        §Campaign = 'B'
+        [void](Write-M1DReceipt 'cleanup' ([ordered]@{ targetsAbsent = §true }))
+        Exit-M1DQuarantine 'cleanup'
+        Assert-M1DNoQuarantine
+        # Synthetic fixture cleanup is confined to this fresh temp root.
+      } finally {
+        if (-not §root.StartsWith(§tempBase, [StringComparison]::OrdinalIgnoreCase) -or -not ([IO.Path]::GetFileName(§root)).StartsWith('m1d-receipts-')) { throw 'FIXTURE_ROOT_INVALID' }
+        [IO.Directory]::Delete(§root, §true)
+      }
+      'M1D_PERSISTENT_QUARANTINE_AND_EXACT_CLEANUP=PASS'
+      """.trimIndent()
+    )
+    assertThat(output).contains("M1D_PERSISTENT_QUARANTINE_AND_EXACT_CLEANUP=PASS")
+  }
+
+  @Test
+  fun postgresDIntegratedOrderAndExplicitStopAreExercisedOnClosedDoubles() {
+    val output = runRailPowerShell(
+      """
+      §tempBase = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
+      §root = Join-Path §tempBase ('m1d-order-' + [Guid]::NewGuid().ToString('N'))
+      [void][IO.Directory]::CreateDirectory(§root)
+      §script:DRunRoot = §root
+      §script:events = [Collections.Generic.List[string]]::new()
+      §script:DFrontendRuntimeSha256 = '3' * 64
+      function Get-M1DNamespaceIdentity { '00000000000000000000000000000001:0000000000000001:1' }
+      function Get-M1DListenerPorts { return @() }
+      function Read-M1DIntegratedRuntime { param(§BuildRoot) return [pscustomobject]@{ synthetic = §true } }
+      function Get-M1DFrontendRuntimeSha256 { return '3' * 64 }
+      function Update-M1DChildren { }
+      function Test-M1DViteReady { param(§TimeoutMilliseconds) §script:events.Add('http-ready:VITE'); return §true }
+      function Assert-M1DRecordedCessation {
+        if (§script:DChildren.Count -ne 0) { Stop-M1BRail 'D_FIXTURE_TREE_ALIVE' }
+        §script:events.Add('cessation')
+      }
+      function Start-M1DIntegratedChild {
+        param(§Role,§Runtime,§Provision,§RunnerPassword,§Cluster)
+        §script:events.Add('start:' + §Role)
+        §writer = [pscustomobject]@{ role = §Role }
+        §writer | Add-Member ScriptMethod Write { param(§line) §script:events.Add('input:' + §line.Replace("`n", '<LF>')) }
+        §writer | Add-Member ScriptMethod WriteLine { param(§line) §script:events.Add('input:' + §line) }
+        §writer | Add-Member ScriptMethod Close { }
+        §script:DChildren[§Role] = [pscustomobject]@{ Process = [pscustomobject]@{ StandardInput = §writer; HasExited = §false } }
+      }
+      function Wait-M1DSignal {
+        param(§Role,§Signal,[switch]§RequireExit)
+        §script:events.Add('wait:' + §Role + ':' + [bool]§RequireExit)
+      }
+      function Stop-M1DChild { param(§Role,[switch]§Forced) §script:events.Add('stop:' + §Role); §script:DChildren.Remove(§Role) }
+      function Wait-M1DBrowserReceipt { param(§Kind) §script:events.Add('browser:' + §Kind); return [pscustomobject]@{ Sha256 = (('4' * 63) + $(if (§Kind -eq 'cookie') { '5' } else { '6' })) } }
+      function Read-M1DBrowserReceipt { param(§Kind) return [pscustomobject]@{ Sha256 = (('4' * 63) + $(if (§Kind -eq 'cookie') { '5' } else { '6' })) } }
+      try {
+        §Mode = 'Lifecycle'; §LifecycleAction = 'Run'; Start-M1DClock Lifecycle
+        Enter-M1DPhase readiness
+        Enter-M1DPhase provision
+        §readiness = [pscustomobject]@{ BuildRoot = §root; Result = [pscustomobject]@{ RuntimeSha256 = '2' * 64 } }
+        Invoke-M1DIntegrated §readiness ([pscustomobject]@{ synthetic = §true }) 'offline-runner-marker' '999'
+        §expected = @(
+          'start:SEED','wait:SEED:True','stop:SEED','start:BACKEND','wait:BACKEND:False',
+          'start:VITE','http-ready:VITE','start:BROWSER_COOKIE','browser:cookie','stop:BROWSER_COOKIE','stop:VITE',
+          'start:HARNESS','wait:HARNESS:False','start:BROWSER_JOURNEY','browser:browser','stop:BROWSER_JOURNEY',
+          ('input:M1D_FINISH ' + §RunId + '<LF>'),'wait:HARNESS:True','stop:HARNESS',
+          ('input:M1D_BACKEND_STOP ' + §RunId),'wait:BACKEND:True','stop:BACKEND','cessation'
+        )
+        if ((§script:events -join '|') -cne (§expected -join '|')) { throw ('D_PHASE_ORDER_DIVERGED:' + (§script:events -join '|')) }
+        [void](Read-M1DReceipt 'integrated'); [void](Read-M1DReceipt 'stopped')
+        if (-not §script:DFinishSent -or -not §script:DBackendStopSent) { throw 'D_EXPLICIT_FINISH_MISSING' }
+        function Get-M1DListenerPorts { return @(5173) }
+        §code = 'NONE'; try { Assert-M1DPortsFree } catch { §code = Get-M1BStopCode §_ }
+        if (§code -cne 'D_INTEGRATED_PORT_NOT_FREE') { throw 'D_FOREIGN_PORT_ACCEPTED' }
+      } finally {
+        if (-not §root.StartsWith(§tempBase, [StringComparison]::OrdinalIgnoreCase) -or -not ([IO.Path]::GetFileName(§root)).StartsWith('m1d-order-')) { throw 'FIXTURE_ROOT_INVALID' }
+        [IO.Directory]::Delete(§root, §true)
+      }
+      'M1D_INTEGRATED_ORDER_STOP_AND_FOREIGN_PORT=PASS'
+      """.trimIndent()
+    )
+    assertThat(output).contains("M1D_INTEGRATED_ORDER_STOP_AND_FOREIGN_PORT=PASS")
+  }
+
+  @Test
+  @Tag("windows-only")
+  fun postgresDRealPreparationValidatesLongPathsAndReachesOnlySubstitutedNativeLaunch() {
+    val output = runRailPowerShell(
+      """
+      if (§PSVersionTable.PSEdition -cne 'Desktop' -or §PSVersionTable.PSVersion.Major -ne 5) { throw 'DESKTOP_51_REQUIRED' }
+      §Campaign = 'D'; §Mode = 'Lifecycle'; §LifecycleAction = 'Run'
+      §tempBase = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
+      §container = Join-Path §tempBase ('m1d-preparation-' + [Guid]::NewGuid().ToString('N'))
+      [void][IO.Directory]::CreateDirectory(§container)
+      # Use the real D binding block. Only Git's process boundary is substituted;
+      # GetBaseline, ReviewedObject and ExecutionState still validate its bytes.
+      §dBindings = @(§railAst.EndBlock.Statements | Where-Object { §_ -is [Management.Automation.Language.IfStatementAst] -and §_.Clauses[0].Item1.Extent.Text.Trim() -ceq "§([char]36)Campaign -ceq 'D'" })
+      . ([scriptblock]::Create(§dBindings[0].Extent.Text))
+      §script:fixtureDiff = "OFFLINE_SYNTHETIC_DIFF`n"
+      §ReviewedObjectSha256 = Get-M1BSha256Bytes ((Get-M1BUtf8).GetBytes(§script:fixtureDiff))
+      function Invoke-M1BGit {
+        param([string[]]§Arguments,[hashtable]§ExtraEnvironment=@{},[int]§LimitChars=1048576)
+        §key = §Arguments -join '|'
+        switch (§key) {
+          'rev-parse|--show-toplevel' { return §script:RepoRoot }
+          'branch|--show-current' { return §script:ExpectedBranch }
+          'rev-parse|HEAD' { if (§script:scenario -ceq 'head') { return 'f' * 40 }; return §script:ExpectedHead }
+          'ls-files|-v|-z' { return 'H fixture' + [char]0 }
+          'status|--porcelain=v1|-z|--untracked-files=all' { return (@(§script:CompositeFileSet | ForEach-Object { $(if (§script:ExpectedAddedFileSet -ccontains §_) { '?? ' } else { ' M ' }) + §_ }) -join [char]0) + [char]0 }
+          'diff|--cached|--name-only' { return '' }
+          'diff|--check' { return '' }
+        }
+        if (§Arguments[0] -cin @('read-tree','update-index')) { return '' }
+        if (§Arguments[0] -ceq 'diff' -and §Arguments[1] -ceq '--binary') { if (§script:scenario -ceq 'diff') { return 'changed' }; return §script:fixtureDiff }
+        throw 'UNEXPECTED_GIT_FIXTURE_CALL'
+      }
+      function Get-M1DListenerPorts { if (§script:scenario -ceq 'port') { return 5173 } }
+      function Initialize-M1BContainedProcessType { }
+      # Final native effect only. Captures what the real preparation transmitted,
+      # then throws without creating a process or claiming confinement.
+      Add-Type -TypeDefinition @'
+      namespace Ritomer.M1B {
+        public class ContainedProcess {
+          public static int Calls;
+          public static string FileName, Arguments, Directory, Role, Run;
+          public static bool Flags, Callback;
+          public static System.Collections.Generic.Dictionary<string,string> Environment;
+          public static object StartD(System.Diagnostics.ProcessStartInfo info, string run, string role, System.Action<int,long,string> callback) {
+            Calls++; FileName=info.FileName; Arguments=info.Arguments; Directory=info.WorkingDirectory; Role=role; Run=run;
+            Flags=!info.UseShellExecute && info.CreateNoWindow && info.RedirectStandardInput && info.RedirectStandardOutput && info.RedirectStandardError;
+            Callback=callback!=null;
+            Environment=new System.Collections.Generic.Dictionary<string,string>();
+            foreach (string key in info.EnvironmentVariables.Keys) Environment[key]=info.EnvironmentVariables[key];
+            throw new System.IO.IOException("fixture-RUNNER-COOKIE-CSRF-DSN-sensitive-marker");
+          }
+        }
+      }
+      '@
+      function Write-M1DReceipt { param(§Name,§Payload) §script:intents.Add([pscustomobject]@{name=§Name;payload=§Payload}); return 'OFFLINE_NO_RECEIPT_WRITTEN' }
+      §runtimeRoot = Join-Path §container 'runtime'
+      §longDirectory = §runtimeRoot + '\' + ('x' * 190)
+      §longFile = §longDirectory + '\DeclaredClass.class'
+      if (§longFile.Length -le 260) { throw 'LONG_PATH_FIXTURE_TOO_SHORT' }
+      [void][IO.Directory]::CreateDirectory('\\?\' + §longDirectory)
+      [IO.File]::WriteAllText('\\?\' + §longFile, 'class-fixture-not-executable')
+      §executable = (Join-Path §env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe')
+      §manifest = [ordered]@{
+        schemaVersion=1; mainClass='ch.qamwaq.ritomer.testsupport.PostgresTestRailDBootstrap'; javaExecutablePath=§executable
+        classpathEntries=@(§runtimeRoot); supportClasses=@()
+        runtimeInputs=@([ordered]@{label='classes';path=§runtimeRoot},[ordered]@{label='java';path=§executable})
+        structure=@([ordered]@{label='classes';relativePath='.';kind='D'},[ordered]@{label='classes';relativePath=('x'*190);kind='D'},[ordered]@{label='classes';relativePath=(('x'*190)+'/DeclaredClass.class');kind='F'},[ordered]@{label='java';relativePath='.';kind='F'})
+        files=@([ordered]@{path=§longFile;sha256=(Get-M1BSha256File ('\\?\'+§longFile))},[ordered]@{path=§executable;sha256=(Get-M1BSha256File §executable)})
+        seedArguments=@('seed'); backendArguments=@('backend')
+      }
+      §validJson = ConvertTo-Json §manifest -Depth 8 -Compress
+      §provision = [pscustomobject]@{DatabaseOid=19;RoleOid=20;PostmasterStartUnixMicros='1789722000123456'}
+      try {
+        foreach (§scenario in @('head','diff','port','manifest-hash','structure','file-hash','path','type','valid')) {
+          §script:scenario=§scenario
+          §script:DRunRoot=Join-Path §container §scenario; [void][IO.Directory]::CreateDirectory(§script:DRunRoot)
+          §runtime=ConvertFrom-Json §validJson
+          switch (§scenario) {
+            'structure' { §runtime.structure[0].kind='F' }
+            'file-hash' { §runtime.files[0].sha256='0'*64 }
+            'path' { §runtime.runtimeInputs[0].path=§runtimeRoot+'\..\runtime' }
+            'type' { §runtime.files[0].path=42 }
+          }
+          §manifestPath=Join-Path §script:DRunRoot 'm1d-integrated-runtime.json'
+          [IO.File]::WriteAllText(§manifestPath,(ConvertTo-Json §runtime -Depth 8 -Compress),(Get-M1BUtf8))
+          §script:DIntegratedManifestSha256=Get-M1BSha256File §manifestPath
+          if (§scenario -ceq 'manifest-hash') { §script:DIntegratedManifestSha256='0'*64 }
+          §script:DCampaignClock=§null; §Mode = 'Lifecycle'; §LifecycleAction = 'Run'; Start-M1DClock Lifecycle; Enter-M1DPhase readiness; Enter-M1DPhase provision
+          §script:intents=[Collections.Generic.List[object]]::new()
+          §code='NONE'
+          try {
+            Set-M1DDiagnosticOperation 'post-provision-state'
+            [void](Assert-M1BExecutionState §script:DRunRoot 'd-post-provision')
+            Invoke-M1DIntegrated ([pscustomobject]@{BuildRoot=§script:DRunRoot;Result=[pscustomobject]@{RuntimeSha256=('2'*64)}}) §provision 'fixture-runner-no-authority' '999'
+          } catch { §code=Get-M1BStopCode §_; [void](Add-M1DFailure §_) }
+          if (§scenario -cne 'valid') {
+            if (§code -ceq 'NONE' -or §code -ceq 'UNEXPECTED_FAILURE' -or [Ritomer.M1B.ContainedProcess]::Calls -ne 0 -or §script:intents.Count -ne 0) { throw ('INVALID_PREPARATION_REACHED_LAUNCH:' + §scenario) }
+            continue
+          }
+          §diag=Get-M1DDiagnostics
+          if (§code -cne 'UNEXPECTED_FAILURE' -or §diag.primary.stage -cne 'seed' -or §diag.primary.operation -cne 'native-launch' -or §diag.primary.category -cne 'IO_FAILURE' -or §diag.secondary.Count -ne 0) { throw 'PREPARATION_FAILURE_NOT_CLASSIFIED' }
+          if ([Ritomer.M1B.ContainedProcess]::Calls -ne 1 -or [Ritomer.M1B.ContainedProcess]::Role -cne 'SEED' -or [Ritomer.M1B.ContainedProcess]::Run -cne §RunId -or [Ritomer.M1B.ContainedProcess]::FileName -cne §executable -or -not [Ritomer.M1B.ContainedProcess]::Flags -or -not [Ritomer.M1B.ContainedProcess]::Callback) { throw 'NATIVE_PARAMETERS_DIVERGED' }
+          §neutral=Join-Path §script:DRunRoot 'volatile\integrated\seed-child'
+          §argumentPath=Join-Path §neutral 'java-arguments.txt'
+          §expectedArguments=@(('-Duser.home='+(Join-Path §neutral 'home')),('-Djava.io.tmpdir='+(Join-Path §neutral 'tmp')),'-Duser.name=ritomer-m1b-rail','-Djava.net.useSystemProxies=false',('-XX:ErrorFile='+(Join-Path §neutral 'hs_err_pid%p.log')),('-XX:HeapDumpPath='+(Join-Path §neutral 'heapdump_pid%p.hprof')),'-XX:-HeapDumpOnOutOfMemoryError',('@'+§argumentPath),'ch.qamwaq.ritomer.testsupport.PostgresTestRailDBootstrap','seed')
+          §command=(§expectedArguments | ForEach-Object { ConvertTo-M1BProcessArgument §_ }) -join ' '
+          if ([Ritomer.M1B.ContainedProcess]::Arguments -cne §command -or [Ritomer.M1B.ContainedProcess]::Directory -cne §neutral) { throw 'SEED_COMMAND_DIVERGED' }
+          §environment=[Ritomer.M1B.ContainedProcess]::Environment
+          §expected=@{RITOMER_DB_RAIL_CAMPAIGN='D';RITOMER_DB_RAIL_RUN_ID=§RunId;RITOMER_DB_RAIL_RUN_ROOT=§script:DRunRoot;RITOMER_DB_RAIL_REVIEWED_OBJECT_SHA256=§ReviewedObjectSha256;RITOMER_DB_RAIL_RUNTIME_SHA256=('2'*64);RITOMER_DB_RAIL_CLUSTER_SYSTEM_IDENTIFIER='999';RITOMER_DB_RAIL_DATABASE_OID='19';RITOMER_DB_RAIL_RUNNER_ROLE_OID='20';RITOMER_DB_RAIL_POSTMASTER_START_UNIX_MICROS=§provision.PostmasterStartUnixMicros;RITOMER_DB_TEST_PASSWORD='fixture-runner-no-authority';RITOMER_DB_TEST_PHASE='d-seed';RITOMER_DB_TEST_USERNAME=§script:TargetRunnerRole;RITOMER_DB_TEST_JDBC_URL=§script:TargetJdbcUrl;RITOMER_DB_TEST_DESTRUCTIVE_CONSENT=§script:DestructiveConsent;RITOMER_DB_TESTS_ENABLED='true'}
+          foreach (§key in §expected.Keys) { if (-not §environment.ContainsKey(§key) -or §environment[§key] -cne §expected[§key]) { throw 'SEED_ENVIRONMENT_BINDING_DIVERGED' } }
+          if (§environment.ContainsKey('JAVA_TOOL_OPTIONS') -or §environment.ContainsKey('PGPASSWORD') -or §environment['TEMP'] -cne (Join-Path §neutral 'tmp')) { throw 'SEED_ENVIRONMENT_LEAK' }
+          §argumentText=[IO.File]::ReadAllText(§argumentPath,(Get-M1BUtf8))
+          §expectedText='-classpath'+"`n"+'"'+§runtimeRoot.Replace('\','\\')+'"'+"`n"
+          if (§argumentText -cne §expectedText -or §script:intents.Count -ne 1 -or §script:intents[0].name -cne 'launch-lifecycle-SEED-intent' -or §script:intents[0].payload.argumentFileSha256 -cne (Get-M1BSha256File §argumentPath)) { throw 'ARGUMENT_FILE_OR_INTENT_DIVERGED' }
+          §serialized=ConvertTo-Json §diag -Depth 5 -Compress
+          if (§serialized.Contains('sensitive-marker') -or §argumentText.Contains('fixture-runner')) { throw 'SYNTHETIC_SECRET_PERSISTED' }
+        }
+      } finally {
+        if (-not §container.StartsWith(§tempBase,[StringComparison]::OrdinalIgnoreCase) -or -not ([IO.Path]::GetFileName(§container)).StartsWith('m1d-preparation-')) { throw 'FIXTURE_ROOT_INVALID' }
+        [IO.File]::Delete('\\?\'+§longFile); [IO.Directory]::Delete('\\?\'+§longDirectory)
+        [IO.Directory]::Delete(§container,§true)
+      }
+      'M1D_REAL_PREPARATION_LONG_PATH_AND_NEGATIVE_BINDINGS=PASS'
+      """.trimIndent()
+    )
+    assertThat(output).contains("M1D_REAL_PREPARATION_LONG_PATH_AND_NEGATIVE_BINDINGS=PASS")
+    assertThat(output).doesNotContain("fixture-RUNNER-COOKIE-CSRF-DSN-sensitive-marker")
+  }
+
+  @Test
+  fun postgresDLifecycleOrdersDestructionAndKeepsFailedCleanupQuarantinedOnDoubles() {
+    val output = runRailPowerShell(
+      """
+      # Every process/DB boundary is a closed synthetic double. The orchestration,
+      # deadlines, durable receipts, quarantine and recovery code are the real rail.
+      §Campaign = 'D'; §Mode = 'Lifecycle'; §LifecycleAction = 'Run'
+      §PreflightAuthorizationRecordId = 'AUTH-FIXTURE-PREFLIGHT'
+      §tempBase = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
+      §container = Join-Path §tempBase ('m1d-lifecycle-' + [Guid]::NewGuid().ToString('N'))
+      [void][IO.Directory]::CreateDirectory(§container)
+      §script:realReceiptWriter = (Get-Command Write-M1DReceipt).ScriptBlock
+      function Write-M1DReceipt {
+        param(§Name,§Payload)
+        if (§Name -ceq 'terminal' -and §script:scenario -cin @('publication-secondary','publication-only')) { throw [IO.IOException]::new('fixture-PUBLICATION-COOKIE-secret') }
+        & §script:realReceiptWriter §Name §Payload
+      }
+      function Get-M1DNamespaceIdentity { '00000000000000000000000000000001:0000000000000001:1' }
+      function Assert-M1BInvocation { return §script:scenarioRoot }
+      # Cache validity has dedicated real-reader tests; this fixture isolates lifecycle ordering.
+      function Initialize-M1DGradleCacheReuse { param(§Root,§Preflight) }
+      function Enter-M1BRunLock { param(§Root) return [pscustomobject]@{ synthetic = §true } }
+      function Exit-M1BRunLock { param(§Lock) §script:lockReleased = §true }
+      function Assert-M1BExecutionState {
+        param(§Root,§Phase)
+        if (§Phase -ceq 'd-terminal-state' -and §script:scenario -ceq 'controls-secondary') { throw [UnauthorizedAccessException]::new('fixture-CONTROLS-DSN-secret') }
+        return [pscustomobject]@{ Baseline = [pscustomobject]@{ synthetic = §true } }
+      }
+      function Invoke-M1BReadiness {
+        param(§Root,§PhaseName,§RunId,§ReviewedObjectSha256)
+        §script:events.Add('readiness'); §script:DIntegratedManifestSha256 = '1' * 64
+        return [pscustomobject]@{ BuildRoot = §Root; GradleUserHome = §Root; Result = [pscustomobject]@{ RuntimeSha256 = '2' * 64 } }
+      }
+      function Read-M1BPreflightManifest {
+        param(§Root,§RunId,§ReviewedObjectSha256,§Authorization,§Baseline)
+        §script:fixtureCampaignTimestamp = if (§script:scenario -ceq 'campaign-expired') { [string]([Diagnostics.Stopwatch]::GetTimestamp() - 11760L * [Diagnostics.Stopwatch]::Frequency) } else { [string][Diagnostics.Stopwatch]::GetTimestamp() }
+        if (§script:scenario -ceq 'reserve-readiness') {
+          # Leave a valid monotonic binding even on a recently booted host.
+          # 80 elapsed minutes leave 75 of the real 155-minute lifecycle cap,
+          # below the real 125-minute readiness reserve. Admission stays real.
+          §script:DCampaignClock.Stop()
+          §script:DCampaignClock = [pscustomobject]@{ ElapsedMilliseconds = 4800000L }
+        }
+        return [pscustomobject]@{ Sha256 = ('3' * 64); Value = [pscustomobject]@{
+          runtimeSha256 = '2' * 64; psql = [pscustomobject]@{ sha256 = §ExpectedPsqlSha256 }
+          campaignStartTimestamp = §script:fixtureCampaignTimestamp
+          stopwatchFrequency = [string][Diagnostics.Stopwatch]::Frequency; machine = [Environment]::MachineName
+          namespaceIdentity = $(if (§script:scenario -ceq 'namespace-mismatch') { 'different-boot' } else { Get-M1DNamespaceIdentity })
+          frontendRuntimeSha256 = $(if (§script:scenario -ceq 'frontend-drift') { 'f' * 64 } else { '4' * 64 })
+          observation = [pscustomobject]@{ clusterSystemIdentifier = '999'; currentRoleOid = 10; maintenanceDatabaseOid = 11; hbaRuleNumber = 1 }
+        } }
+      }
+      function Get-M1DFrontendRuntimeSha256 { return '4' * 64 }
+      function Assert-M1BInteractiveConsole { }
+      function New-M1BRunnerSecret { return [pscustomobject]@{ PasswordBytes = [byte[]]@(1,2,3); Password = 'offline-runner-marker' } }
+      function New-M1BRandomSalt { return ,([byte[]]@(4,5,6)) }
+      function New-M1BScramSha256Verifier { param(§Password,§Salt) return 'synthetic-verifier' }
+      function Assert-M1BRunnerSecretAbsentFromTree { param(§Root,§Password) }
+      function Invoke-M1BProvisionPsql {
+        param(§NeutralRoot,§Verifier,§Provenance,§Cluster,§Hba,§Admin,§Maintenance)
+        §script:events.Add('provision'); §script:PsqlProcessStarts.Provision = 1
+        return [pscustomobject]@{ DatabaseOid = 19; RoleOid = 20; PostmasterStartUnixMicros = '1789722000123456'; PsqlSha256 = §ExpectedPsqlSha256; StructuredOutputSha256 = ('5' * 64) }
+      }
+      function Invoke-M1DIntegrated {
+        param(§Readiness,§Provision,§Password,§Cluster)
+        §script:events.Add('integration')
+        if (§script:scenario -ceq 'sealed-finalizer') {
+          §script:stopAttested=§true
+          foreach(§ownedRole in @('BACKEND','VITE')){
+            §ownedProcess=[pscustomobject]@{Role=§ownedRole;Id=2000000000;CreationTimeUtcTicks=638000000000000000L;JobName=('OFFLINE_'+§ownedRole);HasExited=§true;ActiveProcessCount=0
+              StandardOutput=[IO.StringReader]::new('');StandardError=[IO.StringReader]::new('')}
+            §ownedProcess | Add-Member ScriptMethod TerminateTreeAndWait {param(§Budget) return §true}
+            §ownedProcess | Add-Member ScriptMethod DisposeD {
+              param(§Budget)
+              §script:events.Add('release-'+§this.Role);§this.StandardOutput.Dispose();§this.StandardError.Dispose()
+              if(§this.Role -ceq 'BACKEND'){return @('stop-stdout-close')};return @()
+            }
+            §script:DChildren[§ownedRole]=New-M1DDrain §ownedProcess §ownedRole §null
+          }
+          Stop-M1DChild BACKEND -Forced
+          throw 'FAILED_CHILD_FINALIZATION_RETURNED'
+        }
+        if (§script:scenario -cin @('unexpected','cleanup-secondary','publication-secondary','controls-secondary','forged-stop','propagated-primary')) {
+          §script:stopAttested=§true; Enter-M1DPhase seed; Set-M1DDiagnosticOperation 'native-launch'
+          if (§script:scenario -ceq 'forged-stop') { throw 'RITOMER_M1B_CONTROLLED_STOP::FIXTURE_SECRET_COOKIE_CSRF' }
+          if (§script:scenario -ceq 'propagated-primary') {
+            try { throw [IO.IOException]::new('fixture-PRIMARY-RUNNER-COOKIE-CSRF-secret') }
+            catch { [void](Add-M1DFailure §_); throw }
+          }
+          throw [IO.IOException]::new('fixture-PRIMARY-RUNNER-COOKIE-CSRF-secret')
+        }
+        if (§script:scenario -ceq 'unattested-stop') { §script:stopAttested = §false; Stop-M1BRail 'D_SYNTHETIC_INTERRUPTION' }
+        [void](Write-M1DReceipt 'integrated' ([ordered]@{ synthetic = §true }))
+        [void](Write-M1DReceipt 'stopped' ([ordered]@{ synthetic = §true }))
+        §script:stopAttested = §true
+        if (§script:scenario -cin @('reserve-targeted','reserve-cleanup')) {
+          §script:DCampaignClock.Stop()
+          §script:DCampaignClock = [pscustomobject]@{ ElapsedMilliseconds = 0L }
+          §script:DTotalMilliseconds = if (§script:scenario -ceq 'reserve-targeted') { 1920000L } else { 420000L }
+          §script:DChildren = @{ HARNESS = 'synthetic'; BACKEND = 'synthetic' }
+        }
+      }
+      §realStopChild = (Get-Command Stop-M1DChild).ScriptBlock
+      function Stop-M1DChild {
+        param(§Role,[switch]§Forced,[switch]§Finalizing)
+        if (§script:scenario -cnotin @('reserve-targeted','reserve-cleanup')) { & §realStopChild §Role -Forced:§Forced -Finalizing:§Finalizing; return }
+        # OS boundary only: this proves orchestration, never native cessation.
+        if (-not §Forced -or -not §Finalizing) { throw 'FINALIZATION_FLAGS_LOST' }
+        §script:stoppedRoles.Add(§Role)
+      }
+      function Assert-M1DRecordedCessation { if (-not §script:stopAttested) { Stop-M1BRail 'D_SYNTHETIC_STOP_UNPROVEN' } }
+      function Assert-M1DPortsFree { }
+      function Invoke-M1BTestPhase {
+        param(§Phase,§Root,§BuildRoot,§GradleHome,§Password,§Runtime,§Cluster,§DatabaseOid,§RoleOid,§Postmaster)
+        if (-not §script:stopAttested) { throw 'DESTRUCTION_BEFORE_STOP' }
+        §script:events.Add(§Phase)
+        if (§script:scenario -ceq 'targeted-failure' -and §Phase -ceq 'targeted') { Stop-M1BRail 'D_SYNTHETIC_TARGETED_FAILURE' }
+        return [pscustomobject]@{ OutputSha256 = ('6' * 64) }
+      }
+      function Invoke-M1BCleanupPsql {
+        param(§Root,§Provenance,§RunId,§Cluster,§DatabaseOid,§RoleOid,§Admin,§Maintenance)
+        if (-not §script:stopAttested -or §DatabaseOid -ne 19 -or §RoleOid -ne 20) { throw 'CLEANUP_WITHOUT_EXACT_STOP_IDENTITY' }
+        §script:events.Add('cleanup'); §script:PsqlProcessStarts.Cleanup = 1
+        if (§script:scenario -ceq 'cleanup-secondary') { throw [UnauthorizedAccessException]::new('fixture-CLEANUP-DSN-secret') }
+        if (§script:scenario -ceq 'cleanup-failure') { Stop-M1BRail 'D_SYNTHETIC_OPERATOR_ABSENT' }
+        return [pscustomobject]@{ PsqlSha256 = §ExpectedPsqlSha256; StructuredOutputSha256 = ('7' * 64) }
+      }
+      try {
+        foreach (§scenario in @('namespace-mismatch','campaign-expired','reserve-readiness','reserve-targeted','reserve-cleanup','frontend-drift','healthy','targeted-failure','unattested-stop','sealed-finalizer','unexpected','cleanup-secondary','publication-secondary','controls-secondary','forged-stop','propagated-primary','publication-only','cleanup-failure')) {
+          §script:scenario = §scenario
+          §script:scenarioRoot = Join-Path §container §scenario
+          [void][IO.Directory]::CreateDirectory(§script:scenarioRoot)
+          §script:DQuarantinePath = Join-Path §script:scenarioRoot '.m1d-unreleased.json'
+          §script:DCampaignClock = §null; §script:DChildren = @{}; §script:stopAttested = §false
+          §script:PsqlProcessStarts = @{ Preflight = 0; Provision = 0; Cleanup = 0 }
+          §script:events = [Collections.Generic.List[string]]::new()
+          §script:stoppedRoles = [Collections.Generic.List[string]]::new(); §script:lockReleased = §false
+          §SensitiveAuthorizationRecordId = 'AUTH-FIXTURE-LIFECYCLE'
+          §code = 'NONE'
+          try { [void](Invoke-M1DLifecycle) } catch { §code = Get-M1BStopCode §_ }
+          if (-not §script:lockReleased) { throw 'LIFECYCLE_LOCK_NOT_RELEASED' }
+          if (§scenario -ceq 'reserve-readiness') {
+            if (-not §script:DEnteredPhases.ContainsKey('readiness')) { throw 'READINESS_RESERVE_NOT_REACHED' }
+            if (§code -cne 'D_DEADLINE_EXPIRED' -or §script:events.Count -ne 0 -or [IO.File]::Exists(§script:DQuarantinePath) -or §script:PsqlProcessStarts.Provision -ne 0 -or §script:PsqlProcessStarts.Cleanup -ne 0) {
+              # Closed observations only; never substitute a different expected result.
+              if ([long]§script:fixtureCampaignTimestamp -le 0) { 'M1D_READINESS_TIMESTAMP_NONPOSITIVE' }
+              if (§script:fixtureCampaignTimestamp -cmatch '^[1-9][0-9]{1,18}$') { 'M1D_READINESS_TIMESTAMP_VALID' }
+              if (§script:DEnteredPhases.ContainsKey('readiness')) { 'M1D_READINESS_ADMISSION_REACHED' }
+              if (§code -ceq 'D_CAMPAIGN_CLOCK_BINDING_INVALID') { 'M1D_READINESS_CLOCK_BINDING_INVALID' }
+              elseif (§code -ceq 'D_DEADLINE_EXPIRED') { 'M1D_READINESS_DEADLINE_EXPIRED' }
+              else { 'M1D_READINESS_STOP_UNCLASSIFIED' }
+              if (§script:events.Count -eq 0 -and -not [IO.File]::Exists(§script:DQuarantinePath) -and §script:PsqlProcessStarts.Provision -eq 0 -and §script:PsqlProcessStarts.Cleanup -eq 0) { 'M1D_READINESS_EFFECTS_ABSENT' }
+              throw 'INSUFFICIENT_RESERVE_STARTED_WORK'
+            }
+            continue
+          }
+          if (§scenario -cin @('reserve-targeted','reserve-cleanup')) {
+            §terminal = Read-M1DReceipt 'terminal'
+            §diag = Get-M1DDiagnostics
+            §cleanupExpected = §scenario -ceq 'reserve-targeted'
+            §expectedEvents = if (§cleanupExpected) { 'readiness|provision|integration|cleanup' } else { 'readiness|provision|integration' }
+            if (§code -cne 'D_LIFECYCLE_FAILED_SEE_RECEIPTS' -or §terminal.payload.campaignResult -cne 'FAIL' -or §terminal.payload.primaryStop -cne 'D_CONTROLLED_FAILURE' -or §diag.primary.stage -cne 'targeted' -or §diag.primary.category -cne 'TIMEOUT') { throw 'RESERVE_PRIMARY_FAILURE_LOST' }
+            if ((§script:events -join '|') -cne §expectedEvents -or ((§script:stoppedRoles | Sort-Object) -join '|') -cne 'BACKEND|HARNESS') { throw 'RESERVE_FINALIZATION_ORDER_CHANGED' }
+            if (§terminal.payload.cleanupVerified -ne §cleanupExpected -or §script:PsqlProcessStarts.Cleanup -ne [int]§cleanupExpected -or [IO.File]::Exists(§script:DQuarantinePath) -eq §cleanupExpected) { throw 'RESERVE_CLEANUP_GATE_CHANGED' }
+            if (-not §cleanupExpected -and (§terminal.payload.cleanupStop -cne 'D_CONTROLLED_FAILURE' -or §diag.secondary.Count -ne 1 -or §diag.secondary[0].stage -cne 'cleanup' -or §diag.secondary[0].category -cne 'TIMEOUT')) { throw 'CLEANUP_RESERVE_FAILURE_LOST' }
+            continue
+          }
+          if (§scenario -ceq 'namespace-mismatch') {
+            if (§code -cne 'D_CAMPAIGN_CLOCK_BINDING_INVALID' -or §script:events.Count -ne 0 -or [IO.File]::Exists(§script:DQuarantinePath)) { throw 'D_CROSS_BOOT_PREFLIGHT_ACCEPTED' }
+            continue
+          }
+          if (§scenario -ceq 'campaign-expired') {
+            if (§code -cnotin @('D_CAMPAIGN_DEADLINE_EXPIRED','D_CAMPAIGN_CLOCK_BINDING_INVALID') -or §script:events.Count -ne 0 -or [IO.File]::Exists(§script:DQuarantinePath)) { throw 'D_EXPIRED_CAMPAIGN_STARTED_READINESS' }
+            continue
+          }
+          if (§scenario -ceq 'frontend-drift') {
+            if (§code -cne 'D_FRONTEND_PREFLIGHT_RUNTIME_DIVERGED' -or (§script:events -join '|') -cne 'readiness' -or [IO.File]::Exists(§script:DQuarantinePath)) { throw 'D_FRONTEND_PREFLIGHT_DRIFT_ACCEPTED' }
+            continue
+          }
+          if(§scenario -ceq 'sealed-finalizer'){
+            §terminal=Read-M1DReceipt terminal;§diag=Get-M1DDiagnostics
+            if(§code -cne 'D_LIFECYCLE_FAILED_SEE_RECEIPTS' -or (§script:events -join '|') -cne 'readiness|provision|integration|release-BACKEND|release-VITE' -or §script:PsqlProcessStarts.Cleanup -ne 0 -or §terminal.payload.cleanupVerified -or §terminal.payload.cleanupStop -cne 'D_CONTROLLED_FAILURE'){throw 'FAILED_FINALIZATION_DID_NOT_BLOCK_DESTRUCTION'}
+            if(§diag.primary.childRole -cne 'BACKEND' -or §diag.primary.operation -cne 'stop-stdout-close' -or §diag.secondary.Count -ne 1 -or §diag.secondary[0].control -cne 'D_STOP_BARRIER_FAILED' -or §script:DChildren.Count -ne 1 -or -not §script:DChildren.ContainsKey('BACKEND')){throw 'SEALED_FAILURE_OR_INDEPENDENT_PEER_LOST'}
+            continue
+          }
+          §expected = switch (§scenario) {
+            'healthy' { 'readiness|provision|integration|targeted|full|cleanup' }
+            'targeted-failure' { 'readiness|provision|integration|targeted|cleanup' }
+            'unattested-stop' { 'readiness|provision|integration' }
+            'cleanup-failure' { 'readiness|provision|integration|targeted|full|cleanup' }
+            'publication-only' { 'readiness|provision|integration|targeted|full|cleanup' }
+            default { 'readiness|provision|integration|cleanup' }
+          }
+          if ((§script:events -join '|') -cne §expected) { throw ('D_LIFECYCLE_ORDER:' + §scenario + ':' + (§script:events -join '|')) }
+          if (§scenario -cin @('unexpected','cleanup-secondary','publication-secondary','controls-secondary','forged-stop','propagated-primary','publication-only')) {
+            §diagnostics=Get-M1DDiagnostics
+            §json=ConvertTo-Json §diagnostics -Depth 5 -Compress
+            foreach (§marker in @('fixture-PRIMARY-RUNNER-COOKIE-CSRF-secret','fixture-CLEANUP-DSN-secret','fixture-PUBLICATION-COOKIE-secret','fixture-CONTROLS-DSN-secret','FIXTURE_SECRET_COOKIE_CSRF')) {
+              if (§json.Contains(§marker) -or §json.Contains((Get-M1BSha256Bytes ((Get-M1BUtf8).GetBytes(§marker))))) { throw 'DIAGNOSTIC_SECRET_LEAK' }
+              foreach (§artifact in [IO.Directory]::EnumerateFiles(§script:scenarioRoot,'*.json')) { if ([IO.File]::ReadAllText(§artifact).Contains(§marker)) { throw 'RECEIPT_SECRET_LEAK' } }
+            }
+            §expectedPrimary=if (§scenario -ceq 'publication-only') { 'terminal-publication' } else { 'native-launch' }
+            if (§diagnostics.primary.operation -cne §expectedPrimary -or §diagnostics.primary.category -cne $(if (§scenario -ceq 'forged-stop') { 'CONTROLLED_STOP' } else { 'IO_FAILURE' })) { throw 'PRIMARY_DIAGNOSTIC_LOST' }
+            §secondaryOperation=switch (§scenario) { 'cleanup-secondary' { 'cleanup' }; 'publication-secondary' { 'terminal-publication' }; 'controls-secondary' { 'terminal-controls' }; default { '' } }
+            if (§secondaryOperation.Length -gt 0 -and (§diagnostics.secondary.Count -ne 1 -or §diagnostics.secondary[0].operation -cne §secondaryOperation)) { throw 'SECONDARY_DIAGNOSTIC_LOST' }
+            if (§scenario -ceq 'propagated-primary' -and §diagnostics.secondary.Count -ne 0) { throw 'PROPAGATED_PRIMARY_DUPLICATED' }
+            if (§scenario -cin @('publication-secondary','publication-only')) {
+              if (§code -cne 'D_TERMINAL_PUBLICATION_FAILED' -or [IO.File]::Exists((Join-Path §script:scenarioRoot 'd-terminal.json'))) { throw 'PUBLICATION_FAILURE_BECAME_SUCCESS' }
+            } else {
+              §terminal=Read-M1DReceipt 'terminal'
+              if (§code -cne 'D_LIFECYCLE_FAILED_SEE_RECEIPTS' -or §terminal.payload.campaignResult -cne 'FAIL' -or (ConvertTo-Json §terminal.payload.diagnostics -Depth 5 -Compress) -cne §json) { throw 'TERMINAL_DIAGNOSTIC_DIVERGED' }
+              # Reader must reject a correctly rehashed but open diagnostic field.
+              §terminal.payload.diagnostics.primary.category='UNTRUSTED_VALUE'
+              §path=Join-Path §script:scenarioRoot 'd-terminal.json'
+              [IO.File]::WriteAllText(§path,(ConvertTo-Json §terminal -Depth 12 -Compress),(Get-M1BUtf8))
+              [IO.File]::WriteAllText((§path+'.sha256'),((Get-M1BSha256File §path)+"`n"),(Get-M1BUtf8))
+              §invalid='NONE'; try { [void](Read-M1DReceipt 'terminal') } catch { §invalid=Get-M1BStopCode §_ }
+              if (§invalid -cne 'D_DIAGNOSTIC_INVALID') { throw 'OPEN_DIAGNOSTIC_ACCEPTED' }
+            }
+            continue
+          }
+          §terminal = Read-M1DReceipt 'terminal'
+          if (§scenario -ceq 'healthy') {
+            if (§code -cne 'NONE' -or §terminal.payload.campaignResult -cne 'PASS' -or [IO.File]::Exists(§script:DQuarantinePath)) { throw 'D_HEALTHY_NOT_PROVEN' }
+          } else {
+            if (§code -cne 'D_LIFECYCLE_FAILED_SEE_RECEIPTS' -or §terminal.payload.campaignResult -cne 'FAIL') { throw ('D_FAILURE_BECAME_PASS:' + §code) }
+            if (§scenario -ceq 'targeted-failure') { Assert-M1DNoQuarantine }
+            else {
+              §blocked = 'NONE'; try { Assert-M1DNoQuarantine } catch { §blocked = Get-M1BStopCode §_ }
+              if (§blocked -cne 'D_PREVIOUS_CAMPAIGN_UNRELEASED') { throw 'D_FAILURE_QUARANTINE_LOST' }
+            }
+          }
+        }
+        # The final scenario left an exact failed-cleanup receipt set. Model only
+        # the original controller's absence; the native fixture proves that boundary.
+        §LifecycleAction = 'CleanupOnly'; §script:DCampaignClock = §null
+        §SensitiveAuthorizationRecordId = 'AUTH-FIXTURE-CLEANUP-NEW'
+        §code = 'NONE'; try { Invoke-M1DCleanupOnly } catch { §code = Get-M1BStopCode §_ }
+        if (§code -cne 'D_ORIGINAL_CONTROLLER_STILL_ALIVE') { throw 'D_LIVE_CONTROLLER_ACCEPTED' }
+        function Get-Process { param(§Id,§ErrorAction) return §null }
+        §LifecycleAction = 'CleanupOnly'; §script:DCampaignClock = §null
+        §SensitiveAuthorizationRecordId = 'AUTH-FIXTURE-LIFECYCLE'
+        §code = 'NONE'; try { Invoke-M1DCleanupOnly } catch { §code = Get-M1BStopCode §_ }
+        if (§code -cne 'D_NEW_CLEANUP_AUTHORIZATION_REQUIRED') { throw 'D_REUSED_AUTHORIZATION_ACCEPTED' }
+        §script:DCampaignClock = §null; §SensitiveAuthorizationRecordId = 'AUTH-FIXTURE-CLEANUP-NEW'
+        §script:scenario = 'recovery'; §script:PsqlProcessStarts = @{ Preflight = 0; Provision = 0; Cleanup = 0 }
+        [void](Invoke-M1DCleanupOnly)
+        Assert-M1DNoQuarantine
+        §recovery = Read-M1DReceipt 'recovery-terminal'
+        if (§recovery.payload.campaignResult -cne 'FAIL' -or §recovery.payload.cleanupResult -cne 'PASS' -or (Read-M1DReceipt 'terminal').payload.campaignResult -cne 'FAIL') { throw 'D_RECOVERY_REWROTE_CAMPAIGN' }
+      } finally {
+        if (-not §container.StartsWith(§tempBase, [StringComparison]::OrdinalIgnoreCase) -or -not ([IO.Path]::GetFileName(§container)).StartsWith('m1d-lifecycle-')) { throw 'FIXTURE_ROOT_INVALID' }
+        [IO.Directory]::Delete(§container, §true)
+      }
+      'M1D_LIFECYCLE_DESTRUCTION_QUARANTINE_RECOVERY=PASS'
+      """.trimIndent()
+    )
+    assertThat(output).contains("M1D_LIFECYCLE_DESTRUCTION_QUARANTINE_RECOVERY=PASS")
+    assertThat(output).contains("M1D_LIFECYCLE_DIAGNOSTIC")
+    assertThat(output).doesNotContain(
+      "fixture-PRIMARY-RUNNER-COOKIE-CSRF-secret", "fixture-CLEANUP-DSN-secret",
+      "fixture-PUBLICATION-COOKIE-secret", "fixture-CONTROLS-DSN-secret", "FIXTURE_SECRET_COOKIE_CSRF"
+    )
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = ["reuse", "runtime-drift", "stop-authorization", "stop-active", "stop-pid", "stop-ticks", "stop-job", "stop-array-ticks", "stop-array-job", "stop-missing", "binding-missing", "path-invalid", "root-invalid", "digest-invalid", "launcher-altered", "wrapper-missing", "extra-file", "reparse", "error-preservation"])
+  @Tag("windows-only")
+  fun postgresDGradleCacheIsSealedAfterCessationAndReusedByAllThreeOfflineChildren(scenario: String) {
+    val body = """
+      §scenario='$scenario'
+      §Campaign='D'; §Mode='Preflight'; §LifecycleAction='Run'
+      §SensitiveAuthorizationRecordId='AUTH-CACHE-FIXTURE-C1'; §PreflightAuthorizationRecordId=§SensitiveAuthorizationRecordId
+      # Each invocation owns a fresh short root, including its C1 and C2 receipts.
+      §owned=[IO.Path]::GetFullPath((Split-Path -Parent §PSCommandPath))
+      §allowed=[IO.Path]::GetFullPath((Join-Path §script:RepoRoot 'out\ofx'))
+      if(-not §owned.StartsWith(§allowed+'\',[StringComparison]::OrdinalIgnoreCase) -or [IO.Path]::GetFileName(§owned) -cnotmatch '^t[0-9a-f]{8}§'){throw 'FIXTURE_ROOT_INVALID'}
+      Assert-M1BNoReparseAncestors §owned
+      §container=Join-Path §owned 'c'; if(Test-Path -LiteralPath §container){throw 'FIXTURE_COLLISION'}
+      [void][IO.Directory]::CreateDirectory(§container)
+      §root=Join-Path §container §RunId
+      §cache=Join-Path §root 'volatile\preflight-readiness\gradle-home'
+      §dist=Join-Path §cache 'wrapper\dists\gradle-8.14.4-bin\92wwslzcyst3phie3o264zltu'
+      §launcher=Join-Path §dist 'gradle-8.14.4\lib\gradle-launcher-8.14.4.jar'
+      §marker=Join-Path §dist 'gradle-8.14.4-bin.zip.ok'
+      §junction=Join-Path §cache 'outside'
+      §script:fixtureStep='path-budget';§script:fixtureTarget=§launcher
+      §primaryFailure=§null;§cleanupFailure=§null
+      §script:fixtureRuntime='2'*64
+      §script:captured=[Collections.Generic.List[object]]::new()
+      §script:processes=[Collections.Generic.List[object]]::new()
+      function Get-M1DNamespaceIdentity { '00000000000000000000000000000001:0000000000000001:1' }
+      function Initialize-M1BContainedProcessType { }
+      function Assert-M1BRunnerSecretAbsentFromTree { param(§Root,§Password) }
+      function Start-M1DContainedChild {
+        param(§StartInfo,§Role,§ArgumentFile)
+        §environment=@{};foreach(§key in §StartInfo.EnvironmentVariables.Keys){§environment[[string]§key]=[string]§StartInfo.EnvironmentVariables[§key]}
+        §script:captured.Add([pscustomobject]@{Role=§Role;Arguments=§StartInfo.Arguments;Environment=§environment;WorkingDirectory=§StartInfo.WorkingDirectory;UseShellExecute=§StartInfo.UseShellExecute})
+        §runtime=§script:fixtureRuntime
+        §text="M1B_POSTGRES_RAIL_READINESS=PASS`nM1B_POSTGRES_RAIL_DATABASE_EXECUTION=NONE`nM1B_POSTGRES_RAIL_RUNTIME_SHA256=§runtime`nM1D_INTEGRATED_MANIFEST_SHA256=§('1'*64)`nM1B_POSTGRES_RAIL_RUNTIME_SHA256_VERIFIED=§runtime`nM1B_POSTGRES_RAIL_RUNTIME_SHA256_REVALIDATED=§runtime`nM1B_POSTGRES_RAIL_TARGETED=PASS`nM1B_POSTGRES_RAIL_FULL=PASS`n"
+        §p=[pscustomobject]@{Id=(2000000000+§script:captured.Count);CreationTimeUtcTicks='638000000000000000';JobName=('Local\Ritomer.M1D.'+§RunId+'.'+§Role);HasExited=§true;ActiveProcessCount=0;ExitCode=0;StartInfo=§StartInfo;StandardInput=[IO.StringWriter]::new();StandardOutput=[IO.StringReader]::new(§text);StandardError=[IO.StringReader]::new('');Disposed=§false}
+        §p | Add-Member ScriptMethod WaitForExit { }
+        §p | Add-Member ScriptMethod TerminateTreeAndWait { param(§Budget) return §true }
+        §p | Add-Member ScriptMethod Dispose { §this.StandardInput.Dispose();§this.StandardOutput.Dispose();§this.StandardError.Dispose();§this.Disposed=§true }
+        §script:processes.Add(§p)
+        §name='launch-'+$(if(§Mode -ceq 'Preflight'){'preflight'}else{'lifecycle'})+'-'+§Role
+        §script:fixtureTarget=Join-Path §root ('d-'+§name+'-intent.json')
+        §binary=Get-M1BSha256File §StartInfo.FileName
+        §command=Get-M1BSha256Bytes ((Get-M1BUtf8).GetBytes(§StartInfo.Arguments))
+        [void](Write-M1DReceipt (§name+'-intent') ([ordered]@{role=§Role;binaryPath=§StartInfo.FileName;binarySha256=§binary;commandSha256=§command;argumentFileSha256='NONE'}))
+        [void](Write-M1DReceipt (§name+'-confined') ([ordered]@{role=§Role;processId=§p.Id;creationTimeUtcTicks=§p.CreationTimeUtcTicks;jobName=§p.JobName;binaryPath=§StartInfo.FileName;binarySha256=§binary;commandSha256=§command;argumentFileSha256='NONE';confinedBeforeResume=§true}))
+        return §p
+      }
+      function Expect-CacheStop {
+        param([scriptblock]§Action,[string]§Code)
+        §before=§script:captured.Count;§actual='NONE'
+        try{& §Action | Out-Null}catch{§actual=Get-M1BStopCode §_}
+        if(§actual -cne §Code -or §script:captured.Count -ne §before){throw ('CACHE_REFUSAL_DIVERGED:'+§Code+':'+§actual)}
+      }
+      try {
+        if(§launcher.Length -ge 260 -or (Split-Path -Parent §launcher).Length -ge 248){throw 'FIXTURE_PATH_BUDGET_EXCEEDED'}
+        §script:fixtureStep='witness';§script:fixtureTarget=Join-Path §container 'w'
+        [IO.File]::WriteAllText(§script:fixtureTarget,'owned-witness')
+        if([IO.File]::ReadAllText(§script:fixtureTarget) -cne 'owned-witness'){throw 'FIXTURE_WITNESS_READ_FAILED'}
+        [IO.File]::Delete(§script:fixtureTarget)
+        if([IO.File]::Exists(§script:fixtureTarget)){throw 'FIXTURE_WITNESS_DELETE_FAILED'}
+        if(§scenario -ceq 'error-preservation'){throw 'FIXTURE_PRIMARY_SYNTHETIC'}
+        [void][IO.Directory]::CreateDirectory(§root);§script:DRunRoot=§root
+        §env:JAVA_HOME=Join-Path §container 'j'
+        [void][IO.Directory]::CreateDirectory((Join-Path §env:JAVA_HOME 'bin'))
+        [IO.File]::WriteAllText((Join-Path §env:JAVA_HOME 'bin\java.exe'),'NOT_EXECUTABLE')
+        §script:fixtureStep='c1-readiness';§script:fixtureTarget=§root
+        Start-M1DClock Preflight;Enter-M1DPhase readiness
+        §c1=Invoke-M1BReadiness §root 'preflight-readiness' §RunId §ReviewedObjectSha256
+        if(§c1.GradleUserHome -cne §cache -or §script:captured[0].Arguments.Contains('--offline') -or [IO.Directory]::GetFileSystemEntries(§cache).Count -ne 0){throw 'C1_CACHE_NOT_FRESH_ONLINE'}
+        # Fixed fixture from the unchanged wrapper URI, independent of the production constructor.
+        §script:fixtureStep='inert-distribution';§script:fixtureTarget=§launcher
+        [void][IO.Directory]::CreateDirectory((Join-Path §dist 'gradle-8.14.4\bin'))
+        [void][IO.Directory]::CreateDirectory((Join-Path §dist 'gradle-8.14.4\lib'))
+        [IO.File]::WriteAllText(§marker,'')
+        [IO.File]::WriteAllText((Join-Path §dist 'gradle-8.14.4\bin\gradle.bat'),'inert-wrapper')
+        [IO.File]::WriteAllText(§launcher,'inert-launcher')
+        §script:fixtureStep='c1-seal';§script:fixtureTarget=§cache
+        §binding=New-M1DGradleCacheBinding §root;§hash=§binding.sha256
+        [IO.File]::SetLastWriteTimeUtc(§launcher,[DateTime]::UtcNow.AddDays(-1))
+        if((Get-M1DGradleCacheSha256 §root) -cne §hash){throw 'CACHE_TIMESTAMP_WAS_HASHED'}
+        §preflight=[pscustomobject]@{Sha256=('3'*64);Value=[pscustomobject]@{readinessCache=§binding}}
+        §script:fixtureStep=§scenario;§script:fixtureTarget=§cache
+        if(§scenario.StartsWith('stop-')){
+          §stopPath=Join-Path §root 'd-launch-preflight-READINESS-stopped.json';§script:fixtureTarget=§stopPath
+          if(§scenario -ceq 'stop-missing'){
+            [IO.File]::Move(§stopPath,§stopPath+'.held')
+            Expect-CacheStop {New-M1DGradleCacheBinding §root} 'D_RECEIPT_MISSING'
+          }else{
+            §value=ConvertFrom-Json ([IO.File]::ReadAllText(§stopPath,(Get-M1BUtf8)))
+            switch(§scenario){
+              'stop-authorization'{§value.authorizationRecordId='AUTH-CACHE-FIXTURE-C2'}
+              'stop-active'{§value.payload.activeProcesses=1}
+              'stop-pid'{§value.payload.processId++}
+              'stop-ticks'{§value.payload.creationTimeUtcTicks='638000000000000001'}
+              'stop-job'{§value.payload.jobName='Local.other'}
+              'stop-array-ticks'{§value.payload.creationTimeUtcTicks=@(§value.payload.creationTimeUtcTicks)}
+              'stop-array-job'{§value.payload.jobName=@(§value.payload.jobName)}
+            }
+            §bytes=(Get-M1BUtf8).GetBytes((ConvertTo-Json §value -Depth 12 -Compress))
+            [IO.File]::WriteAllBytes(§stopPath,§bytes);[IO.File]::WriteAllText(§stopPath+'.sha256',(Get-M1BSha256Bytes §bytes)+"`n",(Get-M1BUtf8))
+            Expect-CacheStop {New-M1DGradleCacheBinding §root} 'D_GRADLE_CACHE_CESSATION_INVALID'
+          }
+        }else{
+          §Mode='Lifecycle';§SensitiveAuthorizationRecordId='AUTH-CACHE-FIXTURE-C2'
+          §script:DCampaignClock=§null
+          if(§scenario -ceq 'runtime-drift'){
+            # This case has only its own C1; no C2 READINESS receipts exist yet.
+            if(Test-Path (Join-Path §root 'd-launch-lifecycle-READINESS-intent.json')){throw 'RUNTIME_CASE_NOT_ISOLATED'}
+            §script:fixtureRuntime='4'*64;§script:released=§false
+            function Assert-M1BInvocation { §root }
+            function Assert-M1DNoQuarantine { }
+            function Enter-M1BRunLock { param(§Root) [pscustomobject]@{synthetic=§true} }
+            function Exit-M1BRunLock { param(§Lock) §script:released=§true }
+            function Assert-M1BExecutionState { param(§Root,§Phase) [pscustomobject]@{Baseline=[pscustomobject]@{synthetic=§true}} }
+            function Read-M1BPreflightManifest {
+              [pscustomobject]@{Sha256=('3'*64);Value=[pscustomobject]@{
+                readinessCache=§binding;runtimeSha256=('2'*64);psql=[pscustomobject]@{sha256=§ExpectedPsqlSha256}
+                campaignStartTimestamp=[string][Diagnostics.Stopwatch]::GetTimestamp();stopwatchFrequency=[string][Diagnostics.Stopwatch]::Frequency
+                machine=[Environment]::MachineName;namespaceIdentity=(Get-M1DNamespaceIdentity)
+              }}
+            }
+            function Enter-M1DQuarantine { throw 'RUNTIME_DRIFT_REACHED_QUARANTINE' }
+            function Invoke-M1BProvisionPsql { throw 'RUNTIME_DRIFT_REACHED_PROVISION' }
+            §actual='NONE';try{[void](Invoke-M1DLifecycle)}catch{§actual=Get-M1BStopCode §_}
+            if(§actual -cne 'D_PREFLIGHT_RUNTIME_DIVERGED' -or §script:captured.Count -ne 2 -or -not §script:released){throw ('RUNTIME_COMPARISON_NOT_EXERCISED:'+§actual)}
+            [void](Read-M1DReceipt 'launch-lifecycle-READINESS-stopped')
+          }else{
+            Start-M1DClock Lifecycle;Enter-M1DPhase readiness
+            switch(§scenario){
+              'binding-missing'{§preflight.Value.readinessCache=§null;§expected='D_GRADLE_CACHE_BINDING_INVALID'}
+              'path-invalid'{§binding.relativePath='volatile/other/gradle-home';§expected='D_GRADLE_CACHE_BINDING_INVALID'}
+              'root-invalid'{§root=Join-Path §container ('1'*32);§expected='D_GRADLE_CACHE_ROOT_INVALID'}
+              'digest-invalid'{§binding.sha256='f'*64;§expected='D_GRADLE_CACHE_DIGEST_DIVERGED'}
+              'launcher-altered'{[IO.File]::WriteAllText(§launcher,'altered-launcher');§expected='D_GRADLE_CACHE_DIGEST_DIVERGED'}
+              'wrapper-missing'{[IO.File]::Move(§marker,§marker+'.held');§expected='D_GRADLE_WRAPPER_CACHE_INCOMPLETE'}
+              'extra-file'{[IO.File]::WriteAllText((Join-Path §cache 'unexpected-file'),'not-bound');§expected='D_GRADLE_CACHE_DIGEST_DIVERGED'}
+              'reparse'{[void](New-Item -ItemType Junction -Path §junction -Target §env:JAVA_HOME);§expected='D_GRADLE_CACHE_ENTRY_INVALID'}
+            }
+            if(§scenario -cne 'reuse'){Expect-CacheStop {Initialize-M1DGradleCacheReuse §root §preflight} §expected}
+            else{
+              Expect-CacheStop {Assert-M1DGradleCacheReuse §cache} 'D_GRADLE_CACHE_NOT_VERIFIED'
+              §realHash=(Get-Command Get-M1DGradleCacheSha256).ScriptBlock;§script:hashCalls=0
+              function Get-M1DGradleCacheSha256 { param(§Root) §script:hashCalls++; & §realHash §Root }
+              Initialize-M1DGradleCacheReuse §root §preflight
+              Expect-CacheStop {Assert-M1DGradleCacheReuse §env:JAVA_HOME} 'D_GRADLE_CACHE_NOT_VERIFIED'
+              §originalId=§RunId;§RunId='1'*32
+              Expect-CacheStop {Assert-M1DGradleCacheReuse §cache} 'D_GRADLE_CACHE_NOT_VERIFIED';§RunId=§originalId
+              §c2=Invoke-M1BReadiness §root 'lifecycle-readiness' §RunId §ReviewedObjectSha256
+              if(§c2.BuildRoot -ceq §c1.BuildRoot -or [IO.Directory]::Exists((Join-Path §root 'volatile\lifecycle-readiness\gradle-home'))){throw 'C2_ISOLATION_INVALID'}
+              [IO.File]::WriteAllText((Join-Path §cache 'legitimate-metadata'),'changed-by-fixture-child')
+              foreach(§phase in @('targeted','full')){Enter-M1DPhase §phase;[void](Invoke-M1BTestPhase §phase §root §c2.BuildRoot §c2.GradleUserHome 'fixture-password-not-a-secret' ('2'*64) '999' 19 20 '1789722000123456')}
+              if(§script:hashCalls -ne 1 -or (§script:captured.Role -join '|') -cne 'READINESS|READINESS|TARGETED|FULL'){throw 'CACHE_RECHECK_OR_PHASES_INVALID'}
+              foreach(§psi in @((§script:captured.ToArray())[1..3])){
+                if(§psi.Environment['GRADLE_USER_HOME'] -cne §cache -or [regex]::Matches(§psi.Arguments,'(?:^| )--offline(?= |§)').Count -ne 1 -or
+                   -not §psi.Arguments.Contains('--rerun-tasks') -or -not §psi.Arguments.Contains('--no-build-cache') -or §psi.UseShellExecute -or §psi.Environment['USERPROFILE'] -ceq §env:USERPROFILE){throw 'C2_GRADLE_PSI_INVALID'}
+              }
+            }
+          }
+        }
+        foreach(§p in §script:processes){if(-not §p.Disposed -or §p.StartInfo.EnvironmentVariables.Count -ne 0){throw 'GRADLE_FINALIZATION_INVALID'}}
+        Write-Output ('FIXTURE_SCENARIO_RESULT '+(ConvertTo-Json ([ordered]@{scenario=§scenario;status='PASS';children=§script:captured.Count;root=§root}) -Compress))
+      }catch{
+        §primaryFailure=§_
+        Write-Output ('FIXTURE_SCENARIO_RESULT '+(ConvertTo-Json ([ordered]@{scenario=§scenario;status='FAIL';step=§script:fixtureStep;target=§script:fixtureTarget;category=§_.Exception.GetType().FullName;message=§_.Exception.Message}) -Compress))
+      }finally{
+        try{
+          §cleanupStep='children-ended';§cleanupTarget=§container
+          foreach(§p in §script:processes){if(-not §p.HasExited -or §p.ActiveProcessCount -ne 0 -or -not §p.Disposed){throw 'FIXTURE_CHILD_NOT_FINALIZED'}}
+          §cleanupStep='containment'
+          if([IO.Path]::GetFullPath(§container) -cne (§owned+'\c')){throw 'FIXTURE_CLEANUP_OUTSIDE_OWNED_ROOT'}
+          Assert-M1BNoReparseAncestors §container
+          §cleanupStep='owned-link';§cleanupTarget=§junction
+          if([IO.Directory]::Exists(§junction)){
+            if(([IO.File]::GetAttributes(§junction) -band [IO.FileAttributes]::ReparsePoint) -eq 0){throw 'FIXTURE_LINK_TYPE_CHANGED'}
+            [IO.Directory]::Delete(§junction)
+          }
+          §cleanupStep='owned-tree';§cleanupTarget=§container
+          Remove-Item -LiteralPath §container -Recurse -Force -ErrorAction Stop
+          if(§scenario -ceq 'error-preservation'){throw 'FIXTURE_CLEANUP_SYNTHETIC'}
+          Write-Output ('FIXTURE_FINALIZATION_RESULT '+(ConvertTo-Json ([ordered]@{scenario=§scenario;status='PASS';step=§cleanupStep;target=§cleanupTarget}) -Compress))
+        }catch{
+          §cleanupFailure=§_
+          Write-Output ('FIXTURE_FINALIZATION_RESULT '+(ConvertTo-Json ([ordered]@{scenario=§scenario;status='FAIL';step=§cleanupStep;target=§cleanupTarget;category=§_.Exception.GetType().FullName;message=§_.Exception.Message}) -Compress))
+        }
+      }
+      if(§null -ne §primaryFailure){throw §primaryFailure}
+      if(§null -ne §cleanupFailure){throw §cleanupFailure}
+      'D_GRADLE_CACHE_FIXTURE=PASS'
+      """.trimIndent()
+    if (scenario == "error-preservation") {
+      val failure = requireNotNull(org.assertj.core.api.Assertions.catchThrowable { runRailPowerShell(body) })
+      assertThat(failure).isInstanceOf(AssertionError::class.java)
+        .hasMessageContaining("FIXTURE_PRIMARY_SYNTHETIC")
+        .hasMessageContaining("FIXTURE_CLEANUP_SYNTHETIC")
+      assertThat(failure.message).doesNotContain("D_GRADLE_CACHE_FIXTURE=PASS")
+    } else {
+      assertThat(runRailPowerShell(body)).contains("D_GRADLE_CACHE_FIXTURE=PASS")
+    }
+  }
+  @Test
+  fun postgresDHarnessDiagnosticBlocksProgressEvenWithPassAndZeroExit() {
+    val output = runRailPowerShell(
+      """
+      §Mode='Lifecycle';§LifecycleAction='Run';Start-M1DClock Lifecycle
+      §script:DPhase='integration';§script:DOperation='child-drain';§script:DRuntimeSha256='3'*64
+      §jars='M1D_JARS_RESULT '+§RunId+' '+§ReviewedObjectSha256+' '+§script:DRuntimeSha256+' PASS'
+      §frame=[ordered]@{schemaVersion=1;runId=§RunId;objectSha=§ReviewedObjectSha256;runtimeSha=§script:DRuntimeSha256
+        diagnostic=[ordered]@{code='HTTP_STATUS_MISMATCH';step='FOLDER_CREATE';expectedStatus=201;receivedStatus=409}}
+      §line='HARNESS_FAILED '+(ConvertTo-Json §frame -Depth 5 -Compress)+[char]10
+      foreach(§withPass in @(§false,§true)){
+        §script:DHarnessDiagnostic=§null;§script:DFailures=[Collections.Generic.List[object]]::new()
+        §stdout=if(§withPass){§jars+[char]10}else{''}
+        §process=[pscustomobject]@{StandardOutput=[IO.StringReader]::new(§stdout);StandardError=[IO.StringReader]::new(§line);HasExited=§true;ExitCode=0}
+        try{
+          §script:DChildren=@{HARNESS=(New-M1DDrain §process HARNESS §null)}
+          §advanced=§false;§stop='NONE'
+          try{Wait-M1DSignal HARNESS §jars;§advanced=§true}catch{§stop=Get-M1BStopCode §_;[void](Add-M1DFailure §_)}
+          §expected=if(§withPass){'D_CONTROL_MESSAGE_REJECTED'}else{'D_REQUIRED_RESULT_ABSENT'}
+          if(§advanced -or §stop -cne §expected){throw 'HARNESS_DIAGNOSTIC_ALLOWED_PROGRESS'}
+          §detail=§script:DHarnessDiagnostic.diagnostic
+          if(§detail.code -cne 'HTTP_STATUS_MISMATCH' -or §detail.step -cne 'FOLDER_CREATE' -or §detail.expectedStatus -ne 201 -or §detail.receivedStatus -ne 409){throw 'HARNESS_FIRST_DETAIL_LOST'}
+          §primary=(Get-M1DDiagnostics).primary
+          if(@(§primary.PSObject.Properties.Name).Count -ne 5 -or §primary.stage -cne 'integration' -or §primary.operation -cne 'child-drain' -or §primary.childRole -cne 'HARNESS' -or §primary.control -cne §expected){throw 'HARNESS_PRIMARY_CONTRACT_CHANGED'}
+          # Exercise the actual terminal producer even if its caller mistakenly
+          # supplies success: a failure diagnostic must remain a failure.
+          §payload=Get-M1DTerminalPayload -Success §true -PrimaryStop §stop -CleanupStop §null -Targeted §null -Full §null -Cleanup §null
+          if(§payload.campaignResult -cne 'FAIL' -or §payload.harnessDiagnostic.diagnostic.code -cne 'HTTP_STATUS_MISMATCH'){throw 'HARNESS_DETAIL_BECAME_TERMINAL_PASS'}
+        }finally{§process.StandardOutput.Dispose();§process.StandardError.Dispose()}
+      }
+      'HARNESS_DIAGNOSTIC_BLOCKS_PROGRESS=PASS CASES=2'
+      """.trimIndent()
+    )
+    assertThat(output).contains("HARNESS_DIAGNOSTIC_BLOCKS_PROGRESS=PASS CASES=2")
+  }
+
+  @Test
+  fun postgresDHarnessFirstDiagnosticSurvivesRejectedLaterFramesAndFinalization() {
+    val output = runRailPowerShell(
+      """
+      §Mode='Lifecycle';§LifecycleAction='Run';Start-M1DClock Lifecycle
+      §script:DPhase='integration';§script:DOperation='child-drain';§script:DRuntimeSha256='3'*64
+      §frame=[ordered]@{schemaVersion=1;runId=§RunId;objectSha=§ReviewedObjectSha256;runtimeSha=§script:DRuntimeSha256
+        diagnostic=[ordered]@{code='HTTP_STATUS_MISMATCH';step='FOLDER_CREATE';expectedStatus=201;receivedStatus=409}}
+      §first='HARNESS_FAILED '+(ConvertTo-Json §frame -Depth 5 -Compress)+[char]10
+      §later=ConvertFrom-Json (ConvertTo-Json §frame -Depth 5 -Compress)
+      §later.diagnostic=[pscustomobject]@{code='LOGOUT_FAILED';step='LOGOUT';expectedStatus=§null;receivedStatus=§null}
+      §duplicate='HARNESS_FAILED '+(ConvertTo-Json §later -Depth 5 -Compress)+[char]10
+      §malformed='HARNESS_FAILED {"private":"private-harness-body-cookie"}'+[char]10
+      foreach(§second in @(§duplicate,§malformed)){
+        §script:DHarnessDiagnostic=§null;§script:DFailures=[Collections.Generic.List[object]]::new()
+        §process=[pscustomobject]@{StandardOutput=[IO.StringReader]::new('');StandardError=[IO.StringReader]::new(§first+§second);HasExited=§true;ExitCode=1}
+        try{
+          §drain=New-M1DDrain §process HARNESS §null
+          §stop='NONE';try{Update-M1DDrain §drain}catch{§stop=Get-M1BStopCode §_;[void](Add-M1DFailure §_)}
+          if(§stop -cne 'D_CONTROL_MESSAGE_REJECTED'){throw 'HARNESS_LATER_FRAME_NOT_REJECTED'}
+          §retained=§script:DHarnessDiagnostic
+          if(§null -eq §retained -or §retained.diagnostic.code -cne 'HTTP_STATUS_MISMATCH' -or §retained.diagnostic.step -cne 'FOLDER_CREATE'){throw 'HARNESS_FIRST_FRAME_OVERWRITTEN'}
+          §firstJson=ConvertTo-Json §retained -Depth 5 -Compress
+          # These are the same drain and finalization mode used after a stop;
+          # parsing a completed buffer twice must not duplicate the failure.
+          1..4 | ForEach-Object{Update-M1DDrain §drain -Finalizing}
+          if(-not §drain.OutEnded -or -not §drain.ErrEnded -or §drain.ErrParsedOffset -ne §drain.Stderr.Length){throw 'HARNESS_FINALIZATION_DRAIN_INCOMPLETE'}
+          if(-not [object]::ReferenceEquals(§retained,§script:DHarnessDiagnostic) -or (ConvertTo-Json §script:DHarnessDiagnostic -Depth 5 -Compress) -cne §firstJson){throw 'HARNESS_FIRST_FRAME_CHANGED_DURING_FINALIZATION'}
+          §diag=Get-M1DDiagnostics
+          if(§script:DFailures.Count -ne 1 -or §diag.secondary.Count -ne 0 -or §diag.primary.control -cne 'D_CONTROL_MESSAGE_REJECTED'){throw 'HARNESS_DRAIN_FAILURE_RECOLLECTED'}
+          §payload=Get-M1DTerminalPayload -Success §false -PrimaryStop §stop -CleanupStop §null -Targeted §null -Full §null -Cleanup §null
+          §json=ConvertTo-Json §payload -Depth 10 -Compress
+          if(§json.Contains('private-harness-body-cookie') -or §payload.harnessDiagnostic.diagnostic.receivedStatus -ne 409){throw 'HARNESS_TERMINAL_EXPOSED_OR_REPLACED_DETAIL'}
+        }finally{§process.StandardOutput.Dispose();§process.StandardError.Dispose()}
+      }
+      'HARNESS_FIRST_DIAGNOSTIC_PRESERVED=PASS CASES=2'
+      """.trimIndent()
+    )
+    assertThat(output).contains("HARNESS_FIRST_DIAGNOSTIC_PRESERVED=PASS CASES=2")
+    assertThat(output).doesNotContain("private-harness-body-cookie")
+  }
+
+  @Test
+  fun postgresDHarnessTerminalRoundTripPreservesOptionalHistoricalDetail() {
+    val output = runRailPowerShell(
+      """
+      §Mode='Lifecycle';§LifecycleAction='Run';Start-M1DClock Lifecycle
+      §script:DPhase='integration';§script:DOperation='child-drain';§script:DRuntimeSha256='3'*64
+      function Get-M1DNamespaceIdentity{return 'OFFLINE_HARNESS_NAMESPACE'}
+      §frame=[ordered]@{schemaVersion=1;runId=§RunId;objectSha=§ReviewedObjectSha256;runtimeSha=§script:DRuntimeSha256
+        diagnostic=[ordered]@{code='HTTP_RESPONSE_UNAVAILABLE';step='REVIEWER_READ';expectedStatus=200;receivedStatus=§null}}
+      §tempBase=[IO.Path]::GetFullPath([IO.Path]::GetTempPath())
+      §root=Join-Path §tempBase ('m1d-harness-terminal-'+[Guid]::NewGuid().ToString('N'))
+      [void][IO.Directory]::CreateDirectory(§root)
+      try{
+        foreach(§case in @('legacy','null','current')){
+          §script:DRunRoot=Join-Path §root §case;[void][IO.Directory]::CreateDirectory(§script:DRunRoot)
+          §script:DHarnessDiagnostic=if(§case -ceq 'current'){Read-M1DHarnessDiagnosticLine ('HARNESS_FAILED '+(ConvertTo-Json §frame -Depth 5 -Compress))}else{§null}
+          §payload=Get-M1DTerminalPayload -Success (§case -cne 'current') -PrimaryStop §null -CleanupStop §null -Targeted §null -Full §null -Cleanup §null
+          if(§case -ceq 'legacy'){§payload.Remove('harnessDiagnostic')}
+          [void](Write-M1DReceipt campaign ([ordered]@{runtimeSha256=§script:DRuntimeSha256}))
+          [void](Write-M1DReceipt terminal §payload)
+          §path=Join-Path §script:DRunRoot 'd-terminal.json';§before=Get-M1BSha256File §path
+          §read=Read-M1DReceipt terminal
+          if((Get-M1BSha256File §path) -cne §before){throw 'HARNESS_HISTORICAL_RECEIPT_CHANGED'}
+          if(§case -ceq 'legacy'){
+            if(§read.payload.PSObject.Properties.Name -ccontains 'harnessDiagnostic'){throw 'HARNESS_LEGACY_DETAIL_INVENTED'}
+          }elseif(§case -ceq 'null'){
+            if(§null -ne §read.payload.harnessDiagnostic){throw 'HARNESS_NULL_DETAIL_ENRICHED'}
+          }else{
+            if(§read.payload.campaignResult -cne 'FAIL' -or (ConvertTo-Json §read.payload.harnessDiagnostic -Depth 5 -Compress) -cne (ConvertTo-Json §script:DHarnessDiagnostic -Depth 5 -Compress)){throw 'HARNESS_TERMINAL_DETAIL_ROUND_TRIP_CHANGED'}
+            # A recomputed fixture sidecar cannot legitimize a contradictory
+            # PASS receipt: semantic validation is still mandatory on readback.
+            §read.payload.campaignResult='PASS'
+            [IO.File]::WriteAllText(§path,(ConvertTo-Json §read -Depth 12 -Compress),(Get-M1BUtf8))
+            [IO.File]::WriteAllText(§path+'.sha256',(Get-M1BSha256File §path)+[char]10,(Get-M1BUtf8))
+            §stop='NONE';try{[void](Read-M1DReceipt terminal)}catch{§stop=Get-M1BStopCode §_}
+            if(§stop -cne 'D_CONTROL_MESSAGE_REJECTED'){throw 'HARNESS_CONTRADICTORY_PASS_RECEIPT_ACCEPTED'}
+          }
+        }
+      }finally{
+        if(-not §root.StartsWith(§tempBase,[StringComparison]::OrdinalIgnoreCase)-or-not ([IO.Path]::GetFileName(§root)).StartsWith('m1d-harness-terminal-')){throw 'HARNESS_TERMINAL_FIXTURE_PATH_INVALID'}
+        [IO.Directory]::Delete(§root,§true)
+      }
+      'HARNESS_TERMINAL_OPTIONAL_DETAIL=PASS CASES=3'
+      """.trimIndent()
+    )
+    assertThat(output).contains("HARNESS_TERMINAL_OPTIONAL_DETAIL=PASS CASES=3")
+  }
+
+  @Test
+  fun postgresDCookieDiagnosticCannotBecomeASuccessSignalEvenWithZeroExit() {
+    val output = runRailPowerShell(
+      """
+      §Mode = 'Lifecycle'; §LifecycleAction = 'Run'; Start-M1DClock 'Lifecycle'
+      §script:DPhase='integration'; §script:DOperation='child-drain'
+      §script:DRuntimeSha256='3'*64; §script:DFrontendRuntimeSha256='4'*64
+      §facts=[ordered]@{}
+      foreach (§key in @('bootstrapStatus','bootstrapState','continuityStatus','continuityState','loginStatus','loginCode',
+          'authenticatedStatus','authenticatedState','meStatus','meCode','emittedCount','emittedMask','acceptedCount','acceptedMask',
+          'continuity','rotation','roleMatches','privacyScans','privacyViolations','lostObservations')) { §facts[§key]=§null }
+      §facts.bootstrapStatus=503
+      §frame=[ordered]@{schemaVersion=1;runId=§RunId;objectSha=§ReviewedObjectSha256;runtimeSha=§script:DRuntimeSha256;frontendSha=§script:DFrontendRuntimeSha256
+        diagnostic=[ordered]@{schemaVersion=1;source='BROWSER';step='BOOTSTRAP_RESPONSE';lastCompleted=§null;reason='HTTP_STATUS';metric=§null;facts=§facts}}
+      §line='M1D_COOKIE_DIAGNOSTIC '+(ConvertTo-Json §frame -Depth 8 -Compress)+[char]10
+      # Only process/stream boundary is doubled; no real process or operational
+      # receipt is needed to prove that a diagnostic cannot authorize progress.
+      §process=[pscustomobject]@{StandardOutput=[IO.StringReader]::new(§line);StandardError=[IO.StringReader]::new('');HasExited=§true;ExitCode=0;ActiveProcessCount=0}
+      try {
+        §script:DChildren=@{BROWSER_COOKIE=(New-M1DDrain §process 'BROWSER_COOKIE' §null)}
+        §stop=§null
+        try { [void](Wait-M1DBrowserReceipt 'cookie') } catch { §stop=Get-M1BStopCode §_ }
+        if (§stop -cne 'D_BROWSER_RUNNER_FAILED') { throw 'COOKIE_DIAGNOSTIC_DID_NOT_BLOCK_SUCCESS' }
+        §child=§script:DChildren.BROWSER_COOKIE
+        if (-not §child.OutEnded -or -not §child.ErrEnded -or §child.Signals.Count -ne 0 -or §child.Failures.Count -ne 0) { throw 'DIAGNOSTIC_MISTAKEN_FOR_CONTROL_OR_DRAIN_FAILURE' }
+        if (§script:DCookieDiagnostic.diagnostic.facts.bootstrapStatus -ne 503) { throw 'COOKIE_DETAIL_LOST' }
+        if (§script:DFailures.Count -ne 0) { throw 'COOKIE_DETAIL_CREATED_STOP_CASCADE' }
+        'COOKIE_DIAGNOSTIC_ZERO_EXIT_REJECTED_WITH_COMPLETE_DRAIN'
+      } finally { §process.StandardOutput.Dispose(); §process.StandardError.Dispose(); §script:DCampaignClock.Stop() }
+      """.trimIndent()
+    )
+    assertThat(output).contains("COOKIE_DIAGNOSTIC_ZERO_EXIT_REJECTED_WITH_COMPLETE_DRAIN")
+  }
+
+  @Test
+  fun postgresDCookiePrivacyV2IsClosedAndLegacyRemainsUnenriched() {
+    val output = runRailPowerShell(
+      """
+      §Mode='Lifecycle';§LifecycleAction='Run';Start-M1DClock Lifecycle
+      §script:DPhase='integration';§script:DOperation='child-drain'
+      §script:DRuntimeSha256='3'*64;§script:DFrontendRuntimeSha256='4'*64
+      §facts=[ordered]@{}
+      foreach(§key in @('bootstrapStatus','bootstrapState','continuityStatus','continuityState','loginStatus','loginCode','authenticatedStatus','authenticatedState','meStatus','meCode','emittedCount','emittedMask','acceptedCount','acceptedMask','continuity','rotation','roleMatches','privacyScans','privacyViolations','lostObservations')){§facts[§key]=§null}
+      §facts.privacyScans=2;§facts.privacyViolations=2;§facts.lostObservations=0
+      §frame=[ordered]@{schemaVersion=1;runId=§RunId;objectSha=§ReviewedObjectSha256;runtimeSha=§script:DRuntimeSha256;frontendSha=§script:DFrontendRuntimeSha256
+        diagnostic=[ordered]@{schemaVersion=2;source='BROWSER';step='AUTHENTICATED_PRIVACY';lastCompleted='ROTATION';reason='PRIVACY';metric=§null;facts=§facts;firstPrivacyViolation=§null}}
+      function Read-FixtureFrame(§Frame){return Read-M1DCookieDiagnosticLine ('M1D_COOKIE_DIAGNOSTIC '+(ConvertTo-Json §Frame -Depth 10 -Compress))}
+      §accepted=Read-FixtureFrame §frame
+      if(§null -ne §accepted.diagnostic.firstPrivacyViolation){throw 'MISSING_CATEGORY_INVENTED'}
+      §triples=[Collections.Generic.List[object]]::new()
+      foreach(§surface in @('DOM','FORM_FIELD','URL','DOCUMENT_COOKIE','LOCAL_STORAGE','SESSION_STORAGE','INDEXED_DB','CONSOLE','CHANNEL','AMBIGUOUS')){
+        foreach(§value in @('SESSION_COOKIE','CSRF_TOKEN','ACTOR_KEY','USER_ID','SUBJECT','TENANT_ID','MEMBERSHIP_ID','ACTOR_ID','AMBIGUOUS')){
+          §triples.Add([ordered]@{rule='PROTECTED_VALUE_MATCH';surface=§surface;valueCategory=§value})
+        }
+      }
+      §triples.Add([ordered]@{rule='AUTHORIZATION_HEADER';surface='REQUEST_HEADERS';valueCategory='NONE'})
+      §triples.Add([ordered]@{rule='TENANT_SESSION_HEADER';surface='REQUEST_HEADERS';valueCategory='TENANT_ID'})
+      §triples.Add([ordered]@{rule='AUTHORIZATION_AND_TENANT_SESSION_HEADERS';surface='REQUEST_HEADERS';valueCategory='AMBIGUOUS'})
+      §triples.Add([ordered]@{rule='CHANNEL_SHAPE';surface='CHANNEL';valueCategory='NONE'})
+      foreach(§triple in §triples){
+        §frame.diagnostic.firstPrivacyViolation=§triple;§accepted=Read-FixtureFrame §frame
+        foreach(§field in @('rule','surface','valueCategory')){if(§accepted.diagnostic.firstPrivacyViolation.§field -cne §triple[§field]){throw 'PRIVACY_CATEGORY_CHANGED'}}
+      }
+      §frame.diagnostic.firstPrivacyViolation=[ordered]@{rule='PROTECTED_VALUE_MATCH';surface='DOM';valueCategory='TENANT_ID'}
+      §template=ConvertTo-Json §frame -Depth 10 -Compress;§rejected=0
+      foreach(§field in @('rule','surface','valueCategory')){
+        §exact=§frame.diagnostic.firstPrivacyViolation[§field]
+        foreach(§invalid in @((§exact.ToLowerInvariant()),(§exact+' '),(§exact+"`n"),(§exact+[char]0),'private-category',§null,42,@(§exact),[pscustomobject]@{value=§exact})){
+          §candidate=ConvertFrom-Json §template;§candidate.diagnostic.firstPrivacyViolation.§field=§invalid
+          §stop='NONE';try{[void](Read-FixtureFrame §candidate)}catch{§stop=Get-M1BStopCode §_}
+          if(§stop -ceq 'NONE'){throw 'OPEN_PRIVACY_CATEGORY_ACCEPTED'};§rejected++
+        }
+      }
+      foreach(§case in @('v2-missing','v1-with-detail','unknown-version','detail-extra','detail-missing','detail-array','authorization-value','authorization-surface','tenant-value','combined-value','channel-surface','protected-none','protected-header')){
+        §candidate=ConvertFrom-Json §template
+        switch(§case){
+          'v2-missing'{§candidate.diagnostic.PSObject.Properties.Remove('firstPrivacyViolation')}
+          'v1-with-detail'{§candidate.diagnostic.schemaVersion=1}
+          'unknown-version'{§candidate.diagnostic.schemaVersion=3}
+          'detail-extra'{§candidate.diagnostic.firstPrivacyViolation | Add-Member NoteProperty private 'private-value'}
+          'detail-missing'{§candidate.diagnostic.firstPrivacyViolation.PSObject.Properties.Remove('surface')}
+          'detail-array'{§candidate.diagnostic.firstPrivacyViolation=@(§candidate.diagnostic.firstPrivacyViolation)}
+          'authorization-value'{§candidate.diagnostic.firstPrivacyViolation.rule='AUTHORIZATION_HEADER';§candidate.diagnostic.firstPrivacyViolation.surface='REQUEST_HEADERS'}
+          'authorization-surface'{§candidate.diagnostic.firstPrivacyViolation.rule='AUTHORIZATION_HEADER';§candidate.diagnostic.firstPrivacyViolation.valueCategory='NONE'}
+          'tenant-value'{§candidate.diagnostic.firstPrivacyViolation.rule='TENANT_SESSION_HEADER';§candidate.diagnostic.firstPrivacyViolation.surface='REQUEST_HEADERS';§candidate.diagnostic.firstPrivacyViolation.valueCategory='NONE'}
+          'combined-value'{§candidate.diagnostic.firstPrivacyViolation.rule='AUTHORIZATION_AND_TENANT_SESSION_HEADERS';§candidate.diagnostic.firstPrivacyViolation.surface='REQUEST_HEADERS'}
+          'channel-surface'{§candidate.diagnostic.firstPrivacyViolation.rule='CHANNEL_SHAPE';§candidate.diagnostic.firstPrivacyViolation.valueCategory='NONE'}
+          'protected-none'{§candidate.diagnostic.firstPrivacyViolation.valueCategory='NONE'}
+          'protected-header'{§candidate.diagnostic.firstPrivacyViolation.surface='REQUEST_HEADERS'}
+        }
+        §stop='NONE';try{[void](Read-FixtureFrame §candidate)}catch{§stop=Get-M1BStopCode §_}
+        if(§stop -ceq 'NONE'){throw ('INVALID_PRIVACY_COMBINATION_ACCEPTED_'+§case)};§rejected++
+      }
+      function Get-M1DNamespaceIdentity {return 'OFFLINE_PRIVACY_NAMESPACE'}
+      §tempBase=[IO.Path]::GetFullPath([IO.Path]::GetTempPath());§root=Join-Path §tempBase ('m1d-privacy-v2-'+[Guid]::NewGuid().ToString('N'))
+      [void][IO.Directory]::CreateDirectory(§root)
+      try{
+        foreach(§version in @(1,2)){
+          §candidate=ConvertFrom-Json §template;§candidate.diagnostic.schemaVersion=§version
+          if(§version -eq 1){§candidate.diagnostic.PSObject.Properties.Remove('firstPrivacyViolation')}
+          §line='M1D_COOKIE_DIAGNOSTIC '+(ConvertTo-Json §candidate -Depth 10 -Compress)+[char]10
+          §process=[pscustomobject]@{StandardOutput=[IO.StringReader]::new(§line);StandardError=[IO.StringReader]::new('');HasExited=§true;ExitCode=0;ActiveProcessCount=0}
+          try{
+            §script:DCookieDiagnostic=§null;§script:DChildren=@{BROWSER_COOKIE=(New-M1DDrain §process 'BROWSER_COOKIE' §null)}
+            §stop='NONE';try{[void](Wait-M1DBrowserReceipt cookie)}catch{§stop=Get-M1BStopCode §_}
+            if(§stop -cne 'D_BROWSER_RUNNER_FAILED' -or §script:DCookieDiagnostic.diagnostic.schemaVersion -ne §version){throw 'PRIVACY_DIAGNOSTIC_BECAME_SUCCESS_OR_WAS_LOST'}
+            §script:DRunRoot=Join-Path §root ([string]§version);[void][IO.Directory]::CreateDirectory(§script:DRunRoot)
+            [void](Write-M1DReceipt campaign ([ordered]@{runtimeSha256=§script:DRuntimeSha256;frontendRuntimeSha256=§script:DFrontendRuntimeSha256}))
+            [void](Write-M1DReceipt terminal ([ordered]@{campaignResult='FAIL';cookieDiagnostic=§script:DCookieDiagnostic}))
+            §read=(Read-M1DReceipt terminal).payload.cookieDiagnostic
+            if((ConvertTo-Json §read -Depth 10 -Compress) -cne (ConvertTo-Json §candidate -Depth 10 -Compress)){throw 'PRIVACY_TERMINAL_ROUND_TRIP_CHANGED'}
+            if(§version -eq 1 -and §read.diagnostic.PSObject.Properties.Name -ccontains 'firstPrivacyViolation'){throw 'LEGACY_PRIVACY_ENRICHED'}
+          }finally{§process.StandardOutput.Dispose();§process.StandardError.Dispose()}
+        }
+      }finally{
+        if(-not §root.StartsWith(§tempBase,[StringComparison]::OrdinalIgnoreCase)-or-not ([IO.Path]::GetFileName(§root)).StartsWith('m1d-privacy-v2-')){throw 'PRIVACY_FIXTURE_PATH_INVALID'}
+        [IO.Directory]::Delete(§root,§true)
+      }
+      'M1D_COOKIE_PRIVACY_V2_CLOSED=PASS VALID='+§triples.Count+' REJECTED='+§rejected
+      """.trimIndent()
+    )
+    assertThat(output).contains("M1D_COOKIE_PRIVACY_V2_CLOSED=PASS VALID=94")
+    assertThat(output).doesNotContain("private-")
+    println(output.trim())
+  }
+  @ParameterizedTest
+  @ValueSource(strings = ["gradle-a", "gradle-b", "gradle-c", "psql", "other-a", "other-b", "other-c", "contexts"])
+  @Tag("windows-only")
+  fun postgresDInternalFinalizersPreserveFirstFailureThroughLifecycle(group: String) {
+    val output = runRailPowerShell(
+      """
+      # Synthetic OS/DB boundaries only; the reader, all three finalizers, scanner,
+      # collector, cessation validator, lifecycle and terminal readback are real.
+      Add-Type -TypeDefinition @'
+      using System;
+      using System.IO;
+      using System.Collections;
+      using System.Threading.Tasks;
+      public sealed class FixtureProjectionFault : IOException {
+        public FixtureProjectionFault() : base("offline-private-projection") {}
+        public override IDictionary Data { get { throw new FormatException("offline-private-data"); } }
+      }
+      public sealed class FixtureFaultReader : StringReader {
+        readonly Exception failure;
+        public FixtureFaultReader(bool projection) : base("") {
+          failure = projection ? (Exception)new FixtureProjectionFault() : new IOException("offline-private-reader");
+        }
+        public override Task<int> ReadAsync(char[] buffer, int index, int count) {
+          var task = new TaskCompletionSource<int>(); task.SetException(failure); return task.Task;
+        }
+      }
+      '@
+      §Campaign='D'; §Mode='Lifecycle'; §LifecycleAction='Run'
+      §PreflightAuthorizationRecordId='AUTH-FIXTURE-PREFLIGHT'
+      §SensitiveAuthorizationRecordId='AUTH-FIXTURE-FINALIZERS'
+      §container=Join-Path ([IO.Path]::GetTempPath()) ('m1d-finalizers-'+[Guid]::NewGuid().ToString('N'))
+      [void][IO.Directory]::CreateDirectory(§container); §script:EvidenceBaseRoot=§container
+      # The shared runner intentionally removes JAVA_HOME. This inert fixture file
+      # satisfies preparation only; Start-M1DContainedChild below never executes it.
+      §env:JAVA_HOME=Join-Path §container 'inert-java'
+      [void][IO.Directory]::CreateDirectory((Join-Path §env:JAVA_HOME 'bin'))
+      [IO.File]::WriteAllText((Join-Path §env:JAVA_HOME 'bin\java.exe'),'NOT_EXECUTABLE')
+      §realWriter=(Get-Command Write-M1DReceipt).ScriptBlock
+      §realReadiness=(Get-Command Invoke-M1BReadiness).ScriptBlock
+      # Finalizer cases substitute cache selection only; cache tests use the real guards.
+      function Initialize-M1DGradleCacheReuse { param(§Root,§Preflight) }
+      function Assert-M1DGradleCacheReuse { param(§Path) }
+      function Get-M1DGradleCachePath { param(§Root) Join-Path §Root 'fixture-cache' }
+      function Get-M1DNamespaceIdentity { '00000000000000000000000000000001:0000000000000001:1' }
+      function Assert-M1BInvocation { §script:scenarioRoot }
+      function Enter-M1BRunLock { param(§Root) [pscustomobject]@{ synthetic=§true } }
+      function Exit-M1BRunLock { param(§Lock) §script:events.Add('lock-release') }
+      function Assert-M1BExecutionState { param(§Root,§Phase) [pscustomobject]@{ Baseline=[pscustomobject]@{synthetic=§true} } }
+      function Read-M1BPreflightManifest {
+        param(§Root,§RunId,§Object,§Authorization,§Baseline)
+        if (§script:fixtureClock -eq §null) {
+          §script:DCampaignClock.Stop()
+          §script:fixtureClock=[pscustomobject]@{ElapsedMilliseconds=0L}
+          §script:DCampaignClock=§script:fixtureClock
+        }
+        [pscustomobject]@{Sha256=('3'*64);Value=[pscustomobject]@{
+          campaignStartTimestamp=[string][Diagnostics.Stopwatch]::GetTimestamp();stopwatchFrequency=[string][Diagnostics.Stopwatch]::Frequency
+          machine=[Environment]::MachineName;namespaceIdentity=(Get-M1DNamespaceIdentity)
+          runtimeSha256=('2'*64);frontendRuntimeSha256=('4'*64);psql=[pscustomobject]@{sha256=§ExpectedPsqlSha256}
+          observation=[pscustomobject]@{clusterSystemIdentifier='999';currentRoleOid=10;maintenanceDatabaseOid=11;hbaRuleNumber=1}
+        }}
+      }
+      function Invoke-M1BReadiness { param(§Root,§Phase,§Id,§Object) & §realReadiness §Root §Phase §Id §Object }
+      function Get-M1DFrontendRuntimeSha256 { '4'*64 }
+      function Assert-M1BInteractiveConsole { }
+      function Assert-M1BNoCredentialChannels { }
+      function Assert-M1BPsqlBinary { [pscustomobject]@{Path='C:\fixture\never-executed.exe';Sha256=§ExpectedPsqlSha256;FileVersion='fixture';ProductVersion='fixture'} }
+      function New-M1BRunnerSecret { [pscustomobject]@{PasswordBytes=[byte[]]@(1,2);Password='offline-fixed-runner-marker'} }
+      function New-M1BRandomSalt { ,([byte[]]@(3,4)) }
+      function New-M1BScramSha256Verifier { param(§Password,§Salt) 'synthetic-verifier' }
+      function Get-Process { param(§Id,§ErrorAction) §null }
+      function Get-M1DListenerPorts { @() }
+      function Get-M1DRecordedJobCount { param(§Name) §role=§Name.Substring(§Name.LastIndexOf('.')+1); if(§script:processes.ContainsKey(§role)){§script:processes[§role].ActiveProcessCount}else{-1} }
+      function Write-M1DReceipt {
+        param(§Name,§Payload)
+        if(§Name.EndsWith('-stopped')) {
+          §script:events.Add('receipt:'+§Payload.jobName.Substring(§Payload.jobName.LastIndexOf('.')+1))
+          if(§Payload.jobName.EndsWith('.'+§script:faultRole) -and §script:scenario -match 'receipt|multiple'){throw [UnauthorizedAccessException]::new('offline-private-receipt')}
+        }
+        & §realWriter §Name §Payload
+      }
+      function Start-M1DContainedChild {
+        param(§StartInfo,§Role,§ArgumentFile)
+        §script:events.Add('start:'+§Role)
+        §runtime='2'*64
+        §text="M1B_POSTGRES_RAIL_READINESS=PASS`nM1B_POSTGRES_RAIL_DATABASE_EXECUTION=NONE`nM1B_POSTGRES_RAIL_RUNTIME_SHA256=§runtime`nM1D_INTEGRATED_MANIFEST_SHA256=§('1'*64)`nM1B_POSTGRES_RAIL_RUNTIME_SHA256_VERIFIED=§runtime`nM1B_POSTGRES_RAIL_RUNTIME_SHA256_REVALIDATED=§runtime`nM1B_POSTGRES_RAIL_TARGETED=PASS`nM1B_POSTGRES_RAIL_FULL=PASS`n"
+        §reader=[IO.StringReader]::new(§text)
+        if(§Role -ceq §script:faultRole -and (§script:scenario -match 'initial' -or §script:scenario -ceq 'diagnostic-fault')){§reader=[FixtureFaultReader]::new((§script:scenario -ceq 'diagnostic-fault'))}
+        §p=[pscustomobject]@{Role=§Role;Id=(2000000000+§script:processes.Count);CreationTimeUtcTicks='638000000000000000';JobName=('Local\Ritomer.M1D.'+§RunId+'.'+§Role);HasExited=§true;ActiveProcessCount=0;ExitCode=0;StartInfo=§StartInfo;StandardOutput=§reader;StandardError=[IO.StringReader]::new('');StandardInput=[IO.StringWriter]::new();Disposed=§false}
+        §p | Add-Member ScriptMethod WaitForExit { }
+        §p | Add-Member ScriptMethod TerminateTreeAndWait {
+          param(§Budget) §script:events.Add('terminate:'+§this.Role)
+          if(§this.Role -ceq §script:faultRole -and §script:scenario -match 'termination-false'){§this.ActiveProcessCount=1;return §false}
+          if(§this.Role -ceq §script:faultRole -and §script:scenario -match 'termination-throw'){§this.ActiveProcessCount=1;throw [IO.IOException]::new('offline-private-termination')}
+          §this.HasExited=§true; §this.ActiveProcessCount=0; return §true
+        }
+        §p | Add-Member ScriptMethod Dispose {
+          §script:events.Add('dispose:'+§this.Role);§this.Disposed=§true
+          §this.StandardOutput.Dispose();§this.StandardError.Dispose();§this.StandardInput.Dispose()
+          if(§this.Role -ceq §script:faultRole -and §script:scenario -match 'dispose|multiple'){throw [IO.IOException]::new('offline-private-dispose')}
+        }
+        if(§Role -ceq §script:faultRole -and (§script:scenario -match 'initial' -or §script:scenario -ceq 'diagnostic-fault')){§p.HasExited=§false}
+        §script:processes[§Role]=§p
+        §stage=if(§LifecycleAction -ceq 'CleanupOnly'){'recovery'}elseif(§Mode -ceq 'Preflight'){'preflight'}else{'lifecycle'}
+        §name='launch-'+§stage+'-'+§Role
+        [void](Write-M1DReceipt (§name+'-intent') ([ordered]@{role=§Role;binaryPath='C:\fixture\never-executed.exe';binarySha256=('a'*64);commandSha256=('b'*64);argumentFileSha256='NONE'}))
+        [void](Write-M1DReceipt (§name+'-confined') ([ordered]@{role=§Role;processId=§p.Id;creationTimeUtcTicks=§p.CreationTimeUtcTicks;jobName=§p.JobName;binaryPath='C:\fixture\never-executed.exe';binarySha256=('a'*64);commandSha256=('b'*64);argumentFileSha256='NONE';confinedBeforeResume=§true}))
+        if(§Role -ceq 'TARGETED' -and §script:scenario -ceq 'timeout-scan') {§p.HasExited=§false;§script:fixtureClock.ElapsedMilliseconds=§script:DPhaseDeadline}
+        if(§Role -ceq 'TARGETED' -and §script:scenario -cin @('timeout-scan','scan-only')) {
+          §blocked=Join-Path §script:scenarioRoot 'locked-fixture.bin';[IO.File]::WriteAllBytes(§blocked,[byte[]]@(1,2,3))
+          §script:scanLock=[IO.File]::Open(§blocked,[IO.FileMode]::Open,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
+        }
+        Set-M1DDiagnosticOperation 'native-launch'; return §p
+      }
+      function Invoke-M1BProvisionPsql {
+        param(§Root,§Verifier,§Provenance,§Cluster,§Hba,§Admin,§Maintenance)
+        [void](Invoke-M1BDirectPsql -Phase Provision -SqlText 'OFFLINE NOT SQL' -NeutralRoot §Root)
+        [pscustomobject]@{DatabaseOid=19;RoleOid=20;PostmasterStartUnixMicros='1789722000123456';PsqlSha256=§ExpectedPsqlSha256;StructuredOutputSha256=('5'*64)}
+      }
+      function Invoke-M1BCleanupPsql {
+        param(§Root,§Provenance,§Run,§Cluster,§Database,§Role,§Admin,§Maintenance)
+        §script:events.Add('cleanup-boundary')
+        [void](Invoke-M1BDirectPsql -Phase Cleanup -SqlText 'OFFLINE NOT SQL' -NeutralRoot §Root)
+        [pscustomobject]@{PsqlSha256=§ExpectedPsqlSha256;StructuredOutputSha256=('6'*64)}
+      }
+      function Invoke-M1DIntegrated {
+        param(§Readiness,§Provision,§Password,§Cluster)
+        [void](Write-M1DReceipt 'integrated' ([ordered]@{synthetic=§true}))
+        [void](Write-M1DReceipt 'stopped' ([ordered]@{synthetic=§true}))
+      }
+      §results=[Collections.Generic.List[object]]::new()
+      §cases=switch('$group') {
+        'gradle-a' { @('timeout-scan','gradle-initial-termination-false') }
+        'gradle-b' { @('gradle-initial-termination-throw','gradle-initial-receipt') }
+        'gradle-c' { @('gradle-initial-dispose','gradle-initial-multiple') }
+        'psql' { @('psql-initial-termination-false','psql-initial-termination-throw','psql-initial-receipt','psql-initial-dispose','psql-initial-multiple') }
+        'other-a' { @('gradle-only-receipt','psql-only-dispose','scan-only') }
+        'other-b' { @('diagnostic-fault','nominal') }
+        'other-c' { @('full-initial-dispose','psql-cleanup-initial-dispose') }
+        'contexts' { @('c1-readiness-only-dispose','c2-readiness-only-dispose','preflight-psql-only-dispose','recovery-psql-only-dispose') }
+      }
+      try {
+        foreach(§scenario in §cases) {
+          §script:scenario=§scenario;§script:faultRole=if(§scenario -like 'psql-cleanup*'){'ADMIN_PSQL_CLEANUP'}elseif(§scenario -like 'psql*'){'ADMIN_PSQL_PROVISION'}elseif(§scenario -like 'full*'){'FULL'}else{'TARGETED'}
+          §script:scenarioRoot=Join-Path §container §scenario;[void][IO.Directory]::CreateDirectory(§script:scenarioRoot)
+          §script:DQuarantinePath=Join-Path §script:scenarioRoot '.m1d-unreleased.json'
+          §script:DCampaignClock=§null;§script:fixtureClock=§null;§script:DChildren=@{};§script:processes=@{};§script:scanLock=§null
+          §script:PsqlProcessStarts=@{Preflight=0;Provision=0;Cleanup=0};§script:events=[Collections.Generic.List[string]]::new()
+          if('$group' -ceq 'contexts') {
+            §Mode=if(§scenario -match '^(c1|preflight)'){'Preflight'}else{'Lifecycle'}
+            §LifecycleAction=if(§scenario -like 'recovery*'){'CleanupOnly'}else{'Run'}
+            §kind=if(§LifecycleAction -ceq 'CleanupOnly'){'CleanupOnly'}else{§Mode}
+            Start-M1DClock §kind;§script:DRunRoot=§script:scenarioRoot
+            §script:faultRole=if(§scenario -match 'readiness'){'READINESS'}elseif(§Mode -ceq 'Preflight'){'ADMIN_PSQL_PREFLIGHT'}else{'ADMIN_PSQL_CLEANUP'}
+            §code='NONE';§sharedResult=§null
+            try {
+              if(§scenario -match 'readiness') {Enter-M1DPhase readiness;§sharedResult=Invoke-M1BReadiness §script:scenarioRoot 'shared-readiness' §RunId §ReviewedObjectSha256}
+              else {§phase=if(§Mode -ceq 'Preflight'){'Preflight'}else{'Cleanup'};Enter-M1DPhase $(if(§phase -ceq 'Cleanup'){'cleanup'}else{'provision'});§sharedResult=Invoke-M1BDirectPsql -Phase §phase -SqlText 'OFFLINE NOT SQL' -NeutralRoot (Join-Path §script:scenarioRoot 'psql')}
+            } catch {§code=Get-M1BStopCode §_}
+            §diag=Get-M1DDiagnostics;§p=§script:processes[§script:faultRole];§issues=@()
+            if(§code -cne 'UNEXPECTED_FAILURE' -or §null -ne §sharedResult -or §diag.primary.category -cne 'IO_FAILURE' -or §diag.secondary.Count -ne 0 -or -not §p.Disposed -or §p.StartInfo.EnvironmentVariables.Count -ne 0){§issues+= 'SHARED_CONTEXT_FAILURE_LOST'}
+            §summary=[pscustomobject]@{scenario=§scenario;stop=§code;diagnostics=§diag;events=@(§script:events.ToArray());issues=§issues}
+            §results.Add(§summary);'FC2_CASE '+(ConvertTo-Json §summary -Depth 8 -Compress);continue
+          }
+          §code='NONE';try{[void](Invoke-M1DLifecycle)}catch{§code=Get-M1BStopCode §_}
+          if(§null -ne §script:scanLock){§script:scanLock.Dispose();§script:scanLock=§null}
+          if(-not [IO.File]::Exists((Join-Path §script:scenarioRoot 'd-terminal.json'))){'FC2_EARLY '+(ConvertTo-Json ([pscustomobject]@{scenario=§scenario;stop=§code;events=@(§script:events.ToArray());diagnostics=(Get-M1DDiagnostics)}) -Depth 6 -Compress);throw 'FC2_TERMINAL_NOT_REACHED'}
+          §terminal=Read-M1DReceipt 'terminal';§diag=§terminal.payload.diagnostics
+          §issues=[Collections.Generic.List[string]]::new()
+          §nominal=§scenario -ceq 'nominal';§primaryExpected=if(§scenario -ceq 'timeout-scan'){'TIMEOUT'}elseif(§scenario -ceq 'scan-only'){'CONTROLLED_STOP'}elseif(§scenario -ceq 'gradle-only-receipt'){'ACCESS_DENIED'}else{'IO_FAILURE'}
+          if(§nominal){if(§code -cne 'NONE' -or §terminal.payload.campaignResult -cne 'PASS' -or §null -ne §diag.primary -or §diag.secondary.Count -ne 0){§issues.Add('NOMINAL_CHANGED')}}
+          else {
+            if(§code -cne 'D_LIFECYCLE_FAILED_SEE_RECEIPTS' -or §terminal.payload.campaignResult -cne 'FAIL'){§issues.Add('FAIL_NOT_PRESERVED')}
+            if(§null -eq §diag.primary -or §diag.primary.category -cne §primaryExpected){§issues.Add('PRIMARY_LOST')}
+            §expectedSecondary=if(§scenario -match 'multiple'){2}elseif(§scenario -match 'initial|timeout-scan|diagnostic-fault'){1}else{0}
+            if(§scenario -match '^psql(?!-cleanup)'){§expectedSecondary++}
+            if(§scenario -match 'termination-' -and §scenario -notmatch '^psql'){§expectedSecondary++}
+            if(§scenario -cin @('timeout-scan','scan-only')){§expectedSecondary++}
+            if(§diag.secondary.Count -ne §expectedSecondary){§issues.Add('SECONDARY_CARDINALITY')}
+            if(§script:faultRole -ceq 'TARGETED' -and §script:events.Contains('start:FULL')){§issues.Add('FULL_AFTER_TARGETED_FAILURE')}
+          }
+          §failedProcess=§script:processes[§script:faultRole]
+          if(§null -ne §failedProcess -and (-not §failedProcess.Disposed -or §failedProcess.StartInfo.EnvironmentVariables.Count -ne 0)){§issues.Add('INDEPENDENT_FINALIZATION_SKIPPED')}
+          if(-not §script:events.Contains('lock-release')){§issues.Add('LOCK_RELEASE_SKIPPED')}
+          §cleanupBlocked=§scenario -match 'termination-|^psql(?!-cleanup)'
+          if(§cleanupBlocked -and (§script:events.Contains('cleanup-boundary') -or -not [IO.File]::Exists(§script:DQuarantinePath))){§issues.Add('CLEANUP_BARRIER_BYPASSED')}
+          if(§scenario -match 'multiple' -and (§diag.secondary.Count -lt 2 -or §diag.secondary[0].category -cne 'ACCESS_DENIED' -or §diag.secondary[1].category -cne 'IO_FAILURE')){§issues.Add('SECONDARY_ORDER')}
+          §json=ConvertTo-Json §terminal -Depth 12 -Compress
+          if(§json.Contains('offline-private') -or §json.Contains('M1DFailureCollector')){§issues.Add('PRIVATE_DIAGNOSTIC_LEAK')}
+          §summary=[pscustomobject]@{scenario=§scenario;stop=§code;diagnostics=§diag;events=@(§script:events.ToArray());cleanupVerified=§terminal.payload.cleanupVerified;quarantined=[IO.File]::Exists(§script:DQuarantinePath);issues=@(§issues.ToArray())}
+          §results.Add(§summary);'FC2_CASE '+(ConvertTo-Json §summary -Depth 8 -Compress)
+          'FC2_TERMINAL '+(ConvertTo-Json ([pscustomobject]@{scenario=§scenario;text=[IO.File]::ReadAllText((Join-Path §script:scenarioRoot 'd-terminal.json'));sidecar=[IO.File]::ReadAllText((Join-Path §script:scenarioRoot 'd-terminal.json.sha256'))}) -Compress)
+        }
+      } finally {
+        if(§null -ne §script:scanLock){§script:scanLock.Dispose()}
+        if(-not ([IO.Path]::GetFileName(§container)).StartsWith('m1d-finalizers-') -or -not §container.StartsWith([IO.Path]::GetFullPath([IO.Path]::GetTempPath()),[StringComparison]::OrdinalIgnoreCase)){throw 'FIXTURE_CLEANUP_BOUNDARY'}
+        [IO.Directory]::Delete(§container,§true)
+      }
+      if(§results.Count -ne §cases.Count -or @(§results | Where-Object {§_.issues.Count -gt 0}).Count -gt 0){throw 'FC2_REGRESSION_FAILED'}
+      'M1D_INTERNAL_FINALIZERS=PASS'
+      """.trimIndent()
+    )
+    assertThat(output).contains("M1D_INTERNAL_FINALIZERS=PASS")
+    assertThat(output).doesNotContain("offline-private", "M1DFailureCollector")
+    println(output.trim())
+  }
+
+  @Test
+  fun postgresDChildDiagnosticsAreClosedAndReadLegacyReceipts() {
+    val output = runRailPowerShell(
+      """
+      function Test-FixtureOrdinal([object]§Actual, [object]§Expected) {
+        return (§Actual -is [string] -and §Expected -is [string] -and [string]::Equals(§Actual, §Expected, [System.StringComparison]::Ordinal))
+      }
+      function Get-FixtureInvalidValues([string]§Exact) {
+        §middle=[int][Math]::Floor(§Exact.Length/2)
+        §otherCase=§Exact.ToLowerInvariant()
+        if (Test-FixtureOrdinal §Exact §otherCase) { §otherCase=§Exact.ToUpperInvariant() }
+        return @(
+          [pscustomobject]@{name='nul-start';value=([string][char]0+§Exact)},
+          [pscustomobject]@{name='nul-middle';value=(§Exact.Substring(0,§middle)+[char]0+§Exact.Substring(§middle))},
+          [pscustomobject]@{name='nul-end';value=(§Exact+[char]0)},
+          [pscustomobject]@{name='lf';value=(§Exact+"`n")},
+          [pscustomobject]@{name='crlf';value=(§Exact+"`r`n")},
+          [pscustomobject]@{name='space';value=(§Exact+' ')},
+          [pscustomobject]@{name='case';value=§otherCase},
+          [pscustomobject]@{name='foreign';value='PRIVATE_UNTRUSTED_VALUE'},
+          [pscustomobject]@{name='empty';value=''},
+          [pscustomobject]@{name='null';value=§null},
+          [pscustomobject]@{name='number';value=42},
+          [pscustomobject]@{name='array';value=@(§Exact)},
+          [pscustomobject]@{name='coercible-object';value=[Text.StringBuilder]::new(§Exact)}
+        )
+      }
+      function Assert-FixtureDiagnosticRoundTrip([object]§Expected, [object]§Actual) {
+        if (§Actual.schemaVersion -ne §Expected.schemaVersion -or §Actual.secondary.Count -ne §Expected.secondary.Count) { throw 'DIAGNOSTIC_ROUND_TRIP_STRUCTURE_CHANGED' }
+        §expectedRows=@(§Expected.primary)+@(§Expected.secondary)
+        §actualRows=@(§Actual.primary)+@(§Actual.secondary)
+        §fields=@('stage','operation','category')
+        if (§Expected.schemaVersion -eq 2) { §fields+=@('childRole','control') }
+        for (§row=0; §row -lt §expectedRows.Count; §row++) {
+          foreach (§field in §fields) {
+            if (-not (Test-FixtureOrdinal §actualRows[§row].§field §expectedRows[§row].§field)) { throw 'DIAGNOSTIC_ROUND_TRIP_VALUE_CHANGED' }
+          }
+        }
+      }
+      §Mode = 'Lifecycle'; §LifecycleAction = 'Run'; Start-M1DClock Lifecycle
+      try { Stop-M1DChildControl 'HARNESS' 'D_CONTROL_MESSAGE_WRONG_CHANNEL' } catch { [void](Add-M1DFailure §_) }
+      try { Stop-M1BRail 'FIXTURE_PRIVATE_ARBITRARY_SUFFIX' } catch { [void](Add-M1DFailure §_) }
+      §diagnostics=Get-M1DDiagnostics
+      if (§diagnostics.schemaVersion -ne 2 -or -not (Test-FixtureOrdinal §diagnostics.primary.childRole 'HARNESS') -or -not (Test-FixtureOrdinal §diagnostics.primary.control 'D_CONTROL_MESSAGE_WRONG_CHANNEL') -or -not (Test-FixtureOrdinal §diagnostics.secondary[0].control 'UNCLASSIFIED')) { throw 'CHILD_DIAGNOSTICS_NOT_CLOSED' }
+      if ((ConvertTo-Json §diagnostics -Depth 5).Contains('FIXTURE_PRIVATE_ARBITRARY_SUFFIX')) { throw 'ARBITRARY_SUFFIX_EXPOSED' }
+      §roles=@('SEED','BACKEND','VITE','HARNESS','BROWSER_COOKIE','BROWSER_JOURNEY')
+      foreach (§role in §roles) {
+        §code='NONE'
+        try { Stop-M1DChildControl §role 'D_CONTROL_MESSAGE_WRONG_CHANNEL' } catch {
+          §code=Get-M1BStopCode §_
+          [void](Add-M1DFailure §_)
+        }
+        §entry=§script:DFailures[§script:DFailures.Count-1]
+        if (-not (Test-FixtureOrdinal §code 'D_CONTROL_MESSAGE_WRONG_CHANNEL') -or -not (Test-FixtureOrdinal §entry.childRole §role) -or -not (Test-FixtureOrdinal §entry.control §code)) { throw 'EXACT_CHILD_ROLE_REJECTED' }
+        §accepted=Get-M1DDiagnostics -Failures @(§entry)
+        if (-not (Test-FixtureOrdinal §accepted.primary.childRole §role)) { throw 'EXACT_DIAGNOSTIC_ROLE_REJECTED' }
+      }
+      §invalidRoles=@(Get-FixtureInvalidValues 'HARNESS')+@([pscustomobject]@{name='none';value='NONE'})
+      foreach (§case in §invalidRoles) {
+        §code='NONE'
+        try { Stop-M1DChildControl -Role §case.value -Code 'D_CONTROL_MESSAGE_WRONG_CHANNEL' } catch { §code=Get-M1BStopCode §_ }
+        if (-not (Test-FixtureOrdinal §code 'D_DIAGNOSTIC_INVALID')) { throw ('INVALID_STOP_ROLE_ACCEPTED_' + §case.name) }
+        §exception=[InvalidOperationException]::new('RITOMER_M1B_CONTROLLED_STOP::D_CONTROL_MESSAGE_WRONG_CHANNEL')
+        §exception.Data['M1DChildRole']=§case.value
+        try { throw §exception } catch { [void](Add-M1DFailure §_) }
+        §entry=§script:DFailures[§script:DFailures.Count-1]
+        if (-not (Test-FixtureOrdinal §entry.childRole 'NONE') -or -not (Test-FixtureOrdinal §entry.control 'D_CONTROL_MESSAGE_WRONG_CHANNEL')) { throw ('INVALID_METADATA_ROLE_ATTRIBUTED_' + §case.name) }
+        §expectedDiagnostics=Get-M1DDiagnostics
+        §decoded=ConvertFrom-Json (ConvertTo-Json §expectedDiagnostics -Depth 5 -Compress)
+        Assert-FixtureDiagnosticRoundTrip §expectedDiagnostics §decoded
+        if (§case.value -is [string] -and -not (Test-FixtureOrdinal §case.value 'NONE')) {
+          foreach (§decodedFailure in (@(§decoded.primary)+@(§decoded.secondary))) {
+            if (Test-FixtureOrdinal §decodedFailure.childRole §case.value) { throw ('INVALID_ROLE_EXPOSED_' + §case.name) }
+          }
+        }
+        §probe=[pscustomobject]@{stage='integration';operation='child-drain';category='CONTROLLED_STOP';childRole=§case.value;control='D_CONTROL_MESSAGE_WRONG_CHANNEL'}
+        §code='NONE'
+        try { §accepted=Get-M1DDiagnostics -Failures @(§probe) } catch { §code=Get-M1BStopCode §_ }
+        if (Test-FixtureOrdinal §case.name 'none') {
+          if (-not (Test-FixtureOrdinal §code 'NONE') -or -not (Test-FixtureOrdinal §accepted.primary.childRole 'NONE')) { throw 'DIAGNOSTIC_NONE_REJECTED' }
+        } elseif (-not (Test-FixtureOrdinal §code 'D_DIAGNOSTIC_INVALID')) { throw ('INVALID_DIAGNOSTIC_ROLE_ACCEPTED_' + §case.name) }
+      }
+      §diagnostics=Get-M1DDiagnostics
+      if (-not (Test-FixtureOrdinal §diagnostics.primary.childRole 'HARNESS') -or -not (Test-FixtureOrdinal §diagnostics.primary.control 'D_CONTROL_MESSAGE_WRONG_CHANNEL') -or -not (Test-FixtureOrdinal §diagnostics.secondary[0].control 'UNCLASSIFIED') -or §diagnostics.secondary.Count -ne (1+§roles.Count+§invalidRoles.Count)) { throw 'DIAGNOSTIC_ORDER_OR_CARDINALITY_LOST' }
+      for (§index=0; §index -lt §roles.Count; §index++) {
+        if (-not (Test-FixtureOrdinal §diagnostics.secondary[§index+1].childRole §roles[§index])) { throw 'SECONDARY_ROLE_ORDER_LOST' }
+      }
+      §allowed=[ordered]@{
+        stage=@('readiness','provision','seed','backend','integration','stop','targeted','full','cleanup','controls')
+        operation=@('initialization','provision','post-provision-state','integrated-entry','ports','phase','runtime-manifest','runtime-structure','runtime-files','child-environment','java-arguments','child-start-info','launch-identity','launch-intent','native-launch','child-drain','integrated-observations','stop-barrier','targeted-tests','full-tests','execution-state','forced-stop','stop-terminate','stop-attestation','stop-root-read','stop-root-wait','stop-job-read','stop-job-wait','stop-drain','stop-receipt','stop-release','stop-job-terminate','stop-job-close','stop-root-release-wait','stop-stdout-close','stop-stderr-close','stop-stdin-close','stop-process-close','cleanup','cleanup-publication','secret-scan','terminal-controls','terminal-publication','lock-release')
+        category=@('UNEXPECTED_FAILURE','ACCESS_DENIED','PATH_NOT_FOUND','PATH_TOO_LONG','IO_FAILURE','PARAMETER_BINDING','INVALID_VALUE','TIMEOUT','CONTROLLED_STOP')
+        childRole=@('SEED','BACKEND','VITE','HARNESS','BROWSER_COOKIE','BROWSER_JOURNEY','NONE')
+        control=@('D_CHILD_OUTPUT_LIMIT_EXCEEDED','RUNNER_SECRET_OUTPUT_CONTAMINATION','D_CONTROL_MESSAGE_REJECTED','D_PREMATURE_HARNESS_STOP','D_PREMATURE_BACKEND_STOP','D_UNTERMINATED_CONTROL_MESSAGE','D_CONTROL_MESSAGE_WRONG_CHANNEL','D_CHILD_STDOUT_READ_FAILED','D_CHILD_STDERR_READ_FAILED','D_UNEXPECTED_LIVE_CHILD','D_TREE_STOP_UNPROVEN','D_TERMINATION_BUDGET_EXHAUSTED','D_STREAM_STOP_UNPROVEN','D_CHILD_STOP_NOT_ATTESTED','D_INTEGRATED_CHILD_DISAPPEARED','D_REQUIRED_RESULT_ABSENT','D_CHILD_NONZERO_EXIT','D_BROWSER_RUNNER_FAILED','D_STOP_BARRIER_FAILED','D_CHILD_FINALIZATION_FAILED','PSQL_PREFLIGHT_EXIT_NONZERO','PSQL_PROVISION_EXIT_NONZERO','PSQL_CLEANUP_EXIT_NONZERO','UNCLASSIFIED')
+      }
+      foreach (§operation in §allowed.operation) {
+        Set-M1DDiagnosticOperation §operation
+        if (-not (Test-FixtureOrdinal §script:DOperation §operation)) { throw 'EXACT_OPERATION_SETTER_CHANGED' }
+      }
+      Set-M1DDiagnosticOperation 'child-drain'
+      Enter-M1DPhase 'integration'
+      foreach (§control in §allowed.control) {
+        if (-not (Test-FixtureOrdinal (Get-M1DControlCode §control) §control)) { throw 'EXACT_CONTROL_PROJECTION_CHANGED' }
+        §code='NONE'; §result='NONE'
+        try { Stop-M1DChildControl 'HARNESS' §control } catch { §code=Get-M1BStopCode §_; §result=Add-M1DFailure §_ }
+        §expected=§control
+        if (Test-FixtureOrdinal §control 'UNCLASSIFIED') { §expected='D_DIAGNOSTIC_INVALID' }
+        §entry=§script:DFailures[§script:DFailures.Count-1]
+        if (-not (Test-FixtureOrdinal §code §expected) -or -not (Test-FixtureOrdinal §result 'D_CONTROLLED_FAILURE') -or -not (Test-FixtureOrdinal §entry.control §control)) { throw 'CONTROL_STOP_OR_FAILURE_PROJECTION_CHANGED' }
+      }
+      foreach (§case in @(Get-FixtureInvalidValues 'D_CONTROL_MESSAGE_WRONG_CHANNEL')) {
+        if (-not (Test-FixtureOrdinal (Get-M1DControlCode §case.value) 'UNCLASSIFIED')) { throw ('INVALID_CONTROL_NOT_PROJECTED_' + §case.name) }
+        §code='NONE'
+        try { Stop-M1DChildControl -Role 'HARNESS' -Code §case.value } catch { §code=Get-M1BStopCode §_ }
+        if (-not (Test-FixtureOrdinal §code 'D_DIAGNOSTIC_INVALID')) { throw ('INVALID_STOP_CONTROL_ACCEPTED_' + §case.name) }
+        if (§case.value -is [string]) {
+          §exception=[InvalidOperationException]::new('RITOMER_M1B_CONTROLLED_STOP::'+§case.value)
+          §result='NONE'
+          try { throw §exception } catch { §result=Add-M1DFailure §_ }
+          §entry=§script:DFailures[§script:DFailures.Count-1]
+          if ((-not (Test-FixtureOrdinal §result 'D_CONTROLLED_FAILURE') -and -not (Test-FixtureOrdinal §result 'UNEXPECTED_FAILURE')) -or -not (Test-FixtureOrdinal §entry.control 'UNCLASSIFIED')) { throw ('INVALID_EXCEPTION_CONTROL_RETAINED_' + §case.name) }
+        }
+      }
+      §current=Get-M1DDiagnostics
+      §decoded=ConvertFrom-Json (ConvertTo-Json §current -Depth 5 -Compress)
+      Assert-FixtureDiagnosticRoundTrip §current §decoded
+      for (§index=0; §index -lt §allowed.control.Count; §index++) {
+        §entry=§decoded.secondary[§diagnostics.secondary.Count+§index]
+        if (-not (Test-FixtureOrdinal §entry.control §allowed.control[§index])) { throw 'SECONDARY_CONTROL_ORDER_LOST' }
+      }
+      if (-not (Test-FixtureOrdinal §decoded.primary.childRole 'HARNESS') -or §decoded.secondary.Count -ne (§diagnostics.secondary.Count+§allowed.control.Count+9)) { throw 'FIRST_FAILURE_OR_SECONDARY_COUNT_CHANGED' }
+      foreach (§case in @(Get-FixtureInvalidValues 'D_CONTROL_MESSAGE_WRONG_CHANNEL')) {
+        if (§case.value -is [string]) {
+          foreach (§entry in (@(§decoded.primary)+@(§decoded.secondary))) {
+            if (Test-FixtureOrdinal §entry.control §case.value) { throw 'INVALID_CONTROL_EXPOSED_AFTER_JSON' }
+          }
+        }
+      }
+      §tempBase=[IO.Path]::GetFullPath([IO.Path]::GetTempPath())
+      §root=Join-Path §tempBase ('m1d-diagnostics-' + [Guid]::NewGuid().ToString('N'))
+      [void][IO.Directory]::CreateDirectory(§root)
+      §script:DRunRoot=§root
+      # This fixture tests JSON/schema compatibility, not Windows namespace identity.
+      function Get-M1DNamespaceIdentity { return 'OFFLINE_DIAGNOSTIC_NAMESPACE' }
+      try {
+        §legacy=[pscustomobject]@{stage='integration';operation='child-drain';category='CONTROLLED_STOP'}
+        §v1=Get-M1DDiagnostics -Failures @(§legacy) -SchemaVersion 1
+        [void](Write-M1DReceipt 'terminal' ([ordered]@{diagnostics=§v1}))
+        §read=Read-M1DReceipt 'terminal'
+        if (§read.payload.diagnostics.schemaVersion -ne 1 -or -not (Test-FixtureOrdinal §read.payload.diagnostics.primary.operation 'child-drain')) { throw 'LEGACY_DIAGNOSTIC_REJECTED' }
+        Assert-FixtureDiagnosticRoundTrip §v1 §read.payload.diagnostics
+        §script:DRunRoot=Join-Path §root 'v2'
+        [void][IO.Directory]::CreateDirectory(§script:DRunRoot)
+        [void](Write-M1DReceipt 'terminal' ([ordered]@{diagnostics=§diagnostics}))
+        §read=Read-M1DReceipt 'terminal'
+        if (§read.payload.diagnostics.schemaVersion -ne 2) { throw 'CURRENT_DIAGNOSTIC_REJECTED' }
+        Assert-FixtureDiagnosticRoundTrip §diagnostics §read.payload.diagnostics
+        §counts=[ordered]@{}
+        foreach (§field in §allowed.Keys) {
+          §counts[§field]=[ordered]@{exact=0;invalid=0;readerRejected=0}
+          §schemas=@(2)
+          if (@('stage','operation','category') -contains §field) { §schemas=@(1,2) }
+          foreach (§schema in §schemas) {
+            foreach (§exact in §allowed[§field]) {
+              §probe=[pscustomobject][ordered]@{stage='integration';operation='child-drain';category='CONTROLLED_STOP'}
+              if (§schema -eq 2) { Add-Member -InputObject §probe -NotePropertyName childRole -NotePropertyValue 'HARNESS'; Add-Member -InputObject §probe -NotePropertyName control -NotePropertyValue 'D_CONTROL_MESSAGE_WRONG_CHANNEL' }
+              §probe.§field=§exact
+              §accepted=Get-M1DDiagnostics -Failures @(§probe) -SchemaVersion §schema
+              §decoded=ConvertFrom-Json (ConvertTo-Json §accepted -Depth 5 -Compress)
+              Assert-FixtureDiagnosticRoundTrip §accepted §decoded
+              if (-not (Test-FixtureOrdinal §decoded.primary.§field §exact)) { throw 'EXACT_ENUM_CHANGED_AFTER_JSON' }
+              §counts[§field].exact++
+            }
+            §seed=§probe.§field
+            foreach (§case in @(Get-FixtureInvalidValues §seed)) {
+              §probe.§field=§case.value
+              §code='NONE'
+              try { [void](Get-M1DDiagnostics -Failures @(§probe) -SchemaVersion §schema) } catch { §code=Get-M1BStopCode §_ }
+              if (-not (Test-FixtureOrdinal §code 'D_DIAGNOSTIC_INVALID')) { throw ('INVALID_ENUM_ACCEPTED_' + §field + '_' + §case.name) }
+              §counts[§field].invalid++
+              # These are deliberately invalid, bound fixture receipts; only the real reader may reject them.
+              §script:DRunRoot=Join-Path §root (§field+'-'+§schema+'-'+§case.name)
+              [void][IO.Directory]::CreateDirectory(§script:DRunRoot)
+              §invalid=[ordered]@{schemaVersion=§schema;primary=§probe;secondary=@()}
+              [void](Write-M1DReceipt 'terminal' ([ordered]@{diagnostics=§invalid}))
+              §code='NONE'
+              try { [void](Read-M1DReceipt 'terminal') } catch { §code=Get-M1BStopCode §_ }
+              if (-not (Test-FixtureOrdinal §code 'D_DIAGNOSTIC_INVALID')) { throw ('INVALID_ENUM_RECEIPT_ACCEPTED_' + §field + '_' + §case.name) }
+              §counts[§field].readerRejected++
+              if (§schema -eq 2 -and ((Test-FixtureOrdinal §field 'stage') -or (Test-FixtureOrdinal §field 'operation'))) {
+                §priorPhase=§script:DPhase; §priorOperation=§script:DOperation
+                §priorDeadline=§script:DPhaseDeadline; §priorEntered=§script:DEnteredPhases.Count
+                §code='NONE'
+                try {
+                  if (Test-FixtureOrdinal §field 'stage') { Enter-M1DPhase §case.value } else { Set-M1DDiagnosticOperation §case.value }
+                } catch { §code=Get-M1BStopCode §_ }
+                if (-not (Test-FixtureOrdinal §code 'D_DIAGNOSTIC_INVALID') -or -not (Test-FixtureOrdinal §script:DPhase §priorPhase) -or -not (Test-FixtureOrdinal §script:DOperation §priorOperation) -or §script:DPhaseDeadline -ne §priorDeadline -or §script:DEnteredPhases.Count -ne §priorEntered) { throw ('INVALID_ENUM_SETTER_CHANGED_STATE_' + §field + '_' + §case.name) }
+              }
+            }
+          }
+        }
+        'M1D_DIAGNOSTIC_ENUM_COUNTS='+(ConvertTo-Json §counts -Depth 3 -Compress)
+      } finally {
+        if (-not §root.StartsWith(§tempBase,[StringComparison]::OrdinalIgnoreCase) -or -not ([IO.Path]::GetFileName(§root)).StartsWith('m1d-diagnostics-')) { throw 'FIXTURE_ROOT_INVALID' }
+        [IO.Directory]::Delete(§root,§true)
+      }
+      # Occurrence identity survives rethrow/wrapping, never merges equal fields,
+      # and is scoped to the actual collection, not a reusable boolean marker.
+      if(§script:DCampaignClock -is [Diagnostics.Stopwatch]){§script:DCampaignClock.Stop()}
+      §script:DCampaignClock=§null;Start-M1DClock Lifecycle
+      §same=§null
+      try{Stop-M1BRail 'D_DEADLINE_EXPIRED'}catch{§same=§_;[void](Add-M1DFailure §_)}
+      try{throw §same}catch{[void](Add-M1DFailure §_)}
+      §wrapped=[Management.Automation.ErrorRecord]::new([InvalidOperationException]::new('offline-wrapper',§same.Exception),'fixture-wrapper',[Management.Automation.ErrorCategory]::NotSpecified,§null)
+      [void](Add-M1DFailure §wrapped)
+      if(§script:DFailures.Count -ne 1 -or (Get-M1DDiagnostics).primary.category -cne 'TIMEOUT'){throw 'SAME_OCCURRENCE_DUPLICATED'}
+      foreach(§i in @(1,2)){try{throw [IO.IOException]::new('offline-same-content')}catch{[void](Add-M1DFailure §_)}}
+      §diag=Get-M1DDiagnostics
+      if(§diag.secondary.Count -ne 2 -or §diag.secondary[0].category -cne 'IO_FAILURE' -or §diag.secondary[1].category -cne 'IO_FAILURE'){throw 'DISTINCT_OCCURRENCES_MERGED'}
+      §priorCollection=§script:DFailures
+      §script:DCampaignClock.Stop();§script:DCampaignClock=§null;Start-M1DClock Lifecycle
+      [void](Add-M1DFailure §same)
+      if(§priorCollection.Count -ne 3 -or §script:DFailures.Count -ne 1 -or (Get-M1DDiagnostics).primary.category -cne 'TIMEOUT'){throw 'FOREIGN_COLLECTION_MARKER_REUSED'}
+      if((ConvertTo-Json (Get-M1DDiagnostics) -Depth 5).Contains('M1DFailureCollector')){throw 'OCCURRENCE_MARKER_PUBLISHED'}
+      'M1D_FAILURE_OCCURRENCE_IDENTITY=PASS'
+      'M1D_CHILD_DIAGNOSTICS_COMPATIBILITY=PASS'
+      'M1D_CHILD_ROLE_LITERAL_BOUNDARIES=PASS'
+      'M1D_CHILD_ROLE_ORDINAL_BOUNDARIES=PASS'
+      'M1D_DIAGNOSTIC_ENUM_BOUNDARIES=PASS'
+      """.trimIndent()
+    )
+    assertThat(output).contains("M1D_CHILD_DIAGNOSTICS_COMPATIBILITY=PASS")
+    assertThat(output).contains("M1D_FAILURE_OCCURRENCE_IDENTITY=PASS")
+    assertThat(output).contains("M1D_CHILD_ROLE_LITERAL_BOUNDARIES=PASS")
+    assertThat(output).contains("M1D_CHILD_ROLE_ORDINAL_BOUNDARIES=PASS")
+    assertThat(output).contains("M1D_DIAGNOSTIC_ENUM_BOUNDARIES=PASS")
+    println(output.lineSequence().single { it.startsWith("M1D_DIAGNOSTIC_ENUM_COUNTS=") })
+  }
+
+  @Test
+  fun postgresDStopUsesOneDeadlineAndSealsFailuresBeforeCleanup() {
+    val output = runRailPowerShell(
+      """
+      §Mode='Lifecycle'; §LifecycleAction='Run'; Start-M1DClock Lifecycle
+      §script:DCampaignClock.Stop()
+      function Write-M1DReceipt {
+        param(§Name,§Payload)
+        §script:events.Add('receipt')
+        if(§script:scenario -ceq 'receipt-failure'){throw [IO.IOException]::new('private-stop-publication')}
+        if(§Payload.activeProcesses -ne 0){throw 'FALSE_STOP_RECEIPT'}
+        if(§script:scenario -ceq 'receipt-late'){§script:DCampaignClock.ElapsedMilliseconds=30001L}
+        §script:receipts++; return 'OFFLINE_RECEIPT'
+      }
+      foreach(§scenario in @('normal','root-delayed','root-timeout','job-timeout','root-read','job-read','receipt-failure','dispose-two','terminate-failure','terminate-error','recheck-job','budget-expired','drain-timeout','terminate-late','attestation-late','drain-late','receipt-recheck-late','receipt-late','release-late','release-late-error','terminate-late-release-error')) {
+        §script:scenario=§scenario; §script:events=[Collections.Generic.List[string]]::new()
+        §script:DCampaignClock=[pscustomobject]@{ElapsedMilliseconds=0L}; §script:DTotalMilliseconds=30000L
+        §script:DFailures=[Collections.Generic.List[object]]::new(); §script:DPhase='integration'
+        §script:rootReads=0; §script:jobReads=0; §script:receipts=0; §script:terminateBudget=§null; §script:releaseBudget=§null;§script:releaseObservedAt=§null
+        if(§scenario -ceq 'budget-expired'){§script:DTotalMilliseconds=0L}
+        §p=[pscustomobject]@{Id=2000000000;CreationTimeUtcTicks=638000000000000000L;JobName='OFFLINE_JOB';Released=§false
+          StandardOutput=[IO.StringReader]::new('');StandardError=[IO.StringReader]::new('')}
+        §p | Add-Member ScriptProperty HasExited {
+          if(§this.Released){throw 'CLOSED_ROOT_READ'}
+          §script:rootReads++
+          if(§script:scenario -ceq 'root-read'){throw [IO.IOException]::new('private-root-read')}
+          if(§script:scenario -ceq 'root-timeout'){§script:DCampaignClock.ElapsedMilliseconds=30000L;return §false}
+          if(§script:scenario -ceq 'attestation-late' -or (§script:scenario -ceq 'receipt-recheck-late' -and §script:rootReads -gt 1)){§script:DCampaignClock.ElapsedMilliseconds=30001L;return §true}
+          if(§script:scenario -ceq 'root-delayed'){§script:DCampaignClock.ElapsedMilliseconds+=10L;return (§script:DCampaignClock.ElapsedMilliseconds -ge 50L)}
+          return §true
+        }
+        §p | Add-Member ScriptProperty ActiveProcessCount {
+          if(§this.Released){throw 'CLOSED_JOB_READ'}
+          §script:jobReads++
+          if(§script:scenario -ceq 'job-read'){throw [IO.IOException]::new('private-job-read')}
+          if(§script:scenario -ceq 'job-timeout'){§script:DCampaignClock.ElapsedMilliseconds=30000L;return 1}
+          if(§script:scenario -ceq 'recheck-job' -and §script:jobReads -gt 1){return 1}
+          return 0
+        }
+        §p | Add-Member ScriptMethod TerminateTreeAndWait {
+          param(§Budget)
+          §script:events.Add('terminate'); §script:terminateBudget=§Budget
+          §script:DCampaignClock.ElapsedMilliseconds+=§(if(§script:scenario -ceq 'drain-timeout'){1L}elseif(§script:scenario -cin @('terminate-late','terminate-late-release-error')){30001L}else{20L})
+          if(§script:scenario -ceq 'terminate-error'){throw [IO.IOException]::new('private-terminate')}
+          return (§script:scenario -cne 'terminate-failure')
+        }
+        §p | Add-Member ScriptMethod DisposeD {
+          param(§Budget)
+          if(§this.Released){throw 'DOUBLE_RELEASE'}
+          §script:events.Add('release'); §script:releaseBudget=§Budget;§script:releaseObservedAt=§script:DCampaignClock.ElapsedMilliseconds; §this.Released=§true
+          if(§script:scenario -cin @('release-late','release-late-error')){§script:DCampaignClock.ElapsedMilliseconds+=§Budget+1L}
+          §this.StandardOutput.Dispose(); §this.StandardError.Dispose()
+          if(§script:scenario -cin @('release-late-error','terminate-late-release-error')){return @('stop-stdout-close')}
+          if(§script:scenario -ceq 'dispose-two'){return @('stop-stdout-close','stop-process-close')}
+          if(§script:scenario -ceq 'root-timeout'){return @('stop-root-release-wait')}
+          return @()
+        }
+        §child=New-M1DDrain §p 'BACKEND' 'private-forbidden-literal'
+        §child.OutEnded=§true; §child.ErrEnded=§true
+        if(§scenario -ceq 'drain-timeout'){
+          §child.OutEnded=§false;§script:DCampaignClock.ElapsedMilliseconds=29980L
+          §pending=[pscustomobject]@{}
+          §pending | Add-Member ScriptProperty IsCompleted {§script:DCampaignClock.ElapsedMilliseconds=30000L;return §false}
+          §child.OutTask=§pending
+        }
+        if(§scenario -ceq 'drain-late'){
+          §child.OutEnded=§false;§awaiter=[pscustomobject]@{}
+          §awaiter | Add-Member ScriptMethod GetResult {§script:DCampaignClock.ElapsedMilliseconds=30001L;return 0}
+          §completed=[pscustomobject]@{IsCompleted=§true;Awaiter=§awaiter}
+          §completed | Add-Member ScriptMethod GetAwaiter {return §this.Awaiter}
+          §child.OutTask=§completed
+        }
+        §script:DChildren=@{BACKEND=§child}
+        §first='NONE'; try { Stop-M1DChild BACKEND -Forced -Finalizing } catch { §first=Get-M1BStopCode §_;[void](Add-M1DFailure §_) }
+        §success=§scenario -cin @('normal','root-delayed')
+        if(§p.Released -ne §true -or §null -ne §child.ForbiddenLiteral -or @((§script:events) | Where-Object {§_ -ceq 'release'}).Count -ne 1){throw 'RELEASE_OR_SECRET_FINALIZATION_SKIPPED'}
+        §expectedBudget=if(§scenario -ceq 'budget-expired'){0}else{[Math]::Max(0L,30000L-§script:releaseObservedAt)}
+        if(§script:releaseBudget -ne §expectedBudget -or (§scenario -cne 'budget-expired' -and §script:terminateBudget -ne §(if(§scenario -ceq 'drain-timeout'){20}else{30000}))){throw 'STOP_BUDGET_RENEWED'}
+        if(§success){
+          if(§first -cne 'NONE' -or §script:DChildren.Count -ne 0 -or §script:receipts -ne 1 -or -not §child.StopReceiptWritten -or (§script:events -join ',') -cne 'terminate,receipt,release' -or §script:DFailures.Count -ne 0){throw 'VALID_STOP_REJECTED'}
+          if(§scenario -ceq 'root-delayed' -and (§script:rootReads -lt 4 -or §script:releaseBudget -ge 29950)){throw 'ROOT_WAS_NOT_WAITED_WITHIN_ORIGINAL_BUDGET'}
+        } else {
+          if(§first -ceq 'NONE' -or -not §script:DChildren.ContainsKey('BACKEND') -or -not §child.StopAttempted -or §null -eq §child.StopFailure){throw 'FAILED_STOP_NOT_SEALED'}
+          §expectedReceipts=if(§scenario -cin @('dispose-two','receipt-late','release-late','release-late-error')){1}else{0}
+          if(§script:receipts -ne §expectedReceipts -or §child.StopReceiptWritten -ne [bool]§expectedReceipts){throw 'UNATTESTED_STOP_PUBLISHED'}
+          §diag=Get-M1DDiagnostics
+          §expectedOperation=switch(§scenario){'root-timeout'{'stop-root-wait'};'job-timeout'{'stop-job-wait'};'root-read'{'stop-root-read'};'job-read'{'stop-job-read'};'receipt-failure'{'stop-receipt'};'dispose-two'{'stop-stdout-close'};'recheck-job'{'stop-job-wait'};'drain-timeout'{'stop-drain'};'attestation-late'{'stop-attestation'};'drain-late'{'stop-drain'};'receipt-recheck-late'{'stop-receipt'};'receipt-late'{'stop-receipt'};'release-late'{'stop-release'};'release-late-error'{'stop-stdout-close'};default{'stop-terminate'}}
+          if(§diag.primary.operation -cne §expectedOperation -or §diag.primary.childRole -cne 'BACKEND'){throw ('STOP_PREDICATE_OR_ROLE_LOST_'+§scenario)}
+          §expectedSecondary=if(§scenario -cin @('dispose-two','root-timeout','release-late-error','terminate-late-release-error')){1}else{0}
+          if(§diag.secondary.Count -ne §expectedSecondary){throw 'STOP_SECONDARY_COUNT_CHANGED'}
+          if(§scenario -ceq 'dispose-two' -and §diag.secondary[0].operation -cne 'stop-process-close'){throw 'INDEPENDENT_CLOSE_FAILURE_LOST'}
+          if(§scenario -cin @('terminate-late','attestation-late','drain-late','receipt-recheck-late','receipt-late','release-late','release-late-error','terminate-late-release-error')){
+            if(§null -eq §child.StopBudgetFailure -or @((@((Get-M1DDiagnostics).primary)+@((Get-M1DDiagnostics).secondary)) | Where-Object {§_.control -ceq 'D_TERMINATION_BUDGET_EXHAUSTED'}).Count -ne 1){throw 'LATE_SUCCESS_OR_DUPLICATED_BUDGET_ACCEPTED'}
+            if(§scenario -cin @('terminate-late','terminate-late-release-error') -and (§script:rootReads -ne 0 -or §script:jobReads -ne 0)){throw 'LATE_TERMINATION_BECAME_ATTESTATION'}
+            if(§scenario -ceq 'release-late-error' -and §diag.secondary[0].operation -cne 'stop-release'){throw 'LATE_RELEASE_FIRST_ERROR_LOST'}
+            if(§scenario -ceq 'terminate-late-release-error' -and §diag.secondary[0].operation -cne 'stop-stdout-close'){throw 'RELEASE_ERROR_AFTER_BUDGET_LOST'}
+          }
+          §eventsBefore=§script:events.Count; §readsBefore=§script:rootReads+§script:jobReads; §failuresBefore=§script:DFailures.Count; §deadlineBefore=§child.StopDeadline
+          §second='NONE'; try{Stop-M1DChild BACKEND -Forced -Finalizing}catch{§second=Get-M1BStopCode §_;[void](Add-M1DFailure §_)}
+          if(§second -cne §first -or §script:events.Count -ne §eventsBefore -or §script:rootReads+§script:jobReads -ne §readsBefore -or §script:DFailures.Count -ne §failuresBefore -or §child.StopDeadline -ne §deadlineBefore){throw 'REENTRY_RETRIED_OR_DUPLICATED_FINALIZATION'}
+          if((ConvertTo-Json (Get-M1DDiagnostics) -Depth 5 -Compress).Contains('private-')){throw 'RAW_STOP_DETAIL_EXPOSED'}
+        }
+      }
+      'M1D_STOP_SINGLE_DEADLINE_SEALED_FAILURES=PASS'
+      """.trimIndent()
+    )
+    assertThat(output).contains("M1D_STOP_SINGLE_DEADLINE_SEALED_FAILURES=PASS")
+    assertThat(output).doesNotContain("private-")
+  }
+  @Test
+  @Tag("windows-only")
+  fun postgresDNativeReleaseAttemptsEveryOwnedStreamWithZeroRemainingBudget() {
+    val source = postgresRailScriptSource()
+    val dedicated = source.sliceBetween("public string[] DisposeD", "public void Dispose()")
+    assertThat(dedicated).contains("timeoutMilliseconds - timer.ElapsedMilliseconds", "WaitForSingleObject(currentProcess, (uint)remaining)")
+    assertThat(dedicated).doesNotContain("WaitForSingleObject(currentProcess, 30000)", "INFINITE")
+    assertThat(source.sliceBetween("public void Dispose()", "static void Validate(")).contains("WaitForSingleObject(currentProcess, 30000)")
+    val output = runRailPowerShell(
+      """
+      Initialize-M1BContainedProcessType
+      Add-Type -TypeDefinition @'
+      using System;
+      using System.IO;
+      using System.Collections.Generic;
+      public static class DReleaseFixture { public static List<string> Calls = new List<string>(); }
+      public sealed class DReleaseReader : StreamReader {
+        readonly string stage; readonly bool fail;
+        public DReleaseReader(string stage, bool fail) : base(new MemoryStream()) { this.stage=stage; this.fail=fail; }
+        protected override void Dispose(bool disposing) {
+          DReleaseFixture.Calls.Add(stage); base.Dispose(disposing);
+          if(fail) throw new IOException("private-release-reader");
+        }
+      }
+      public sealed class DReleaseWriter : StreamWriter {
+        readonly bool fail;
+        public DReleaseWriter(bool fail) : base(new MemoryStream()) { this.fail=fail; }
+        protected override void Dispose(bool disposing) {
+          DReleaseFixture.Calls.Add("stdin"); base.Dispose(disposing);
+          if(fail) throw new IOException("private-release-writer");
+        }
+      }
+'@
+      §ctor=[Ritomer.M1B.ContainedProcess].GetConstructors([Reflection.BindingFlags]'Instance,NonPublic')[0]
+      foreach(§scenario in @('none','stdout','stderr','stdin','all')){
+        [DReleaseFixture]::Calls.Clear()
+        §out=[DReleaseReader]::new('stdout',§scenario -cin @('stdout','all'))
+        §err=[DReleaseReader]::new('stderr',§scenario -cin @('stderr','all'))
+        §inputWriter=[DReleaseWriter]::new(§scenario -cin @('stdin','all'))
+        # Zero handles: only fixture-owned in-memory streams are substituted.
+        # The real DisposeD implementation executes, never an OS process lookup.
+        §p=§ctor.Invoke([object[]]@([IntPtr]::Zero,[IntPtr]::Zero,[uint32]1,§out,§err))
+        [void][Ritomer.M1B.ContainedProcess].GetProperty('StandardInput').GetSetMethod(§true).Invoke(§p,[object[]]@(§inputWriter))
+        §failures=@(§p.DisposeD(0))
+        §expected=switch(§scenario){'none'{''};'stdout'{'stop-stdout-close'};'stderr'{'stop-stderr-close'};'stdin'{'stop-stdin-close'};'all'{'stop-stdout-close,stop-stderr-close,stop-stdin-close'}}
+        if(([DReleaseFixture]::Calls -join ',') -cne 'stdout,stderr,stdin' -or (§failures -join ',') -cne §expected){throw 'NATIVE_RELEASE_SKIPPED_OR_LEAKED_DETAIL'}
+        if((@(§p.DisposeD(0)) -join ',') -cne 'stop-release' -or [DReleaseFixture]::Calls.Count -ne 3){throw 'NATIVE_RELEASE_REENTERED'}
+        §p.Dispose()
+        if([DReleaseFixture]::Calls.Count -ne 3){throw 'LEGACY_DISPOSE_REOPENED_RELEASED_RESOURCES'}
+      }
+      'M1D_NATIVE_RELEASE_INDEPENDENT_ZERO_BUDGET=PASS'
+      """.trimIndent()
+    )
+    assertThat(output).contains("M1D_NATIVE_RELEASE_INDEPENDENT_ZERO_BUDGET=PASS")
+    assertThat(output).doesNotContain("private-")
+  }
+  @ParameterizedTest
+  @ValueSource(strings = ["normal", "cascade", "secondary", "late", "stream-error", "finalization-error"])
+  @Tag("windows-only")
+  fun postgresDNativeDrainFinalizesEachOwnedJobDespiteInvalidPeer(scenario: String) {
+    val output = runRailPowerShell(
+      """
+      §scenario = '__SCENARIO__'
+      Initialize-M1BContainedProcessType
+      §fixtureBase = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
+      §fixtureRoot = Join-Path §fixtureBase ('m1d-drain-' + [Guid]::NewGuid().ToString('N'))
+      [void][IO.Directory]::CreateDirectory(§fixtureRoot)
+      §RunId = [Guid]::NewGuid().ToString('N')
+      §Mode = 'Lifecycle'; §LifecycleAction = 'Run'
+      §ReviewedObjectSha256 = '0' * 64
+      §SensitiveAuthorizationRecordId = 'AUTH-OFFLINE-DRAIN-FIXTURE'
+      §script:DRunRoot = §fixtureRoot
+      §script:DChildren = @{}
+      §script:DFinishSent = §false; §script:DBackendStopSent = §false
+      §script:DRuntimeSha256 = '1' * 64
+      §Mode = 'Lifecycle'; §LifecycleAction = 'Run'; Start-M1DClock 'Lifecycle'
+      §script:DTotalMilliseconds = 45000L
+      §script:DPhaseDeadline = 45000L
+      §script:DPhase = 'integration'; §script:DOperation = 'child-drain'
+      §owned = [Collections.Generic.List[object]]::new()
+      §beforeResume = [Collections.Generic.List[bool]]::new()
+      §launchObservations = [Collections.Generic.List[object]]::new()
+      §pumpCount = 0; §firstPumpMs = §null
+      function Start-FixtureChild([string]§role, [string]§code) {
+        §launchStartedMs = §script:DCampaignClock.ElapsedMilliseconds
+        §info = [Diagnostics.ProcessStartInfo]::new()
+        §info.FileName = Join-Path §env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+        §info.Arguments = '-NoLogo -NoProfile -NonInteractive -EncodedCommand ' + [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes(§code))
+        §info.WorkingDirectory = §fixtureRoot
+        §info.UseShellExecute = §false; §info.CreateNoWindow = §true
+        §info.RedirectStandardInput = §true; §info.RedirectStandardOutput = §true; §info.RedirectStandardError = §true
+        §info.EnvironmentVariables.Clear()
+        §info.EnvironmentVariables['SystemRoot'] = §env:SystemRoot
+        §info.EnvironmentVariables['WINDIR'] = §env:SystemRoot
+        §info.EnvironmentVariables['TEMP'] = §fixtureRoot; §info.EnvironmentVariables['TMP'] = §fixtureRoot
+        §process = Start-M1DContainedChild §info §role §null
+        §owned.Add(§process)
+        §confined = Read-M1DReceipt ('launch-lifecycle-' + §role + '-confined')
+        §beforeResume.Add((§confined.payload.confinedBeforeResume -and §confined.payload.processId -eq §process.Id -and [string]§confined.payload.creationTimeUtcTicks -ceq [string]§process.CreationTimeUtcTicks))
+        Set-M1DDiagnosticOperation 'child-drain'
+        §script:DChildren[§role] = New-M1DDrain §process §role §null
+        §launchObservations.Add([ordered]@{ role=§role; startedMs=§launchStartedMs; drainRegisteredMs=§script:DCampaignClock.ElapsedMilliseconds })
+        return §process
+      }
+      §stopCodes = [Collections.Generic.List[string]]::new()
+      §firstCode = 'NONE'; §liveSecond = §false; §normalStreams = §false
+      §secondRootExited = §null; §secondJobCount = §null
+      §jobZero = §false; §receipts = 0; §remaining = -1; §diagnostics = §null
+      §cessation = §false; §stdoutChars = 0; §stderrChars = 0; §lateReceived = §false
+      §dependentReached = §false
+      §exerciseStartedMs = §null; §exerciseDeadline = §null
+      §firstObservedMs = §null; §secondaryObservedMs = §null
+      try {
+        if (§scenario -in @('cascade','secondary')) {
+          §exerciseGate = Join-Path §fixtureRoot 'exercise-gate'
+          §bad = Start-FixtureChild 'HARNESS' "[IO.File]::WriteAllText('§fixtureRoot\harness-entered','1'); while (-not [IO.File]::Exists('§exerciseGate')) { [Threading.Thread]::Sleep(10) }; [Console]::Error.WriteLine('M1D_INVALID_FIXTURE'); [IO.File]::WriteAllText('§fixtureRoot\harness-signal-written','1'); [Threading.Thread]::Sleep(20000)"
+          §gate = Join-Path §fixtureRoot 'secondary-gate'
+          §goodCode = if (§scenario -eq 'secondary') { "[Console]::Out.WriteLine('M1D_BACKEND_READY §RunId'); while (-not [IO.File]::Exists('§gate')) { [Threading.Thread]::Sleep(10) }; [Console]::Error.WriteLine('M1D_INVALID_SECONDARY'); [Threading.Thread]::Sleep(20000)" } else { "[Console]::Out.WriteLine('M1D_BACKEND_READY §RunId'); [Threading.Thread]::Sleep(20000)" }
+          §goodCode = "[IO.File]::WriteAllText('§fixtureRoot\backend-entered','1'); while (-not [IO.File]::Exists('§exerciseGate')) { [Threading.Thread]::Sleep(10) }; " + §goodCode
+          §good = Start-FixtureChild 'BACKEND' §goodCode
+          while (-not ([IO.File]::Exists((Join-Path §fixtureRoot 'harness-entered')) -and [IO.File]::Exists((Join-Path §fixtureRoot 'backend-entered')))) {
+            Assert-M1DDeadline
+            if (§bad.HasExited -or §good.HasExited) { throw 'FIXTURE_CHILD_EXITED_BEFORE_RELEASE' }
+            [Threading.Thread]::Sleep(5)
+          }
+          Assert-M1DDeadline
+          if (§bad.HasExited -or §good.HasExited -or §bad.ActiveProcessCount -le 0 -or §good.ActiveProcessCount -le 0 -or §script:DChildren.Count -ne 2 -or §beforeResume.Count -ne 2 -or @(§beforeResume | Where-Object { -not §_ }).Count -ne 0) { throw 'FIXTURE_PREPARATION_NOT_PROVEN' }
+          if ([IO.File]::Exists((Join-Path §fixtureRoot 'harness-signal-written'))) { throw 'FIXTURE_SIGNAL_BEFORE_RELEASE' }
+          # Ten seconds measure real error production/observation after both children
+          # are prepared, not their startup. Preparation and finalization still share
+          # the original 45-second clock and helper watchdog; neither is restarted.
+          §exerciseStartedMs = §script:DCampaignClock.ElapsedMilliseconds
+          §exerciseDeadline = [Math]::Min(§exerciseStartedMs + 10000L, 45000L)
+          [IO.File]::WriteAllText(§exerciseGate, 'fixture-release')
+          while (§firstCode -eq 'NONE' -and §script:DCampaignClock.ElapsedMilliseconds -lt §exerciseDeadline) {
+            if (§pumpCount -eq 0) { §firstPumpMs = §script:DCampaignClock.ElapsedMilliseconds }; §pumpCount++
+            try { Update-M1DChildren } catch { §firstCode = Get-M1BStopCode §_; [void](Add-M1DFailure §_); §firstObservedMs = §script:DCampaignClock.ElapsedMilliseconds }
+            [Threading.Thread]::Sleep(5)
+          }
+          if (§firstCode -eq 'NONE' -or §firstObservedMs -ge §exerciseDeadline) { throw 'FIXTURE_INVALID_OUTPUT_NOT_OBSERVED' }
+          §secondRootExited = §good.HasExited; §secondJobCount = §good.ActiveProcessCount
+          §liveSecond = -not §secondRootExited -and §secondJobCount -gt 0
+          if (§scenario -eq 'secondary') {
+            [IO.File]::WriteAllText(§gate, 'fixture-release')
+            while (-not §script:DChildren['BACKEND'].ErrTask.IsCompleted -and §script:DCampaignClock.ElapsedMilliseconds -lt §exerciseDeadline) { [Threading.Thread]::Sleep(5) }
+            if (-not §script:DChildren['BACKEND'].ErrTask.IsCompleted) { throw 'SECONDARY_PIPE_NOT_READY' }
+            Update-M1DDrain §script:DChildren['BACKEND'] -Finalizing
+            §secondaryObservedMs = §script:DCampaignClock.ElapsedMilliseconds
+            if (-not §script:DChildren['BACKEND'].Failures.ContainsKey('D_CONTROL_MESSAGE_WRONG_CHANNEL') -or §secondaryObservedMs -ge §exerciseDeadline) { throw 'FIXTURE_SECONDARY_ERROR_NOT_OBSERVED' }
+          }
+          foreach (§role in @('BACKEND','HARNESS')) {
+            try { Set-M1DDiagnosticOperation 'forced-stop'; Stop-M1DChild §role -Forced -Finalizing }
+            catch { §stopCodes.Add((Get-M1BStopCode §_)); [void](Add-M1DFailure §_) }
+          }
+        } else {
+          §code = if (§scenario -eq 'finalization-error') { "[Console]::Error.WriteLine('M1D_BAD_FINALIZATION')" } elseif (§scenario -eq 'late') { "[Console]::Out.WriteLine('ordinary'); [Threading.Thread]::Sleep(500); [Console]::Error.WriteLine('late');" } else { "[Console]::Out.WriteLine(('o'*70000)); [Console]::Error.WriteLine(('e'*70000));" }
+          §good = Start-FixtureChild 'VITE' §code
+          §drain = §script:DChildren['VITE']
+          if (§scenario -eq 'stream-error') {
+            # Fault the real pipe read by closing its actual native StreamReader.
+            §good.StandardOutput.Dispose()
+          }
+          while (-not §good.HasExited -and §script:DCampaignClock.ElapsedMilliseconds -lt 10000) {
+            if (§scenario -ne 'finalization-error') {
+              try { Update-M1DChildren } catch { if (§firstCode -eq 'NONE') { §firstCode=Get-M1BStopCode §_ }; [void](Add-M1DFailure §_); break }
+            }
+            [Threading.Thread]::Sleep(5)
+          }
+          try { Set-M1DDiagnosticOperation 'forced-stop'; Stop-M1DChild 'VITE' -Forced -Finalizing:(§scenario -eq 'stream-error'); §dependentReached=§true }
+          catch { §stopCodes.Add((Get-M1BStopCode §_)); [void](Add-M1DFailure §_) }
+          §normalStreams = §drain.OutEnded -and §drain.ErrEnded
+          §stdoutChars = §drain.Stdout.Length; §stderrChars = §drain.Stderr.Length
+          §lateReceived = §drain.Stderr.ToString().Contains('late')
+        }
+        §remaining = §script:DChildren.Count
+        §receipts = @(Get-ChildItem -LiteralPath §fixtureRoot -Filter '*-stopped.json' -File).Count
+        §jobZero = @(§owned | Where-Object { [Ritomer.M1B.ContainedProcess]::QueryDJob(§_.JobName) -gt 0 }).Count -eq 0
+        Assert-M1DRecordedCessation
+        §cessation = §true
+        §diagnostics = Get-M1DDiagnostics
+      } finally {
+        if (§scenario -in @('cascade','secondary')) {
+          §drainStates = @(foreach (§role in @('HARNESS','BACKEND')) {
+            if (§script:DChildren.ContainsKey(§role)) {
+              §observedDrain = §script:DChildren[§role]
+              [ordered]@{ role=§role; rootExited=§observedDrain.Process.HasExited; errTaskCompleted=§observedDrain.ErrTask.IsCompleted; errChars=§observedDrain.Stderr.Length }
+            }
+          })
+          'T1_DRAIN_OBSERVATION=' + ([ordered]@{ scenario=§scenario; elapsedMs=§script:DCampaignClock.ElapsedMilliseconds; launches=@(§launchObservations.ToArray()); exerciseStartedMs=§exerciseStartedMs; exerciseDeadlineMs=§exerciseDeadline; firstObservedMs=§firstObservedMs; secondaryObservedMs=§secondaryObservedMs; pumpCount=§pumpCount; firstPumpMs=§firstPumpMs; signalProduced=[IO.File]::Exists((Join-Path §fixtureRoot 'harness-signal-written')); harnessEntered=[IO.File]::Exists((Join-Path §fixtureRoot 'harness-entered')); firstCode=§firstCode; drains=§drainStates } | ConvertTo-Json -Depth 5 -Compress)
+        }
+        # Only handles created above; no PID lookup, adoption, existing run or DB.
+        foreach (§process in §owned) { §process.Dispose() }
+        'T1_DRAIN_DISPOSED=' + ([ordered]@{ scenario=§scenario; ownedJobs=@(§owned | ForEach-Object { [Ritomer.M1B.ContainedProcess]::QueryDJob(§_.JobName) }) } | ConvertTo-Json -Compress)
+        if (-not §fixtureRoot.StartsWith(§fixtureBase, [StringComparison]::OrdinalIgnoreCase) -or -not ([IO.Path]::GetFileName(§fixtureRoot)).StartsWith('m1d-drain-')) { throw 'FIXTURE_PATH_INVALID' }
+        [IO.Directory]::Delete(§fixtureRoot, §true)
+      }
+      [ordered]@{ scenario=§scenario; powershellVersion=§PSVersionTable.PSVersion.ToString(); firstCode=§firstCode; secondWasAlive=§liveSecond; secondRootExited=§secondRootExited; secondJobCount=§secondJobCount; stopCodes=@(§stopCodes.ToArray()); dependentReached=§dependentReached; stopReceipts=§receipts; remainingChildren=§remaining; normalStreamsEnded=§normalStreams; stdoutChars=§stdoutChars; stderrChars=§stderrChars; lateReceived=§lateReceived; jobsEmptyOrGone=§jobZero; recordedCessation=§cessation; confinementBeforeResume=(@(§beforeResume | Where-Object { -not §_ }).Count -eq 0 -and §beforeResume.Count -eq §owned.Count); diagnostics=§diagnostics; elapsedMilliseconds=§script:DCampaignClock.ElapsedMilliseconds; noOperationalRun=§true } | ConvertTo-Json -Depth 7 -Compress
+
+      if (§PSVersionTable.PSVersion.Major -ne 5 -or §PSVersionTable.PSVersion.Minor -ne 1) { throw 'NATIVE_PS51_REQUIRED' }
+      if (-not §jobZero -or -not §cessation -or §remaining -ne 0 -or §script:DCampaignClock.ElapsedMilliseconds -ge 45000) { throw 'INDEPENDENT_FINALIZATION_FAILED' }
+      if (@(§beforeResume | Where-Object { -not §_ }).Count -ne 0 -or §beforeResume.Count -ne §owned.Count) { throw 'NATIVE_CONFINEMENT_NOT_PROVEN' }
+      §expectedReceipts = if (§scenario -in @('cascade','secondary')) { 2 } else { 1 }
+      if (§receipts -ne §expectedReceipts) { throw 'NATIVE_STOP_RECEIPTS_MISSING' }
+      if (§scenario -eq 'finalization-error') {
+        if (§dependentReached -or §stopCodes.Count -ne 1 -or §stopCodes[0] -cne 'D_CHILD_FINALIZATION_FAILED' -or §diagnostics.primary.childRole -cne 'VITE' -or §diagnostics.primary.control -cne 'D_CONTROL_MESSAGE_WRONG_CHANNEL') { throw 'FINALIZATION_FAILURE_DID_NOT_STOP_DEPENDENTS' }
+      } elseif (§stopCodes.Count -ne 0) { throw 'INDEPENDENT_STOP_FAILED' }
+      if (§scenario -in @('normal','late')) {
+        if (§firstCode -cne 'NONE' -or §null -ne §diagnostics.primary -or -not §normalStreams) { throw 'NORMAL_STREAMS_INCOMPLETE' }
+        if (§scenario -eq 'normal' -and (§stdoutChars -lt 70000 -or §stderrChars -lt 70000)) { throw 'NATIVE_BYTES_NOT_DRAINED' }
+        if (§scenario -eq 'late' -and -not §lateReceived) { throw 'LATE_NATIVE_BYTES_LOST' }
+      } else {
+        if (§null -eq §diagnostics.primary -or §script:DFailures.Count -eq 0) { throw 'SCENARIO_FAILURE_ERASED' }
+        if (§scenario -eq 'stream-error') {
+          if (§normalStreams -or §diagnostics.primary.childRole -cne 'VITE' -or §diagnostics.primary.control -cne 'D_CHILD_STDOUT_READ_FAILED') { throw 'STREAM_ERROR_MASQUERADED_AS_EOF' }
+        } elseif (§scenario -ne 'finalization-error') {
+          if (-not §liveSecond -or §diagnostics.primary.childRole -cne 'HARNESS' -or §diagnostics.primary.control -cne 'D_CONTROL_MESSAGE_WRONG_CHANNEL') { throw 'FIRST_CHILD_FAILURE_LOST' }
+          if (§scenario -eq 'secondary' -and (§diagnostics.secondary.Count -ne 1 -or §diagnostics.secondary[0].childRole -cne 'BACKEND' -or §diagnostics.secondary[0].control -cne 'D_CONTROL_MESSAGE_WRONG_CHANNEL')) { throw 'INDEPENDENT_SECONDARY_FAILURE_LOST' }
+        }
+      }
+      'M1D_NATIVE_DRAIN_FINALIZATION=PASS'
+
+      """.trimIndent().replace("__SCENARIO__", scenario)
+    )
+    assertThat(output).contains("M1D_NATIVE_DRAIN_FINALIZATION=PASS")
+    output.lineSequence().filter { it.startsWith("T1_DRAIN_") }.forEach(::println)
+    output.lineSequence().filter { it.startsWith("{\"scenario\":") }.forEach(::println)
+  }
+
+  @Test
+  @Tag("windows-only")
+  fun postgresDNativeConfinementPrecedesExecutionAndDrainsConcurrentStreams() {
+    val output = runRailPowerShell(
+      """
+      Initialize-M1BContainedProcessType
+      §tempBase = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
+      §root = Join-Path §tempBase ('m1d-native-' + [Guid]::NewGuid().ToString('N'))
+      [void][IO.Directory]::CreateDirectory(§root)
+      §receipt = Join-Path §root 'before-resume.txt'
+      §startedFile = Join-Path §root 'child-started.txt'
+      §childCode = "if (-not [IO.File]::Exists('§receipt')) { exit 7 }; [IO.File]::WriteAllText('§startedFile','started'); [Console]::Out.WriteLine(('x'*70000)); [Console]::Error.WriteLine(('e'*70000)); [Console]::Out.WriteLine([Console]::In.ReadLine())"
+      §psi = [Diagnostics.ProcessStartInfo]::new()
+      §psi.FileName = (Join-Path §env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe')
+      §psi.Arguments = '-NoLogo -NoProfile -NonInteractive -EncodedCommand ' + [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes(§childCode))
+      §psi.WorkingDirectory = §root; §psi.UseShellExecute = §false; §psi.CreateNoWindow = §true
+      §psi.RedirectStandardInput = §true; §psi.RedirectStandardOutput = §true; §psi.RedirectStandardError = §true
+      §callback = {
+        param([int]§childId,[long]§ticks,[string]§jobName)
+        if ([IO.File]::Exists(§startedFile) -or §ticks -le 0 -or [Ritomer.M1B.ContainedProcess]::QueryDJob(§jobName) -ne 1) { throw 'CONFINEMENT_NOT_BEFORE_EXECUTION' }
+        [IO.File]::WriteAllText(§receipt, 'confined')
+      }
+      §child = §null
+      try {
+        §nativeRunId = [Guid]::NewGuid().ToString('N')
+        §child = [Ritomer.M1B.ContainedProcess]::StartD(§psi, §nativeRunId, 'BACKEND', [Action[int,long,string]]§callback)
+        §captured = Read-M1BBoundedProcessStreams -Process §child -LimitChars 200000 -TimeoutMilliseconds 10000 -StandardInputText "fixture-finish`n"
+        if (§child.ExitCode -ne 0 -or §captured.Stdout.Length -lt 70000 -or §captured.Stderr.Length -lt 70000 -or -not §captured.Stdout.Contains('fixture-finish')) { throw 'CONCURRENT_DRAIN_OR_STDIN_FAILED' }
+        if (-not §child.TerminateTreeAndWait(3000) -or §child.ActiveProcessCount -ne 0) { throw 'D_CHILD_TREE_NOT_EMPTY' }
+        §child.Dispose(); §child = §null
+        # ADMIN_PSQL uses the same native wrapper with non-interactive flags.
+        # This controlled executable only checks presence, never prints a value.
+        # Keep the child reference literal: the parent must not expand it.
+        §adminCode='if ([string]::IsNullOrEmpty(§env:PGPASSWORD)) { exit 9 }; [Console]::Out.WriteLine([Console]::In.ReadLine())'
+        §psi.Arguments='-NoLogo -NoProfile -NonInteractive -EncodedCommand '+[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes(§adminCode))
+        §psi.EnvironmentVariables['PGPASSWORD']='synthetic-native-admin-only'
+        §psi.CreateNoWindow = §true
+        §child = [Ritomer.M1B.ContainedProcess]::StartD(§psi, [Guid]::NewGuid().ToString('N'), 'ADMIN_PSQL_PREFLIGHT', [Action[int,long,string]]{ param(§id,§ticks,§name) })
+        §psi.EnvironmentVariables.Remove('PGPASSWORD')
+        §captured = Read-M1BBoundedProcessStreams -Process §child -LimitChars 200000 -TimeoutMilliseconds 10000 -StandardInputText "synthetic-admin-input`n"
+        if (§child.ExitCode -ne 0 -or -not §captured.Stdout.Contains('synthetic-admin-input') -or §captured.Stdout.Contains('synthetic-native-admin-only') -or §captured.Stderr.Contains('synthetic-native-admin-only') -or [Environment]::GetEnvironmentVariables().Contains('PGPASSWORD')) { throw 'ADMIN_NATIVE_STDIN_FAILED' }
+        if (-not §child.TerminateTreeAndWait(3000)) { throw 'ADMIN_TREE_NOT_EMPTY' }
+      } finally {
+        if (§null -ne §child) { §child.Dispose() }
+        if (-not §root.StartsWith(§tempBase, [StringComparison]::OrdinalIgnoreCase) -or -not ([IO.Path]::GetFileName(§root)).StartsWith('m1d-native-')) { throw 'FIXTURE_ROOT_INVALID' }
+        [IO.Directory]::Delete(§root, §true)
+      }
+      'M1D_NATIVE_CONFINEMENT_DRAIN_ADMIN_FIXTURE=PASS'
+      """.trimIndent()
+    )
+    assertThat(output).contains("M1D_NATIVE_CONFINEMENT_DRAIN_ADMIN_FIXTURE=PASS")
+  }
+
+  @Test
+  @Tag("windows-only")
+  fun postgresDParentDeathRequiresReceiptsAndSameBootLogonNamespace() {
+    val output = runRailPowerShell(
+      """
+      Initialize-M1BContainedProcessType
+      §tempBase = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
+      §root = Join-Path §tempBase ('m1d-parent-' + [Guid]::NewGuid().ToString('N'))
+      [void][IO.Directory]::CreateDirectory(§root)
+      §RunId = [Guid]::NewGuid().ToString('N')
+      §script:DRunRoot = §root
+      §powershell = Join-Path §env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+      §grandFile = Join-Path §root 'grandchild.ps1'
+      §childFile = Join-Path §root 'child.ps1'
+      §parentFile = Join-Path §root 'parent.ps1'
+      §grandIdFile = Join-Path §root 'grandchild-id.txt'
+      [IO.File]::WriteAllText(§grandFile, ('[IO.File]::WriteAllText(''__ROOT__\grand-entered'',''1''); while (§true) { [Threading.Thread]::Sleep(100) }').Replace('__ROOT__', §root))
+      §childSource = @'
+      [IO.File]::WriteAllText('__ROOT__\child-entered',[string][Diagnostics.Stopwatch]::GetTimestamp())
+      §psi = [Diagnostics.ProcessStartInfo]::new()
+      §psi.FileName = '__POWERSHELL__'
+      §psi.Arguments = '-NoLogo -NoProfile -NonInteractive -File "__GRAND__"'
+      §psi.UseShellExecute = §false; §psi.CreateNoWindow = §true
+      §grandStage = 'START'; §failureCategory = 'UNEXPECTED_FAILURE'
+      try {
+        [IO.File]::WriteAllText('__ROOT__\grand-start-entered',[string][Diagnostics.Stopwatch]::GetTimestamp())
+        §grand = [Diagnostics.Process]::Start(§psi)
+        [IO.File]::WriteAllText('__ROOT__\grand-start-returned',[string][Diagnostics.Stopwatch]::GetTimestamp())
+        if (§null -eq §grand) { §failureCategory = 'NULL_RETURN'; throw 'FIXTURE_GRAND_NULL_RETURN' }
+        §grandStage = 'ID'
+        §grandId = §grand.Id
+        [IO.File]::WriteAllText('__ROOT__\grand-id-obtained',[string][Diagnostics.Stopwatch]::GetTimestamp())
+        §grandStage = 'PUBLICATION'
+        [IO.File]::WriteAllText('__ROOT__\grand-id-publish-entered',[string][Diagnostics.Stopwatch]::GetTimestamp())
+        [IO.File]::WriteAllText('__GRAND_ID__', [string]§grandId)
+        [IO.File]::WriteAllText('__ROOT__\grand-id-published',[string][Diagnostics.Stopwatch]::GetTimestamp())
+      } catch {
+        §cause = §_.Exception.GetBaseException()
+        if (§cause -is [UnauthorizedAccessException]) { §failureCategory = 'ACCESS_DENIED' }
+        elseif (§cause -is [IO.IOException]) { §failureCategory = 'IO_FAILURE' }
+        elseif (§cause -is [ArgumentException]) { §failureCategory = 'INVALID_ARGUMENT' }
+        elseif (§cause -is [ComponentModel.Win32Exception]) { §failureCategory = 'NATIVE_START_FAILURE' }
+        elseif (§cause -is [InvalidOperationException]) { §failureCategory = 'INVALID_OPERATION' }
+        [IO.File]::WriteAllText('__ROOT__\grand-failure', ([string][Diagnostics.Stopwatch]::GetTimestamp() + '|' + §grandStage + '|' + §failureCategory))
+        exit 23
+      }
+      while (§true) { [Threading.Thread]::Sleep(100) }
+      '@
+      §childSource = §childSource.Replace('__ROOT__', §root).Replace('__POWERSHELL__', §powershell).Replace('__GRAND__', §grandFile).Replace('__GRAND_ID__', §grandIdFile)
+      [IO.File]::WriteAllText(§childFile, §childSource)
+      §parentSource = @'
+      [IO.File]::WriteAllText('__ROOT__\parent-entered',[string][Diagnostics.Stopwatch]::GetTimestamp())
+      §fixtureBootstrapStage = 'EXTRACT'; §fixtureFailureCategory = 'UNEXPECTED_FAILURE'
+      try {
+        [IO.File]::WriteAllText('__ROOT__\extract-entered',[string][Diagnostics.Stopwatch]::GetTimestamp())
+        §extractedPath=[IO.Path]::ChangeExtension(§PSCommandPath,'.functions.ps1')
+        [IO.File]::WriteAllBytes(§extractedPath,[Convert]::FromBase64String('__EXTRACTED_FUNCTIONS__'))
+        [IO.File]::WriteAllText('__ROOT__\functions-extracted',[string][Diagnostics.Stopwatch]::GetTimestamp())
+        §fixtureBootstrapStage = 'MODULES'
+        Set-StrictMode -Version Latest
+        §ErrorActionPreference = 'Stop'
+        §ProgressPreference = 'SilentlyContinue'
+        # The synthetic parent inherits the fixture's minimal environment. Load only its two
+        # system dependencies explicitly: implicit discovery exhausted the hosted startup window.
+        foreach (§fixtureModule in @('Microsoft.PowerShell.Management','Microsoft.PowerShell.Utility')) {
+          §fixtureManifest = [IO.Path]::Combine(§PSHOME, ('Modules\' + §fixtureModule + '\' + §fixtureModule + '.psd1'))
+          if (-not [IO.File]::Exists(§fixtureManifest)) { throw 'FIXTURE_MODULE_MANIFEST_UNOBSERVABLE' }
+          §null = Import-Module -Name §fixtureManifest -ErrorAction Stop
+        }
+        §fixtureBootstrapStage = 'IMPORT'
+        [IO.File]::WriteAllText('__ROOT__\import-entered',[string][Diagnostics.Stopwatch]::GetTimestamp())
+        . §extractedPath -Campaign D -Mode Lifecycle -RunId '__RUN__' -ReviewedObjectSha256 '__HASH__' -ExpectedPsqlSha256 '__HASH__' -RunRoot '__ROOT__' -SensitiveAuthorizationRecordId AUTH-OFFLINE-FIXTURE -PreflightAuthorizationRecordId AUTH-OFFLINE-PREFLIGHT
+        [IO.File]::WriteAllText('__ROOT__\functions-loaded',[string][Diagnostics.Stopwatch]::GetTimestamp())
+      } catch {
+        §fixtureCause = §_.Exception.GetBaseException()
+        if (§fixtureCause -is [UnauthorizedAccessException]) { §fixtureFailureCategory = 'ACCESS_DENIED' }
+        elseif (§fixtureCause -is [IO.IOException]) { §fixtureFailureCategory = 'IO_FAILURE' }
+        elseif (§_.CategoryInfo.Reason -ceq 'CommandNotFoundException') { §fixtureFailureCategory = 'COMMAND_NOT_FOUND' }
+        elseif (§fixtureCause.Message -ceq 'FIXTURE_MODULE_MANIFEST_UNOBSERVABLE') { §fixtureFailureCategory = 'MODULE_MANIFEST_UNOBSERVABLE' }
+        [IO.File]::WriteAllText('__ROOT__\parent-bootstrap-failure', (§fixtureBootstrapStage + '|' + §fixtureFailureCategory))
+        exit 23
+      }
+      §script:DRunRoot = '__ROOT__'
+      §Mode = 'Lifecycle'; §LifecycleAction = 'Run'; Start-M1DClock Lifecycle
+      Enter-M1DPhase backend
+      [IO.File]::WriteAllText('__ROOT__\phase-admitted','1')
+      §psi = [Diagnostics.ProcessStartInfo]::new()
+      §psi.FileName = '__POWERSHELL__'
+      §psi.Arguments = '-NoLogo -NoProfile -NonInteractive -File "__CHILD__"'
+      §psi.WorkingDirectory = '__ROOT__'; §psi.UseShellExecute = §false; §psi.CreateNoWindow = §true
+      §psi.RedirectStandardInput = §true; §psi.RedirectStandardOutput = §true; §psi.RedirectStandardError = §true
+      §child = Start-M1DContainedChild §psi BACKEND
+      [IO.File]::WriteAllText('__ROOT__\child-launched','1')
+      while (§true) { [Threading.Thread]::Sleep(100) }
+      '@
+      §parentSource = §parentSource.Replace('__EXTRACTED_FUNCTIONS__', [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(§offlineRailSource))).Replace('__RUN__', §RunId).Replace('__HASH__', §ReviewedObjectSha256).Replace('__ROOT__', §root).Replace('__POWERSHELL__', §powershell).Replace('__CHILD__', §childFile)
+      [IO.File]::WriteAllText(§parentFile, §parentSource)
+      §parent = §null
+      §clock = [Diagnostics.Stopwatch]::StartNew()
+      §startObservation = §null
+      try {
+        §psi = [Diagnostics.ProcessStartInfo]::new(); §psi.FileName = §powershell
+        §psi.Arguments = '-NoLogo -NoProfile -NonInteractive -File "' + §parentFile + '"'
+        §psi.WorkingDirectory = §root; §psi.UseShellExecute = §false; §psi.CreateNoWindow = §true
+        §psi.RedirectStandardOutput = §true; §psi.RedirectStandardError = §true
+        §parent = [Ritomer.M1B.ContainedProcess]::Start(§psi)
+        §clock = [Diagnostics.Stopwatch]::StartNew()
+        §observationOrigin = [Diagnostics.Stopwatch]::GetTimestamp()
+        while (-not [IO.File]::Exists(§grandIdFile) -and -not §parent.HasExited -and §clock.ElapsedMilliseconds -lt 10000) { [Threading.Thread]::Sleep(25) }
+        §waitEndTicks = [Diagnostics.Stopwatch]::GetTimestamp()
+        §observedAtMs = §clock.ElapsedMilliseconds
+        §grandFilePresentAtWaitEnd = [IO.File]::Exists(§grandIdFile)
+        function Get-FixtureRelativeTick {
+          param([long]§Ticks)
+          if (§Ticks -lt §observationOrigin) { return 'PRE_ORIGIN' }
+          §milliseconds = [Math]::Floor((§Ticks - §observationOrigin) * 1000.0 / [Diagnostics.Stopwatch]::Frequency)
+          if (§milliseconds -gt 45000) { return 'OUT_OF_RANGE' }
+          return ([long]§milliseconds).ToString([Globalization.CultureInfo]::InvariantCulture)
+        }
+        §parentTiming = @(foreach (§stage in @('parent-entered','extract-entered','functions-extracted','import-entered','functions-loaded')) {
+          §stagePath = Join-Path §root §stage
+          if (-not [IO.File]::Exists(§stagePath)) { 'MISSING'; continue }
+          §stageTicks = 0L
+          if (-not [long]::TryParse([IO.File]::ReadAllText(§stagePath), [ref]§stageTicks) -or §stageTicks -le 0) { 'INVALID'; continue }
+          Get-FixtureRelativeTick §stageTicks
+        })
+        "`nM1D_PARENT_TIMING entry=" + §parentTiming[0] + ' extractEnter=' + §parentTiming[1] + ' extractReturn=' + §parentTiming[2] + ' importEnter=' + §parentTiming[3] + ' importReturn=' + §parentTiming[4] + ' wait=' + (Get-FixtureRelativeTick §waitEndTicks)
+        §bootstrapFailurePath = Join-Path §root 'parent-bootstrap-failure'
+        if ([IO.File]::Exists(§bootstrapFailurePath)) {
+          §bootstrapFailure = [IO.File]::ReadAllText(§bootstrapFailurePath)
+          if (§bootstrapFailure -cmatch '^(EXTRACT|MODULES|IMPORT)\|(UNEXPECTED_FAILURE|ACCESS_DENIED|IO_FAILURE|COMMAND_NOT_FOUND|MODULE_MANIFEST_UNOBSERVABLE)\z') {
+            'M1D_PARENT_BOOTSTRAP stage=' + §Matches[1] + ' category=' + §Matches[2]
+          } else { 'M1D_PARENT_BOOTSTRAP stage=INVALID category=INVALID' }
+        }
+        §grandTrace = @(foreach (§stage in @('child-entered','grand-start-entered','grand-start-returned','grand-id-obtained','grand-id-publish-entered','grand-id-published')) {
+          §stagePath = Join-Path §root §stage
+          if ([IO.File]::Exists(§stagePath)) {
+            §stageTicks = 0L
+            §complete = [long]::TryParse([IO.File]::ReadAllText(§stagePath), [ref]§stageTicks)
+            [ordered]@{ stage=§stage; complete=§complete; elapsedMs=§(if (§complete) { [Math]::Round((§stageTicks - §observationOrigin) * 1000.0 / [Diagnostics.Stopwatch]::Frequency, 3) } else { §null }) }
+          }
+        })
+        §grandFailure = §null
+        if ([IO.File]::Exists((Join-Path §root 'grand-failure'))) {
+          §parts = [IO.File]::ReadAllText((Join-Path §root 'grand-failure')).Split('|')
+          if (§parts.Count -eq 3 -and §parts[1] -cin @('START','ID','PUBLICATION') -and §parts[2] -cin @('UNEXPECTED_FAILURE','NULL_RETURN','ACCESS_DENIED','IO_FAILURE','INVALID_ARGUMENT','NATIVE_START_FAILURE','INVALID_OPERATION')) {
+            §grandFailure = [ordered]@{ stage=§parts[1]; category=§parts[2] }
+          } else { §grandFailure = [ordered]@{ stage='UNKNOWN'; category='INCOMPLETE_TRACE' } }
+        }
+        §publication = 'ABSENT'; §observedGrandId = 0
+        if ([IO.File]::Exists(§grandIdFile)) {
+          try { §publication = if ([int]::TryParse([IO.File]::ReadAllText(§grandIdFile), [ref]§observedGrandId) -and §observedGrandId -gt 0) { 'READABLE_ID' } else { 'INCOMPLETE' } }
+          catch { §publication = 'READ_FAILED' }
+        }
+        §startObservation = [ordered]@{ elapsedMs=§observedAtMs; grandFilePresentAtWaitEnd=§grandFilePresentAtWaitEnd; observationCompletedMs=§clock.ElapsedMilliseconds; parentExited=§parent.HasExited; parentExitCode=§(if (§parent.HasExited) { §parent.ExitCode } else { §null }); grandTrace=§grandTrace; grandFailure=§grandFailure; publication=§publication; present=@(@('parent-entered','functions-extracted','functions-loaded','phase-admitted','d-launch-lifecycle-BACKEND-intent.json','d-launch-lifecycle-BACKEND-confined.json','child-launched','child-entered','grandchild-id.txt','grand-entered') | Where-Object { [IO.File]::Exists((Join-Path §root §_)) }) }
+        # Observation must not admit a publication arriving after the wait ended.
+        if (-not §grandFilePresentAtWaitEnd) {
+          if (-not §parent.HasExited) { throw 'SYNTHETIC_PARENT_START_TIMEOUT' }
+          throw 'SYNTHETIC_PARENT_START_FAILED'
+        }
+        §code = 'NONE'; try { Assert-M1DRecordedCessation } catch { §code = Get-M1BStopCode §_ }
+        if (§code -cne 'D_RECORDED_ROOT_STILL_ALIVE') { throw ('LIVE_ROOT_ACCEPTED:' + §code) }
+        §jobName = 'Local\Ritomer.M1D.' + §RunId + '.BACKEND'
+        if ([Ritomer.M1B.ContainedProcess]::QueryDJob(§jobName) -lt 2) { throw 'DESCENDANT_NOT_CONFINED' }
+        §parentIdentity = [Diagnostics.Process]::GetProcessById(§parent.Id)
+        try { §parentIdentity.Kill(); if (-not §parentIdentity.WaitForExit(5000)) { throw 'SYNTHETIC_PARENT_NOT_TERMINATED' } }
+        finally { §parentIdentity.Dispose() }
+        §clock.Restart()
+        while ([Ritomer.M1B.ContainedProcess]::QueryDJob(§jobName) -gt 0 -and §clock.ElapsedMilliseconds -lt 5000) { [Threading.Thread]::Sleep(10) }
+        Assert-M1DRecordedCessation
+        if ([Ritomer.M1B.ContainedProcess]::QueryDJob(§jobName) -ne -1) { throw 'EXPECTED_JOB_ABSENCE_NOT_OBSERVED' }
+        # Model an independently surviving descendant while the recorded root is
+        # absent. Root disappearance alone must never authorize destruction.
+        function Get-M1DRecordedJobCount { param(§JobName) return 1 }
+        §code = 'NONE'; try { Assert-M1DRecordedCessation } catch { §code = Get-M1BStopCode §_ }
+        if (§code -cne 'D_RECORDED_DESCENDANT_STILL_ALIVE') { throw 'SURVIVING_DESCENDANT_ACCEPTED' }
+        function Get-M1DRecordedJobCount { param(§JobName) return [Ritomer.M1B.ContainedProcess]::QueryDJob(§JobName) }
+        §confined = Read-M1DReceipt 'launch-lifecycle-BACKEND-confined'
+        §actualNamespace = Get-M1DNamespaceIdentity
+        function Get-M1DNamespaceIdentity { 'ffffffffffffffffffffffffffffffff:ffffffffffffffff:999' }
+        §code = 'NONE'; try { Assert-M1DRecordedCessation } catch { §code = Get-M1BStopCode §_ }
+        if (§code -cne 'D_RECEIPT_BINDING_INVALID') { throw 'CHANGED_BOOT_LOGON_ACCEPTED' }
+        Remove-Item Function:Get-M1DNamespaceIdentity
+        function Get-M1DNamespaceIdentity { return [Ritomer.M1B.ContainedProcess]::DNamespaceIdentity() }
+        §intentPath = Join-Path §root 'd-launch-lifecycle-BACKEND-intent.json'
+        [IO.File]::Move(§intentPath, (§intentPath + '.fixture-hidden'))
+        §code = 'NONE'; try { Assert-M1DRecordedCessation } catch { §code = Get-M1BStopCode §_ }
+        if (§code -cne 'D_LAUNCH_RECEIPT_ORPHAN') { throw 'ORPHAN_CONFINEMENT_ACCEPTED' }
+      } finally {
+        if (§null -eq §startObservation) { 'M1D_PARENT_OBSERVATION_ABSENT' }
+        else {
+          foreach (§stage in @('parent-entered','functions-extracted','functions-loaded','phase-admitted','d-launch-lifecycle-BACKEND-intent.json','d-launch-lifecycle-BACKEND-confined.json','child-launched','child-entered','grandchild-id.txt','grand-entered')) {
+            if (§startObservation.present -ccontains §stage) { 'M1D_PARENT_PRESENT_' + §stage }
+          }
+          if (§startObservation.parentExited) { 'M1D_PARENT_EXITED_AT_OBSERVATION' }
+          if (§startObservation.elapsedMs -ge 10000) { 'M1D_PARENT_START_WINDOW_EXPIRED' }
+          if (§startObservation.publication -ceq 'READABLE_ID') { 'M1D_PARENT_PUBLICATION_READABLE' }
+        }
+        'T1_PARENT_OBSERVATION=' + (§startObservation | ConvertTo-Json -Depth 4 -Compress)
+        if (§null -ne §parent) {
+          try {
+            §fixtureStopped = §parent.TerminateTreeAndWait(5000)
+            # Observe only after the outcome and process termination are fixed.
+            # Never drain a blocked writer into a late startup success.
+            if (§null -ne §startObservation -and -not §startObservation.grandFilePresentAtWaitEnd) {
+              foreach (§streamName in @('StandardOutput','StandardError')) {
+                §sampleState = 'STOP_UNCONFIRMED'; §sampleSize = 0; §sampleText = ''
+                try {
+                  if (§fixtureStopped) {
+                    §sampleBytes = [byte[]]::new(8192); §sampleClock = [Diagnostics.Stopwatch]::StartNew()
+                    §sampleTask = §parent.§streamName.BaseStream.ReadAsync(§sampleBytes, 0, §sampleBytes.Length)
+                    §sampleState = 'PENDING'
+                    while (§sampleClock.ElapsedMilliseconds -lt 200) {
+                      if (-not §sampleTask.IsCompleted) { [Threading.Thread]::Sleep(1); continue }
+                      §read = §sampleTask.GetAwaiter().GetResult()
+                      if (§read -eq 0) { §sampleState = if (§sampleSize -eq 0) { 'EOF_EMPTY' } else { 'EOF_NONEMPTY' }; break }
+                      §sampleSize += §read
+                      if (§sampleSize -eq §sampleBytes.Length) { §sampleState = 'LIMIT_REACHED'; break }
+                      §sampleTask = §parent.§streamName.BaseStream.ReadAsync(§sampleBytes, §sampleSize, §sampleBytes.Length - §sampleSize)
+                    }
+                    §sampleText = [Text.Encoding]::UTF8.GetString(§sampleBytes, 0, §sampleSize)
+                  }
+                } catch { §sampleState = 'READ_FAULT' }
+                §streamLabel = if (§streamName -ceq 'StandardError') { 'STDERR' } else { 'STDOUT' }
+                'M1D_PARENT_STREAM stream=' + §streamLabel + ' state=' + §sampleState + ' sampled=' + §sampleSize + ' clixml=' + [int]§sampleText.Contains('#< CLIXML') + ' progress=' + [int]§sampleText.Contains('S="progress"') + ' error=' + [int]§sampleText.Contains('S="Error"')
+              }
+            }
+          } finally { §parent.Dispose() }
+        }
+        'T1_PARENT_DISPOSED_JOB_COUNT=' + [Ritomer.M1B.ContainedProcess]::QueryDJob(('Local\Ritomer.M1D.' + §RunId + '.BACKEND'))
+        if (-not §root.StartsWith(§tempBase, [StringComparison]::OrdinalIgnoreCase) -or -not ([IO.Path]::GetFileName(§root)).StartsWith('m1d-parent-')) { throw 'FIXTURE_ROOT_INVALID' }
+        [IO.Directory]::Delete(§root, §true)
+      }
+      'M1D_PARENT_DEATH_JOB_ABSENCE_NAMESPACE=PASS'
+      """.trimIndent()
+    )
+    assertThat(output).contains("M1D_PARENT_DEATH_JOB_ABSENCE_NAMESPACE=PASS")
+    output.lineSequence().filter { it.startsWith("T1_PARENT_") }.forEach(::println)
+  }
+
+  @Test
+  @Tag("windows-only")
+  fun postgresDFrontendCacheJunctionIsRejectedBeforeExcludedCacheIsRead() {
+    val output = runRailPowerShell(
+      """
+      §tempBase = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
+      §root = Join-Path §tempBase ('m1d-cache-' + [Guid]::NewGuid().ToString('N'))
+      §modules = Join-Path §root 'frontend\node_modules'
+      §externalCache = Join-Path §root 'synthetic-external-cache'
+      §cacheLink = Join-Path §modules '.vite'
+      [void][IO.Directory]::CreateDirectory(§modules)
+      [void][IO.Directory]::CreateDirectory(§externalCache)
+      §sentinel = Join-Path §externalCache 'sentinel.txt'
+      [IO.File]::WriteAllText(§sentinel, 'SYNTHETIC_CACHE_MUST_NOT_BE_TOUCHED')
+      §script:RepoRoot = §root
+      §Mode = 'Preflight'; §LifecycleAction = 'Run'; Start-M1DClock Preflight
+      try {
+        [void](New-Item -ItemType Junction -Path §cacheLink -Target §externalCache)
+        §code = 'NONE'; try { Get-M1DFrontendRuntimeSha256 } catch { §code = Get-M1BStopCode §_ }
+        if (§code -cne 'D_VITE_CACHE_LINK_REJECTED') { throw ('CACHE_LINK_NOT_REFUSED:' + §code) }
+        if ([IO.File]::ReadAllText(§sentinel) -cne 'SYNTHETIC_CACHE_MUST_NOT_BE_TOUCHED') { throw 'CACHE_TARGET_WAS_CHANGED' }
+      } finally {
+        if (-not §root.StartsWith(§tempBase, [StringComparison]::OrdinalIgnoreCase) -or -not ([IO.Path]::GetFileName(§root)).StartsWith('m1d-cache-')) { throw 'FIXTURE_ROOT_INVALID' }
+        if ([IO.Directory]::Exists(§cacheLink)) { [IO.Directory]::Delete(§cacheLink, §false) }
+        [IO.Directory]::Delete(§root, §true)
+      }
+      'M1D_CACHE_JUNCTION_REFUSED_WITHOUT_TARGET_EFFECT=PASS'
+      """.trimIndent()
+    )
+    assertThat(output).contains("M1D_CACHE_JUNCTION_REFUSED_WITHOUT_TARGET_EFFECT=PASS")
+  }
+
+  @Test
   fun postgresReviewedDiffAndGitBaselineAreRecomputedWithoutInheritedGitState() {
     val script = postgresRailScriptSource()
     val gitInvoker = script.sliceBetween(
@@ -1727,7 +4300,15 @@ class DemoSeedLocalSourceGuardTest {
       "lifecycle-post-provision",
       "lifecycle-post-targeted",
       "lifecycle-post-full",
-      "lifecycle-post-cleanup"
+      "lifecycle-post-cleanup",
+      "d-lifecycle-initial",
+      "d-lifecycle-post-readiness",
+      "d-post-provision",
+      "d-post-targeted",
+      "d-post-full",
+      "d-terminal-state",
+      "d-cleanup-only-initial",
+      "d-cleanup-only-final"
     )
   }
 
@@ -1771,6 +4352,294 @@ class DemoSeedLocalSourceGuardTest {
     )
     assertThat(output).contains("M1B_MANIFEST_STRING_TYPE_FIXTURE=PASS")
   }
+
+  @Test
+  fun postgresDInitializerProjectsBeforeRefreshAndEffects() {
+    for (mode in listOf("seed", "backend")) {
+      val environment = canonicalDEnvironment(mode, mapOf(
+        "APPDATA" to "synthetic-appdata", "LOCALAPPDATA" to "synthetic-localappdata",
+        "USERNAME" to "ritomer-m1b-rail", "USERDOMAIN" to "LOCAL"
+      ))
+      environment.propertySources.addFirst(MapPropertySource("injected-low-priority", mapOf(
+        "spring.datasource.url" to "must-be-replaced",
+        "ritomer.security.jwt.hmac-secret" to "must-be-empty",
+        "ritomer.demo.seed.enabled" to "wrong"
+      )))
+      var guardCalls = 0
+      var effects = 0
+      GenericApplicationContext().use { context ->
+        context.environment = environment
+        context.addBeanFactoryPostProcessor { effects++ }
+        PostgresTestRailDBootstrap.initializer(mode) { guarded ->
+          guardCalls++
+          assertThat(guarded.isActive).isFalse()
+          assertThat(effects).isZero()
+          assertThat(guarded.environment.getProperty(DATASOURCE_URL)).isEqualTo(EXPECTED_JDBC_URL)
+          assertThat(guarded.environment.getProperty("spring.datasource.hikari.maximum-pool-size")).isEqualTo("2")
+          assertThat(guarded.environment.getProperty("spring.datasource.hikari.minimum-idle")).isEqualTo("0")
+          assertThat(guarded.environment.getProperty("ritomer.security.jwt.hmac-secret")).isEmpty()
+          assertThat(guarded.environment.getProperty("ritomer.security.session.enabled")).isEqualTo("true")
+          assertThat(guarded.environment.getProperty("ritomer.demo.seed.enabled")).isEqualTo((mode == "seed").toString())
+          assertThat(java.util.logging.Logger.getLogger("org.postgresql").isLoggable(java.util.logging.Level.SEVERE)).isFalse()
+        }.initialize(context)
+        assertThat(guardCalls).isEqualTo(1)
+        context.refresh()
+        assertThat(effects).isEqualTo(1)
+      }
+    }
+  }
+
+  @Test
+  fun postgresDBootstrapRefusesOverridesBeforeGuardOrRefresh() {
+    val rejected = listOf(
+      canonicalDEnvironment("seed", mapOf("RITOMER_DB_RAIL_CAMPAIGN" to "B")),
+      canonicalDEnvironment("seed", mapOf(DB_TEST_PHASE to "d-backend")),
+      canonicalDEnvironment("seed", mapOf("JAVA_TOOL_OPTIONS" to "synthetic")),
+      canonicalDEnvironment("seed", mapOf("SPRING_PROFILES_ACTIVE" to "local")),
+      canonicalDEnvironment("seed", mapOf("RITOMER_SECURITY_JWT_HMAC_SECRET" to "synthetic")),
+      canonicalDEnvironment("seed", systemOverrides = mapOf("spring.config.location" to "file:synthetic")),
+      canonicalDEnvironment("seed", systemOverrides = mapOf("server.port" to "8080")),
+      canonicalDEnvironment("seed", systemOverrides = mapOf("server.address" to "127.0.0.1")),
+      canonicalDEnvironment("seed").apply { setActiveProfiles("local", "test") }
+    )
+    rejected.forEach { environment ->
+      var calls = 0
+      GenericApplicationContext().use { context ->
+        context.environment = environment
+        assertThatThrownBy {
+          PostgresTestRailDBootstrap.initializer("seed") { calls++ }.initialize(context)
+        }.isInstanceOf(IllegalStateException::class.java)
+        assertThat(calls).isZero()
+        assertThat(context.isActive).isFalse()
+      }
+    }
+  }
+
+  @Test
+  fun postgresDBootstrapRealSpringRefreshWaitsForInitializerGuard() {
+    val events = mutableListOf<String>()
+    val initializer = PostgresTestRailDBootstrap.initializer("seed") { context ->
+      assertThat(context.isActive).isFalse()
+      events += "guard"
+      context.addBeanFactoryPostProcessor { events += "effect" }
+    }
+    org.springframework.boot.builder.SpringApplicationBuilder(DOfflineRefreshFixture::class.java)
+      .environment(canonicalDEnvironment("seed"))
+      .web(org.springframework.boot.WebApplicationType.NONE)
+      .initializers(initializer)
+      .logStartupInfo(false)
+      .run()
+      .use { context ->
+        assertThat(context.isActive).isTrue()
+        assertThat(context.getBean("dOfflineMarker")).isEqualTo("synthetic")
+        assertThat(events).containsExactly("guard", "effect")
+      }
+    events.clear()
+    val application = org.springframework.boot.builder.SpringApplicationBuilder(DOfflineRefreshFixture::class.java)
+      .environment(canonicalDEnvironment("seed"))
+      .web(org.springframework.boot.WebApplicationType.NONE)
+      .initializers(PostgresTestRailDBootstrap.initializer("seed") { context ->
+        context.addBeanFactoryPostProcessor { events += "forbidden-effect" }
+        error("Synthetic identity refusal.")
+      })
+      .logStartupInfo(false)
+    assertThatThrownBy { application.run().close() }.isInstanceOf(IllegalStateException::class.java)
+    assertThat(events).isEmpty()
+  }
+
+  @org.springframework.boot.test.context.TestConfiguration(proxyBeanMethods = false)
+  class DOfflineRefreshFixture {
+    @Bean fun dOfflineMarker(): String = "synthetic"
+  }
+
+  @Test
+  fun postgresDIntegratedResetsRefuseBeforeConnectionOrStorageResolution() {
+    listOf("seed", "backend").forEach { mode ->
+      val environment = canonicalDEnvironment(mode)
+      val fixture = jdbcFixture()
+      assertThatThrownBy {
+        DisposablePostgresTestDatabase.truncateAllCurrentTables(fixture.dataSource, environment)
+      }.isInstanceOf(IllegalStateException::class.java)
+      assertThatThrownBy {
+        DisposablePostgresTestDatabase.recreatePublicSchemaForFlyway(fixture.dataSource, environment)
+      }.isInstanceOf(IllegalStateException::class.java)
+      assertThatThrownBy {
+        DisposablePostgresTestDatabase.requireRunBoundLocalStorageLeaf(environment)
+      }.isInstanceOf(IllegalStateException::class.java)
+      assertThat(fixture.state.acquisitionCount).isZero()
+      assertThat(fixture.state.destructiveSql).isEmpty()
+    }
+  }
+
+  @Test
+  @Tag("windows-only")
+  fun postgresDCommonGuardAndFlywayUseTheProjectedIdentityBeforeEffects() {
+    listOf("seed", "backend").forEach { mode ->
+      val applicationName = "ritomer-m1-1d-$SYNTHETIC_RUN_ID-d-$mode"
+      val provenance = postgresTestRailProvenance(SYNTHETIC_RUN_ID, SYNTHETIC_REVIEWED_OBJECT_SHA256,
+        SYNTHETIC_CLUSTER_SYSTEM_IDENTIFIER, "D")
+      val fixture = jdbcFixture(JdbcOptions(applicationName = applicationName,
+        roleProvenance = provenance, databaseProvenance = provenance))
+      GenericApplicationContext().use { context ->
+        context.environment = canonicalDEnvironment(mode)
+        val guard = DisposablePostgresTestDatabaseGuardInitializer { _, properties ->
+          assertThat(context.isActive).isFalse()
+          assertThat(properties.getProperty("ApplicationName")).isEqualTo(applicationName)
+          fixture.dataSource.connection
+        }
+        PostgresTestRailDBootstrap.initializer(mode, guard).initialize(context)
+        assertThat(fixture.state.acquisitionCount).isEqualTo(1)
+        assertThat(fixture.state.queryCount).isEqualTo(4)
+        assertThat(fixture.state.executeCount).isZero()
+        val flyway = org.flywaydb.core.Flyway.configure().dataSource(fixture.dataSource).load()
+        DisposablePostgresTestDatabase.assertCanonicalDataSourceAndFlyway(fixture.dataSource, flyway, context.environment)
+        assertThat(fixture.state.acquisitionCount).isEqualTo(2)
+        val wrong = jdbcFixture()
+        assertThatThrownBy {
+          DisposablePostgresTestDatabase.assertCanonicalDataSourceAndFlyway(wrong.dataSource, flyway, context.environment)
+        }.isInstanceOf(IllegalStateException::class.java)
+        assertThat(wrong.state.acquisitionCount).isZero()
+      }
+      val divergent = jdbcFixture(JdbcOptions(applicationName = applicationName,
+        roleProvenance = "divergent", databaseProvenance = provenance))
+      GenericApplicationContext().use { context ->
+        context.environment = canonicalDEnvironment(mode)
+        assertThatThrownBy {
+          PostgresTestRailDBootstrap.initializer(mode,
+            DisposablePostgresTestDatabaseGuardInitializer { _, _ -> divergent.dataSource.connection }
+          ).initialize(context)
+        }.isInstanceOf(IllegalStateException::class.java)
+        assertThat(context.isActive).isFalse()
+        assertThat(divergent.state.executeCount).isZero()
+      }
+    }
+  }
+
+  @Test
+  fun postgresDCompiledRuntimeContainsOnlyMainAndClosedSupport() {
+    val mapper = com.fasterxml.jackson.module.kotlin.jacksonObjectMapper()
+    val manifest = mapper.readTree(Path.of("build/m1d-integrated-runtime.json").toFile())
+    assertThat(manifest["schemaVersion"].asInt()).isEqualTo(1)
+    val entries = manifest["classpathEntries"].map { Path.of(it.asText()) }
+    assertThat(entries).noneSatisfy { path ->
+      assertThat(path.toString().replace('\\', '/')).containsAnyOf(
+        "/classes/kotlin/test", "/resources/test", "junit", "mockito", "spring-test", "spring-boot-test"
+      )
+    }
+    val owners = setOf("PostgresTestRailDBootstrap", "PostgresTestRailJdbcLogging",
+      "DisposablePostgresTestDatabaseGuardInitializer", "DisposablePostgresTestDatabase",
+      "DisposablePostgresTestDatabaseSupportKt", "CanonicalRuntimeConfiguration", "StartupDiagnostics",
+      "StartupStage", "StartupCategory", "StartupControl", "GuardInvariantFailure", "DestructivePrimitive")
+    val classes = manifest["supportClasses"].map { it.asText() }
+    assertThat(classes.map { it.substringAfterLast('/').substringBefore('$').removeSuffix(".class") }.toSet())
+      .isEqualTo(owners)
+    classes.forEach { relative ->
+      val compiled = requireNotNull(javaClass.classLoader.getResourceAsStream(relative)).use { it.readAllBytes() }
+      assertThat(Files.readAllBytes(entries.last().resolve(relative))).isEqualTo(compiled)
+    }
+    java.net.URLClassLoader(entries.map { it.toUri().toURL() }.toTypedArray(), ClassLoader.getPlatformClassLoader()).use { loader ->
+      classes.forEach { relative ->
+        val type = Class.forName(relative.removeSuffix(".class").replace('/', '.'), false, loader)
+        type.declaredMethods // resolve referenced types with no test runtime available
+      }
+      assertThatThrownBy { loader.loadClass("org.junit.jupiter.api.Test") }.isInstanceOf(ClassNotFoundException::class.java)
+      assertThatThrownBy { loader.loadClass(javaClass.name) }.isInstanceOf(ClassNotFoundException::class.java)
+    }
+    val binding = Path.of("build/m1d-integrated-binding.json").readText()
+    var equivalentOtherRun = Path.of("build/m1d-integrated-runtime.json").readText()
+    manifest["runtimeInputs"].sortedByDescending { it["path"].asText().length }.forEachIndexed { index, input ->
+      val encodedRoot = mapper.writeValueAsString(input["path"].asText()).removeSurrounding("\"")
+      assertThat(binding).doesNotContain(encodedRoot)
+      val otherRoot = "synthetic-readiness-root-$index"
+      equivalentOtherRun = equivalentOtherRun.replace(encodedRoot, otherRoot)
+        .replace(otherRoot, "<${input["label"].asText()}>")
+    }
+    val windows = System.getProperty("os.name").startsWith("Windows", ignoreCase = true)
+    val expectedLauncher = if (windows) "<integrated-launcher-jdk>" else "<integrated-launcher-executable>"
+    val excludedLauncher = if (windows) "<integrated-launcher-executable>" else "<integrated-launcher-jdk>"
+    assertThat(binding).contains("<integrated-classpath/", expectedLauncher).doesNotContain(excludedLauncher)
+    assertThat(binding).isEqualTo(equivalentOtherRun)
+  }
+
+  @Test
+  @Tag("windows-only")
+  fun postgresDJavaArgumentFileRunsASyntheticMainBeyondWindowsCommandLimit(
+    @org.junit.jupiter.api.io.TempDir temporaryRoot: Path
+  ) {
+    val fixtureRoot = Files.createDirectory(temporaryRoot.resolve("argument file fixture"))
+    val classes = Files.createDirectory(fixtureRoot.resolve("compiled classes"))
+    val argumentRoot = Files.createDirectory(fixtureRoot.resolve("argument root"))
+    val source = fixtureRoot.resolve("M1DArgumentFixture.java")
+    Files.writeString(source, """
+      public class M1DArgumentFixture {
+        public static void main(String[] args) {
+          if (args.length != 1 || !args[0].equals("seed")) throw new IllegalArgumentException("synthetic arguments");
+          System.out.println("M1D_ARGUMENT_FILE_SYNTHETIC_OK");
+        }
+      }
+    """.trimIndent())
+    val compileOutput = java.io.ByteArrayOutputStream()
+    val compiler = requireNotNull(javax.tools.ToolProvider.getSystemJavaCompiler())
+    assertThat(compiler.run(null, compileOutput, compileOutput, "-d", classes.toString(), source.toString()))
+      .describedAs("synthetic JVM fixture compilation: %s", compileOutput.toString(StandardCharsets.UTF_8))
+      .isZero()
+    val classpath = listOf(classes.toString()) + (0..239).map {
+      fixtureRoot.resolve("missing ${"x".repeat(120)} $it").toString()
+    }
+    assertThat(classpath.joinToString(";").length).isGreaterThan(32767)
+    fun ps(value: String) = "'" + value.replace("'", "''") + "'"
+    val output = runRailPowerShell("""
+      foreach (${'$'}invalid in @("C:\synthetic`nnewline", 'C:\synthetic"quote')) {
+        ${'$'}rejected = ${'$'}false
+        try { [void](Write-M1DJavaArgumentFile ${ps(argumentRoot.toString())} ([pscustomobject]@{ classpathEntries = @(${'$'}invalid) })) }
+        catch { if ((Get-M1BStopCode ${'$'}_) -cne 'D_CLASSPATH_ENTRY_INVALID') { throw }; ${'$'}rejected = ${'$'}true }
+        if (-not ${'$'}rejected -or (Test-Path -LiteralPath ${ps(argumentRoot.resolve("java-arguments.txt").toString())})) { throw 'unsafe argument file input accepted' }
+      }
+      ${'$'}runtime = [pscustomobject]@{ classpathEntries = @(${classpath.joinToString(",", transform = ::ps)}) }
+      ${'$'}result = Write-M1DJavaArgumentFile ${ps(argumentRoot.toString())} ${'$'}runtime
+      if (${ '$' }result.Sha256 -cne (Get-M1BSha256File ${'$'}result.Path)) { throw 'argument file hash mismatch' }
+      if ((Get-Item -LiteralPath ${'$'}result.Path).Length -le 32767) { throw 'argument file fixture too short' }
+      Write-Output 'M1D_ARGUMENT_FILE_PREPARED_SYNTHETIC'
+    """.trimIndent())
+    assertThat(output).contains("M1D_ARGUMENT_FILE_PREPARED_SYNTHETIC")
+    val javaExecutable = Path.of(System.getProperty("java.home"), "bin", "java.exe").toRealPath()
+    val processBuilder = ProcessBuilder(javaExecutable.toString(),
+      "@${argumentRoot.resolve("java-arguments.txt")}", "M1DArgumentFixture", "seed")
+      .directory(fixtureRoot.toFile()).redirectErrorStream(true)
+    processBuilder.environment().apply {
+      clear()
+      put("SystemRoot", requireNotNull(System.getenv("SystemRoot")))
+      put("TEMP", temporaryRoot.toString())
+      put("TMP", temporaryRoot.toString())
+    }
+    val child = processBuilder.start()
+    val captured = java.util.concurrent.CompletableFuture.supplyAsync {
+      child.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+    }
+    try {
+      assertThat(child.waitFor(15, java.util.concurrent.TimeUnit.SECONDS)).isTrue()
+      val result = captured.get(5, java.util.concurrent.TimeUnit.SECONDS)
+      assertThat(child.exitValue()).describedAs("synthetic JVM argument file result: %s", result).isZero()
+      assertThat(result.trim()).isEqualTo("M1D_ARGUMENT_FILE_SYNTHETIC_OK")
+    } finally {
+      if (child.isAlive) {
+        child.destroyForcibly()
+        check(child.waitFor(5, java.util.concurrent.TimeUnit.SECONDS))
+      }
+    }
+  }
+
+  private fun canonicalDEnvironment(
+    mode: String,
+    overrides: Map<String, String?> = emptyMap(),
+    systemOverrides: Map<String, String> = emptyMap()
+  ): MockEnvironment =
+    canonicalEnvironment(mapOf(
+      "RITOMER_DB_RAIL_CAMPAIGN" to "D",
+      DB_TEST_PHASE to "d-$mode",
+      DB_TEST_APPLICATION_NAME to "ritomer-m1-1d-$SYNTHETIC_RUN_ID-d-$mode",
+      DB_TEST_STORAGE_LOCAL_ROOT to "$SYNTHETIC_RUN_ROOT\\volatile\\integrated\\local-fs"
+    ) + overrides, systemOverrides = systemOverrides).apply { setActiveProfiles("local") }
 
   @Test
   fun postgresAdminChannelsAreAbsentOutsideNativePsql() {
@@ -1861,17 +4730,17 @@ class DemoSeedLocalSourceGuardTest {
           """(?:password|secret|credential|username)[_-]?(?:admin(?:istrator)?|superuser|postgres)"""
       ).find(adminCredentialSurface)
     ).isNull()
-    assertThat(lifecycle).contains("internal object PostgresTestRailJdbcLogging")
+    assertThat(lifecycle).contains("internal object PostgresTestRailJdbcLogging", "internal object PostgresTestRailDBootstrap",
+      "DisposablePostgresTestDatabaseGuardInitializer()", "DisposablePostgresTestDatabase.assertCanonicalDataSourceAndFlyway(",
+      ".initializers(initializer(mode))", ".run()", "MapPropertySource(\"m1d-closed-runtime\"")
     assertThat(lifecycle).doesNotContain(
-      "fun main",
       "DriverManager",
       "java.sql",
       "CREATE ROLE",
       "DROP DATABASE",
-      "SCRAM-SHA-256",
-      "RITOMER_DB_RAIL_"
+      "SCRAM-SHA-256"
     )
-    assertThat(Regex("""\b(?:class|object|fun)\s+""").findAll(lifecycle).count()).isEqualTo(2)
+    assertThat(Regex("""\bfun main\(""").findAll(lifecycle).count()).isEqualTo(1)
     assertThat(
       Regex("""PostgresTestRailJdbcLogging\.disableAndVerifyForTest\(\)""")
         .findAll(runtimeGuard)
@@ -1891,7 +4760,7 @@ class DemoSeedLocalSourceGuardTest {
     assertThat(readiness).doesNotContain(constant)
     assertThat(readiness).contains(
       "requireClosedPostgresRailEnvironment(",
-      "setOf(DB_RAIL_BUILD_ROOT_ENV, DB_RAIL_RUN_ID_ENV, DB_RAIL_RUN_ROOT_ENV, DB_RAIL_REVIEWED_OBJECT_SHA256_ENV)"
+      "setOf(DB_RAIL_BUILD_ROOT_ENV, DB_RAIL_RUN_ID_ENV, DB_RAIL_RUN_ROOT_ENV, DB_RAIL_REVIEWED_OBJECT_SHA256_ENV, DB_RAIL_CAMPAIGN_ENV)"
     )
     val phases = build.sliceBetween("fun Test.configureM1BPostgresRailTest", "tasks.register<Test>(\"m1BPostgresRailTargeted\")")
     assertThat(phases).contains(
@@ -1903,11 +4772,19 @@ class DemoSeedLocalSourceGuardTest {
     assertThat(phases).contains("Regex(\"\\\\A[1-9][0-9]{0,18}\\\\z\")")
     val preflight = script.sliceBetween("function Invoke-M1BPreflight {", "function Invoke-M1BLifecycle {")
     assertThat(preflight).doesNotContain("PostmasterStartUnixMicros", "postmasterStartUnixMicros", DB_RAIL_POSTMASTER_START_UNIX_MICROS)
-    val lifecycle = script.sliceBetween("function Invoke-M1BLifecycle {", "function Invoke-M1BMain {")
+    val lifecycle = script.sliceBetween("function Invoke-M1BLifecycle {", "function Start-M1DClock {")
     assertThat(Regex(Regex.escape("\$provision.PostmasterStartUnixMicros")).findAll(lifecycle).count()).isEqualTo(3)
     assertThat(lifecycle).contains("postmasterStartUnixMicros = \$provision.PostmasterStartUnixMicros")
     val lifecycleCalls = lifecycle.lines().filter { it.contains("\$readiness.Result.RuntimeSha256 \$cluster \$databaseOid \$roleOid") }
     assertThat(lifecycleCalls).hasSize(2).allSatisfy { line ->
+      assertThat(line.trimEnd()).endsWith("\$provision.PostmasterStartUnixMicros")
+    }
+    val integrated = script.sliceBetween("function Start-M1DIntegratedChild {", "function Invoke-M1DIntegrated {")
+    assertThat(integrated).contains("RITOMER_DB_RAIL_POSTMASTER_START_UNIX_MICROS = \$Provision.PostmasterStartUnixMicros")
+    val dLifecycle = script.sliceBetween("function Invoke-M1DLifecycle {", "function Invoke-M1DCleanupOnly {")
+    assertThat(dLifecycle).contains("postmasterStartUnixMicros = \$provision.PostmasterStartUnixMicros")
+    val dCalls = dLifecycle.lines().filter { it.contains("Invoke-M1BTestPhase ") }
+    assertThat(dCalls).hasSize(2).allSatisfy { line ->
       assertThat(line.trimEnd()).endsWith("\$provision.PostmasterStartUnixMicros")
     }
     val mainParameters = script.substringBefore("$" + "script:PsqlExeExact")
@@ -1963,8 +4840,17 @@ class DemoSeedLocalSourceGuardTest {
       "gradle.taskGraph.whenReady",
       "tasks.register<Test>(\"offlineMappingEval042a2\")"
     )
+    assertThat(runnerTaskGraph).contains(
+      "(taskNames.contains(\"m1BPostgresRailReadiness\") || taskNames.any(runnerCredentialTasks::contains)) &&",
+      "System.getenv().keys.any { it.equals(DB_TEST_PASSWORD_ENV, ignoreCase = true) }",
+      "PostgreSQL runner credentials must never reach compilation or resource processing."
+    )
     val runbook = Path.of("../runbooks/local-dev.md").readText()
-    val spec = Path.of("../specs/active/046-authenticated-session-foundation-v1.md").readText()
+    val specPaths = listOf("active", "done").map {
+      Path.of("../specs/$it/046-authenticated-session-foundation-v1.md")
+    }.filter(Files::isRegularFile)
+    assertThat(specPaths).hasSize(1)
+    val spec = specPaths.single().readText()
     val correctiveFileSet = powershellLiteralArray(railScript, "CorrectiveFileSet")
     val expectedAddedFileSet = powershellLiteralArray(railScript, "ExpectedAddedFileSet")
     val compositeFileSet = powershellLiteralArray(railScript, "CompositeFileSet")
@@ -1996,8 +4882,8 @@ class DemoSeedLocalSourceGuardTest {
         "m1BPostgresRailDetachedTestClassesDirs" to 2,
         "m1BPostgresRailFull" to 3,
         "m1BPostgresRailFullClasses" to 3,
-        "m1BPostgresRailJavaLauncher" to 3,
-        "m1BPostgresRailReadiness" to 1,
+        "m1BPostgresRailJavaLauncher" to 6,
+        "m1BPostgresRailReadiness" to 2,
         "m1BPostgresRailRequiredCompiledClasses" to 2,
         "m1BPostgresRailRuntimeClasspathFiles" to 3,
         "m1BPostgresRailRuntimeInputs" to 4,
@@ -3619,7 +6505,436 @@ class DemoSeedLocalSourceGuardTest {
     "src/test/kotlin/ch/qamwaq/ritomer/testsupport/PostgresTestRailLifecycleCommand.kt"
   ).readText()
 
-  private fun runRailPowerShell(body: String): String {
+  @Test
+  fun postgresB1CleanupKeepsBodyFailureWhenRealLockDisposeFails() {
+    val output = runRailPowerShell(
+      """
+      §Campaign='D'; §Mode='Lifecycle'; §LifecycleAction='CleanupOnly'
+      §script:lockDisposed=§false
+      function Assert-M1BInvocation { [IO.Path]::GetFullPath([IO.Path]::GetTempPath()) }
+      function Enter-M1BRunLock {
+        param(§Root)
+        §stream=[pscustomobject]@{}
+        §stream | Add-Member ScriptMethod Dispose { §script:lockDisposed=§true; throw [IO.IOException]::new('private-lock-fault') }
+        [pscustomobject]@{Stream=§stream;Path=(Join-Path §Root 'synthetic-unused-lock')}
+      }
+      function Assert-M1BExecutionState { throw [FormatException]::new('private-body-fault') }
+      §failure=§null; §result=§null
+      try { §result=Invoke-M1DCleanupOnly } catch { §failure=§_ }
+      §bodyPreserved=§false
+      if (§null -ne §failure) { §e=§failure.Exception; while (§null -ne §e) { if (§e -is [FormatException]) { §bodyPreserved=§true }; §e=§e.InnerException } }
+      §diag=Get-M1DDiagnostics
+      'B1_LOCK '+(ConvertTo-Json ([pscustomobject]@{bodyPreserved=§bodyPreserved;lockDisposed=§script:lockDisposed;noResult=(§null -eq §result);diagnostics=§diag}) -Depth 8 -Compress)
+      if (-not §bodyPreserved -or -not §script:lockDisposed -or §null -ne §result -or §diag.primary.category -cne 'INVALID_VALUE' -or §diag.secondary.Count -ne 1 -or §diag.secondary[0].category -cne 'IO_FAILURE') { throw 'B1_BODY_ERROR_REPLACED_BY_LOCK' }
+      """.trimIndent()
+    )
+    println(output.trim())
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = ["Preflight", "Provision", "Cleanup"])
+  @Tag("windows-only")
+  fun postgresB1PsqlNonzeroPrecedesRealFinalizations(phase: String) {
+    val output = runRailPowerShell(
+      """
+      §Campaign='D'; §Mode='Lifecycle'; §LifecycleAction='Run'
+      §root=Join-Path ([IO.Path]::GetTempPath()) ('m1d-b1-psql-'+[Guid]::NewGuid().ToString('N'))
+      [void][IO.Directory]::CreateDirectory(§root); §script:DRunRoot=§root
+      §script:events=[Collections.Generic.List[string]]::new(); §script:exitReads=0
+      function Assert-M1BNoCredentialChannels { }
+      function Assert-M1BPsqlBinary { [pscustomobject]@{Path='C:\fixture\inert.exe';Sha256=('a'*64);FileVersion='fixture';ProductVersion='fixture'} }
+      function Get-M1DNamespaceIdentity { 'OFFLINE_B1' }
+      function Write-M1BCreateNewUtf8 { param(§Path,§Text) §script:events.Add('stopped'); throw [UnauthorizedAccessException]::new('private-stopped-fault') }
+      function Start-M1DContainedChild {
+        param(§StartInfo,§Role,§ArgumentFile,§ReceiptContext)
+        §p=[pscustomobject]@{Id=2000000000;CreationTimeUtcTicks='638000000000000000';JobName=('Local\Ritomer.M1D.'+§RunId+'.'+§Role);HasExited=§true;ActiveProcessCount=0;StandardOutput=[IO.StringReader]::new('synthetic-output');StandardError=[IO.StringReader]::new('');StandardInput=[IO.StringWriter]::new();StartInfo=§StartInfo}
+        §p | Add-Member ScriptProperty ExitCode { §script:exitReads++; return 7 }
+        §p | Add-Member ScriptMethod WaitForExit { }
+        §p | Add-Member ScriptMethod TerminateTreeAndWait { param(§Budget) §script:events.Add('terminate'); return §true }
+        §p | Add-Member ScriptMethod Dispose { §script:events.Add('dispose'); throw [IO.IOException]::new('private-dispose-fault') }
+        §script:fixtureProcess=§p; return §p
+      }
+      try {
+        Start-M1DClock Lifecycle
+        §code='NONE'; §result=§null
+        try { §result=Invoke-M1BDirectPsql -Phase '$phase' -SqlText 'SYNTHETIC NEVER EXECUTED' -NeutralRoot (Join-Path §root 'neutral') } catch { §code=Get-M1BStopCode §_; [void](Add-M1DFailure §_) }
+        §diag=Get-M1DDiagnostics
+        'B1_PSQL '+(ConvertTo-Json ([pscustomobject]@{phase='$phase';stop=§code;exitReads=§script:exitReads;events=@(§script:events);noResult=(§null -eq §result);diagnostics=§diag;environmentCleared=(§script:fixtureProcess.StartInfo.EnvironmentVariables.Count -eq 0)}) -Depth 8 -Compress)
+        §expected='PSQL_'+'$phase'.ToUpperInvariant()+'_EXIT_NONZERO'
+        if (§code -cne §expected -or §diag.primary.control -cne §expected -or §diag.secondary.Count -ne 2 -or §diag.secondary[0].category -cne 'ACCESS_DENIED' -or §diag.secondary[1].category -cne 'IO_FAILURE' -or §script:exitReads -ne 1 -or (§script:events -join ',') -cne 'terminate,stopped,dispose' -or §null -ne §result -or §script:fixtureProcess.StartInfo.EnvironmentVariables.Count -ne 0) { throw 'B1_PSQL_NONZERO_MASKED' }
+      } finally {
+        if (-not §root.StartsWith([IO.Path]::GetFullPath([IO.Path]::GetTempPath()),[StringComparison]::OrdinalIgnoreCase) -or -not ([IO.Path]::GetFileName(§root)).StartsWith('m1d-b1-psql-')) { throw 'FIXTURE_CLEANUP_BOUNDARY' }
+        [IO.Directory]::Delete(§root,§true)
+      }
+      """.trimIndent()
+    )
+    println(output.trim())
+  }
+
+  @Test
+  fun postgresRecoveryOriginSelectionIsFixedAndHasNoOperationalEffects() {
+    val output = runRailPowerShell(
+      """
+      # Pure selection only: the real root string is never opened or dispatched.
+      §Campaign='D'; §Mode='Lifecycle'; §LifecycleAction='CleanupOnly'
+      §RunId='5b6936c097c9472d85f697348cfd756a'
+      §RunRoot='C:\dev\ritomer-local-evidence\m1-1b-postgresql\5b6936c097c9472d85f697348cfd756a'
+      §origin=Get-M1DFixedRecoveryOrigin
+      if (§null -eq §origin -or §origin.runId -cne §RunId -or §origin.runRoot -cne §RunRoot -or
+          §origin.reviewedObjectSha256 -cne 'a26d18378f40572974a9c22b137063bd4afab0fa323f584902c79af5c04e97d2' -or
+          §origin.scriptSha256 -cne '66ee9ca05593ecf91cc0a6f075e76144314ff32afe60c869013320d10befe139' -or
+          §origin.campaignReceiptSha256 -cne 'ff16d868c52930c9870df47ab1340dae2dee500ac247f18906e22690c0befe74' -or
+          §origin.provisionReceiptSha256 -cne '4c36f8a8669494c8746889fffdeb2c235083576af8b03466890d561014c96eb6') { throw 'FIXED_ORIGIN_CHANGED' }
+      foreach (§change in @(@('Campaign','B'),@('Mode','Preflight'),@('LifecycleAction','Run'),@('RunId',('0'*32)),@('RunRoot',(§RunRoot+'\')),@('RunRoot',§RunRoot.ToLowerInvariant()),@('RunRoot',(§RunRoot+[char]0)))) {
+        §saved=Get-Variable -Name §change[0] -ValueOnly
+        Set-Variable -Name §change[0] -Value §change[1]
+        try { if (§null -ne (Get-M1DFixedRecoveryOrigin)) { throw ('ORIGIN_SELECTION_ESCAPED_SCOPE_'+§change[0]) } }
+        finally { Set-Variable -Name §change[0] -Value §saved }
+      }
+      'HE_FIXED_SELECTION=PASS'
+      """.trimIndent()
+    )
+    assertThat(output).contains("HE_FIXED_SELECTION=PASS")
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = [
+    "nominal", "bad-run", "bad-root", "bad-rail", "bad-composite", "bad-campaign", "bad-provision",
+    "campaign-rehashed", "provision-rehashed", "provenance-current", "historical-current", "historical-auth",
+    "preflight-auth", "lifecycle-c1-auth", "historical-kind", "historical-schema", "historical-origin", "mixed-confined",
+    "historical-stopped-current", "historical-stopped-auth", "historical-stopped-active",
+    "old-authorization", "c1-authorization", "preexisting", "preexisting-sidecar", "preexisting-foreign",
+    "controller-alive", "root-alive", "job-active", "job-inaccessible", "namespace", "ports",
+    "wrong-executor", "wrong-executor-script", "old-recovery-auth", "other-provision", "recovery-schema", "recovery-kind",
+    "origin-extra", "targets-present", "campaign-late", "quarantine-late", "psql-nonzero-finalizers",
+    "invalid-output", "invalid-payload", "lock-only", "late-controls", "late-terminal"
+  ])
+  @Tag("windows-only")
+  fun postgresRecoveryKeepsHistoricalOriginAndCurrentExecutorThroughRealFunctions(scenario: String) {
+    val output = runRailPowerShell(
+      """
+      # OS/process/I/O and repository execution-state boundaries are doubled. No real dispatcher, SQL,
+      # psql, listener, recorded process or operational evidence is accessed.
+      Add-Type -TypeDefinition @'
+      using System;
+      using System.Diagnostics;
+      namespace Ritomer.M1B {
+        public static class ContainedProcess {
+          public static Func<ProcessStartInfo,string,string,Action<int,long,string>,object> Launch;
+          public static object StartD(ProcessStartInfo info,string run,string role,Action<int,long,string> confined) {
+            return Launch(info,run,role,confined);
+          }
+        }
+      }
+      '@
+      §case='$scenario'
+      §root=Join-Path ([IO.Path]::GetTempPath()) ('m1d-he-'+[Guid]::NewGuid().ToString('N'))
+      [void][IO.Directory]::CreateDirectory(§root)
+      §Campaign='D'; §Mode='Lifecycle'; §LifecycleAction='CleanupOnly'; §RunId='0'*32; §RunRoot=§root
+      §ReviewedObjectSha256='3'*64; §SensitiveAuthorizationRecordId='AUTH-FIXTURE-RECOVERY'; §PreflightAuthorizationRecordId='AUTH-FIXTURE-C1'
+      §script:DRunRoot=§root; §script:DQuarantinePath=Join-Path §root '.m1d-unreleased.json'
+      §script:PsqlExeExact=Join-Path §root 'inert-psql.exe'
+      [IO.File]::WriteAllText(§script:PsqlExeExact,'SYNTHETIC NOT EXECUTABLE')
+      §ExpectedPsqlSha256=Get-M1BSha256File §script:PsqlExeExact
+      §origin=[pscustomobject][ordered]@{runId=§RunId;runRoot=§root;reviewedObjectSha256=('1'*64);scriptSha256=('2'*64);campaignReceiptSha256=('0'*64);provisionReceiptSha256=('0'*64)}
+      §provenance=Get-M1BProvenance §RunId §origin.reviewedObjectSha256 '999'
+      §script:events=[Collections.Generic.List[string]]::new(); §script:launches=0; §script:exitReads=0; §script:process=§null
+      §realCreate=(Get-Command Write-M1BCreateNewUtf8).ScriptBlock
+      function Initialize-M1BContainedProcessType { }
+      function Get-M1DNamespaceIdentity { if(§case -ceq 'namespace'){'OTHER_NAMESPACE'}else{'OFFLINE_HE_NAMESPACE'} }
+      function Assert-M1BInvocation { §root }
+      function Assert-M1BExecutionState {
+        param(§Root,§Phase)
+        §script:events.Add(§Phase)
+        if(§Phase -ceq 'd-cleanup-only-final' -and §case -ceq 'late-controls'){throw [FormatException]::new('private-late-control')}
+        [pscustomobject]@{synthetic=§true}
+      }
+      function Enter-M1BRunLock {
+        param(§Root)
+        §stream=[pscustomobject]@{}
+        §stream | Add-Member ScriptMethod Dispose {
+          §script:events.Add('lock-dispose')
+          if(§case -cin @('lock-only','psql-nonzero-finalizers')){throw [IO.IOException]::new('private-lock')}
+        }
+        [pscustomobject]@{Stream=§stream;Path=(Join-Path §Root 'inert-lock')}
+      }
+      function Assert-M1BInteractiveConsole { }
+      function Assert-M1BNoCredentialChannels { }
+      function Assert-M1BPsqlBinary { [pscustomobject]@{Path=§script:PsqlExeExact;Sha256=§ExpectedPsqlSha256;FileVersion='fixture';ProductVersion='fixture'} }
+      function Get-M1DListenerPorts { if(§case -ceq 'ports'){@(5173)}else{@()} }
+      function Get-M1DRecordedJobCount {
+        param(§Name)
+        if(§case -ceq 'job-inaccessible'){throw [UnauthorizedAccessException]::new('private-job')}
+        if(§case -ceq 'job-active'){1}else{-1}
+      }
+      function Get-Process {
+        param(§Id,§ErrorAction)
+        if((§case -ceq 'controller-alive' -and §Id -eq 2000000001) -or (§case -ceq 'root-alive' -and §Id -eq 2000000002)){
+          §p=[pscustomobject]@{StartTime=[DateTime]::new(638000000000000000L,[DateTimeKind]::Utc)}
+          §p | Add-Member ScriptMethod Dispose { }; return §p
+        }
+        return §null
+      }
+      function Save-FixtureReceipt([string]§Name,[object]§Value) {
+        §path=Join-Path §root ('d-'+§Name+'.json')
+        [IO.File]::WriteAllText(§path,(ConvertTo-Json §Value -Depth 12 -Compress)+"`n",(Get-M1BUtf8))
+        [IO.File]::WriteAllText((§path+'.sha256'),(Get-M1BSha256File §path)+"`n",(Get-M1BUtf8))
+      }
+      function New-HistoricalReceipt([string]§Name,[object]§Payload,[string]§Auth='AUTH-FIXTURE-C2') {
+        §v=[ordered]@{schemaVersion=1;campaign='D';kind=§Name;runId=§RunId;reviewedObjectSha256=§origin.reviewedObjectSha256;scriptSha256=§origin.scriptSha256;machine=[Environment]::MachineName;windowsSessionId=[Diagnostics.Process]::GetCurrentProcess().SessionId;namespaceIdentity='OFFLINE_HE_NAMESPACE';authorizationRecordId=§Auth;payload=§Payload}
+        Save-FixtureReceipt §Name §v
+      }
+      function Change-FixtureReceipt([string]§Name,[scriptblock]§Change) {
+        §v=ConvertFrom-Json ([IO.File]::ReadAllText((Join-Path §root ('d-'+§Name+'.json'))))
+        & §Change §v
+        Save-FixtureReceipt §Name §v
+      }
+      function Write-M1BCreateNewUtf8 {
+        param(§Path,§Text)
+        if(§Path.EndsWith('-stopped.json') -and §case -ceq 'psql-nonzero-finalizers'){
+          §script:events.Add('stopped-fault');throw [UnauthorizedAccessException]::new('private-stopped')
+        }
+        if(§Path.EndsWith('d-recovery-terminal.json.sha256') -and §case -ceq 'late-terminal'){throw [IO.IOException]::new('private-terminal')}
+        & §realCreate §Path §Text
+        if(§Path.EndsWith('d-recovery-cleanup.json')){
+          §v=ConvertFrom-Json §Text
+          switch(§case){
+            'wrong-executor' {§v.reviewedObjectSha256=§origin.reviewedObjectSha256}
+            'wrong-executor-script' {§v.scriptSha256=§origin.scriptSha256}
+            'old-recovery-auth' {§v.authorizationRecordId='AUTH-FIXTURE-C2'}
+            'other-provision' {§v.recoveryOrigin.provisionReceiptSha256='9'*64}
+            'recovery-schema' {§v.schemaVersion=1}
+            'recovery-kind' {§v.kind='cleanup'}
+            'origin-extra' {§v.recoveryOrigin | Add-Member NoteProperty bypass §true}
+            'targets-present' {§v.payload.targetsAbsent=§false}
+            'campaign-late' {Change-FixtureReceipt 'campaign' {param(§c) §c.authorizationRecordId='AUTH-ALTERED'}}
+            'quarantine-late' {[IO.File]::WriteAllText(§script:DQuarantinePath,(ConvertTo-Json ([ordered]@{runId=§RunId;root=§root;receiptSha256=('9'*64)}) -Compress))}
+          }
+          [IO.File]::WriteAllText(§Path,(ConvertTo-Json §v -Depth 12 -Compress)+"`n",(Get-M1BUtf8))
+        }
+      }
+      [Ritomer.M1B.ContainedProcess]::Launch={
+        param(§info,§run,§role,§confined)
+        §script:launches++;§script:events.Add('native-boundary')
+        if(§run -cne §RunId -or §role -cne 'ADMIN_PSQL_CLEANUP'){throw 'NATIVE_BOUNDARY_ESCAPED'}
+        §job='Local\Ritomer.M1D.'+§RunId+'.'+§role
+        §confined.Invoke(2000000003,638000000000000000L,§job)
+        §payload=[ordered]@{clusterSystemIdentifier='999';databaseCount=0;roleCount=0;sessionCount=0}
+        if(§case -ceq 'invalid-payload'){§payload.databaseCount=1}
+        §text="M1B_CLIENT|170006`nM1B_CLEANUP|"+[Convert]::ToBase64String((Get-M1BUtf8).GetBytes((ConvertTo-Json §payload -Compress)))+"`n"
+        if(§case -ceq 'invalid-output'){§text='invalid'}
+        §p=[pscustomobject]@{Id=2000000003;CreationTimeUtcTicks=638000000000000000L;JobName=§job;HasExited=§true;ActiveProcessCount=0;StartInfo=§info;StandardInput=[IO.StringWriter]::new();StandardOutput=[IO.StringReader]::new(§text);StandardError=[IO.StringReader]::new('')}
+        §p | Add-Member ScriptProperty ExitCode { §script:exitReads++; if(§case -ceq 'psql-nonzero-finalizers'){7}else{0} }
+        §p | Add-Member ScriptMethod WaitForExit { }
+        §p | Add-Member ScriptMethod TerminateTreeAndWait {param(§Budget) §script:events.Add('terminate');return §true}
+        §p | Add-Member ScriptMethod Dispose {
+          §script:events.Add('process-dispose')
+          §this.StandardInput.Dispose();§this.StandardOutput.Dispose();§this.StandardError.Dispose()
+          if(§case -ceq 'psql-nonzero-finalizers'){throw [IO.IOException]::new('private-process')}
+        }
+        §script:process=§p; return §p
+      }
+      try {
+        New-HistoricalReceipt 'campaign' ([ordered]@{preflightAuthorizationRecordId=§PreflightAuthorizationRecordId;preflightSha256=('a'*64);psqlSha256=§ExpectedPsqlSha256;cluster='999';adminRoleOid=10;maintenanceDatabaseOid=11;provenance=§provenance;runtimeSha256=('b'*64);integratedManifestSha256=('c'*64);frontendRuntimeSha256=('d'*64);controllerProcessId=2000000001;controllerCreationTicks='638000000000000000'})
+        New-HistoricalReceipt 'provision' ([ordered]@{databaseOid=19;roleOid=20;postmasterStartUnixMicros='1789722000123456';cluster='999';provenance=§provenance;adminRoleOid=10;maintenanceDatabaseOid=11;psqlSha256=§ExpectedPsqlSha256;structuredOutputSha256=('e'*64)})
+        foreach(§stage in @('preflight','lifecycle')){
+          foreach(§role in @('READINESS','ADMIN_PSQL_PROVISION')){
+            §auth=if(§stage -ceq 'preflight'){§PreflightAuthorizationRecordId}else{'AUTH-FIXTURE-C2'}
+            §name='launch-'+§stage+'-'+§role
+            New-HistoricalReceipt (§name+'-intent') ([ordered]@{role=§role;binaryPath=§script:PsqlExeExact;binarySha256=§ExpectedPsqlSha256;commandSha256=('f'*64);argumentFileSha256='NONE'}) §auth
+            New-HistoricalReceipt (§name+'-confined') ([ordered]@{role=§role;processId=2000000002;creationTimeUtcTicks='638000000000000000';jobName=('Local\Ritomer.M1D.'+§RunId+'.'+§role);binaryPath=§script:PsqlExeExact;binarySha256=§ExpectedPsqlSha256;commandSha256=('f'*64);argumentFileSha256='NONE';confinedBeforeResume=§true}) §auth
+            if(§role -ceq 'READINESS'){New-HistoricalReceipt (§name+'-stopped') ([ordered]@{processId=2000000002;creationTimeUtcTicks='638000000000000000';jobName=('Local\Ritomer.M1D.'+§RunId+'.'+§role);activeProcesses=0}) §auth}
+          }
+        }
+        §origin.campaignReceiptSha256=Get-M1BSha256File (Join-Path §root 'd-campaign.json')
+        §origin.provisionReceiptSha256=Get-M1BSha256File (Join-Path §root 'd-provision.json')
+        [IO.File]::WriteAllText(§script:DQuarantinePath,(ConvertTo-Json ([ordered]@{runId=§RunId;root=§root;receiptSha256=§origin.campaignReceiptSha256}) -Compress))
+        §historicalName='launch-lifecycle-READINESS-intent'
+        switch(§case){
+          'bad-run' {§origin.runId='9'*32}
+          'bad-root' {§origin.runRoot=§root+'-wrong'}
+          'bad-rail' {§origin.scriptSha256='9'*64}
+          'bad-composite' {§origin.reviewedObjectSha256='9'*64}
+          'bad-campaign' {§origin.campaignReceiptSha256='9'*64}
+          'bad-provision' {§origin.provisionReceiptSha256='9'*64}
+          'campaign-rehashed' {Change-FixtureReceipt 'campaign' {param(§v) §v.authorizationRecordId='AUTH-ALTERED'}}
+          'provision-rehashed' {Change-FixtureReceipt 'provision' {param(§v) §v.payload.roleOid=99}}
+          'provenance-current' {
+            Change-FixtureReceipt 'campaign' {param(§v) §v.payload.provenance=Get-M1BProvenance §RunId §ReviewedObjectSha256 '999'}
+            §origin.campaignReceiptSha256=Get-M1BSha256File (Join-Path §root 'd-campaign.json')
+          }
+          'historical-current' {Change-FixtureReceipt §historicalName {param(§v) §v.reviewedObjectSha256=§ReviewedObjectSha256}}
+          'historical-auth' {Change-FixtureReceipt §historicalName {param(§v) §v.authorizationRecordId=§SensitiveAuthorizationRecordId}}
+          'preflight-auth' {Change-FixtureReceipt 'launch-preflight-READINESS-intent' {param(§v) §v.authorizationRecordId='AUTH-FIXTURE-C2'}}
+          'lifecycle-c1-auth' {Change-FixtureReceipt §historicalName {param(§v) §v.authorizationRecordId=§PreflightAuthorizationRecordId}}
+          'historical-kind' {Change-FixtureReceipt §historicalName {param(§v) §v.kind='launch-recovery-ADMIN_PSQL_CLEANUP-intent'}}
+          'historical-schema' {Change-FixtureReceipt §historicalName {param(§v) §v.schemaVersion=2}}
+          'historical-origin' {Change-FixtureReceipt §historicalName {param(§v) §v | Add-Member NoteProperty recoveryOrigin ([pscustomobject]@{reviewedObjectSha256=§ReviewedObjectSha256})}}
+          'mixed-confined' {Change-FixtureReceipt 'launch-lifecycle-READINESS-confined' {param(§v) §v.reviewedObjectSha256=§ReviewedObjectSha256;§v.scriptSha256=Get-M1BSha256File §offlineRailPath}}
+          'historical-stopped-current' {Change-FixtureReceipt 'launch-lifecycle-READINESS-stopped' {param(§v) §v.reviewedObjectSha256=§ReviewedObjectSha256}}
+          'historical-stopped-auth' {Change-FixtureReceipt 'launch-lifecycle-READINESS-stopped' {param(§v) §v.authorizationRecordId=§SensitiveAuthorizationRecordId}}
+          'historical-stopped-active' {Change-FixtureReceipt 'launch-lifecycle-READINESS-stopped' {param(§v) §v.payload.activeProcesses=1}}
+          'old-authorization' {§SensitiveAuthorizationRecordId='AUTH-FIXTURE-C2'}
+          'c1-authorization' {§SensitiveAuthorizationRecordId=§PreflightAuthorizationRecordId}
+          'preexisting' {[IO.File]::WriteAllText((Join-Path §root 'd-recovery-cleanup.json'),'{}')}
+          'preexisting-sidecar' {[IO.File]::WriteAllText((Join-Path §root 'd-recovery-cleanup.json.sha256'),('0'*64)+"`n")}
+          'preexisting-foreign' {[IO.File]::WriteAllText((Join-Path §root 'd-launch-recovery-HARNESS-intent.json'),'{}')}
+        }
+        §before=@{};foreach(§file in Get-ChildItem -LiteralPath §root -File){§before[§file.Name]=Get-M1BSha256File §file.FullName}
+        §code='NONE';§result=§null
+        try{§result=Invoke-M1DCleanupOnly -RecoveryOrigin §origin}catch{§code=Get-M1BStopCode §_}
+        §diag=Get-M1DDiagnostics
+        §afterSql=§case -cin @('nominal','wrong-executor','wrong-executor-script','old-recovery-auth','other-provision','recovery-schema','recovery-kind','origin-extra','targets-present','campaign-late','quarantine-late','psql-nonzero-finalizers','invalid-output','invalid-payload','lock-only','late-controls','late-terminal')
+        if(§script:launches -ne $(if(§afterSql){1}else{0})){throw 'HE_SQL_BARRIER_CHANGED'}
+        if(-not §script:events.Contains('lock-dispose')){throw 'HE_LOCK_FINALIZATION_SKIPPED'}
+        if(§case -ceq 'nominal'){
+          if(§code -cne 'NONE' -or §null -eq §result -or [IO.File]::Exists(§script:DQuarantinePath) -or §null -ne §diag.primary){throw 'HE_NOMINAL_FAILED'}
+          §context=[pscustomobject]@{origin=§origin;campaignAuthorization='AUTH-FIXTURE-C2';preflightAuthorization=§PreflightAuthorizationRecordId}
+          foreach(§name in @('launch-recovery-ADMIN_PSQL_CLEANUP-intent','launch-recovery-ADMIN_PSQL_CLEANUP-confined','launch-recovery-ADMIN_PSQL_CLEANUP-stopped','recovery-cleanup','recovery-terminal')){
+            §receipt=Read-M1DReceipt §name -ReceiptContext §context
+            if(§receipt.schemaVersion -ne 2 -or §receipt.reviewedObjectSha256 -cne §ReviewedObjectSha256 -or §receipt.scriptSha256 -cne (Get-M1BSha256File §offlineRailPath) -or §receipt.authorizationRecordId -cne 'AUTH-FIXTURE-RECOVERY'){throw 'HE_EXECUTOR_NOT_PRESERVED'}
+            §raw=[IO.File]::ReadAllText((Join-Path §root ('d-'+§name+'.json'))).Trim()
+            §envelope=ConvertFrom-Json §raw
+            §expectedKeys=@('schemaVersion','campaign','kind','runId','reviewedObjectSha256','scriptSha256','machine','windowsSessionId','namespaceIdentity','authorizationRecordId','payload','recoveryOrigin')
+            if((@((§envelope.PSObject.Properties.Name) | Sort-Object) -join ',') -cne (@(§expectedKeys | Sort-Object) -join ',')){throw 'HE_ENVELOPE_SHAPE_CHANGED'}
+            §originKeys=@('reviewedObjectSha256','scriptSha256','campaignReceiptSha256','provisionReceiptSha256')
+            if((@((§envelope.recoveryOrigin.PSObject.Properties.Name) | Sort-Object) -join ',') -cne (@(§originKeys | Sort-Object) -join ',')){throw 'HE_ORIGIN_SHAPE_CHANGED'}
+            foreach(§key in §originKeys){if(§envelope.recoveryOrigin.§key -cne §origin.§key){throw 'HE_ORIGIN_NOT_PRESERVED'}}
+            'HE_ENVELOPE '+§raw
+          }
+          Assert-M1DRecordedCessation -ReceiptContext §context
+          §stoppedName='launch-recovery-ADMIN_PSQL_CLEANUP-stopped'
+          §stoppedPath=Join-Path §root ('d-'+§stoppedName+'.json')
+          §stoppedBytes=[IO.File]::ReadAllBytes(§stoppedPath);§stoppedHashBytes=[IO.File]::ReadAllBytes(§stoppedPath+'.sha256')
+          try{
+            Change-FixtureReceipt §stoppedName {param(§v) §v.reviewedObjectSha256=§origin.reviewedObjectSha256}
+            §stoppedCode='NONE';try{Assert-M1DRecordedCessation -ReceiptContext §context}catch{§stoppedCode=Get-M1BStopCode §_}
+            if(§stoppedCode -cne 'D_RECEIPT_BINDING_INVALID'){throw 'HE_RECOVERY_STOPPED_ACCEPTED_HISTORICAL_EXECUTOR'}
+          }finally{[IO.File]::WriteAllBytes(§stoppedPath,§stoppedBytes);[IO.File]::WriteAllBytes(§stoppedPath+'.sha256',§stoppedHashBytes)}
+          foreach(§name in @('campaign','provision')){
+            §rejected=§false;try{[void](Read-M1DReceipt §name)}catch{§rejected=§true}
+            if(-not §rejected){throw 'HE_DEFAULT_READER_ACCEPTED_HISTORICAL'}
+          }
+          foreach(§change in @(@('Campaign','B'),@('Mode','Preflight'),@('LifecycleAction','Run'))){
+            §saved=Get-Variable -Name §change[0] -ValueOnly
+            Set-Variable -Name §change[0] -Value §change[1]
+            try{
+              §scopeCode='NONE';try{[void](Read-M1DReceipt 'campaign' -ReceiptContext §context)}catch{§scopeCode=Get-M1BStopCode §_}
+              if(§scopeCode -cne 'D_RECOVERY_CONTEXT_INVALID'){throw 'HE_CONTEXT_ESCAPED_MODE'}
+            }finally{Set-Variable -Name §change[0] -Value §saved}
+          }
+        } else {
+          if(§code -ceq 'NONE' -or §null -ne §result -or §null -eq §diag.primary){throw 'HE_FAILURE_ACCEPTED'}
+          §expectedStops=@{
+            'bad-run'='D_RECOVERY_CONTEXT_INVALID';'bad-root'='D_RECOVERY_CONTEXT_INVALID'
+            'bad-rail'='D_RECEIPT_BINDING_INVALID';'bad-composite'='D_RECEIPT_BINDING_INVALID'
+            'bad-campaign'='D_RECOVERY_ORIGIN_HASH_INVALID';'bad-provision'='D_RECOVERY_ORIGIN_HASH_INVALID'
+            'campaign-rehashed'='D_RECOVERY_ORIGIN_HASH_INVALID';'provision-rehashed'='D_RECOVERY_ORIGIN_HASH_INVALID'
+            'provenance-current'='D_CAMPAIGN_PAYLOAD_INVALID'
+            'historical-current'='D_RECEIPT_BINDING_INVALID';'historical-auth'='D_RECEIPT_BINDING_INVALID'
+            'preflight-auth'='D_RECEIPT_BINDING_INVALID';'lifecycle-c1-auth'='D_RECEIPT_BINDING_INVALID'
+            'historical-kind'='D_RECEIPT_BINDING_INVALID';'historical-schema'='D_RECEIPT_BINDING_INVALID'
+            'historical-origin'='STRUCTURED_OUTPUT_PROPERTY_COUNT_INVALID';'mixed-confined'='D_RECEIPT_BINDING_INVALID'
+            'historical-stopped-current'='D_RECEIPT_BINDING_INVALID';'historical-stopped-auth'='D_RECEIPT_BINDING_INVALID'
+            'historical-stopped-active'='D_CHILD_STOP_NOT_ATTESTED'
+            'old-authorization'='D_NEW_CLEANUP_AUTHORIZATION_REQUIRED';'c1-authorization'='D_NEW_CLEANUP_AUTHORIZATION_REQUIRED'
+            'preexisting'='D_RECOVERY_ALREADY_STARTED';'preexisting-sidecar'='D_RECOVERY_ALREADY_STARTED';'preexisting-foreign'='D_RECOVERY_ALREADY_STARTED'
+            'controller-alive'='D_ORIGINAL_CONTROLLER_STILL_ALIVE';'root-alive'='D_RECORDED_ROOT_STILL_ALIVE'
+            'job-active'='D_RECORDED_DESCENDANT_STILL_ALIVE';'job-inaccessible'='UNEXPECTED_FAILURE'
+            'namespace'='D_RECEIPT_BINDING_INVALID';'ports'='D_INTEGRATED_PORT_NOT_FREE'
+            'wrong-executor'='D_RECEIPT_BINDING_INVALID';'wrong-executor-script'='D_RECEIPT_BINDING_INVALID'
+            'old-recovery-auth'='D_RECEIPT_BINDING_INVALID';'other-provision'='D_RECOVERY_ORIGIN_INVALID'
+            'recovery-schema'='D_RECEIPT_BINDING_INVALID';'recovery-kind'='D_RECEIPT_BINDING_INVALID'
+            'origin-extra'='STRUCTURED_OUTPUT_PROPERTY_COUNT_INVALID';'targets-present'='D_CLEANUP_NOT_PROVEN'
+            'campaign-late'='D_RECOVERY_ORIGIN_HASH_INVALID';'quarantine-late'='D_QUARANTINE_BINDING_INVALID'
+            'psql-nonzero-finalizers'='PSQL_CLEANUP_EXIT_NONZERO';'invalid-output'='PSQL_CLEANUP_TERMINAL_NEWLINE_MISSING'
+            'invalid-payload'='CLEANUP_RESULT_INVALID';'lock-only'='UNEXPECTED_FAILURE'
+            'late-controls'='UNEXPECTED_FAILURE';'late-terminal'='UNEXPECTED_FAILURE'
+          }
+          if(-not §expectedStops.ContainsKey(§case) -or §code -cne §expectedStops[§case]){throw ('HE_WRONG_STOP_'+§case+'_'+§code)}
+          §expectedCategory=switch(§case){'job-inaccessible'{'ACCESS_DENIED'};'lock-only'{'IO_FAILURE'};'late-controls'{'INVALID_VALUE'};'late-terminal'{'IO_FAILURE'};default{'CONTROLLED_STOP'}}
+          if(§diag.primary.category -cne §expectedCategory){throw 'HE_WRONG_PRIMARY_CATEGORY'}
+          §late=§case -cin @('lock-only','late-controls','late-terminal')
+          if([IO.File]::Exists(§script:DQuarantinePath) -eq §late){throw 'HE_QUARANTINE_ORDER_CHANGED'}
+          §terminalPath=Join-Path §root 'd-recovery-terminal.json'
+          if(§case -ceq 'lock-only' -and (-not [IO.File]::Exists(§terminalPath) -or -not [IO.File]::Exists(§terminalPath+'.sha256') -or §diag.primary.operation -cne 'lock-release' -or §diag.secondary.Count -ne 0)){throw 'HE_LATE_LOCK_SEMANTICS_CHANGED'}
+          if(§case -ceq 'late-terminal' -and (-not [IO.File]::Exists(§terminalPath) -or [IO.File]::Exists(§terminalPath+'.sha256'))){throw 'HE_PARTIAL_TERMINAL_SEMANTICS_CHANGED'}
+          if(§case -ceq 'late-controls' -and [IO.File]::Exists(§terminalPath)){throw 'HE_TERMINAL_PUBLISHED_BEFORE_FINAL_CONTROLS'}
+          if(§case -ceq 'psql-nonzero-finalizers'){
+            if(§code -cne 'PSQL_CLEANUP_EXIT_NONZERO' -or §diag.primary.control -cne §code -or §diag.secondary.Count -ne 3 -or §diag.secondary[0].category -cne 'ACCESS_DENIED' -or §diag.secondary[1].category -cne 'IO_FAILURE' -or §diag.secondary[2].operation -cne 'lock-release'){throw 'HE_B1_ORDER_OR_DEDUP_FAILED'}
+            if((§script:events | Where-Object {§_ -cin @('terminate','stopped-fault','process-dispose','lock-dispose')}) -join ',' -cne 'terminate,stopped-fault,process-dispose,lock-dispose'){throw 'HE_FINALIZATION_ORDER_FAILED'}
+          }
+        }
+        foreach(§name in §before.Keys){
+          if(§name -ceq '.m1d-unreleased.json'){continue}
+          if(§case -ceq 'campaign-late' -and §name -cin @('d-campaign.json','d-campaign.json.sha256')){continue}
+          if((Get-M1BSha256File (Join-Path §root §name)) -cne §before[§name]){throw 'HE_HISTORICAL_BYTES_CHANGED'}
+        }
+        foreach(§stage in @('preflight','lifecycle')){if([IO.File]::Exists((Join-Path §root ('d-launch-'+§stage+'-ADMIN_PSQL_PROVISION-stopped.json')))){throw 'HE_OLD_STOPPED_CREATED'}}
+        if(§afterSql -and (§script:exitReads -ne 1 -or §script:process.StartInfo.EnvironmentVariables.Count -ne 0)){throw 'HE_PSQL_FINALIZATION_INCOMPLETE'}
+        'HE_CASE '+(ConvertTo-Json ([pscustomobject]@{scenario=§case;stop=§code;nativeBoundaryCalls=§script:launches;diagnostics=§diag;historicalBytesPreserved=(§case -cne 'campaign-late');injectedHistoricalTamper=(§case -ceq 'campaign-late');quarantined=[IO.File]::Exists(§script:DQuarantinePath);nominalResult=(§null -ne §result)}) -Depth 8 -Compress)
+      } finally {
+        [Ritomer.M1B.ContainedProcess]::Launch=§null
+        if(-not §root.StartsWith([IO.Path]::GetFullPath([IO.Path]::GetTempPath()),[StringComparison]::OrdinalIgnoreCase) -or -not ([IO.Path]::GetFileName(§root)).StartsWith('m1d-he-')){throw 'FIXTURE_CLEANUP_BOUNDARY'}
+        [IO.Directory]::Delete(§root,§true)
+      }
+      """.trimIndent()
+    )
+    assertThat(output).contains("HE_CASE ")
+    assertThat(output).doesNotContain("private-", "M1DFailureCollector")
+    println(output.trim())
+  }
+
+  @Test
+  @Tag("windows-only")
+  fun offlineFixturePreservesTimeoutWhenItsInertChildCannotAttestCessation() {
+    var alive = true
+    var terminations = 0
+    var exitReads = 0
+    val waits = mutableListOf<Long>()
+    var commandFile: Path? = null
+    val child = object : Process() {
+      override fun getOutputStream() = java.io.ByteArrayOutputStream()
+      override fun getInputStream() = java.io.ByteArrayInputStream(byteArrayOf())
+      override fun getErrorStream() = java.io.ByteArrayInputStream(byteArrayOf())
+      override fun waitFor(): Int = throw AssertionError("unexpected unbounded wait")
+      override fun waitFor(timeout: Long, unit: java.util.concurrent.TimeUnit): Boolean {
+        waits.add(unit.toSeconds(timeout))
+        return false
+      }
+      override fun exitValue(): Int { exitReads++; throw IllegalThreadStateException("inert fixture") }
+      override fun destroy() { throw AssertionError("unexpected second termination path") }
+      override fun destroyForcibly(): Process { terminations++; return this }
+      override fun isAlive() = alive
+    }
+    try {
+      val failure = requireNotNull(catchThrowable {
+        runRailPowerShell("throw 'must never execute'") { builder ->
+          commandFile = Path.of(builder.command().last())
+          child
+        }
+      })
+      assertThat(failure).isInstanceOf(AssertionError::class.java)
+        .hasMessageContaining("timed out after 45 seconds")
+      assertThat(failure.suppressed).hasSize(1)
+      assertThat(failure.suppressed[0]).hasMessageContaining("FIXTURE_COMMAND_FINALIZATION_ERROR")
+      assertThat(failure.suppressed[0].cause).hasMessageContaining("FIXTURE_CHILD_CESSATION_UNCONFIRMED")
+      assertThat(waits).containsExactly(45L, 5L)
+      assertThat(terminations).isEqualTo(1)
+      assertThat(exitReads).isZero()
+      assertThat(Files.isRegularFile(requireNotNull(commandFile))).isTrue()
+    } finally {
+      // No native child was started. End the inert model before deleting its one owned file.
+      alive = false
+      commandFile?.let { file ->
+        val expectedBase = Path.of("../out/ofx").toAbsolutePath().normalize()
+        check(file.fileName.toString() == "f.ps1" && file.parent.parent == expectedBase)
+        Files.deleteIfExists(file)
+      }
+    }
+  }
+
+  private fun runRailPowerShell(body: String, startProcess: (ProcessBuilder) -> Process = { it.start() }): String {
     val scriptPath = Path.of("scripts/m1-1b-postgresql-rail.ps1")
       .toAbsolutePath()
       .normalize()
@@ -3632,12 +6947,14 @@ class DemoSeedLocalSourceGuardTest {
       appendLine("§parseTokens = §null")
       appendLine("§parseErrors = §null")
       appendLine("§railAst = [System.Management.Automation.Language.Parser]::ParseFile(§railPath, [ref]§parseTokens, [ref]§parseErrors)")
-      appendLine("if (§parseErrors.Count -ne 0) { throw 'rail AST invalid before offline dot-source' }")
+      appendLine("if (§parseErrors.Count -ne 0) { throw 'rail AST invalid before offline extraction' }")
       appendLine("§cleanBlock = §null")
       appendLine("if (§railAst.PSObject.Properties.Name -contains 'CleanBlock') { §cleanBlock = §railAst.CleanBlock }")
       appendLine("if (§null -ne §railAst.DynamicParamBlock -or §null -ne §railAst.BeginBlock -or §null -ne §railAst.ProcessBlock -or §null -ne §cleanBlock -or §null -eq §railAst.EndBlock) { throw 'unsafe named script block' }")
       appendLine("§expectedParameterTexts = @(")
       appendLine("  '[ValidateSet(''Preflight'', ''Lifecycle'')] [string]§Mode',")
+      appendLine("  '[ValidateSet(''B'', ''D'')] [string]§Campaign = ''B''',")
+      appendLine("  '[ValidateSet(''Run'', ''CleanupOnly'')] [string]§LifecycleAction = ''Run''',")
       appendLine("  '[ValidatePattern(''^[0-9a-f]{32}$'')] [string]§RunId',")
       appendLine("  '[ValidatePattern(''^[0-9a-f]{64}$'')] [string]§ReviewedObjectSha256',")
       appendLine("  '[ValidatePattern(''^[0-9a-f]{64}$'')] [string]§ExpectedPsqlSha256',")
@@ -3648,7 +6965,7 @@ class DemoSeedLocalSourceGuardTest {
       appendLine("§actualParameterTexts = @(§railAst.ParamBlock.Parameters | ForEach-Object { (§_.Extent.Text -replace '\\s+', ' ').Trim() })")
       appendLine("if ((§actualParameterTexts -join [char]0) -cne (§expectedParameterTexts -join [char]0)) { throw 'unsafe parameter block' }")
       appendLine("foreach (§parameter in §railAst.ParamBlock.Parameters) {")
-      appendLine("  if (§null -ne §parameter.DefaultValue -or @(§parameter.FindAll({ param(§node) §node -is [System.Management.Automation.Language.CommandAst] -or §node -is [System.Management.Automation.Language.InvokeMemberExpressionAst] }, §true)).Count -ne 0) { throw 'active parameter binding rejected' }")
+      appendLine("  if ((§null -ne §parameter.DefaultValue -and §parameter.Name.VariablePath.UserPath -notin @('Campaign','LifecycleAction')) -or @(§parameter.FindAll({ param(§node) §node -is [System.Management.Automation.Language.CommandAst] -or §node -is [System.Management.Automation.Language.InvokeMemberExpressionAst] }, §true)).Count -ne 0) { throw 'active parameter binding rejected' }")
       appendLine("}")
       appendLine("§allowedAssignments = @(")
       appendLine("  'ErrorActionPreference', 'ProgressPreference', 'script:PsqlExeExact', 'script:GitExeExact',")
@@ -3658,7 +6975,8 @@ class DemoSeedLocalSourceGuardTest {
       appendLine("  'script:CorrectiveFileSetSummary', 'script:CompositeFileSetSummary',")
       appendLine("  'script:CorrectiveFileSet', 'script:ExpectedAddedFileSet', 'script:CompositeFileSet',")
       appendLine("  'script:BackendRoot', 'script:RepoRoot', 'script:M1BContainedProcessTypeInitialized',")
-      appendLine("  'script:PsqlProcessStarts'")
+      appendLine("  'script:PsqlProcessStarts', 'script:DCampaignClock', 'script:DPhaseDeadline', 'script:DPhase',")
+      appendLine("  'script:DRunRoot', 'script:DExpectedPostmasterStart', 'script:DChildren', 'script:DCookieDiagnostic', 'script:DBrowserDiagnostic', 'script:DHarnessDiagnostic', 'script:DReadinessCacheVerifiedState', 'script:DQuarantinePath', 'script:DPhaseMinutes'")
       appendLine(")")
       appendLine("§assignmentCounts = @{}")
       appendLine("§footerCount = 0")
@@ -3673,6 +6991,8 @@ class DemoSeedLocalSourceGuardTest {
       appendLine("    if (§assignmentName -in @('script:BackendRoot', 'script:RepoRoot')) {")
       appendLine("      §expectedRootAssignment = if (§assignmentName -ceq 'script:BackendRoot') { '§script:BackendRoot = [System.IO.Path]::GetFullPath((Split-Path -Parent §PSScriptRoot))' } else { '§script:RepoRoot = [System.IO.Path]::GetFullPath((Split-Path -Parent §script:BackendRoot))' }")
       appendLine("      if ((§statement.Extent.Text -replace '\\s+', ' ').Trim() -cne §expectedRootAssignment) { throw 'unsafe repository-root initializer' }")
+      appendLine("    } elseif (§assignmentName -ceq 'script:DQuarantinePath') {")
+      appendLine("      if ((§statement.Extent.Text -replace '\\s+', ' ').Trim() -cne '§script:DQuarantinePath = §script:EvidenceBaseRoot + ''\\.m1d-unreleased.json''' -or §activeNodes.Count -ne 0) { throw 'unexpected quarantine path' }")
       appendLine("    } elseif (§activeNodes.Count -ne 0) { throw ('active top-level assignment: ' + §assignmentName) }")
       appendLine("    continue")
       appendLine("  }")
@@ -3684,6 +7004,11 @@ class DemoSeedLocalSourceGuardTest {
       appendLine("    throw ('unsafe top-level pipeline: ' + §topText)")
       appendLine("  }")
       appendLine("  if (§statement -is [System.Management.Automation.Language.IfStatementAst]) {")
+      appendLine("    if (§statement.Clauses[0].Item1.Extent.Text.Trim() -ceq ([string][char]36 + 'Campaign -ceq ' + [char]39 + 'D' + [char]39)) {")
+      appendLine("      if (§statement.Clauses.Count -ne 1 -or §null -ne §statement.ElseClause -or @(§statement.FindAll({ param(§node) §node -is [System.Management.Automation.Language.CommandAst] -or §node -is [System.Management.Automation.Language.InvokeMemberExpressionAst] }, §true)).Count -ne 0) { throw 'active D bindings rejected' }")
+      appendLine("      foreach (§binding in §statement.Clauses[0].Item2.Statements) { if (§binding -isnot [System.Management.Automation.Language.AssignmentStatementAst] -or §binding.Left.Extent.Text.TrimStart([char]'§') -notin @('script:ExpectedBranch','script:ExpectedHead','script:CorrectiveFileSetSummary','script:CompositeFileSetSummary','script:ExpectedAddedFileSet','script:CompositeFileSet','script:CorrectiveFileSet')) { throw 'unknown D binding' } }")
+      appendLine("      continue")
+      appendLine("    }")
       appendLine("    §footerCount++")
       appendLine("    §footerCondition = §statement.Clauses[0].Item1.Extent.Text.Trim()")
       appendLine("    §expectedFooterCondition = [string][char]36 + 'MyInvocation.InvocationName -cne ' + [char]39 + '.' + [char]39")
@@ -3705,7 +7030,23 @@ class DemoSeedLocalSourceGuardTest {
       appendLine("  'Invoke-M1BDirectPsql -Phase ''Cleanup'' -SqlText §sql -NeutralRoot §NeutralRoot'")
       appendLine(")")
       appendLine("if ((§directCalls -join [char]0) -cne (§expectedDirectCalls -join [char]0)) { throw 'direct psql call inventory invalid' }")
-      append(". §railPath -Mode 'Preflight'")
+      // Retain the existing AST safety checks, but never load the operational
+      // dispatch. Extract exact functions and the validated inert initializers.
+      appendLine("§offlineParts = [Collections.Generic.List[string]]::new()")
+      appendLine("§offlineParts.Add(§railAst.ParamBlock.Extent.Text)")
+      appendLine("foreach (§statement in §railAst.EndBlock.Statements) {")
+      appendLine("  if (§statement -is [System.Management.Automation.Language.IfStatementAst] -and §statement.Clauses[0].Item1.Extent.Text.Trim() -ceq §expectedFooterCondition) { continue }")
+      appendLine("  §part = §statement.Extent.Text")
+      appendLine("  if (§statement -is [System.Management.Automation.Language.AssignmentStatementAst] -and §statement.Left.Extent.Text -ceq '§script:BackendRoot') { §part = '§script:BackendRoot = ' + [char]39 + (Split-Path -Parent (Split-Path -Parent §railPath)).Replace([string][char]39, ([string][char]39 + [char]39)) + [char]39 }")
+      appendLine("  §offlineParts.Add(§part)")
+      appendLine("}")
+      appendLine("§offlineRailSource = §offlineParts -join [Environment]::NewLine")
+      appendLine("§offlineRailPath = [IO.Path]::ChangeExtension(§PSCommandPath, '.functions.ps1')")
+      appendLine("if ([IO.File]::Exists(§offlineRailPath)) { throw 'EXTRACTION_FIXTURE_COLLISION' }")
+      appendLine("[IO.File]::WriteAllText(§offlineRailPath, §offlineRailSource, [Text.UTF8Encoding]::new(§false))")
+      appendLine("§extractionPrimaryFailure=§null; §extractionCleanupFailure=§null")
+      appendLine("try {")
+      append(". §offlineRailPath -Mode 'Preflight'")
       append(" -RunId '00000000000000000000000000000000'")
       append(" -ReviewedObjectSha256 '")
       append("0".repeat(64))
@@ -3716,8 +7057,25 @@ class DemoSeedLocalSourceGuardTest {
       append(" -RunRoot 'C:\\dev\\ritomer-local-evidence\\m1-1b-postgresql\\00000000000000000000000000000000'")
       append(" -SensitiveAuthorizationRecordId 'AUTH-OFFLINE-FIXTURE'")
       append('\n')
+      // Every offline fixture is isolated from the real local credential file.
+      // The dedicated password test retains this block to exercise the true
+      // wrapper while substituting only its filesystem boundary.
+      appendLine("§realLocalAdminReader=(Get-Command Read-M1DLocalAdminPassword).ScriptBlock")
+      appendLine("function Read-M1DLocalAdminPassword { 'offline-fixed-admin-marker' }")
       append(body)
       append('\n')
+      appendLine("} catch {")
+      appendLine("  §extractionPrimaryFailure=§_")
+      appendLine("  if (§_.CategoryInfo.Reason -ceq 'ItemNotFoundException' -and §null -ne §_.InvocationInfo -and §null -ne §_.InvocationInfo.MyCommand -and §_.InvocationInfo.MyCommand.Name -ceq 'Get-Item') { Write-Output 'M1D_OFFLINE_GET_ITEM_NOT_FOUND' }")
+      appendLine("  if (§_.CategoryInfo.Reason -ceq 'IOException' -and §null -ne §_.InvocationInfo -and §null -ne §_.InvocationInfo.MyCommand -and §_.InvocationInfo.MyCommand.Name -ceq 'Get-Item' -and §_.TargetObject -is [string] -and §_.TargetObject -ceq §script:DQuarantinePath) { Write-Output 'M1D_OFFLINE_QUARANTINE_GET_ITEM_IO' }")
+      appendLine("} finally {")
+      appendLine("  try { [IO.File]::Delete(§offlineRailPath) } catch {")
+      appendLine("    §extractionCleanupFailure=§_")
+      appendLine("    Write-Output ('FIXTURE_EXTRACTION_FINALIZATION_ERROR '+(ConvertTo-Json ([ordered]@{step='extracted-functions-delete';target=§offlineRailPath;category=§_.Exception.GetType().FullName;message=§_.Exception.Message}) -Compress))")
+      appendLine("  }")
+      appendLine("}")
+      appendLine("if(§null -ne §extractionPrimaryFailure){throw §extractionPrimaryFailure}")
+      appendLine("if(§null -ne §extractionCleanupFailure){throw §extractionCleanupFailure}")
     }.replace('§', '$')
     val windows = System.getProperty("os.name").startsWith("Windows", ignoreCase = true)
     val executable = if (windows) {
@@ -3740,8 +7098,11 @@ class DemoSeedLocalSourceGuardTest {
       "-NonInteractive"
     )
     if (windows) arguments.addAll(listOf("-ExecutionPolicy", "Bypass"))
-    val tempRoot = System.getProperty("java.io.tmpdir")
-    val commandFile = Files.createTempFile(Path.of(tempRoot), "ritomer-m1b-offline-", ".ps1")
+    val fixtureBase = Path.of(scriptPath).parent.parent.parent.resolve("out/ofx").normalize()
+    Files.createDirectories(fixtureBase)
+    val fixtureRoot = Files.createDirectory(fixtureBase.resolve("t" + java.util.UUID.randomUUID().toString().replace("-", "").take(8)))
+    val tempRoot = fixtureRoot.toString()
+    val commandFile = fixtureRoot.resolve("f.ps1")
     Files.writeString(commandFile, command, StandardCharsets.UTF_8)
     arguments.addAll(listOf("-File", commandFile.toString()))
     val processBuilder = ProcessBuilder(arguments)
@@ -3761,26 +7122,40 @@ class DemoSeedLocalSourceGuardTest {
         put("TMPDIR", tempRoot)
       }
     }
+    var primaryFailure: Throwable? = null
+    var fixtureProcess: Process? = null
     try {
-      val process = processBuilder.start()
+      val process = startProcess(processBuilder)
+      fixtureProcess = process
       val outputFuture = java.util.concurrent.CompletableFuture.supplyAsync {
         process.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
       }
       val finished = process.waitFor(45, java.util.concurrent.TimeUnit.SECONDS)
       if (!finished) {
-        process.destroyForcibly()
-        process.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)
+        throw AssertionError("offline PowerShell fixture timed out after 45 seconds target=$commandFile")
       }
       val output = outputFuture.get(5, java.util.concurrent.TimeUnit.SECONDS)
-      assertThat(finished)
-        .describedAs("offline PowerShell fixture timed out: %s", output)
-        .isTrue()
       assertThat(process.exitValue())
         .describedAs("offline PowerShell fixture failed: %s", output)
         .isZero()
       return output
+    } catch (failure: Throwable) {
+      primaryFailure = failure
+      throw failure
     } finally {
-      Files.deleteIfExists(commandFile)
+      try {
+        val process = fixtureProcess
+        if (process != null && process.isAlive) {
+          process.destroyForcibly()
+          process.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)
+          check(!process.isAlive) { "FIXTURE_CHILD_CESSATION_UNCONFIRMED target=$commandFile" }
+        }
+        check(commandFile.parent == fixtureRoot && fixtureRoot.parent == fixtureBase)
+        Files.deleteIfExists(commandFile)
+      } catch (cleanup: Throwable) {
+        val reported = IllegalStateException("FIXTURE_COMMAND_FINALIZATION_ERROR target=$commandFile", cleanup)
+        primaryFailure?.addSuppressed(reported) ?: throw reported
+      }
     }
   }
 

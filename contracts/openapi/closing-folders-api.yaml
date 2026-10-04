@@ -6,6 +6,10 @@ paths:
   /api/closing-folders:
     post:
       operationId: createClosingFolder
+      security:
+        - cookieSession: []
+          csrfToken: []
+        - bearerAuth: []
       summary: Create a closing folder in the active tenant
       parameters:
         - in: header
@@ -28,11 +32,16 @@ paths:
         "201":
           description: Closing folder created
         "400":
-          description: Missing, blank or malformed X-Tenant-Id, or invalid request payload
+          description: Missing, blank or malformed X-Tenant-Id, or invalid request payload. Security refusals include INVALID_TENANT_HEADER, AMBIGUOUS_CREDENTIALS (cookie plus bearer), and REQUEST_REJECTED.
+        "401":
+          description: Authentication required. Includes AUTHENTICATION_REQUIRED and SESSION_EXPIRED; expired sessions are invalidated.
         "403":
-          description: Active tenant is not accessible via persisted active membership
+          description: Active tenant is not accessible via persisted active membership. Includes ACCESS_DENIED and ACCESS_REVOKED; global revocation invalidates the session. Unsafe session requests also reject absent, incorrect or stale CSRF with CSRF_REJECTED; legacy bearer requests do not require CSRF.
     get:
       operationId: listClosingFolders
+      security:
+        - cookieSession: []
+        - bearerAuth: []
       summary: List closing folders for the active tenant
       parameters:
         - in: header
@@ -43,12 +52,17 @@ paths:
         "200":
           description: Closing folders returned
         "400":
-          description: Missing, blank or malformed X-Tenant-Id
+          description: Missing, blank or malformed X-Tenant-Id. Security refusals include INVALID_TENANT_HEADER, AMBIGUOUS_CREDENTIALS (cookie plus bearer), and REQUEST_REJECTED.
+        "401":
+          description: Authentication required. Includes AUTHENTICATION_REQUIRED and SESSION_EXPIRED; expired sessions are invalidated.
         "403":
-          description: Active tenant is not accessible via persisted active membership
+          description: Active tenant is not accessible via persisted active membership. Includes ACCESS_DENIED and ACCESS_REVOKED; global revocation invalidates the session.
   /api/closing-folders/{id}:
     get:
       operationId: getClosingFolder
+      security:
+        - cookieSession: []
+        - bearerAuth: []
       summary: Get a closing folder by id inside the active tenant
       parameters:
         - in: header
@@ -63,13 +77,19 @@ paths:
         "200":
           description: Closing folder returned
         "400":
-          description: Missing, blank or malformed X-Tenant-Id
+          description: Missing, blank or malformed X-Tenant-Id. Security refusals include INVALID_TENANT_HEADER, AMBIGUOUS_CREDENTIALS (cookie plus bearer), and REQUEST_REJECTED.
+        "401":
+          description: Authentication required. Includes AUTHENTICATION_REQUIRED and SESSION_EXPIRED; expired sessions are invalidated.
         "403":
-          description: Active tenant is not accessible via persisted active membership
+          description: Active tenant is not accessible via persisted active membership. Includes ACCESS_DENIED and ACCESS_REVOKED; global revocation invalidates the session.
         "404":
           description: Closing folder absent or outside tenant
     patch:
       operationId: patchClosingFolder
+      security:
+        - cookieSession: []
+          csrfToken: []
+        - bearerAuth: []
       summary: Partially update a closing folder inside the active tenant
       parameters:
         - in: header
@@ -95,14 +115,20 @@ paths:
         "200":
           description: Closing folder updated
         "400":
-          description: Missing, blank or malformed X-Tenant-Id, or invalid patch payload
+          description: Missing, blank or malformed X-Tenant-Id, or invalid patch payload. Security refusals include INVALID_TENANT_HEADER, AMBIGUOUS_CREDENTIALS (cookie plus bearer), and REQUEST_REJECTED.
+        "401":
+          description: Authentication required. Includes AUTHENTICATION_REQUIRED and SESSION_EXPIRED; expired sessions are invalidated.
         "403":
-          description: Active tenant is not accessible via persisted active membership
+          description: Active tenant is not accessible via persisted active membership. Includes ACCESS_DENIED and ACCESS_REVOKED; global revocation invalidates the session. Unsafe session requests also reject absent, incorrect or stale CSRF with CSRF_REJECTED; legacy bearer requests do not require CSRF.
         "404":
           description: Closing folder absent or outside tenant
   /api/closing-folders/{id}/archive:
     post:
       operationId: archiveClosingFolder
+      security:
+        - cookieSession: []
+          csrfToken: []
+        - bearerAuth: []
       summary: Logically archive a closing folder inside the active tenant
       parameters:
         - in: header
@@ -117,8 +143,27 @@ paths:
         "200":
           description: Closing folder archived or already archived
         "400":
-          description: Missing, blank or malformed X-Tenant-Id
+          description: Missing, blank or malformed X-Tenant-Id. Security refusals include INVALID_TENANT_HEADER, AMBIGUOUS_CREDENTIALS (cookie plus bearer), and REQUEST_REJECTED.
+        "401":
+          description: Authentication required. Includes AUTHENTICATION_REQUIRED and SESSION_EXPIRED; expired sessions are invalidated.
         "403":
-          description: Active tenant is not accessible via persisted active membership
+          description: Active tenant is not accessible via persisted active membership. Includes ACCESS_DENIED and ACCESS_REVOKED; global revocation invalidates the session. Unsafe session requests also reject absent, incorrect or stale CSRF with CSRF_REJECTED; legacy bearer requests do not require CSRF.
         "404":
           description: Closing folder absent or outside tenant
+components:
+  securitySchemes:
+    cookieSession:
+      type: apiKey
+      in: cookie
+      name: __Host-ritomer-session
+      description: Opaque server session; Secure, HttpOnly, Path=/, SameSite=Lax, no Domain.
+    csrfToken:
+      type: apiKey
+      in: header
+      name: X-CSRF-TOKEN
+      description: Current session-bound CSRF token, required only for unsafe cookie-session requests.
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Explicit legacy backend compatibility only; never browser authentication. Cannot be combined with the session cookie.

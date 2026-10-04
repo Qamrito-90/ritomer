@@ -6,6 +6,10 @@ paths:
   /api/closing-folders/{closingFolderId}/export-packs:
     post:
       operationId: createExportPack
+      security:
+        - cookieSession: []
+          csrfToken: []
+        - bearerAuth: []
       summary: Generate an immutable audit-ready export pack
       description: >
         Generates a synchronous ZIP snapshot for the closing folder. `Idempotency-Key` is required.
@@ -40,17 +44,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/ExportPack"
         "400":
-          description: Missing, blank or malformed X-Tenant-Id, invalid closingFolderId, or blank Idempotency-Key
+          description: Missing, blank or malformed X-Tenant-Id, invalid closingFolderId, or blank Idempotency-Key. Security refusals include INVALID_TENANT_HEADER, AMBIGUOUS_CREDENTIALS (cookie plus bearer), and REQUEST_REJECTED.
         "401":
-          description: Authentication required
+          description: Authentication required. Includes AUTHENTICATION_REQUIRED and SESSION_EXPIRED; expired sessions are invalidated.
         "403":
-          description: Tenant inaccessible or role insufficient
+          description: Tenant inaccessible or role insufficient. Includes ACCESS_DENIED and ACCESS_REVOKED; global revocation invalidates the session. Unsafe session requests also reject absent, incorrect or stale CSRF with CSRF_REJECTED; legacy bearer requests do not require CSRF.
         "404":
           description: Closing folder absent or outside tenant
         "409":
           description: Predictable business refusal or same key with a different persisted logical intention
     get:
       operationId: listExportPacks
+      security:
+        - cookieSession: []
+        - bearerAuth: []
       summary: List persisted export packs for a closing folder
       parameters:
         - in: header
@@ -69,16 +76,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/ExportPackList"
         "400":
-          description: Missing, blank or malformed X-Tenant-Id, or invalid closingFolderId
+          description: Missing, blank or malformed X-Tenant-Id, or invalid closingFolderId. Security refusals include INVALID_TENANT_HEADER, AMBIGUOUS_CREDENTIALS (cookie plus bearer), and REQUEST_REJECTED.
         "401":
-          description: Authentication required
+          description: Authentication required. Includes AUTHENTICATION_REQUIRED and SESSION_EXPIRED; expired sessions are invalidated.
         "403":
-          description: Tenant inaccessible or role insufficient
+          description: Tenant inaccessible or role insufficient. Includes ACCESS_DENIED and ACCESS_REVOKED; global revocation invalidates the session.
         "404":
           description: Closing folder absent or outside tenant
   /api/closing-folders/{closingFolderId}/export-packs/{exportPackId}:
     get:
       operationId: getExportPack
+      security:
+        - cookieSession: []
+        - bearerAuth: []
       summary: Return persisted metadata for an export pack
       parameters:
         - in: header
@@ -101,16 +111,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/ExportPack"
         "400":
-          description: Missing, blank or malformed X-Tenant-Id, or invalid UUID path parameters
+          description: Missing, blank or malformed X-Tenant-Id, or invalid UUID path parameters. Security refusals include INVALID_TENANT_HEADER, AMBIGUOUS_CREDENTIALS (cookie plus bearer), and REQUEST_REJECTED.
         "401":
-          description: Authentication required
+          description: Authentication required. Includes AUTHENTICATION_REQUIRED and SESSION_EXPIRED; expired sessions are invalidated.
         "403":
-          description: Tenant inaccessible or role insufficient
+          description: Tenant inaccessible or role insufficient. Includes ACCESS_DENIED and ACCESS_REVOKED; global revocation invalidates the session.
         "404":
           description: Closing folder absent or outside tenant, or export pack missing
   /api/closing-folders/{closingFolderId}/export-packs/{exportPackId}/content:
     get:
       operationId: downloadExportPack
+      security:
+        - cookieSession: []
+        - bearerAuth: []
       summary: Download the persisted export pack archive through the backend
       parameters:
         - in: header
@@ -139,14 +152,30 @@ paths:
                 type: string
                 format: binary
         "400":
-          description: Missing, blank or malformed X-Tenant-Id, or invalid UUID path parameters
+          description: Missing, blank or malformed X-Tenant-Id, or invalid UUID path parameters. Security refusals include INVALID_TENANT_HEADER, AMBIGUOUS_CREDENTIALS (cookie plus bearer), and REQUEST_REJECTED.
         "401":
-          description: Authentication required
+          description: Authentication required. Includes AUTHENTICATION_REQUIRED and SESSION_EXPIRED; expired sessions are invalidated.
         "403":
-          description: Tenant inaccessible or role insufficient
+          description: Tenant inaccessible or role insufficient. Includes ACCESS_DENIED and ACCESS_REVOKED; global revocation invalidates the session.
         "404":
           description: Closing folder absent or outside tenant, or export pack missing
 components:
+  securitySchemes:
+    cookieSession:
+      type: apiKey
+      in: cookie
+      name: __Host-ritomer-session
+      description: Opaque server session; Secure, HttpOnly, Path=/, SameSite=Lax, no Domain.
+    csrfToken:
+      type: apiKey
+      in: header
+      name: X-CSRF-TOKEN
+      description: Current session-bound CSRF token, required only for unsafe cookie-session requests.
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Explicit legacy backend compatibility only; never browser authentication. Cannot be combined with the session cookie.
   schemas:
     ExportPackList:
       type: object

@@ -19,9 +19,10 @@ paths:
   /api/closing-folders/{closingFolderId}/mappings/suggestions:
     get:
       operationId: getMappingSuggestions
-      summary: Return the read-model for assisted manual mapping suggestions
       security:
+        - cookieSession: []
         - bearerAuth: []
+      summary: Return the read-model for assisted manual mapping suggestions
       description: >
         Tenant-scoped read-model for assisted mapping suggestions on the latest balance import.
         Suggestions are evidence-first, schema-validated and always require human review.
@@ -81,19 +82,21 @@ paths:
                       - code: AI_MAPPING_SUGGESTIONS_DISABLED
                         message: Mapping suggestions are disabled.
         "400":
-          description: Missing, blank or malformed X-Tenant-Id
+          description: Missing, blank or malformed X-Tenant-Id. Security refusals include INVALID_TENANT_HEADER, AMBIGUOUS_CREDENTIALS (cookie plus bearer), and REQUEST_REJECTED.
         "401":
-          description: Authentication required
+          description: Authentication required. Includes AUTHENTICATION_REQUIRED and SESSION_EXPIRED; expired sessions are invalidated.
         "403":
-          description: Tenant inaccessible or role insufficient
+          description: Tenant inaccessible or role insufficient. Includes ACCESS_DENIED and ACCESS_REVOKED; global revocation invalidates the session.
         "404":
           description: Closing folder absent or outside tenant
   /api/closing-folders/{closingFolderId}/mappings/suggestions/{accountCode}/decision:
     post:
       operationId: recordMappingSuggestionDecision
-      summary: Contract for one human decision on one mapping suggestion
       security:
+        - cookieSession: []
+          csrfToken: []
         - bearerAuth: []
+      summary: Contract for one human decision on one mapping suggestion
       description: >
         Contract for a single human ACCEPT, CORRECT or REJECT decision. This endpoint is explicitly
         not a bulk endpoint and must never auto-apply suggestions. ACCEPT and CORRECT are human
@@ -159,11 +162,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/MappingSuggestionDecisionResult"
         "400":
-          description: Invalid payload, unknown decision, missing targetCode for ACCEPT/CORRECT, ACCEPT targetCode different from the current suggestedTargetCode, CORRECT targetCode not different from the current suggestedTargetCode, or non-selectable targetCode
+          description: Invalid payload, unknown decision, missing targetCode for ACCEPT/CORRECT, ACCEPT targetCode different from the current suggestedTargetCode, CORRECT targetCode not different from the current suggestedTargetCode, or non-selectable targetCode. Security refusals include INVALID_TENANT_HEADER, AMBIGUOUS_CREDENTIALS (cookie plus bearer), and REQUEST_REJECTED.
         "401":
-          description: Authentication required
+          description: Authentication required. Includes AUTHENTICATION_REQUIRED and SESSION_EXPIRED; expired sessions are invalidated.
         "403":
-          description: Tenant inaccessible, role insufficient, or backend authority refuses the action
+          description: Tenant inaccessible, role insufficient, or backend authority refuses the action. Includes ACCESS_DENIED and ACCESS_REVOKED; global revocation invalidates the session. Unsafe session requests also reject absent, incorrect or stale CSRF with CSRF_REJECTED; legacy bearer requests do not require CSRF.
         "404":
           description: Closing folder absent or outside tenant
         "409":
@@ -174,10 +177,21 @@ paths:
                 $ref: "#/components/schemas/MappingSuggestionDecisionResult"
 components:
   securitySchemes:
+    cookieSession:
+      type: apiKey
+      in: cookie
+      name: __Host-ritomer-session
+      description: Opaque server session; Secure, HttpOnly, Path=/, SameSite=Lax, no Domain.
+    csrfToken:
+      type: apiKey
+      in: header
+      name: X-CSRF-TOKEN
+      description: Current session-bound CSRF token, required only for unsafe cookie-session requests.
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: Explicit legacy backend compatibility only; never browser authentication. Cannot be combined with the session cookie.
   schemas:
     MappingSuggestionsReadModel:
       type: object

@@ -17,8 +17,11 @@ M1_1B_SCOPE=BACKEND_SESSION_KERNEL_PROCESS_LOCAL_DEFAULT_OFF
 M1_1B_IMPLEMENTED=YES
 M1_1C_IMPLEMENTED=YES
 M1_1C_LOCAL_FRONTEND_VALIDATION=PASS
-M1_1C_DELIVERED=NO
-M1_1D_IMPLEMENTED=NO
+M1_1C_DELIVERED=YES
+M1_1D_OFFLINE_IMPLEMENTATION=YES
+M1_1D_INTEGRATED_VALIDATION=PASS
+M1_1D_VALIDATION_SCOPE=LOCAL_SYNTHETIC_CANDIDATE_05_20261003
+M1_1D_DELIVERED=NO
 
 PROMETHEUS_WEB_EXPOSURE=CLOSED_FAIL_CLOSED
 PUBLIC_MANAGEMENT_ENDPOINTS=HEALTH_INFO_ONLY
@@ -27,7 +30,7 @@ SESSION_CREATED=YES
 COOKIE_CREATED=YES
 CSRF_CREATED=YES
 FRONTEND_MODIFIED=YES
-BROWSER_SESSION_INTEGRATION=NO
+BROWSER_SESSION_INTEGRATION=YES
 SHARED_OIDC_INTEGRATION=NO
 DISTRIBUTED_SESSION=NO
 
@@ -36,7 +39,15 @@ AGENT_RUNTIME=NO
 MCP_RUNTIME=NO
 ```
 
-Cette spec reste active pendant les quatre slices cumulatives. Le checkpoint A borne le principal applicatif, la lecture d'autorité fraîche aux frontières métier protégées et la sûreté tenant. Le correctif M8 ferme fail-closed l'exposition HTTP de Prometheus ; seuls health et info restent exposés. Le checkpoint B implémente le kernel de session backend process-local, désactivé par défaut, sans intégration frontend ou navigateur. Le checkpoint C est implémenté et validé localement sur le frontend simulé ; sa delivery n'est pas réalisée. D n'est pas implémenté : activation intégrée, preuve navigateur et clôture restent à réaliser. La fermeture et le déplacement vers `specs/done/` appartiennent exclusivement à M1.1D.
+Cette spec reste active pendant les quatre slices cumulatives. Le checkpoint A borne le principal applicatif, la lecture d'autorité fraîche aux frontières métier protégées et la sûreté tenant. Le correctif M8 ferme fail-closed l'exposition HTTP de Prometheus ; seuls health et info restent exposés. Le checkpoint B implémente le kernel de session backend process-local, désactivé par défaut, sans intégration frontend ou navigateur. Le checkpoint C est livré ; ses preuves frontend simulées restent distinctes de l'intégration D. D est implémenté dans le worktree et son intégration locale sur données synthétiques a été vérifiée sur candidate-05 le 03.10.2026. Delivery D, clôture de 046 et outcome complet M1 restent non effectués ; aucun déplacement vers `specs/done/` n'est effectué.
+
+### Preuve intégrée locale du 03.10.2026
+
+La mission `RITOMER-M1D-AUTONOMOUS-RESOLUTION-20261003-01` a établi C1 PASS puis C2 PASS sur candidate-05 : PostgreSQL ciblé 13/13, complet 55/55 et parcours navigateur intégré. Cleanup confirmé et cessation corroborée sont des observations datées du 03.10.2026, pas un constat actuel de la machine. Le statut technique consolidé reste `PASS_WITH_RESIDUAL_RISK`. Les fichiers, empreintes et preuves exacts restent dans le FEP final, sa review native et les deux archives déjà remises ; le complément des reçus ferme l'omission de conditionnement CPO-PACK-01.
+
+Les preuves applicables comprennent 1 277 tests frontend avec `--no-file-parallelism` et 593 résultats backend datés réutilisés, sans nouvelle exécution complète backend sur candidate-05. La réserve historique logout02 non bloquante et les limites IA, mémoire, runtime et portée restent celles du FEP. Aucun résultat ne livre OIDC partagé, session distribuée, M1 complet, IA/MCP, usage externe ou production. Les records C1-04/C2-04 restent consommés, sans autorisation sensible ouverte.
+
+Le réalignement documentaire postérieur conserve les octets exécutables de candidate-05 ; son delta et son composite ont une identité distincte de l'objet exécuté. La C2 n'a pas exécuté ce nouvel objet documentaire. La réutilisation des preuves repose sur ces octets exécutables inchangés et l'absence d'effet comportemental ; les required checks GitHub restent à obtenir lors d'une delivery séparément autorisée.
 
 ## 2. Outcome M1.1 et outcomes bornés M1.1A/M1.1B
 
@@ -280,7 +291,96 @@ Les validations C établiront uniquement le comportement frontend simulé. Cooki
 
 ## 9. Activation M1.1D
 
-M1.1D activera la boucle locale intégrée après autorisation distincte : Vite loopback strict sans header `Authorization`, deux jars session isolés dans le harness, profil local session canonique sans HMAC/decoder, huit OpenAPI alignés et E2E complet. La documentation vivante sera relue et alignée avant le déplacement final de cette spec vers `specs/done/`.
+M1.1D implémente le raccordement : Vite loopback strict sans header `Authorization`, deux jars session mémoire isolées pour trois rôles, profil local session canonique sans HMAC/decoder et huit OpenAPI alignés. Le kernel B et les écrans restent réutilisés ; le coordinator C reçoit le correctif borné de drainage bootstrap 401 décrit dans le raccordement Playwright ci-dessous. Les tests offline restent distincts de la C2 intégrée locale acquise sur candidate-05 (§1) ; la spec reste active et D non livré.
+
+F1 : `PostgresTestRailDBootstrap`, dans le fichier support existant, expose seulement `seed` et `backend`. Il neutralise pgJDBC, fixe le profil local unique, installe une projection prioritaire fermée et la garde commune avant refresh/Flyway. Après refresh, DataSource et Flyway sont contrôlés avant seed/READY. Le runtime main est complété par les seuls propriétaires support sélectionnés et leurs closures réellement compilées ; JUnit, fixtures, ressources de test et testRuntimeClasspath complet en sont exclus. Readiness et digest existants lient ce runtime ; aucune nouvelle tâche rail ni compilation sous credential runner. `d-seed` et `d-backend` partagent le storage intégré ; les deux primitives SQL destructives et le helper de reset storage les refusent avant connexion. Les contrats targeted/full B sont conservés.
+
+F2 : la campagne D ajoute au rail existant une séquence fermée readiness → provision → seed terminé → backend → Vite provisoire/cookie → arrêt Vite → harness et son Vite → preuves jars/navigateur → fin explicite → arrêt attesté → targeted → full → cleanup → résultat terminal. Les jobs D nommés et confinés avant reprise, le drainage concurrent borné et les messages liés au propriétaire/run rendent insuffisants exit zéro, EOF, Ctrl+C ou timeout. La branche `ADMIN_PSQL` utilise `psql -w` sans fenêtre avec le mot de passe local fourni au seul enfant ; B conserve son prompt natif. `M1D_FINISH <RunId>` précède `M1D_HARNESS_STOPPED <RunId> JARS=PASS VITE_STOP=PASS`; le rail corrobore jobs vides et ports libres avant destruction. Aucun receipt navigateur réel n'est produit offline.
+
+Pour D, la source unique est `C:\dev\ritomer-local-secrets\postgres-test.env` :
+une seule entrée littérale `RITOMER_TEST_PG_PASSWORD`, UTF-8 strict et au plus
+4096 octets, sans contrôle ni valeur vide/blanche. BOM et une fin de ligne
+LF/CRLF sont admis ; autres clés/lignes et reparse points sont refusés.
+Absence ou invalidité arrête avant connexion. Le rail remplace l'exigence
+ConsoleHost de D par cette lecture fermée après readiness, sans changer
+namespace, identité, confinement, horloges, erreurs natives ou cleanup.
+`PGPASSWORD` n'existe que dans l'environnement du psql concerné, retiré du
+StartInfo après lancement et en finalisation ; aucun parent, autre enfant,
+argument, log ou reçu ne reçoit sa valeur. Les canaux hérités restent refusés.
+La configuration initiale locale masquée et sans écrasement est séparément
+autorisée. Le mot de passe de test existant est conservé ; aucun rôle ni secret
+runner n'est modifié par ce mécanisme. Tests fictifs et connexion réelle
+restent des preuves distinctes ; aucune connexion n'est autorisée par ce correctif.
+
+Les plafonds D sont Preflight 40 min, Lifecycle 155 min et campagne 195 min. Les phases Lifecycle sont 30/5/5/2/60/1/20/20/5 min (readiness/provision/seed/backend/intégration/arrêt/targeted/full/cleanup), plus 7 min pour contrôles, terminaisons, scans et manifestes. L'attente idle 32 min est incluse dans l'intégration. Les échéances monotones ne se renouvellent pas et réservent arrêt/cleanup. Les plafonds B restent inchangés.
+
+Pour D, la readiness C1 conserve sa résolution online dans un `GRADLE_USER_HOME`
+neuf : `<RunRoot>/volatile/preflight-readiness/gradle-home`. Après cessation
+READINESS attestée, le manifeste C1 scelle `readinessCache` : chemin relatif
+canonique, algorithme fermé `SHA256-TREE-V1`, SHA-256. L'empreinte inclut les
+chemins relatifs triés ordinalement, types, tailles et SHA-256 des contenus,
+sans horodatage ; liens/reparse points et objets inattendus sont refusés.
+C2 valide manifeste/sidecar, bindings et trio de reçus C1 (autorisation,
+identités et job vide), puis vérifie une fois le cache avant son premier
+enfant Gradle. Aucun chemin de cache fourni par l'opérateur, cache personnel,
+copie entre runs ou fallback online n'est admis. La distribution wrapper
+installée, son marqueur et son lanceur doivent être présents et liés par ce
+digest avant lancement ; `--offline` seul ne protège pas le bootstrap.
+
+Readiness, Targeted et Full de Lifecycle D partagent exclusivement ce cache
+C1 vérifié et reçoivent `--offline`, `--rerun-tasks` et `--no-build-cache`.
+Build/child/project-cache/temp de C2 restent neufs. Les écritures normales
+de métadonnées/logs après le premier enfant ne donnent pas lieu à une nouvelle
+égalité du cache. La vraie recomposition du runtime SHA, sa comparaison C1/C2
+avant provisionnement, Git, provenance, DB et budgets restent obligatoires.
+`--offline` interdit la résolution distante Gradle ; ce n'est pas un pare-feu
+général pour du code exécuté. Campaign B et les autres invocations ne changent pas.
+
+Le runtime D doit être vérifiable sous Windows PowerShell Desktop 5.1 même lorsque les chemins de classes dépassent 260 caractères, sans affaiblir les contrôles de chemin canonique, reparse point, structure, type, binding ou hash. Le terminal D porte un diagnostic fermé version 2 (`primary`, `secondary`, chacun limité à `stage`, `operation`, `category`, `childRole`, `control`) : premier échec conservé, erreurs suivantes distinctes, rôle et contrôle identifiables par valeurs fermées, filtrage avant toute écriture ou sortie. Les catégories et la réduction des codes d'arrêt D capturés sont définies dans le runbook. Aucun message d'exception ni donnée sensible n'est persisté. La finalisation d'un enfant ne dépend pas du drainage d'un autre ; terminaison native et drainage final restent bornés ensemble à 30 secondes et au budget global restant. Une erreur de flux ne devient ni EOF ni PASS. La validité du scénario reste distincte de la cessation des processus ; les preuves natives, bindings, ports et provenance exigés avant destruction sont conservés. Une publication ou finalisation échouée reste FAIL ; la sortie fermée conserve alors aussi la cause initiale. Les lecteurs contrôlent la version déclarée et restent compatibles avec les diagnostics version 1 et les anciens terminaux sans diagnostic, sans requalifier leurs résultats. Aucun comportement B n'est changé.
+
+La finalisation D mémorise une seule échéance par enfant, au plus 30 secondes
+et le budget global restant. Terminaison, attente de la racine signalée et du
+job vide, drainage et libération D utilisent son reliquat, sans renouvellement.
+Les deux prédicats sont vérifiés avant le reçu ; une erreur de lecture ne prouve
+jamais la cessation. Le rôle et la phase ou le prédicat défaillant sont projetés
+dans le diagnostic fermé. Publication, libération et effacement sensible sont
+tentés indépendamment ; première erreur et suivantes sont conservées et les
+autres enfants restent finalisés. La voie D de libération ne réutilise pas
+l'attente fixe du `Dispose` historique, dont les autres appelants sont inchangés.
+Une seconde entrée ne relit pas les handles fermés et n'ouvre pas un nouveau
+budget. Libérer n'atteste pas l'arrêt ; un échec de reçu ou de finalisation
+reste bloquant pour `cleanupStop` et la barrière de destruction.
+Une cessation ou finalisation constatée après l'échéance ne devient pas un
+succès ; les fermetures indépendantes restent tentées avec le reliquat nul.
+
+F3 : un marqueur persistant global et des receipts fermés durables bloquent tout nouveau run jusqu'à libération vérifiée. La disparition du parent ne prouve pas la cessation des descendants. `Campaign=D`, `Mode=Lifecycle`, `LifecycleAction=CleanupOnly` reprennent uniquement le run initial sous une nouvelle autorisation sensible exacte, sans readiness/compilation, provision, seed, test, SQL libre ni reprise générale. Les identités et preuves de cessation, cluster/postmaster, OID et provenance restent obligatoires, sans wildcard OID zéro. Jobs vivants, contexte Windows différent ou preuves insuffisantes maintiennent la quarantaine. Un cleanup réussi ne requalifie pas une campagne échouée en PASS. Le plafond de reprise est 12 min, sans retry. Le runbook précise les procédures ; cette spec ne les autorise pas.
+
+Le correctif B1 et la liaison H/E bornent une compatibilité à ce seul tuple :
+D / Lifecycle / CleanupOnly, RunId `5b6936c097c9472d85f697348cfd756a`, RunRoot
+`C:\dev\ritomer-local-evidence\m1-1b-postgresql\5b6936c097c9472d85f697348cfd756a`.
+L'origine H est fixée dans le code avec les ancres rail/composite/campagne/
+provision détaillées au runbook ; les reçus ne choisissent jamais l'attente.
+`ReviewedObjectSha256` reste le composite de l'exécuteur E courant, vérifié
+contre ses sources. Les historiques conservent H, leurs autorisations C1 ou
+Lifecycle respectives et leur provenance PostgreSQL ; leurs octets et
+sidecars restent immuables, sans création des anciens `stopped` absents.
+Les cinq nouvelles pièces de récupération ont `schemaVersion=2`, E et une
+nouvelle autorisation exacte, plus les quatre hashes H dans `recoveryOrigin`.
+Une récupération préexistante est refusée. Le retrait de quarantaine revalide
+la campagne H, le marqueur et `recovery-cleanup` lié à E, à la nouvelle
+autorisation et au provisionnement H exact, avec `targetsAbsent=true`.
+Les autres campagnes, modes et runs ne gagnent aucune tolérance H/E.
+
+B1 préserve le premier échec avant les finalisations de psql D et la
+libération réelle du verrou CleanupOnly ; leurs échecs suivants restent
+secondaires et bloquants. Un zéro psql exige toujours le parser strict.
+Un échec tardif peut survenir après le retrait de quarantaine ou un terminal
+candidat : ni l'absence du marqueur ni ce terminal seul ne prouvent une
+clôture complète ou l'autorisation d'une campagne suivante. SQL, cibles,
+namespace, processus/jobs, ports, budgets et ordre de retrait ne changent pas.
+Cette compatibilité et ses fixtures hors DB ne valent ni récupération réelle,
+ni preuve d'exécution intégrée, ni autorisation sensible ; C2 reste FAIL
+historique et aucun record consommé n'est réactivé.
 
 Les huit contrats parsés sont `mapping-suggestions-api.yaml`, `mapping-suggestions-v2-api.yaml`, `closing-folders-api.yaml`, `import-balance-api.yaml`, `manual-mapping-api.yaml`, `workpapers-api.yaml`, `documents-api.yaml` et `exports-api.yaml`. Les six derniers ajoutent exactement onze opérations unsafe déjà existantes : trois closing folders, une import balance, deux manual mapping, deux workpapers, deux documents et une export. `contracts/openapi/closing-api.yaml` reste legacy/superseded et n'est jamais réactivé.
 
@@ -345,6 +445,12 @@ La modification d'`application.yml` ferme uniquement l'exposition Prometheus et 
 | M | `docs/present/ai-cadrage-v1.md` |
 
 ### Correctif M1.1B — rail PostgreSQL direct lean — 6 paths, `A=2, M=4`
+
+Cette sous-section conserve le checkpoint historique B et ses marqueurs.
+L'extension bootstrap/supervision/reprise D est décrite en §9 et dans son
+file-set amendé ; elle ne réécrit pas les preuves B. La correction R2 de la
+recette autonome incomplète (PR #122), distincte de 043c R2, est documentée
+dans le runbook local courant.
 
 ```text
 M1_1B_POSTGRESQL_RAIL_DELTA=A2_M4_R0_D0_TOTAL6
@@ -421,10 +527,12 @@ hostaddr=127.0.0.1 port=15432 dbname=postgres user=postgres connect_timeout=5 ss
 ```
 
 `UseShellExecute=false`, l'environnement allowlisté et les homes neutres sont
-obligatoires. Tout `PG*` est refusé. Aucun secret admin ne peut apparaître
-dans un argument, une variable, un fichier, Gradle, Java, Kotlin, Spring ou
-Flyway : le seul canal autorisé est le prompt masqué natif de `psql -W` sur
-une console Windows attachée.
+obligatoires. Tout `PG*` hérité est refusé. Pour B, aucun secret admin ne peut
+apparaître dans une variable ou un fichier : le seul canal reste le prompt
+masqué natif de `psql -W` sur une console Windows attachée. Pour D, le token
+`-W` ci-dessus devient `-w`, avec le seul fichier et environnement enfant
+décrits en section 9. Aucun argument, Gradle, Java, Kotlin, Spring ou Flyway
+ne reçoit le secret admin.
 
 Le futur `Preflight` lance exactement un psql. Son SQL fixe en mémoire utilise
 `BEGIN TRANSACTION READ ONLY`, `statement_timeout=5s`,
@@ -544,7 +652,7 @@ ne prouve donc pas le comportement DB réel ; le statut reste
 | M | `frontend/src/app/workpapers-panel.tsx` |
 | M | `specs/active/046-authenticated-session-foundation-v1.md` |
 
-### M1.1D — 22 logical artifacts, 23 physical endpoints, `M=21, R=1`
+### M1.1D — mission offline : 28 paths, `M=28, A=0, R=0, D=0`
 
 | Action | Path |
 |---|---|
@@ -569,19 +677,26 @@ ne prouve donc pas le comportement DB réel ; le statut reste
 | M | `docs/product/product-roadmap.md` |
 | M | `backend/.env.example` |
 | M | `docs/present/ai-cadrage-v1.md` |
-| R | `specs/active/046-authenticated-session-foundation-v1.md` vers `specs/done/046-authenticated-session-foundation-v1.md` |
+| M | `specs/active/046-authenticated-session-foundation-v1.md` |
+| M | `backend/scripts/m1-1b-postgresql-rail.ps1` |
+| M | `backend/build.gradle.kts` |
+| M | `backend/src/test/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalSourceGuardTest.kt` |
+| M | `docs/ui/ui-foundations-v1.md` |
+| M | `backend/src/test/kotlin/ch/qamwaq/ritomer/testsupport/PostgresTestRailLifecycleCommand.kt` |
+| M | `backend/src/test/kotlin/ch/qamwaq/ritomer/testsupport/DisposablePostgresTestDatabaseSupport.kt` |
 
 ```text
 M1_1A_BASE_SCOPE=12_PATHS_A3_M9
 M1_1A_M8_SCOPE=8_PATHS_M8
 M1_1A_WITH_M8_SCOPE=17_PATHS_A3_M14
 M1_1B=17_PATHS_A6_M11_IMPLEMENTED
-M1_1C=17_PATHS_A2_M15_IMPLEMENTED_LOCAL_NOT_DELIVERED
-M1_1D=22_LOGICAL_23_PHYSICAL_M21_R1_NOT_IMPLEMENTED
+M1_1C=17_PATHS_A2_M15_DELIVERED
+M1_1D_OFFLINE=28_PATHS_M28_A0_R0_D0
+M1_1D_FUTURE_CLOSURE=28_LOGICAL_29_PHYSICAL_M27_R1_NOT_AUTHORIZED
 M1_1_FINAL_OUTCOME_DELIVERED=NO
 ```
 
-Le tableau A décrit le scope de base. Le delta correctif M8 modifie exactement huit paths et porte l'union A+M8 à `A=3, M=14, total=17`. Le file-set B implémenté contient exactement 17 paths, `A=6, M=11`. Le changement local C couvre les 17 chemins exacts ci-dessus, `A=2, M=15`, sans rename ni delete. D reste un contrat futur non implémenté ; son comptage devra être revalidé dans sa slice.
+Le tableau A décrit le scope de base. Le delta correctif M8 modifie exactement huit paths et porte l'union A+M8 à `A=3, M=14, total=17`. Le file-set B historique contient exactement 17 paths, `A=6, M=11`. C couvre les 17 chemins ci-dessus, `A=2, M=15`. Le mandat D amendé remplace son ancien budget 22/23 par 28 modifications sans ajout, rename ou delete. Les deux supports Kotlin sont déjà présents dans le composite A/B/C. La clôture future, non autorisée ici, aurait 28 artefacts logiques/29 chemins physiques, `M=27/R=1`; ses comptes et l'union finale devront être recalculés sur les livraisons réelles. Aucun déplacement de 046 n'est effectué offline.
 
 ## 11. Tests, gates et stops
 
@@ -746,16 +861,20 @@ M1.1D doit prouver :
 - parsing des huit OpenAPI, onze unsafe nouvelles, alternatives cookie/bearer, CSRF conditionnel, refus cohérents et `closing-api` non réactivé ;
 - `application-local` canonique sans HMAC/decoder et `application-dev` inchangé, explicite, jamais activé ou injecté par Vite ;
 - read-back README, runbook local, v1-plan, roadmap, cadrages architecture/UX/IA, UI foundations, ADR, `.env.example` et contrats ;
-- conservation des marqueurs runbook contrôlés par `DemoSeedLocalSourceGuardTest` inchangé ;
+- conservation des marqueurs historiques du runbook ; `DemoSeedLocalSourceGuardTest` étend ses preuves F1/F2/F3 et prépare une résolution active/done stricte, sans déplacer la spec ;
 - PostgreSQL réel non skipped, backend ciblé/complet/Modulith/build, frontend ciblé/test:ci/lint/build, validateurs et `git diff --check` ;
 - après D seulement, E2E complet pour deux jars puis navigateur/version/origine exacts, cookie/CSRF/expiry/re-auth/focus/multi-tab/safe-return/accessibilité/privacy ;
-- lifecycle final : source active absente, done présent, active count zéro, rename exact et matrice finale issue de l'union dédupliquée par chemin des file-sets effectivement livrés. L'artefact 046 modifié en C puis renommé en D reste un unique artefact logique ; ses chemins source et destination sont distingués dans le comptage physique. La mention historique « overlap unique et matrice finale 57 » ne constitue pas un total final revalidé : les tables historiques et le composite B n'ont pas le même domaine de comptage. Aucun nouveau total n'est présumé ici ; le file-set D reste 22 artefacts logiques / 23 chemins physiques, `M=21, R=1`.
+- clôture future seulement : source active absente, done présent, active count zéro, rename exact et matrice finale issue de l'union dédupliquée des file-sets réellement livrés. La mission offline conserve l'unique source active et vérifie ses 28 modifications ; aucun gate de clôture ne lui est attribué. Les anciens totaux 22/23 et 57 sont remplacés par le file-set amendé, sans inventer un compte final livré.
 
-Stops D : cookie `Secure __Host-` ne round-trip pas sur HTTP loopback ; navigateur/version/origine absent ; bearer/HMAC dans le parcours canonique, Vite, harness, docs ou `.env.example` ; séparation `application-dev` non prouvée ; contrat/scheme/refus manquant ; `closing-api` réactivé ; proxy non loopback ; DB/E2E/check skipped ; spec non fermée ; compte divergent ; vingt-quatrième endpoint ou path caché.
+Le mandat offline historique limitait ses validations aux contrôles non-DB : bootstrap et garde avant effet, projection/runtime, refus de reset, protections B, fixtures natives console/confinement/drainage/descendants, délais, receipts/quarantaine/reprise refusée, contrats, régressions C-LOGOUT-01 et téléchargements tardifs, suites frontend/backend/windowsTest/Modulith/build, encodage/liens/diff/scan borné et 28 chemins exacts. Ces contrôles et les stops de ce mandat ci-dessous restent historiques ; ils ne décrivent pas le résultat intégré ultérieur de candidate-05 (§1). Les rapports applicables doivent être présents avec zéro failure/error/skipped/pending/todo. Les comptes sont observés, jamais copiés des checkpoints historiques. Une réussite Windows ne prouve pas la CI Linux hébergée.
+
+Stops offline : divergence de baseline ou file-set, conception matériellement différente, protection à affaiblir, dépendance nouvelle, environnement indispensable indisponible ou opération sensible nécessaire ; deux corrections consécutives sans progrès mesurable ou trois tentatives sur le même échec sans résolution. Aucune répétition d'une commande échouée sans information nouvelle. Les erreurs ordinaires de syntaxe/typage/fixtures sont corrigées dans le scope sans micro-validation owner.
+
+Stops intégrés futurs : cookie `Secure __Host-` sans round-trip sur HTTP loopback, navigateur/version/origine absent, bearer/HMAC dans le parcours canonique, séparation `application-dev` non prouvée, contrat/scheme/refus manquant, `closing-api` réactivé, proxy non loopback, preuve DB/E2E/check manquante, arrêt non attesté, quarantaine non libérée ou compte divergent. Les preuves DB et navigateur ne sont ni skipped ni revendiquées pendant la mission offline : elles sont explicitement non exécutées et non autorisées.
 
 ## 12. Autorisations et frontières
 
-Cette spec ne constitue aucune autorisation. M1.1A avec son correctif M8 et M1.1B sont implémentés dans leurs file-sets bornés. M1.1C est implémenté et validé localement, sans delivery ; M1.1D n'est pas implémenté et l'outcome final M1.1 n'est pas livré.
+Cette spec ne constitue aucune autorisation. A/B et C sont livrés ; D est implémenté dans le worktree et son intégration locale sur données synthétiques est vérifiée sur candidate-05 (§1). Delivery D, clôture de 046 et outcome final M1.1 ne sont pas effectués. Les records de la campagne finale restent consommés. La finalisation documentaire n'autorise ni staging, commit, push, PR, merge, accès PostgreSQL, Preflight, Lifecycle, CleanupOnly opérationnel, seed ni QA navigateur réelle.
 
 Les états de review, delivery, merge, décision owner et autorisation vivent uniquement dans les Evidence Packs, la pull request et les records spécialisés.
 
@@ -792,6 +911,180 @@ spec ; le composite observé reste `A=8/M=17/25`.
 Les impacts C et D sont bornés ainsi :
 
 - C : `docs/ui/ui-foundations-v1.md` et cette spec, réalignées dans le même changement que l'implémentation C, sans delivery documentaire séparée. Le statut d'implémentation reflète uniquement les preuves locales obtenues après les checks ; delivery et intégration navigateur D restent distinctes ;
-- D : README, local-dev, v1-plan, product-roadmap, trois cadrages, huit OpenAPI, `.env.example`, puis rename de la spec.
+- D : README, local-dev, v1-plan, product-roadmap, trois cadrages, huit OpenAPI, `.env.example`, UI foundations et modification de la spec active. Le rename est réservé à une clôture future séparément autorisée.
 
 `contracts/db/core-persistence-foundation.md` ne change pas : aucun schéma, table, contrainte ou migration n'est ajouté. `contracts/openapi/closing-api.yaml` reste protégé. Les autres OpenAPI ne sont alignés à la session qu'en D. Toute contradiction réellement bloquante impose un stop de file-set ; elle n'autorise pas un path supplémentaire en A.
+
+### Raccordement D / Playwright — réalisation hors DB du 21 septembre 2026
+
+Le périmètre offline D de 28 chemins ci-dessus reste la composition historique
+à préserver. Le nouveau montage reprend ces contenus sur la base livrée
+`c7857e3180f4ba02c49f6713ecedba3f7d3eb7c5`, dans
+`C:\dev\ritomer-m1-1d-playwright`, branche `codex/m1-1d-playwright-integration`.
+Autorisation d'implémentation :
+`AUTH-20260921-M1-1D-PLAYWRIGHT-INTEGRATION-IMPLEMENTATION-01`.
+
+Le delta de réalisation comporte exactement :
+
+- M `backend/scripts/m1-1b-postgresql-rail.ps1` ;
+- M `backend/src/test/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalSourceGuardTest.kt` ;
+- M `frontend/playwright.config.ts` ;
+- M `runbooks/local-dev.md` ;
+- M cette spec ;
+- A `frontend/e2e/m1d/playwright.config.ts` ;
+- A `frontend/e2e/m1d/session.spec.ts` ;
+- A `frontend/e2e/m1d/evidence.ts` ;
+- A `frontend/m1d-browser-evidence.test.ts`.
+
+Le composite exact attendu est **M29/A4, 33 chemins**, et inclut les quatre
+créations dans les octets du diff revu. Les autres contenus D sont conservés ;
+les changements déjà livrés par les PR 124/125 ne sont pas un nouveau lot.
+Le harness, les écrans, le kernel, les dépendances et les contrats produit ne
+sont pas modifiés par ce raccordement. La campagne B garde ses règles.
+
+Le correctif Cache-Control du 1er octobre 2026 portait le composite à
+**M31/A4, 35 chemins exacts**. Les deux ajouts au file-set sont les fichiers déjà suivis
+`backend/src/main/kotlin/ch/qamwaq/ritomer/identity/api/SessionController.kt` et
+`backend/src/test/kotlin/ch/qamwaq/ritomer/identity/api/LocalTestSessionControllerSecurityTest.kt`.
+Le raccordement historique de neuf fichiers et ses quatre créations ci-dessus restent
+inchangés ; le contrôle exact des chemins, statuts et de l’index reste obligatoire.
+
+Playwright Test 1.63.0 produit les deux reçus existants : cookie/connexion
+avant le harness ; parcours complet après les deux jars. Le rail garde
+confinement, deadlines, drainage, cessation, DB et finalisation. Le navigateur
+géré est inclus dans la provenance frontend ; les pièces et reçus sont créés
+sans écrasement. Un PASS exige observations complètes, finalisations, résultat
+runner réussi, sortie correcte et Job Object vide. Les tests négatifs hors DB
+ne constituent pas une preuve intégrée.
+
+La preuve cookie distingue attributs émis et acceptation navigateur. Le refus
+CSRF réel traverse le coordinateur, sans réponse simulée ni rejeu de mutation.
+La note peut recevoir 200 ou 201 selon l'existence préalable du workpaper,
+conformément au contrat. L'inactivité exige 32 minutes réelles et une chronologie
+passive sur tous les onglets A. La session B est prouvée séparément après cette
+attente. Le logout invalide la session authentifiée ; le bootstrap anonyme
+suivant peut créer un nouveau cookie. Les événements focus/visibilité doivent
+être observés avant l'attente longue, jamais fabriqués.
+
+Le correctif local préparé le 3 octobre 2026 utilise le Chromium complet déjà
+installé (révision 1200), inventorié par le même rail. Journey conserve un seul
+processus et deux contextes isolés : A par défaut, deux onglets, sans override
+initial de focus via le transport public CDP sur pipes privés ; B puis B recréé
+incognito. Aucun endpoint TCP, profil personnel, événement ou temps fictif.
+Le profil neuf sous le TEMP neutre n'est supprimé qu'après cessation native
+confirmée ; disparition du profil, des contextes et Job vide conditionnent
+la preuve positive. La connexion CDP fermée seule ne suffit pas.
+
+Avant l'inactivité, A2 devient visible et sa revalidation est drainée ; A1 reste
+caché pendant les 32 minutes. Le retour natif vers A1 seul déclenche sa première
+observation 401 après expiration. Les refus CSRF/403, la confidentialité, le
+logout et les contextes restent exigés. Le sélecteur Reviewer vise le panneau
+Preuves : le message identique du panneau Mapping monté mais caché ne peut
+plus le remplacer. Ces corrections et leurs diagnostics hors DB n'attestent
+pas le succès d'une campagne intégrée ni la clôture ou livraison de la spec.
+
+Le correctif local d'expiration ajoute au composite les deux fichiers suivis
+`frontend/src/lib/api/session.ts` et `frontend/src/lib/api/session.test.ts` :
+M33/A4, 37 chemins exacts, delta D de onze chemins. Les baselines historiques
+restent à 35. Un bootstrap 401 purge immédiatement la session prête ; son corps
+est ensuite consommé sans accumulation ni publication d'état, hors attente de
+reconnexion, sous 64 KiB/cinq secondes et annulation au changement de génération
+ou dispose. Les assertions navigateur `401/SESSION_EXPIRED`, l'inactivité réelle
+et la preuve C2 complète restent obligatoires ; ce correctif seul ne les valide pas.
+
+Le choix de la note et du bouton est limité au même premier article contenant
+une note. Le sélecteur historique relatif à chaque article est reproduit en
+échec strict avec deux articles dans Chromium isolé, puis corrigé et testé
+avec le vrai helper du parcours. Cela ne prouve pas la cause exacte du run
+historique consommé, dont le détail manquait.
+
+Le premier échec browser conserve désormais un diagnostic fermé version 1
+`{schemaVersion,source,step,lastCompleted,reason}`. Le transport reporter
+`M1D_BROWSER_DIAGNOSTIC` est lié au run, au composite, au runtime backend et
+au runtime frontend, borné à 8192 octets et accepté une seule fois sur stdout
+du seul `BROWSER_JOURNEY`. Le runbook définit les étapes/raisons fermées et
+les règles de validation communes TypeScript/PowerShell. Une erreur secondaire
+de finalisation ne réécrit pas la première ; absence d'observation reste `null`.
+Le terminal conserve ce champ uniquement comme preuve d'échec et refuse PASS
+en sa présence. Aucun message brut, contenu de page ou secret n'est transporté.
+Les critères du parcours, les délais et les finalisations restent inchangés.
+
+Une version 2 du détail browser ajoute trois champs fermés : `operation`,
+`operationState` et `lastCompletedOperation`, avec `lastCompleted=null`.
+Les steps publics du runner conservent une opération pendante même sans
+attachment final. Le diagnostic local du worker reste prioritaire ; celui du
+reporter est un secours, sans ordre global revendiqué. Une attente pendante ou
+échouée interdit PASS. Les primitives concernées sont bornées à 10 secondes ;
+une expiration rejoint la finalisation, sans annuler à elle seule l'opération
+sous-jacente. Le Job et les preuves de cessation restent obligatoires. L'idle
+réel de 32 minutes et les fenêtres de finalisation de 1,5 seconde sont conservés.
+La régression HTTP synthétique exerce désormais aussi les scans sur pages
+vivantes et la consommation du JSON dans les deux contextes. Ces diagnostics
+ne constituent ni réussite intégrée C2 ni clôture de M1D.
+
+La confidentialité est vérifiée sur les transitions nommées dans le runbook,
+avec données sensibles conservées en mémoire. La suppression de l'instantané
+automatique n'est pas assimilée à la suppression d'error-context.md : les
+erreurs doivent être fermées avant persistance, et le transport worker/reporter
+est testé séparément. Une observation perdue ou tronquée interdit PASS.
+
+Le contrôle des requêtes utilise le chemin de l'URL : `Authorization` reste
+refusé sur toutes les requêtes API observées ; `X-Tenant-Id` est refusé sur
+`/api/session` et `/api/session/*`. Son usage contractuel sur les endpoints
+métier ne dispense jamais sa valeur des contrôles d'exposition. Les valeurs
+protégées et les métadonnées de provenance restent en mémoire. Le matching
+par inclusion, le comptage cumulatif et rétroactif, les observations transitoires,
+les quotas et l'unité de chaque sample restent inchangés. Un snapshot n'est
+pas découpé en plusieurs samples pour en préciser la provenance.
+
+Un échec cookie est transporté dans l'attachment filtré puis, pour le seul
+projet cookie, par un message diagnostique du reporter borné à 8192 octets.
+Il conserve la première sous-étape échouée, le dernier contrôle établi et les
+faits non sensibles déjà observés ; les inconnues sont `null`. Les statuts HTTP
+sont recueillis avant validation du corps ou attente UI, sur une réponse liée
+à l'origine, la méthode, le chemin et l'action attendus. Les rejets asynchrones
+gardent leur propre repère. Un refus de réduction identifie sa métrique fermée,
+distinctement d'un échec navigateur ou d'un détail indisponible au reporter.
+Le contrat fermé et les bornes sont décrits dans le runbook. Le rail vérifie
+propriétaire stdout `BROWSER_COOKIE`, unicité et bindings run/composite/runtimes,
+puis conserve le détail séparément dans le terminal FAIL. Les anciens terminaux
+restent lisibles. Ni ce détail ni son absence n'autorisent un PASS, la poursuite
+du parcours ou une destruction ; les finalisations indépendantes et leurs
+preuves restent exigées. Aucun critère cookie, CSRF, rôle ou confidentialité
+n'est assoupli et aucune cause historique manquante n'est reconstruite.
+
+Le `cookieDiagnostic` version 2 ajoute le premier triplet privacy immuable
+`{rule, surface, valueCategory}`, ou `null` lorsqu'il n'a pas été observé.
+Les trois catégories sont fermées ; une provenance multiple est signalée comme
+ambiguë, sans choix arbitraire. Aucun contenu, hash ou longueur de secret n'est
+transporté. TypeScript et PowerShell valident le même contrat. Les diagnostics
+cookie version 1 restent lisibles sans catégorie inventée. Cette version est
+distincte du diagnostic terminal à cinq champs et ne change pas son enveloppe.
+Si ce premier triplet est observé pendant la finalisation après une autre
+erreur, il rejoint le diagnostic v2 sans réécrire la cause ni les faits déjà
+figés au moment de la première erreur. Une violation suivante ne le remplace pas.
+
+Les preuves antérieures restent datées ; aucun PASS historique n'est transféré.
+Le harness conserve sa première erreur sous un code et une étape fermés,
+distincts du diagnostic principal du rail. Son vrai CLI émet au plus une frame
+stderr liée au run, composite et runtime, sans texte d'exception ni valeur
+métier. Seul le rôle HARNESS est admis ; le terminal existant conserve le
+champ optionnel `harnessDiagnostic`. Les statuts HTTP inattendus sont des
+entiers attendu/reçu ; une réponse absente garde `receivedStatus=null`.
+Les finalisations ne remplacent pas ce premier détail. Une frame invalide,
+tronquée, dupliquée, sur un autre flux/rôle ou contradictoire avec un signal
+PASS interdit la progression. Les anciens reçus restent lisibles sans
+diagnostic inventé ; les délais et barrières de cessation restent inchangés.
+
+La seule requête PUT reviewer réutilise le tenant de la requête métier
+ACCOUNTANT déjà observée et réussie, par `X-Tenant-Id`. La fonction réellement
+passée à `page.evaluate` conserve corps, méthode, CSRF et credentials, sans
+Authorization ni injection sur les endpoints session. L'attendu reste
+`403 ACCESS_DENIED`. Les tests hors DB exercent cette fonction et la liaison
+du vrai CLI au vrai consommateur/terminal ; ils ne reproduisent pas une cause
+historique non enregistrée et ne prouvent pas l'intégration PostgreSQL.
+
+L'état intégré demeure **NON PROUVÉ** jusqu'à review indépendante et campagne
+sensiblement autorisée sur cet objet exact. Aucune exécution Preflight,
+Lifecycle, readiness opérationnelle, navigateur, serveur ou DB n'est incluse
+dans le présent mandat. La spec reste active ; delivery et clôture sont séparées.

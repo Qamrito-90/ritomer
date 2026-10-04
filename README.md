@@ -18,7 +18,7 @@ Le parcours cible est : utilisateur authentifié → tenant et rôle → dossier
 | Statut | État actuel |
 | --- | --- |
 | `DELIVERED_AND_PROVED` | Noyau déterministe du closing, tenancy et RBAC applicatifs, import, mapping manuel, contrôles, previews, workpapers, documents, export, annexe minimale, audit append-only et mapping assisté no-provider. |
-| `LOCAL_OR_SYNTHETIC_ONLY` | Démo PostgreSQL/JWT/Vite, shell courant et simulation offline `mapping-suggestion-v2`, avec identités et données synthétiques. |
+| `LOCAL_OR_SYNTHETIC_ONLY` | Session process-local et coordinator frontend C livré ; raccordement D intégré validé localement sur données synthétiques le 03.10.2026 (candidate-05), présent dans le worktree mais non livré ; simulation offline `mapping-suggestion-v2`. Aucune session partagée. |
 | `DOCUMENTED_NOT_IMPLEMENTED` | Auth/session SaaS durables, cible Cloud Run/Cloud SQL, provider IA réel, gateway provider générale, tracing IA et MCP. |
 | `NOT_STARTED` | Runtime agentique goal/run/tools, site public, bêta externe et production opérable. |
 
@@ -58,7 +58,7 @@ LOCAL_DEV_MUST_USE_REAL_SYNTHETIC_USERS_MEMBERSHIPS_ROLES_AND_TENANTS=YES
 SHARED_INTERNAL_ENVIRONMENT_REQUIRES_REAL_OIDC=YES
 ```
 
-Le mode local futur simplifie l'entrée seulement. Il ne contourne jamais les memberships, rôles, contrôles serveur ou l'isolation tenant et n'est pas encore livré.
+Le mode local/test simplifie l'entrée seulement. Le kernel backend et le coordinator frontend sont livrés ; la preuve intégrée locale de D est acquise sur candidate-05, avec les limites datées de la [spec 046](specs/active/046-authenticated-session-foundation-v1.md). D reste non livré et 046 active ; cette preuve ne clôt ni M1.1 ni M1 et n'autorise aucune nouvelle exécution. Memberships, rôles, contrôles serveur et isolation tenant restent effectifs.
 
 ### IA, agent et MCP
 
@@ -108,36 +108,23 @@ Le site M7 attend une alpha stable, des captures produit réelles, un slice IA-n
 - les tests PostgreSQL réels sont opt-in via `cd backend && ./gradlew dbIntegrationTest`
 - référence décisionnelle : `docs/adr/0006-postgresql-cloud-sql-no-docker-v1.md`
 
-## Démarrage backend (Spec 001)
+## Développement local et session M1.1D
 
-Depuis la racine du repo :
+Les tests sans DB et les builds restent exécutables séparément dans `backend` (`.\gradlew.bat test`, `.\gradlew.bat windowsTest`, `.\gradlew.bat build`) et `frontend` (`pnpm test:ci`, `pnpm lint`, `pnpm build`). Ils ne prouvent pas le parcours intégré.
 
-- `cd backend && ./gradlew test`
-- `cd backend && ./gradlew dbIntegrationTest` avec configuration PostgreSQL explicite
-- `cd backend && ./gradlew build`
-- `cd backend && ./gradlew bootRun --args='--spring.profiles.active=local'`
-- détails de démarrage local : `runbooks/local-dev.md`
+Le parcours canonique local validé sur candidate-05 est session serveur + cookie opaque : un Vite `http://127.0.0.1:5173`, proxy `/api` vers `http://127.0.0.1:8080`, sans injection bearer ni réécriture de cookie ou d'Origin. Le profil `local` active cette frontière ; aucun HMAC n'est requis. `application-dev.yml` conserve la compatibilité bearer backend explicitement séparée.
 
-Variables d’environnement locales minimales :
+Le démarrage intégré appartient exclusivement au rail existant en campagne D : bootstrap gardé avant Flyway, seed puis backend, Vite provisoire puis harness à deux jars, preuves navigateur, arrêt attesté, targeted/full puis cleanup. Voir [le runbook](runbooks/local-dev.md) et [la spec active 046](specs/active/046-authenticated-session-foundation-v1.md). Ne pas remplacer ce cycle par des commandes `bootRun`, seed ou `dbIntegrationTest` autonomes.
 
-- `RITOMER_SECURITY_JWT_HMAC_SECRET` doit être fournie au runtime, sans fallback, avec une valeur CSPRNG locale d'au moins 32 octets UTF-8 ;
-- `SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/ritomer`
-- `SPRING_DATASOURCE_USERNAME=ritomer`
-- `SPRING_DATASOURCE_PASSWORD` doit déjà exister dans le shell local ;
-- `RITOMER_DB_TESTS_ENABLED=true` pour lancer les tests PostgreSQL optionnels
-- `RITOMER_DB_TEST_JDBC_URL`, `RITOMER_DB_TEST_USERNAME`, `RITOMER_DB_TEST_PASSWORD` pour une cible locale dédiée ; voir `runbooks/local-dev.md`
-- voir aussi `backend/.env.example`
+Le code et les tests offline ne valent ni Preflight, ni preuve PostgreSQL, ni QA navigateur. Ces exécutions nécessitent leurs objets, commandes et autorisations sensibles exacts. Les tests offline utilisent des valeurs fictives. La campagne locale D lit uniquement `C:\dev\ritomer-local-secrets\postgres-test.env`, configuré une seule fois sans écrasement avec le mot de passe de test existant ; voir le [runbook](runbooks/local-dev.md). Ce fichier est une donnée littérale hors Git, jamais un script ni une configuration de production. [backend/.env.example](backend/.env.example) reste une référence non exécutable.
 
-Ne créer aucun fichier `.env` et ne demander ni à Codex ni à un autre outil de lire la valeur HMAC. Exemple PowerShell pour produire 32 octets CSPRNG directement dans le processus, sans afficher ni stocker la valeur :
+## État présent M1.1
 
-```powershell
-$jwtKeyBytes = [byte[]]::new(32)
-[System.Security.Cryptography.RandomNumberGenerator]::Fill($jwtKeyBytes)
-$env:RITOMER_SECURITY_JWT_HMAC_SECRET = [Convert]::ToBase64String($jwtKeyBytes)
-[Array]::Clear($jwtKeyBytes, 0, $jwtKeyBytes.Length)
-```
+La spec 046 reste active. A/B et C sont livrés ; D est implémenté dans le worktree et son intégration locale sur données synthétiques est vérifiée sur candidate-05 le 03.10.2026. D, l'outcome final M1.1, M1 complet, la clôture de 046, M1.2, l'OIDC partagé et la production restent non livrés ou non effectués. Les records spécialisés portent les autorisations ; les records C1-04/C2-04 restent consommés et ce document n'en crée aucune.
 
 ## État de séquencement et historique
+
+Le bloc suivant décrit la rebaseline M0, antérieure à la création de 046 ; il ne décrit pas le présent.
 
 ```text
 M0_STATUS=DONE_CANONICAL_ROADMAP_REBASELINE

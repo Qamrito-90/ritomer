@@ -21,9 +21,10 @@ paths:
   /api/closing-folders/{closingFolderId}/mappings/suggestions-v2:
     get:
       operationId: getMappingSuggestionsV2Offline
-      summary: Return local offline mapping suggestions v2 for the synthetic demo folder
       security:
+        - cookieSession: []
         - bearerAuth: []
+      summary: Return local offline mapping suggestions v2 for the synthetic demo folder
       description: >
         Tenant-scoped read-only endpoint for the local synthetic demo runtime only. The endpoint is
         registered only when the backend runs with Spring profile `local` and
@@ -106,19 +107,30 @@ paths:
                         scope: REQUEST
                         preconditionBlockCode: STALE_IMPORT
         "400":
-          description: Missing, blank or malformed X-Tenant-Id
+          description: Missing, blank or malformed X-Tenant-Id. Security refusals include INVALID_TENANT_HEADER, AMBIGUOUS_CREDENTIALS (cookie plus bearer), and REQUEST_REJECTED.
         "401":
-          description: Authentication required
+          description: Authentication required. Includes AUTHENTICATION_REQUIRED and SESSION_EXPIRED; expired sessions are invalidated.
         "403":
-          description: Tenant inaccessible or role insufficient
+          description: Tenant inaccessible or role insufficient. Includes ACCESS_DENIED and ACCESS_REVOKED; global revocation invalidates the session.
         "404":
           description: Closing folder absent or outside tenant, or endpoint absent when local flag/profile is inactive
 components:
   securitySchemes:
+    cookieSession:
+      type: apiKey
+      in: cookie
+      name: __Host-ritomer-session
+      description: Opaque server session; Secure, HttpOnly, Path=/, SameSite=Lax, no Domain.
+    csrfToken:
+      type: apiKey
+      in: header
+      name: X-CSRF-TOKEN
+      description: Current session-bound CSRF token, required only for unsafe cookie-session requests.
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: Explicit legacy backend compatibility only; never browser authentication. Cannot be combined with the session cookie.
   schemas:
     MappingSuggestionsV2ReadModel:
       type: object
