@@ -100,11 +100,20 @@ jobs:
             throw 'Windows PowerShell Desktop 5.1 is required.'
           }
 
+      # Temporary diagnostic: preserve the full unfiltered task below; an early
+      # failure is a failed job, never a substitute for the complete partition.
+      - name: Diagnose parent startup before the full Windows suite
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-StrictMode -Version Latest
+          .\gradlew.bat windowsTest --tests 'ch.qamwaq.ritomer.devtools.DemoSeedLocalSourceGuardTest.postgresDParentDeathRequiresReceiptsAndSameBootLogonNamespace' --rerun --no-daemon --no-build-cache
+          exit $LASTEXITCODE
+
       - name: Run Windows tests
         run: |
           $ErrorActionPreference = 'Stop'
           Set-StrictMode -Version Latest
-          .\gradlew.bat windowsTest --no-daemon
+          .\gradlew.bat windowsTest --rerun --no-daemon --no-build-cache
           exit $LASTEXITCODE
 
       - name: Verify Windows test reports

@@ -4039,14 +4039,28 @@ class DemoSeedLocalSourceGuardTest {
       §childSource = §childSource.Replace('__ROOT__', §root).Replace('__POWERSHELL__', §powershell).Replace('__GRAND__', §grandFile).Replace('__GRAND_ID__', §grandIdFile)
       [IO.File]::WriteAllText(§childFile, §childSource)
       §parentSource = @'
-      [IO.File]::WriteAllText('__ROOT__\parent-entered','1')
+      [IO.File]::WriteAllText('__ROOT__\parent-entered',[string][Diagnostics.Stopwatch]::GetTimestamp())
       # Reuse the owned, already validated extraction instead of parsing a large
       # base64 literal and writing a duplicate inside the startup window.
       §extractedPath='__EXTRACTED_PATH__'
-      if ((Get-FileHash -LiteralPath §extractedPath -Algorithm SHA256 -ErrorAction Stop).Hash.ToLowerInvariant() -cne '__EXTRACTED_SHA256__') { throw 'FIXTURE_EXTRACTION_DIVERGED' }
-      [IO.File]::WriteAllText('__ROOT__\functions-hash-verified','1')
-      . §extractedPath -Campaign D -Mode Lifecycle -RunId '__RUN__' -ReviewedObjectSha256 '__HASH__' -ExpectedPsqlSha256 '__HASH__' -RunRoot '__ROOT__' -SensitiveAuthorizationRecordId AUTH-OFFLINE-FIXTURE -PreflightAuthorizationRecordId AUTH-OFFLINE-PREFLIGHT
-      [IO.File]::WriteAllText('__ROOT__\functions-loaded','1')
+      §fixtureBootstrapStage = 'HASH'; §fixtureFailureCategory = 'UNEXPECTED_FAILURE'
+      try {
+        [IO.File]::WriteAllText('__ROOT__\hash-entered',[string][Diagnostics.Stopwatch]::GetTimestamp())
+        §fixtureHash = (Get-FileHash -LiteralPath §extractedPath -Algorithm SHA256 -ErrorAction Stop).Hash.ToLowerInvariant()
+        [IO.File]::WriteAllText('__ROOT__\hash-returned',[string][Diagnostics.Stopwatch]::GetTimestamp())
+        if (§fixtureHash -cne '__EXTRACTED_SHA256__') { §fixtureFailureCategory = 'HASH_DIVERGED'; throw 'FIXTURE_EXTRACTION_DIVERGED' }
+        [IO.File]::WriteAllText('__ROOT__\functions-hash-verified','1')
+        §fixtureBootstrapStage = 'IMPORT'
+        . §extractedPath -Campaign D -Mode Lifecycle -RunId '__RUN__' -ReviewedObjectSha256 '__HASH__' -ExpectedPsqlSha256 '__HASH__' -RunRoot '__ROOT__' -SensitiveAuthorizationRecordId AUTH-OFFLINE-FIXTURE -PreflightAuthorizationRecordId AUTH-OFFLINE-PREFLIGHT
+        [IO.File]::WriteAllText('__ROOT__\functions-loaded','1')
+      } catch {
+        §fixtureCause = §_.Exception.GetBaseException()
+        if (§fixtureCause -is [UnauthorizedAccessException]) { §fixtureFailureCategory = 'ACCESS_DENIED' }
+        elseif (§fixtureCause -is [IO.IOException]) { §fixtureFailureCategory = 'IO_FAILURE' }
+        elseif (§_.CategoryInfo.Reason -ceq 'CommandNotFoundException') { §fixtureFailureCategory = 'COMMAND_NOT_FOUND' }
+        [IO.File]::WriteAllText('__ROOT__\parent-bootstrap-failure', (§fixtureBootstrapStage + '|' + §fixtureFailureCategory))
+        exit 23
+      }
       §script:DRunRoot = '__ROOT__'
       §Mode = 'Lifecycle'; §LifecycleAction = 'Run'; Start-M1DClock Lifecycle
       Enter-M1DPhase backend
@@ -4074,8 +4088,31 @@ class DemoSeedLocalSourceGuardTest {
         §clock = [Diagnostics.Stopwatch]::StartNew()
         §observationOrigin = [Diagnostics.Stopwatch]::GetTimestamp()
         while (-not [IO.File]::Exists(§grandIdFile) -and -not §parent.HasExited -and §clock.ElapsedMilliseconds -lt 10000) { [Threading.Thread]::Sleep(25) }
+        §waitEndTicks = [Diagnostics.Stopwatch]::GetTimestamp()
         §observedAtMs = §clock.ElapsedMilliseconds
         §grandFilePresentAtWaitEnd = [IO.File]::Exists(§grandIdFile)
+        function Get-FixtureRelativeTick {
+          param([long]§Ticks)
+          if (§Ticks -lt §observationOrigin) { return 'PRE_ORIGIN' }
+          §milliseconds = [Math]::Floor((§Ticks - §observationOrigin) * 1000.0 / [Diagnostics.Stopwatch]::Frequency)
+          if (§milliseconds -gt 45000) { return 'OUT_OF_RANGE' }
+          return ([long]§milliseconds).ToString([Globalization.CultureInfo]::InvariantCulture)
+        }
+        §parentTiming = @(foreach (§stage in @('parent-entered','hash-entered','hash-returned')) {
+          §stagePath = Join-Path §root §stage
+          if (-not [IO.File]::Exists(§stagePath)) { 'MISSING'; continue }
+          §stageTicks = 0L
+          if (-not [long]::TryParse([IO.File]::ReadAllText(§stagePath), [ref]§stageTicks) -or §stageTicks -le 0) { 'INVALID'; continue }
+          Get-FixtureRelativeTick §stageTicks
+        })
+        'M1D_PARENT_TIMING entry=' + §parentTiming[0] + ' hashEnter=' + §parentTiming[1] + ' hashReturn=' + §parentTiming[2] + ' wait=' + (Get-FixtureRelativeTick §waitEndTicks)
+        §bootstrapFailurePath = Join-Path §root 'parent-bootstrap-failure'
+        if ([IO.File]::Exists(§bootstrapFailurePath)) {
+          §bootstrapFailure = [IO.File]::ReadAllText(§bootstrapFailurePath)
+          if (§bootstrapFailure -cmatch '^(HASH|IMPORT)\|(UNEXPECTED_FAILURE|HASH_DIVERGED|ACCESS_DENIED|IO_FAILURE|COMMAND_NOT_FOUND)\z') {
+            'M1D_PARENT_BOOTSTRAP stage=' + §Matches[1] + ' category=' + §Matches[2]
+          } else { 'M1D_PARENT_BOOTSTRAP stage=INVALID category=INVALID' }
+        }
         §grandTrace = @(foreach (§stage in @('child-entered','grand-start-entered','grand-start-returned','grand-id-obtained','grand-id-publish-entered','grand-id-published')) {
           §stagePath = Join-Path §root §stage
           if ([IO.File]::Exists(§stagePath)) {
@@ -4141,7 +4178,36 @@ class DemoSeedLocalSourceGuardTest {
           if (§startObservation.publication -ceq 'READABLE_ID') { 'M1D_PARENT_PUBLICATION_READABLE' }
         }
         'T1_PARENT_OBSERVATION=' + (§startObservation | ConvertTo-Json -Depth 4 -Compress)
-        if (§null -ne §parent) { [void]§parent.TerminateTreeAndWait(5000); §parent.Dispose() }
+        if (§null -ne §parent) {
+          try {
+            §fixtureStopped = §parent.TerminateTreeAndWait(5000)
+            # Observe only after the outcome and process termination are fixed.
+            # Never drain a blocked writer into a late startup success.
+            if (§null -ne §startObservation -and -not §startObservation.grandFilePresentAtWaitEnd) {
+              foreach (§streamName in @('StandardOutput','StandardError')) {
+                §sampleState = 'STOP_UNCONFIRMED'; §sampleSize = 0; §sampleText = ''
+                try {
+                  if (§fixtureStopped) {
+                    §sampleBytes = [byte[]]::new(8192); §sampleClock = [Diagnostics.Stopwatch]::StartNew()
+                    §sampleTask = §parent.§streamName.BaseStream.ReadAsync(§sampleBytes, 0, §sampleBytes.Length)
+                    §sampleState = 'PENDING'
+                    while (§sampleClock.ElapsedMilliseconds -lt 200) {
+                      if (-not §sampleTask.IsCompleted) { [Threading.Thread]::Sleep(1); continue }
+                      §read = §sampleTask.GetAwaiter().GetResult()
+                      if (§read -eq 0) { §sampleState = if (§sampleSize -eq 0) { 'EOF_EMPTY' } else { 'EOF_NONEMPTY' }; break }
+                      §sampleSize += §read
+                      if (§sampleSize -eq §sampleBytes.Length) { §sampleState = 'LIMIT_REACHED'; break }
+                      §sampleTask = §parent.§streamName.BaseStream.ReadAsync(§sampleBytes, §sampleSize, §sampleBytes.Length - §sampleSize)
+                    }
+                    §sampleText = [Text.Encoding]::UTF8.GetString(§sampleBytes, 0, §sampleSize)
+                  }
+                } catch { §sampleState = 'READ_FAULT' }
+                §streamLabel = if (§streamName -ceq 'StandardError') { 'STDERR' } else { 'STDOUT' }
+                'M1D_PARENT_STREAM stream=' + §streamLabel + ' state=' + §sampleState + ' sampled=' + §sampleSize + ' clixml=' + [int]§sampleText.Contains('#< CLIXML') + ' progress=' + [int]§sampleText.Contains('S="progress"') + ' error=' + [int]§sampleText.Contains('S="Error"')
+              }
+            }
+          } finally { §parent.Dispose() }
+        }
         'T1_PARENT_DISPOSED_JOB_COUNT=' + [Ritomer.M1B.ContainedProcess]::QueryDJob(('Local\Ritomer.M1D.' + §RunId + '.BACKEND'))
         if (-not §root.StartsWith(§tempBase, [StringComparison]::OrdinalIgnoreCase) -or -not ([IO.Path]::GetFileName(§root)).StartsWith('m1d-parent-')) { throw 'FIXTURE_ROOT_INVALID' }
         [IO.Directory]::Delete(§root, §true)

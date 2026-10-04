@@ -601,6 +601,23 @@ listOf("test", "windowsTest").forEach { taskName ->
           "M1D_PARENT_PUBLICATION_READABLE"
         ).filter { marker -> messages.any { it.contains(marker) } }
         logger.lifecycle("M1D_CI_FAILURE_TEXT fixture=$fixture truncated=$truncated markers=${markers.joinToString(",").ifEmpty { "UNCLASSIFIED" }}")
+        if (fixture == "PARENT_DEATH") {
+          // Only fixed schemas with bounded numeric fields may leave the fixture.
+          val lines = messages.flatMap { it.lineSequence().map { line -> line.trim() }.toList() }
+          val timeValue = "([0-9]{1,5}|MISSING|INVALID|PRE_ORIGIN|OUT_OF_RANGE)"
+          val timing = Regex("M1D_PARENT_TIMING entry=$timeValue hashEnter=$timeValue hashReturn=$timeValue wait=$timeValue")
+          lines.firstOrNull { line ->
+            timing.matchEntire(line)?.groupValues?.drop(1)?.all { value ->
+              value in setOf("MISSING", "INVALID", "PRE_ORIGIN", "OUT_OF_RANGE") ||
+                value.toIntOrNull()?.let { it in 0..45000 } == true
+            } == true
+          }?.let { logger.lifecycle(it) }
+          val bootstrap = Regex("M1D_PARENT_BOOTSTRAP stage=(HASH|IMPORT|INVALID) category=(UNEXPECTED_FAILURE|HASH_DIVERGED|ACCESS_DENIED|IO_FAILURE|COMMAND_NOT_FOUND|INVALID)")
+          lines.firstOrNull(bootstrap::matches)?.let { logger.lifecycle(it) }
+          val stream = Regex("M1D_PARENT_STREAM stream=(STDOUT|STDERR) state=(STOP_UNCONFIRMED|PENDING|EOF_EMPTY|EOF_NONEMPTY|LIMIT_REACHED|READ_FAULT) sampled=([0-9]{1,4}) clixml=[01] progress=[01] error=[01]")
+          lines.filter { line -> stream.matchEntire(line)?.groupValues?.get(3)?.toIntOrNull()?.let { it in 0..8192 } == true }
+            .distinct().take(2).forEach { logger.lifecycle(it) }
+        }
       }
     })
   }
