@@ -607,7 +607,7 @@ listOf("test", "windowsTest").forEach { taskName ->
           val timeValue = "([0-9]{1,5}|MISSING|INVALID|PRE_ORIGIN|OUT_OF_RANGE)"
           val timingSchemas = listOf(
             Regex("M1D_PARENT_TIMING entry=$timeValue extractEnter=$timeValue extractReturn=$timeValue importEnter=$timeValue importReturn=$timeValue wait=$timeValue"),
-            Regex("M1D_PARENT_IMPORT bodyEnter=$timeValue assemblyEnter=$timeValue assemblyReturn=$timeValue rootEnter=$timeValue moduleEnter=$timeValue moduleReturn=$timeValue rootReturn=$timeValue bodyReturn=$timeValue")
+            Regex("M1D_PARENT_IMPORT bodyEnter=$timeValue assemblyEnter=$timeValue assemblyReturn=$timeValue rootEnter=$timeValue moduleEnter=$timeValue moduleReturn=$timeValue utilityEnter=$timeValue utilityReturn=$timeValue rootReturn=$timeValue bodyReturn=$timeValue")
           )
           timingSchemas.forEach { timing ->
             lines.firstOrNull { line ->

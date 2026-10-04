@@ -4055,7 +4055,7 @@ class DemoSeedLocalSourceGuardTest {
         if (§fixtureCause -is [UnauthorizedAccessException]) { §fixtureFailureCategory = 'ACCESS_DENIED' }
         elseif (§fixtureCause -is [IO.IOException]) { §fixtureFailureCategory = 'IO_FAILURE' }
         elseif (§_.CategoryInfo.Reason -ceq 'CommandNotFoundException') { §fixtureFailureCategory = 'COMMAND_NOT_FOUND' }
-        elseif (§fixtureCause.Message -ceq 'FIXTURE_MANAGEMENT_MANIFEST_MISSING') { §fixtureFailureCategory = 'MODULE_MANIFEST_MISSING' }
+        elseif (§fixtureCause.Message -cin @('FIXTURE_MANAGEMENT_MANIFEST_MISSING','FIXTURE_UTILITY_MANIFEST_MISSING')) { §fixtureFailureCategory = 'MODULE_MANIFEST_MISSING' }
         [IO.File]::WriteAllText('__ROOT__\parent-bootstrap-failure', (§fixtureBootstrapStage + '|' + §fixtureFailureCategory))
         exit 23
       }
@@ -4104,14 +4104,14 @@ class DemoSeedLocalSourceGuardTest {
           Get-FixtureRelativeTick §stageTicks
         })
         "`nM1D_PARENT_TIMING entry=" + §parentTiming[0] + ' extractEnter=' + §parentTiming[1] + ' extractReturn=' + §parentTiming[2] + ' importEnter=' + §parentTiming[3] + ' importReturn=' + §parentTiming[4] + ' wait=' + (Get-FixtureRelativeTick §waitEndTicks)
-        §importTiming = @(foreach (§stage in @('body-enter','assembly-enter','assembly-return','root-enter','root-module-enter','root-module-return','root-return','body-return')) {
+        §importTiming = @(foreach (§stage in @('body-enter','assembly-enter','assembly-return','root-enter','root-module-enter','root-module-return','utility-enter','utility-return','root-return','body-return')) {
           §stagePath = [IO.Path]::Combine(§root, ('parent-import-' + §stage))
           if (-not [IO.File]::Exists(§stagePath)) { 'MISSING'; continue }
           §stageTicks = 0L
           if (-not [long]::TryParse([IO.File]::ReadAllText(§stagePath), [ref]§stageTicks) -or §stageTicks -le 0) { 'INVALID'; continue }
           Get-FixtureRelativeTick §stageTicks
         })
-        'M1D_PARENT_IMPORT bodyEnter=' + §importTiming[0] + ' assemblyEnter=' + §importTiming[1] + ' assemblyReturn=' + §importTiming[2] + ' rootEnter=' + §importTiming[3] + ' moduleEnter=' + §importTiming[4] + ' moduleReturn=' + §importTiming[5] + ' rootReturn=' + §importTiming[6] + ' bodyReturn=' + §importTiming[7]
+        'M1D_PARENT_IMPORT bodyEnter=' + §importTiming[0] + ' assemblyEnter=' + §importTiming[1] + ' assemblyReturn=' + §importTiming[2] + ' rootEnter=' + §importTiming[3] + ' moduleEnter=' + §importTiming[4] + ' moduleReturn=' + §importTiming[5] + ' utilityEnter=' + §importTiming[6] + ' utilityReturn=' + §importTiming[7] + ' rootReturn=' + §importTiming[8] + ' bodyReturn=' + §importTiming[9]
         §bootstrapFailurePath = Join-Path §root 'parent-bootstrap-failure'
         if ([IO.File]::Exists(§bootstrapFailurePath)) {
           §bootstrapFailure = [IO.File]::ReadAllText(§bootstrapFailurePath)
@@ -7052,6 +7052,9 @@ class DemoSeedLocalSourceGuardTest {
         appendLine("  if (§traceRoot) { §offlineParts.Add('${traceStatement("root-module-enter")}') }")
         appendLine("  if (§traceRoot) { §offlineParts.Add('if (§Campaign -ceq ''D'' -and §Mode -ceq ''Lifecycle'') { §fixtureManagementManifest = [IO.Path]::Combine(§PSHOME, ''Modules\\Microsoft.PowerShell.Management\\Microsoft.PowerShell.Management.psd1''); if (-not [IO.File]::Exists(§fixtureManagementManifest)) { throw ''FIXTURE_MANAGEMENT_MANIFEST_MISSING'' }; §null = Import-Module -Name §fixtureManagementManifest -ErrorAction Stop }') }")
         appendLine("  if (§traceRoot) { §offlineParts.Add('${traceStatement("root-module-return")}') }")
+        appendLine("  if (§traceRoot) { §offlineParts.Add('${traceStatement("utility-enter")}') }")
+        appendLine("  if (§traceRoot) { §offlineParts.Add('if (§Campaign -ceq ''D'' -and §Mode -ceq ''Lifecycle'') { §fixtureUtilityManifest = [IO.Path]::Combine(§PSHOME, ''Modules\\Microsoft.PowerShell.Utility\\Microsoft.PowerShell.Utility.psd1''); if (-not [IO.File]::Exists(§fixtureUtilityManifest)) { throw ''FIXTURE_UTILITY_MANIFEST_MISSING'' }; §null = Import-Module -Name §fixtureUtilityManifest -ErrorAction Stop }') }")
+        appendLine("  if (§traceRoot) { §offlineParts.Add('${traceStatement("utility-return")}') }")
       }
       appendLine("  §offlineParts.Add(§part)")
       if (traceParentBootstrap) {
