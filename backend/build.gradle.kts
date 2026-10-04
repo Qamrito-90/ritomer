@@ -585,7 +585,20 @@ listOf("test", "windowsTest").forEach { taskName ->
           "LIVE_ROOT_ACCEPTED", "DESCENDANT_NOT_CONFINED",
           "SYNTHETIC_PARENT_NOT_TERMINATED", "EXPECTED_JOB_ABSENCE_NOT_OBSERVED",
           "SURVIVING_DESCENDANT_ACCEPTED", "CHANGED_BOOT_LOGON_ACCEPTED",
-          "ORPHAN_CONFINEMENT_ACCEPTED", "FIXTURE_ROOT_INVALID"
+          "ORPHAN_CONFINEMENT_ACCEPTED", "FIXTURE_ROOT_INVALID",
+          "M1D_OFFLINE_GET_ITEM_NOT_FOUND", "M1D_OFFLINE_QUARANTINE_GET_ITEM_IO",
+          "M1D_READINESS_TIMESTAMP_NONPOSITIVE", "M1D_READINESS_TIMESTAMP_VALID",
+          "M1D_READINESS_ADMISSION_REACHED", "M1D_READINESS_CLOCK_BINDING_INVALID",
+          "M1D_READINESS_DEADLINE_EXPIRED", "M1D_READINESS_STOP_UNCLASSIFIED",
+          "M1D_READINESS_EFFECTS_ABSENT", "M1D_PARENT_OBSERVATION_ABSENT",
+          "M1D_PARENT_PRESENT_parent-entered", "M1D_PARENT_PRESENT_functions-loaded",
+          "M1D_PARENT_PRESENT_phase-admitted",
+          "M1D_PARENT_PRESENT_d-launch-lifecycle-BACKEND-intent.json",
+          "M1D_PARENT_PRESENT_d-launch-lifecycle-BACKEND-confined.json",
+          "M1D_PARENT_PRESENT_child-launched", "M1D_PARENT_PRESENT_child-entered",
+          "M1D_PARENT_PRESENT_grandchild-id.txt", "M1D_PARENT_PRESENT_grand-entered",
+          "M1D_PARENT_EXITED_AT_OBSERVATION", "M1D_PARENT_START_WINDOW_EXPIRED",
+          "M1D_PARENT_PUBLICATION_READABLE"
         ).filter { marker -> messages.any { it.contains(marker) } }
         logger.lifecycle("M1D_CI_FAILURE_TEXT fixture=$fixture truncated=$truncated markers=${markers.joinToString(",").ifEmpty { "UNCLASSIFIED" }}")
       }

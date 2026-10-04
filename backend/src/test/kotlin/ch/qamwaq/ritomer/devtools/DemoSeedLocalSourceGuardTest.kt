@@ -2452,9 +2452,10 @@ class DemoSeedLocalSourceGuardTest {
       }
       function Read-M1BPreflightManifest {
         param(§Root,§RunId,§ReviewedObjectSha256,§Authorization,§Baseline)
+        §script:fixtureCampaignTimestamp = if (§script:scenario -ceq 'campaign-expired') { [string]([Diagnostics.Stopwatch]::GetTimestamp() - 11760L * [Diagnostics.Stopwatch]::Frequency) } elseif (§script:scenario -ceq 'reserve-readiness') { [string]([Diagnostics.Stopwatch]::GetTimestamp() - 7200L * [Diagnostics.Stopwatch]::Frequency) } else { [string][Diagnostics.Stopwatch]::GetTimestamp() }
         return [pscustomobject]@{ Sha256 = ('3' * 64); Value = [pscustomobject]@{
           runtimeSha256 = '2' * 64; psql = [pscustomobject]@{ sha256 = §ExpectedPsqlSha256 }
-          campaignStartTimestamp = $(if (§script:scenario -ceq 'campaign-expired') { [string]([Diagnostics.Stopwatch]::GetTimestamp() - 11760L * [Diagnostics.Stopwatch]::Frequency) } elseif (§script:scenario -ceq 'reserve-readiness') { [string]([Diagnostics.Stopwatch]::GetTimestamp() - 7200L * [Diagnostics.Stopwatch]::Frequency) } else { [string][Diagnostics.Stopwatch]::GetTimestamp() })
+          campaignStartTimestamp = §script:fixtureCampaignTimestamp
           stopwatchFrequency = [string][Diagnostics.Stopwatch]::Frequency; machine = [Environment]::MachineName
           namespaceIdentity = $(if (§script:scenario -ceq 'namespace-mismatch') { 'different-boot' } else { Get-M1DNamespaceIdentity })
           frontendRuntimeSha256 = $(if (§script:scenario -ceq 'frontend-drift') { 'f' * 64 } else { '4' * 64 })
@@ -2551,7 +2552,17 @@ class DemoSeedLocalSourceGuardTest {
           try { [void](Invoke-M1DLifecycle) } catch { §code = Get-M1BStopCode §_ }
           if (-not §script:lockReleased) { throw 'LIFECYCLE_LOCK_NOT_RELEASED' }
           if (§scenario -ceq 'reserve-readiness') {
-            if (§code -cne 'D_DEADLINE_EXPIRED' -or §script:events.Count -ne 0 -or [IO.File]::Exists(§script:DQuarantinePath) -or §script:PsqlProcessStarts.Provision -ne 0 -or §script:PsqlProcessStarts.Cleanup -ne 0) { throw 'INSUFFICIENT_RESERVE_STARTED_WORK' }
+            if (§code -cne 'D_DEADLINE_EXPIRED' -or §script:events.Count -ne 0 -or [IO.File]::Exists(§script:DQuarantinePath) -or §script:PsqlProcessStarts.Provision -ne 0 -or §script:PsqlProcessStarts.Cleanup -ne 0) {
+              # Closed observations only; never substitute a different expected result.
+              if ([long]§script:fixtureCampaignTimestamp -le 0) { 'M1D_READINESS_TIMESTAMP_NONPOSITIVE' }
+              if (§script:fixtureCampaignTimestamp -cmatch '^[1-9][0-9]{1,18}$') { 'M1D_READINESS_TIMESTAMP_VALID' }
+              if (§script:DEnteredPhases.ContainsKey('readiness')) { 'M1D_READINESS_ADMISSION_REACHED' }
+              if (§code -ceq 'D_CAMPAIGN_CLOCK_BINDING_INVALID') { 'M1D_READINESS_CLOCK_BINDING_INVALID' }
+              elseif (§code -ceq 'D_DEADLINE_EXPIRED') { 'M1D_READINESS_DEADLINE_EXPIRED' }
+              else { 'M1D_READINESS_STOP_UNCLASSIFIED' }
+              if (§script:events.Count -eq 0 -and -not [IO.File]::Exists(§script:DQuarantinePath) -and §script:PsqlProcessStarts.Provision -eq 0 -and §script:PsqlProcessStarts.Cleanup -eq 0) { 'M1D_READINESS_EFFECTS_ABSENT' }
+              throw 'INSUFFICIENT_RESERVE_STARTED_WORK'
+            }
             continue
           }
           if (§scenario -cin @('reserve-targeted','reserve-cleanup')) {
@@ -4089,6 +4100,15 @@ class DemoSeedLocalSourceGuardTest {
         §code = 'NONE'; try { Assert-M1DRecordedCessation } catch { §code = Get-M1BStopCode §_ }
         if (§code -cne 'D_LAUNCH_RECEIPT_ORPHAN') { throw 'ORPHAN_CONFINEMENT_ACCEPTED' }
       } finally {
+        if (§null -eq §startObservation) { 'M1D_PARENT_OBSERVATION_ABSENT' }
+        else {
+          foreach (§stage in @('parent-entered','functions-loaded','phase-admitted','d-launch-lifecycle-BACKEND-intent.json','d-launch-lifecycle-BACKEND-confined.json','child-launched','child-entered','grandchild-id.txt','grand-entered')) {
+            if (§startObservation.present -ccontains §stage) { 'M1D_PARENT_PRESENT_' + §stage }
+          }
+          if (§startObservation.parentExited) { 'M1D_PARENT_EXITED_AT_OBSERVATION' }
+          if (§startObservation.elapsedMs -ge 10000) { 'M1D_PARENT_START_WINDOW_EXPIRED' }
+          if (§startObservation.publication -ceq 'READABLE_ID') { 'M1D_PARENT_PUBLICATION_READABLE' }
+        }
         'T1_PARENT_OBSERVATION=' + (§startObservation | ConvertTo-Json -Depth 4 -Compress)
         if (§null -ne §parent) { [void]§parent.TerminateTreeAndWait(5000); §parent.Dispose() }
         'T1_PARENT_DISPOSED_JOB_COUNT=' + [Ritomer.M1B.ContainedProcess]::QueryDJob(('Local\Ritomer.M1D.' + §RunId + '.BACKEND'))
@@ -6938,7 +6958,11 @@ class DemoSeedLocalSourceGuardTest {
       appendLine("function Read-M1DLocalAdminPassword { 'offline-fixed-admin-marker' }")
       append(body)
       append('\n')
-      appendLine("} catch { §extractionPrimaryFailure=§_ } finally {")
+      appendLine("} catch {")
+      appendLine("  §extractionPrimaryFailure=§_")
+      appendLine("  if (§_.CategoryInfo.Reason -ceq 'ItemNotFoundException' -and §null -ne §_.InvocationInfo -and §null -ne §_.InvocationInfo.MyCommand -and §_.InvocationInfo.MyCommand.Name -ceq 'Get-Item') { Write-Output 'M1D_OFFLINE_GET_ITEM_NOT_FOUND' }")
+      appendLine("  if (§_.CategoryInfo.Reason -ceq 'IOException' -and §null -ne §_.InvocationInfo -and §null -ne §_.InvocationInfo.MyCommand -and §_.InvocationInfo.MyCommand.Name -ceq 'Get-Item' -and §_.TargetObject -is [string] -and §_.TargetObject -ceq §script:DQuarantinePath) { Write-Output 'M1D_OFFLINE_QUARANTINE_GET_ITEM_IO' }")
+      appendLine("} finally {")
       appendLine("  try { [IO.File]::Delete(§offlineRailPath) } catch {")
       appendLine("    §extractionCleanupFailure=§_")
       appendLine("    Write-Output ('FIXTURE_EXTRACTION_FINALIZATION_ERROR '+(ConvertTo-Json ([ordered]@{step='extracted-functions-delete';target=§offlineRailPath;category=§_.Exception.GetType().FullName;message=§_.Exception.Message}) -Compress))")
