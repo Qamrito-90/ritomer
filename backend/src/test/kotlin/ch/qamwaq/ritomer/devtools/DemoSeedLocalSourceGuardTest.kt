@@ -4046,6 +4046,17 @@ class DemoSeedLocalSourceGuardTest {
         §extractedPath=[IO.Path]::ChangeExtension(§PSCommandPath,'.functions.ps1')
         [IO.File]::WriteAllBytes(§extractedPath,[Convert]::FromBase64String('__EXTRACTED_FUNCTIONS__'))
         [IO.File]::WriteAllText('__ROOT__\functions-extracted',[string][Diagnostics.Stopwatch]::GetTimestamp())
+        §fixtureBootstrapStage = 'MODULES'
+        Set-StrictMode -Version Latest
+        §ErrorActionPreference = 'Stop'
+        §ProgressPreference = 'SilentlyContinue'
+        # The synthetic parent inherits the fixture's minimal environment. Load only its two
+        # system dependencies explicitly: implicit discovery exhausted the hosted startup window.
+        foreach (§fixtureModule in @('Microsoft.PowerShell.Management','Microsoft.PowerShell.Utility')) {
+          §fixtureManifest = [IO.Path]::Combine(§PSHOME, ('Modules\' + §fixtureModule + '\' + §fixtureModule + '.psd1'))
+          if (-not [IO.File]::Exists(§fixtureManifest)) { throw 'FIXTURE_MODULE_MANIFEST_UNOBSERVABLE' }
+          §null = Import-Module -Name §fixtureManifest -ErrorAction Stop
+        }
         §fixtureBootstrapStage = 'IMPORT'
         [IO.File]::WriteAllText('__ROOT__\import-entered',[string][Diagnostics.Stopwatch]::GetTimestamp())
         . §extractedPath -Campaign D -Mode Lifecycle -RunId '__RUN__' -ReviewedObjectSha256 '__HASH__' -ExpectedPsqlSha256 '__HASH__' -RunRoot '__ROOT__' -SensitiveAuthorizationRecordId AUTH-OFFLINE-FIXTURE -PreflightAuthorizationRecordId AUTH-OFFLINE-PREFLIGHT
@@ -4055,7 +4066,7 @@ class DemoSeedLocalSourceGuardTest {
         if (§fixtureCause -is [UnauthorizedAccessException]) { §fixtureFailureCategory = 'ACCESS_DENIED' }
         elseif (§fixtureCause -is [IO.IOException]) { §fixtureFailureCategory = 'IO_FAILURE' }
         elseif (§_.CategoryInfo.Reason -ceq 'CommandNotFoundException') { §fixtureFailureCategory = 'COMMAND_NOT_FOUND' }
-        elseif (§fixtureCause.Message -cin @('FIXTURE_MANAGEMENT_MANIFEST_MISSING','FIXTURE_UTILITY_MANIFEST_MISSING')) { §fixtureFailureCategory = 'MODULE_MANIFEST_MISSING' }
+        elseif (§fixtureCause.Message -ceq 'FIXTURE_MODULE_MANIFEST_UNOBSERVABLE') { §fixtureFailureCategory = 'MODULE_MANIFEST_UNOBSERVABLE' }
         [IO.File]::WriteAllText('__ROOT__\parent-bootstrap-failure', (§fixtureBootstrapStage + '|' + §fixtureFailureCategory))
         exit 23
       }
@@ -4104,18 +4115,10 @@ class DemoSeedLocalSourceGuardTest {
           Get-FixtureRelativeTick §stageTicks
         })
         "`nM1D_PARENT_TIMING entry=" + §parentTiming[0] + ' extractEnter=' + §parentTiming[1] + ' extractReturn=' + §parentTiming[2] + ' importEnter=' + §parentTiming[3] + ' importReturn=' + §parentTiming[4] + ' wait=' + (Get-FixtureRelativeTick §waitEndTicks)
-        §importTiming = @(foreach (§stage in @('body-enter','assembly-enter','assembly-return','root-enter','root-module-enter','root-module-return','utility-enter','utility-return','root-return','body-return')) {
-          §stagePath = [IO.Path]::Combine(§root, ('parent-import-' + §stage))
-          if (-not [IO.File]::Exists(§stagePath)) { 'MISSING'; continue }
-          §stageTicks = 0L
-          if (-not [long]::TryParse([IO.File]::ReadAllText(§stagePath), [ref]§stageTicks) -or §stageTicks -le 0) { 'INVALID'; continue }
-          Get-FixtureRelativeTick §stageTicks
-        })
-        'M1D_PARENT_IMPORT bodyEnter=' + §importTiming[0] + ' assemblyEnter=' + §importTiming[1] + ' assemblyReturn=' + §importTiming[2] + ' rootEnter=' + §importTiming[3] + ' moduleEnter=' + §importTiming[4] + ' moduleReturn=' + §importTiming[5] + ' utilityEnter=' + §importTiming[6] + ' utilityReturn=' + §importTiming[7] + ' rootReturn=' + §importTiming[8] + ' bodyReturn=' + §importTiming[9]
         §bootstrapFailurePath = Join-Path §root 'parent-bootstrap-failure'
         if ([IO.File]::Exists(§bootstrapFailurePath)) {
           §bootstrapFailure = [IO.File]::ReadAllText(§bootstrapFailurePath)
-          if (§bootstrapFailure -cmatch '^(EXTRACT|IMPORT)\|(UNEXPECTED_FAILURE|ACCESS_DENIED|IO_FAILURE|COMMAND_NOT_FOUND|MODULE_MANIFEST_MISSING)\z') {
+          if (§bootstrapFailure -cmatch '^(EXTRACT|MODULES|IMPORT)\|(UNEXPECTED_FAILURE|ACCESS_DENIED|IO_FAILURE|COMMAND_NOT_FOUND|MODULE_MANIFEST_UNOBSERVABLE)\z') {
             'M1D_PARENT_BOOTSTRAP stage=' + §Matches[1] + ' category=' + §Matches[2]
           } else { 'M1D_PARENT_BOOTSTRAP stage=INVALID category=INVALID' }
         }
@@ -4219,8 +4222,7 @@ class DemoSeedLocalSourceGuardTest {
         [IO.Directory]::Delete(§root, §true)
       }
       'M1D_PARENT_DEATH_JOB_ABSENCE_NAMESPACE=PASS'
-      """.trimIndent(),
-      traceParentBootstrap = true
+      """.trimIndent()
     )
     assertThat(output).contains("M1D_PARENT_DEATH_JOB_ABSENCE_NAMESPACE=PASS")
     output.lineSequence().filter { it.startsWith("T1_PARENT_") }.forEach(::println)
@@ -6932,11 +6934,7 @@ class DemoSeedLocalSourceGuardTest {
     }
   }
 
-  private fun runRailPowerShell(
-    body: String,
-    traceParentBootstrap: Boolean = false,
-    startProcess: (ProcessBuilder) -> Process = { it.start() }
-  ): String {
+  private fun runRailPowerShell(body: String, startProcess: (ProcessBuilder) -> Process = { it.start() }): String {
     val scriptPath = Path.of("scripts/m1-1b-postgresql-rail.ps1")
       .toAbsolutePath()
       .normalize()
@@ -7036,33 +7034,12 @@ class DemoSeedLocalSourceGuardTest {
       // dispatch. Extract exact functions and the validated inert initializers.
       appendLine("§offlineParts = [Collections.Generic.List[string]]::new()")
       appendLine("§offlineParts.Add(§railAst.ParamBlock.Extent.Text)")
-      fun traceStatement(stage: String): String =
-        "if (§Campaign -ceq 'D' -and §Mode -ceq 'Lifecycle') { [IO.File]::WriteAllText([IO.Path]::Combine(§RunRoot, 'parent-import-$stage'), [string][Diagnostics.Stopwatch]::GetTimestamp()) }"
-          .replace("'", "''")
-      if (traceParentBootstrap) appendLine("§offlineParts.Add('${traceStatement("body-enter")}')")
       appendLine("foreach (§statement in §railAst.EndBlock.Statements) {")
       appendLine("  if (§statement -is [System.Management.Automation.Language.IfStatementAst] -and §statement.Clauses[0].Item1.Extent.Text.Trim() -ceq §expectedFooterCondition) { continue }")
       appendLine("  §part = §statement.Extent.Text")
       appendLine("  if (§statement -is [System.Management.Automation.Language.AssignmentStatementAst] -and §statement.Left.Extent.Text -ceq '§script:BackendRoot') { §part = '§script:BackendRoot = ' + [char]39 + (Split-Path -Parent (Split-Path -Parent §railPath)).Replace([string][char]39, ([string][char]39 + [char]39)) + [char]39 }")
-      if (traceParentBootstrap) {
-        appendLine("  §traceAssembly = §statement -is [System.Management.Automation.Language.PipelineAst] -and (§statement.Extent.Text -replace '\\s+', ' ').Trim() -ceq §assemblyLoad")
-        appendLine("  §traceRoot = §statement -is [System.Management.Automation.Language.AssignmentStatementAst] -and §statement.Left.Extent.Text -ceq '§script:RepoRoot'")
-        appendLine("  if (§traceAssembly) { §offlineParts.Add('${traceStatement("assembly-enter")}') }")
-        appendLine("  if (§traceRoot) { §offlineParts.Add('${traceStatement("root-enter")}') }")
-        appendLine("  if (§traceRoot) { §offlineParts.Add('${traceStatement("root-module-enter")}') }")
-        appendLine("  if (§traceRoot) { §offlineParts.Add('if (§Campaign -ceq ''D'' -and §Mode -ceq ''Lifecycle'') { §fixtureManagementManifest = [IO.Path]::Combine(§PSHOME, ''Modules\\Microsoft.PowerShell.Management\\Microsoft.PowerShell.Management.psd1''); if (-not [IO.File]::Exists(§fixtureManagementManifest)) { throw ''FIXTURE_MANAGEMENT_MANIFEST_MISSING'' }; §null = Import-Module -Name §fixtureManagementManifest -ErrorAction Stop }') }")
-        appendLine("  if (§traceRoot) { §offlineParts.Add('${traceStatement("root-module-return")}') }")
-        appendLine("  if (§traceRoot) { §offlineParts.Add('${traceStatement("utility-enter")}') }")
-        appendLine("  if (§traceRoot) { §offlineParts.Add('if (§Campaign -ceq ''D'' -and §Mode -ceq ''Lifecycle'') { §fixtureUtilityManifest = [IO.Path]::Combine(§PSHOME, ''Modules\\Microsoft.PowerShell.Utility\\Microsoft.PowerShell.Utility.psd1''); if (-not [IO.File]::Exists(§fixtureUtilityManifest)) { throw ''FIXTURE_UTILITY_MANIFEST_MISSING'' }; §null = Import-Module -Name §fixtureUtilityManifest -ErrorAction Stop }') }")
-        appendLine("  if (§traceRoot) { §offlineParts.Add('${traceStatement("utility-return")}') }")
-      }
       appendLine("  §offlineParts.Add(§part)")
-      if (traceParentBootstrap) {
-        appendLine("  if (§traceAssembly) { §offlineParts.Add('${traceStatement("assembly-return")}') }")
-        appendLine("  if (§traceRoot) { §offlineParts.Add('${traceStatement("root-return")}') }")
-      }
       appendLine("}")
-      if (traceParentBootstrap) appendLine("§offlineParts.Add('${traceStatement("body-return")}')")
       appendLine("§offlineRailSource = §offlineParts -join [Environment]::NewLine")
       appendLine("§offlineRailPath = [IO.Path]::ChangeExtension(§PSCommandPath, '.functions.ps1')")
       appendLine("if ([IO.File]::Exists(§offlineRailPath)) { throw 'EXTRACTION_FIXTURE_COLLISION' }")
