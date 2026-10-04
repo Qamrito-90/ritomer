@@ -550,6 +550,49 @@ tasks.register<Test>("windowsTest") {
   }
 }
 
+// These are text observations, not inferred causes or successful stage claims.
+// Never expose the raw fixture output: it can contain synthetic secret markers.
+listOf("test", "windowsTest").forEach { taskName ->
+  tasks.named<Test>(taskName) {
+    addTestListener(object : org.gradle.api.tasks.testing.TestListener {
+      override fun beforeSuite(suite: org.gradle.api.tasks.testing.TestDescriptor) = Unit
+      override fun afterSuite(suite: org.gradle.api.tasks.testing.TestDescriptor, result: org.gradle.api.tasks.testing.TestResult) = Unit
+      override fun beforeTest(test: org.gradle.api.tasks.testing.TestDescriptor) = Unit
+      override fun afterTest(test: org.gradle.api.tasks.testing.TestDescriptor, result: org.gradle.api.tasks.testing.TestResult) {
+        if (result.resultType != org.gradle.api.tasks.testing.TestResult.ResultType.FAILURE ||
+          test.className != "ch.qamwaq.ritomer.devtools.DemoSeedLocalSourceGuardTest") return
+        val fixture = when (test.name.removeSuffix("()")) {
+          "postgresDQuarantinePersistsWithoutProcessLockAndRejectsIncompleteRecovery" -> "QUARANTINE"
+          "postgresDLifecycleOrdersDestructionAndKeepsFailedCleanupQuarantinedOnDoubles" -> "LIFECYCLE"
+          "postgresDParentDeathRequiresReceiptsAndSameBootLogonNamespace" -> "PARENT_DEATH"
+          else -> return
+        }
+        // Bound the scan; do not traverse causes/suppressed or print descriptors.
+        val failures = result.exceptions.take(4)
+        val messages = failures.map { it.message.orEmpty().take(65536) }
+        val truncated = result.exceptions.size > 4 || failures.any { (it.message?.length ?: 0) > 65536 }
+        val markers = listOf(
+          "ItemNotFoundException", "GetItemCommand", "Get-Item",
+          "D_QUARANTINE_MARKER_MISSING", "D_QUARANTINE_BINDING_INVALID",
+          "D_SECOND_RUN_NOT_BLOCKED", "D_QUARANTINE_RELEASED_WITHOUT_CLEANUP",
+          "D_INCOMPLETE_PROVISION_ACCEPTED", "D_ZERO_OID_ACCEPTED",
+          "D_CLEANUP_SQL_GUARDS_MISSING", "LIFECYCLE_LOCK_NOT_RELEASED",
+          "INSUFFICIENT_RESERVE_STARTED_WORK", "RESERVE_PRIMARY_FAILURE_LOST",
+          "RESERVE_FINALIZATION_ORDER_CHANGED", "RESERVE_CLEANUP_GATE_CHANGED",
+          "CLEANUP_RESERVE_FAILURE_LOST", "D_LIFECYCLE_ORDER", "D_HEALTHY_NOT_PROVEN",
+          "D_FAILURE_BECAME_PASS", "D_RECOVERY_REWROTE_CAMPAIGN",
+          "SYNTHETIC_PARENT_START_TIMEOUT", "SYNTHETIC_PARENT_START_FAILED",
+          "LIVE_ROOT_ACCEPTED", "DESCENDANT_NOT_CONFINED",
+          "SYNTHETIC_PARENT_NOT_TERMINATED", "EXPECTED_JOB_ABSENCE_NOT_OBSERVED",
+          "SURVIVING_DESCENDANT_ACCEPTED", "CHANGED_BOOT_LOGON_ACCEPTED",
+          "ORPHAN_CONFINEMENT_ACCEPTED", "FIXTURE_ROOT_INVALID"
+        ).filter { marker -> messages.any { it.contains(marker) } }
+        logger.lifecycle("M1D_CI_FAILURE_TEXT fixture=$fixture truncated=$truncated markers=${markers.joinToString(",").ifEmpty { "UNCLASSIFIED" }}")
+      }
+    })
+  }
+}
+
 tasks.register<Test>("dbIntegrationTest") {
   description = "Runs optional PostgreSQL integration tests against an explicitly configured database."
   group = "verification"
