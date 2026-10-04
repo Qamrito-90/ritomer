@@ -2195,6 +2195,26 @@ class DemoSeedLocalSourceGuardTest {
         })
         §code = 'NONE'; try { Assert-M1DNoQuarantine } catch { §code = Get-M1BStopCode §_ }
         if (§code -cne 'D_PREVIOUS_CAMPAIGN_UNRELEASED') { throw 'D_SECOND_RUN_NOT_BLOCKED' }
+        # Dot-prefixed files are hidden on Unix; reproduce that property on Windows too.
+        if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
+          [IO.File]::SetAttributes(§script:DQuarantinePath, ([IO.File]::GetAttributes(§script:DQuarantinePath) -bor [IO.FileAttributes]::Hidden))
+        }
+        [void](Assert-M1DQuarantineBinding)
+        §markerBytes = [IO.File]::ReadAllBytes(§script:DQuarantinePath)
+        foreach (§invalidMarker in @('missing','oversized','runId','root','receiptSha256')) {
+          try {
+            if (§invalidMarker -ceq 'missing') { [IO.File]::Delete(§script:DQuarantinePath) }
+            elseif (§invalidMarker -ceq 'oversized') { [IO.File]::WriteAllText(§script:DQuarantinePath, ('x' * 4097), (Get-M1BUtf8)) }
+            else {
+              §forgedMarker = ConvertFrom-Json ((Get-M1BUtf8).GetString(§markerBytes))
+              §forgedMarker.§invalidMarker = switch (§invalidMarker) { 'runId' { 'f' * 32 }; 'root' { §root + '-foreign' }; 'receiptSha256' { 'f' * 64 } }
+              [IO.File]::WriteAllText(§script:DQuarantinePath, (ConvertTo-Json §forgedMarker -Compress), (Get-M1BUtf8))
+            }
+            §code = 'NONE'; try { [void](Assert-M1DQuarantineBinding) } catch { §code = Get-M1BStopCode §_ }
+            §expected = if (§invalidMarker -cin @('missing','oversized')) { 'D_QUARANTINE_MARKER_MISSING' } else { 'D_QUARANTINE_BINDING_INVALID' }
+            if (§code -cne §expected -or (§invalidMarker -cne 'missing' -and -not [IO.File]::Exists(§script:DQuarantinePath))) { throw ('D_INVALID_MARKER_ACCEPTED:' + §invalidMarker) }
+          } finally { [IO.File]::WriteAllBytes(§script:DQuarantinePath, §markerBytes) }
+        }
         [void](Assert-M1DQuarantineBinding)
         §code = 'NONE'; try { Exit-M1DQuarantine 'cleanup' } catch { §code = Get-M1BStopCode §_ }
         if (§code -cne 'D_RECEIPT_MISSING' -or -not [IO.File]::Exists(§script:DQuarantinePath)) { throw 'D_QUARANTINE_RELEASED_WITHOUT_CLEANUP' }
@@ -2452,7 +2472,14 @@ class DemoSeedLocalSourceGuardTest {
       }
       function Read-M1BPreflightManifest {
         param(§Root,§RunId,§ReviewedObjectSha256,§Authorization,§Baseline)
-        §script:fixtureCampaignTimestamp = if (§script:scenario -ceq 'campaign-expired') { [string]([Diagnostics.Stopwatch]::GetTimestamp() - 11760L * [Diagnostics.Stopwatch]::Frequency) } elseif (§script:scenario -ceq 'reserve-readiness') { [string]([Diagnostics.Stopwatch]::GetTimestamp() - 7200L * [Diagnostics.Stopwatch]::Frequency) } else { [string][Diagnostics.Stopwatch]::GetTimestamp() }
+        §script:fixtureCampaignTimestamp = if (§script:scenario -ceq 'campaign-expired') { [string]([Diagnostics.Stopwatch]::GetTimestamp() - 11760L * [Diagnostics.Stopwatch]::Frequency) } else { [string][Diagnostics.Stopwatch]::GetTimestamp() }
+        if (§script:scenario -ceq 'reserve-readiness') {
+          # Leave a valid monotonic binding even on a recently booted host.
+          # 80 elapsed minutes leave 75 of the real 155-minute lifecycle cap,
+          # below the real 125-minute readiness reserve. Admission stays real.
+          §script:DCampaignClock.Stop()
+          §script:DCampaignClock = [pscustomobject]@{ ElapsedMilliseconds = 4800000L }
+        }
         return [pscustomobject]@{ Sha256 = ('3' * 64); Value = [pscustomobject]@{
           runtimeSha256 = '2' * 64; psql = [pscustomobject]@{ sha256 = §ExpectedPsqlSha256 }
           campaignStartTimestamp = §script:fixtureCampaignTimestamp
@@ -2552,6 +2579,7 @@ class DemoSeedLocalSourceGuardTest {
           try { [void](Invoke-M1DLifecycle) } catch { §code = Get-M1BStopCode §_ }
           if (-not §script:lockReleased) { throw 'LIFECYCLE_LOCK_NOT_RELEASED' }
           if (§scenario -ceq 'reserve-readiness') {
+            if (-not §script:DEnteredPhases.ContainsKey('readiness')) { throw 'READINESS_RESERVE_NOT_REACHED' }
             if (§code -cne 'D_DEADLINE_EXPIRED' -or §script:events.Count -ne 0 -or [IO.File]::Exists(§script:DQuarantinePath) -or §script:PsqlProcessStarts.Provision -ne 0 -or §script:PsqlProcessStarts.Cleanup -ne 0) {
               # Closed observations only; never substitute a different expected result.
               if ([long]§script:fixtureCampaignTimestamp -le 0) { 'M1D_READINESS_TIMESTAMP_NONPOSITIVE' }
@@ -4012,8 +4040,11 @@ class DemoSeedLocalSourceGuardTest {
       [IO.File]::WriteAllText(§childFile, §childSource)
       §parentSource = @'
       [IO.File]::WriteAllText('__ROOT__\parent-entered','1')
-      §extractedPath=[IO.Path]::ChangeExtension(§PSCommandPath,'.functions.ps1')
-      [IO.File]::WriteAllBytes(§extractedPath,[Convert]::FromBase64String('__EXTRACTED_FUNCTIONS__'))
+      # Reuse the owned, already validated extraction instead of parsing a large
+      # base64 literal and writing a duplicate inside the startup window.
+      §extractedPath='__EXTRACTED_PATH__'
+      if ((Get-FileHash -LiteralPath §extractedPath -Algorithm SHA256 -ErrorAction Stop).Hash.ToLowerInvariant() -cne '__EXTRACTED_SHA256__') { throw 'FIXTURE_EXTRACTION_DIVERGED' }
+      [IO.File]::WriteAllText('__ROOT__\functions-hash-verified','1')
       . §extractedPath -Campaign D -Mode Lifecycle -RunId '__RUN__' -ReviewedObjectSha256 '__HASH__' -ExpectedPsqlSha256 '__HASH__' -RunRoot '__ROOT__' -SensitiveAuthorizationRecordId AUTH-OFFLINE-FIXTURE -PreflightAuthorizationRecordId AUTH-OFFLINE-PREFLIGHT
       [IO.File]::WriteAllText('__ROOT__\functions-loaded','1')
       §script:DRunRoot = '__ROOT__'
@@ -4029,7 +4060,7 @@ class DemoSeedLocalSourceGuardTest {
       [IO.File]::WriteAllText('__ROOT__\child-launched','1')
       while (§true) { [Threading.Thread]::Sleep(100) }
       '@
-      §parentSource = §parentSource.Replace('__EXTRACTED_FUNCTIONS__', [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(§offlineRailSource))).Replace('__RUN__', §RunId).Replace('__HASH__', §ReviewedObjectSha256).Replace('__ROOT__', §root).Replace('__POWERSHELL__', §powershell).Replace('__CHILD__', §childFile)
+      §parentSource = §parentSource.Replace('__EXTRACTED_PATH__', §offlineRailPath.Replace("'", "''")).Replace('__EXTRACTED_SHA256__', (Get-M1BSha256File §offlineRailPath)).Replace('__RUN__', §RunId).Replace('__HASH__', §ReviewedObjectSha256).Replace('__ROOT__', §root).Replace('__POWERSHELL__', §powershell).Replace('__CHILD__', §childFile)
       [IO.File]::WriteAllText(§parentFile, §parentSource)
       §parent = §null
       §clock = [Diagnostics.Stopwatch]::StartNew()
@@ -4065,7 +4096,7 @@ class DemoSeedLocalSourceGuardTest {
           try { §publication = if ([int]::TryParse([IO.File]::ReadAllText(§grandIdFile), [ref]§observedGrandId) -and §observedGrandId -gt 0) { 'READABLE_ID' } else { 'INCOMPLETE' } }
           catch { §publication = 'READ_FAILED' }
         }
-        §startObservation = [ordered]@{ elapsedMs=§observedAtMs; grandFilePresentAtWaitEnd=§grandFilePresentAtWaitEnd; observationCompletedMs=§clock.ElapsedMilliseconds; parentExited=§parent.HasExited; parentExitCode=§(if (§parent.HasExited) { §parent.ExitCode } else { §null }); grandTrace=§grandTrace; grandFailure=§grandFailure; publication=§publication; present=@(@('parent-entered','functions-loaded','phase-admitted','d-launch-lifecycle-BACKEND-intent.json','d-launch-lifecycle-BACKEND-confined.json','child-launched','child-entered','grandchild-id.txt','grand-entered') | Where-Object { [IO.File]::Exists((Join-Path §root §_)) }) }
+        §startObservation = [ordered]@{ elapsedMs=§observedAtMs; grandFilePresentAtWaitEnd=§grandFilePresentAtWaitEnd; observationCompletedMs=§clock.ElapsedMilliseconds; parentExited=§parent.HasExited; parentExitCode=§(if (§parent.HasExited) { §parent.ExitCode } else { §null }); grandTrace=§grandTrace; grandFailure=§grandFailure; publication=§publication; present=@(@('parent-entered','functions-hash-verified','functions-loaded','phase-admitted','d-launch-lifecycle-BACKEND-intent.json','d-launch-lifecycle-BACKEND-confined.json','child-launched','child-entered','grandchild-id.txt','grand-entered') | Where-Object { [IO.File]::Exists((Join-Path §root §_)) }) }
         # Observation must not admit a publication arriving after the wait ended.
         if (-not §grandFilePresentAtWaitEnd) {
           if (-not §parent.HasExited) { throw 'SYNTHETIC_PARENT_START_TIMEOUT' }
@@ -4102,7 +4133,7 @@ class DemoSeedLocalSourceGuardTest {
       } finally {
         if (§null -eq §startObservation) { 'M1D_PARENT_OBSERVATION_ABSENT' }
         else {
-          foreach (§stage in @('parent-entered','functions-loaded','phase-admitted','d-launch-lifecycle-BACKEND-intent.json','d-launch-lifecycle-BACKEND-confined.json','child-launched','child-entered','grandchild-id.txt','grand-entered')) {
+          foreach (§stage in @('parent-entered','functions-hash-verified','functions-loaded','phase-admitted','d-launch-lifecycle-BACKEND-intent.json','d-launch-lifecycle-BACKEND-confined.json','child-launched','child-entered','grandchild-id.txt','grand-entered')) {
             if (§startObservation.present -ccontains §stage) { 'M1D_PARENT_PRESENT_' + §stage }
           }
           if (§startObservation.parentExited) { 'M1D_PARENT_EXITED_AT_OBSERVATION' }

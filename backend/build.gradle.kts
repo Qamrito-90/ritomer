@@ -591,7 +591,7 @@ listOf("test", "windowsTest").forEach { taskName ->
           "M1D_READINESS_ADMISSION_REACHED", "M1D_READINESS_CLOCK_BINDING_INVALID",
           "M1D_READINESS_DEADLINE_EXPIRED", "M1D_READINESS_STOP_UNCLASSIFIED",
           "M1D_READINESS_EFFECTS_ABSENT", "M1D_PARENT_OBSERVATION_ABSENT",
-          "M1D_PARENT_PRESENT_parent-entered", "M1D_PARENT_PRESENT_functions-loaded",
+          "M1D_PARENT_PRESENT_parent-entered", "M1D_PARENT_PRESENT_functions-hash-verified", "M1D_PARENT_PRESENT_functions-loaded",
           "M1D_PARENT_PRESENT_phase-admitted",
           "M1D_PARENT_PRESENT_d-launch-lifecycle-BACKEND-intent.json",
           "M1D_PARENT_PRESENT_d-launch-lifecycle-BACKEND-confined.json",

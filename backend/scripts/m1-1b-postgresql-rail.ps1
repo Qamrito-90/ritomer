@@ -4785,7 +4785,7 @@ function Assert-M1DQuarantineBinding {
       -not (Test-M1BJsonInteger $payload.maintenanceDatabaseOid) -or $payload.maintenanceDatabaseOid -le 0 -or
       -not (Test-M1BJsonInteger $payload.controllerProcessId) -or $payload.controllerProcessId -le 0 -or
       $payload.controllerCreationTicks -isnot [string] -or $payload.controllerCreationTicks -cnotmatch '^[1-9][0-9]{16,18}$') { Stop-M1BRail 'D_CAMPAIGN_PAYLOAD_INVALID' }
-  if (-not [IO.File]::Exists($script:DQuarantinePath) -or (Get-Item -LiteralPath $script:DQuarantinePath).Length -gt 4096) { Stop-M1BRail 'D_QUARANTINE_MARKER_MISSING' }
+  if (-not [IO.File]::Exists($script:DQuarantinePath) -or (Get-Item -LiteralPath $script:DQuarantinePath -Force).Length -gt 4096) { Stop-M1BRail 'D_QUARANTINE_MARKER_MISSING' }
   Assert-M1BNoReparseAncestors $script:DQuarantinePath
   $markerBytes = [IO.File]::ReadAllBytes($script:DQuarantinePath)
   Assert-M1BNoDuplicateJsonProperties $markerBytes
