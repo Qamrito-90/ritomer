@@ -4105,7 +4105,7 @@ class DemoSeedLocalSourceGuardTest {
           if (-not [long]::TryParse([IO.File]::ReadAllText(§stagePath), [ref]§stageTicks) -or §stageTicks -le 0) { 'INVALID'; continue }
           Get-FixtureRelativeTick §stageTicks
         })
-        'M1D_PARENT_TIMING entry=' + §parentTiming[0] + ' hashEnter=' + §parentTiming[1] + ' hashReturn=' + §parentTiming[2] + ' wait=' + (Get-FixtureRelativeTick §waitEndTicks)
+        "`nM1D_PARENT_TIMING entry=" + §parentTiming[0] + ' hashEnter=' + §parentTiming[1] + ' hashReturn=' + §parentTiming[2] + ' wait=' + (Get-FixtureRelativeTick §waitEndTicks)
         §bootstrapFailurePath = Join-Path §root 'parent-bootstrap-failure'
         if ([IO.File]::Exists(§bootstrapFailurePath)) {
           §bootstrapFailure = [IO.File]::ReadAllText(§bootstrapFailurePath)
