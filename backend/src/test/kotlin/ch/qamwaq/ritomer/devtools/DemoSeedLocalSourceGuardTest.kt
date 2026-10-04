@@ -4040,19 +4040,16 @@ class DemoSeedLocalSourceGuardTest {
       [IO.File]::WriteAllText(§childFile, §childSource)
       §parentSource = @'
       [IO.File]::WriteAllText('__ROOT__\parent-entered',[string][Diagnostics.Stopwatch]::GetTimestamp())
-      # Reuse the owned, already validated extraction instead of parsing a large
-      # base64 literal and writing a duplicate inside the startup window.
-      §extractedPath='__EXTRACTED_PATH__'
-      §fixtureBootstrapStage = 'HASH'; §fixtureFailureCategory = 'UNEXPECTED_FAILURE'
+      §fixtureBootstrapStage = 'EXTRACT'; §fixtureFailureCategory = 'UNEXPECTED_FAILURE'
       try {
-        [IO.File]::WriteAllText('__ROOT__\hash-entered',[string][Diagnostics.Stopwatch]::GetTimestamp())
-        §fixtureHash = (Get-FileHash -LiteralPath §extractedPath -Algorithm SHA256 -ErrorAction Stop).Hash.ToLowerInvariant()
-        [IO.File]::WriteAllText('__ROOT__\hash-returned',[string][Diagnostics.Stopwatch]::GetTimestamp())
-        if (§fixtureHash -cne '__EXTRACTED_SHA256__') { §fixtureFailureCategory = 'HASH_DIVERGED'; throw 'FIXTURE_EXTRACTION_DIVERGED' }
-        [IO.File]::WriteAllText('__ROOT__\functions-hash-verified','1')
+        [IO.File]::WriteAllText('__ROOT__\extract-entered',[string][Diagnostics.Stopwatch]::GetTimestamp())
+        §extractedPath=[IO.Path]::ChangeExtension(§PSCommandPath,'.functions.ps1')
+        [IO.File]::WriteAllBytes(§extractedPath,[Convert]::FromBase64String('__EXTRACTED_FUNCTIONS__'))
+        [IO.File]::WriteAllText('__ROOT__\functions-extracted',[string][Diagnostics.Stopwatch]::GetTimestamp())
         §fixtureBootstrapStage = 'IMPORT'
+        [IO.File]::WriteAllText('__ROOT__\import-entered',[string][Diagnostics.Stopwatch]::GetTimestamp())
         . §extractedPath -Campaign D -Mode Lifecycle -RunId '__RUN__' -ReviewedObjectSha256 '__HASH__' -ExpectedPsqlSha256 '__HASH__' -RunRoot '__ROOT__' -SensitiveAuthorizationRecordId AUTH-OFFLINE-FIXTURE -PreflightAuthorizationRecordId AUTH-OFFLINE-PREFLIGHT
-        [IO.File]::WriteAllText('__ROOT__\functions-loaded','1')
+        [IO.File]::WriteAllText('__ROOT__\functions-loaded',[string][Diagnostics.Stopwatch]::GetTimestamp())
       } catch {
         §fixtureCause = §_.Exception.GetBaseException()
         if (§fixtureCause -is [UnauthorizedAccessException]) { §fixtureFailureCategory = 'ACCESS_DENIED' }
@@ -4074,7 +4071,7 @@ class DemoSeedLocalSourceGuardTest {
       [IO.File]::WriteAllText('__ROOT__\child-launched','1')
       while (§true) { [Threading.Thread]::Sleep(100) }
       '@
-      §parentSource = §parentSource.Replace('__EXTRACTED_PATH__', §offlineRailPath.Replace("'", "''")).Replace('__EXTRACTED_SHA256__', (Get-M1BSha256File §offlineRailPath)).Replace('__RUN__', §RunId).Replace('__HASH__', §ReviewedObjectSha256).Replace('__ROOT__', §root).Replace('__POWERSHELL__', §powershell).Replace('__CHILD__', §childFile)
+      §parentSource = §parentSource.Replace('__EXTRACTED_FUNCTIONS__', [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(§offlineRailSource))).Replace('__RUN__', §RunId).Replace('__HASH__', §ReviewedObjectSha256).Replace('__ROOT__', §root).Replace('__POWERSHELL__', §powershell).Replace('__CHILD__', §childFile)
       [IO.File]::WriteAllText(§parentFile, §parentSource)
       §parent = §null
       §clock = [Diagnostics.Stopwatch]::StartNew()
@@ -4098,18 +4095,18 @@ class DemoSeedLocalSourceGuardTest {
           if (§milliseconds -gt 45000) { return 'OUT_OF_RANGE' }
           return ([long]§milliseconds).ToString([Globalization.CultureInfo]::InvariantCulture)
         }
-        §parentTiming = @(foreach (§stage in @('parent-entered','hash-entered','hash-returned')) {
+        §parentTiming = @(foreach (§stage in @('parent-entered','extract-entered','functions-extracted','import-entered','functions-loaded')) {
           §stagePath = Join-Path §root §stage
           if (-not [IO.File]::Exists(§stagePath)) { 'MISSING'; continue }
           §stageTicks = 0L
           if (-not [long]::TryParse([IO.File]::ReadAllText(§stagePath), [ref]§stageTicks) -or §stageTicks -le 0) { 'INVALID'; continue }
           Get-FixtureRelativeTick §stageTicks
         })
-        "`nM1D_PARENT_TIMING entry=" + §parentTiming[0] + ' hashEnter=' + §parentTiming[1] + ' hashReturn=' + §parentTiming[2] + ' wait=' + (Get-FixtureRelativeTick §waitEndTicks)
+        "`nM1D_PARENT_TIMING entry=" + §parentTiming[0] + ' extractEnter=' + §parentTiming[1] + ' extractReturn=' + §parentTiming[2] + ' importEnter=' + §parentTiming[3] + ' importReturn=' + §parentTiming[4] + ' wait=' + (Get-FixtureRelativeTick §waitEndTicks)
         §bootstrapFailurePath = Join-Path §root 'parent-bootstrap-failure'
         if ([IO.File]::Exists(§bootstrapFailurePath)) {
           §bootstrapFailure = [IO.File]::ReadAllText(§bootstrapFailurePath)
-          if (§bootstrapFailure -cmatch '^(HASH|IMPORT)\|(UNEXPECTED_FAILURE|HASH_DIVERGED|ACCESS_DENIED|IO_FAILURE|COMMAND_NOT_FOUND)\z') {
+          if (§bootstrapFailure -cmatch '^(EXTRACT|IMPORT)\|(UNEXPECTED_FAILURE|ACCESS_DENIED|IO_FAILURE|COMMAND_NOT_FOUND)\z') {
             'M1D_PARENT_BOOTSTRAP stage=' + §Matches[1] + ' category=' + §Matches[2]
           } else { 'M1D_PARENT_BOOTSTRAP stage=INVALID category=INVALID' }
         }
@@ -4133,7 +4130,7 @@ class DemoSeedLocalSourceGuardTest {
           try { §publication = if ([int]::TryParse([IO.File]::ReadAllText(§grandIdFile), [ref]§observedGrandId) -and §observedGrandId -gt 0) { 'READABLE_ID' } else { 'INCOMPLETE' } }
           catch { §publication = 'READ_FAILED' }
         }
-        §startObservation = [ordered]@{ elapsedMs=§observedAtMs; grandFilePresentAtWaitEnd=§grandFilePresentAtWaitEnd; observationCompletedMs=§clock.ElapsedMilliseconds; parentExited=§parent.HasExited; parentExitCode=§(if (§parent.HasExited) { §parent.ExitCode } else { §null }); grandTrace=§grandTrace; grandFailure=§grandFailure; publication=§publication; present=@(@('parent-entered','functions-hash-verified','functions-loaded','phase-admitted','d-launch-lifecycle-BACKEND-intent.json','d-launch-lifecycle-BACKEND-confined.json','child-launched','child-entered','grandchild-id.txt','grand-entered') | Where-Object { [IO.File]::Exists((Join-Path §root §_)) }) }
+        §startObservation = [ordered]@{ elapsedMs=§observedAtMs; grandFilePresentAtWaitEnd=§grandFilePresentAtWaitEnd; observationCompletedMs=§clock.ElapsedMilliseconds; parentExited=§parent.HasExited; parentExitCode=§(if (§parent.HasExited) { §parent.ExitCode } else { §null }); grandTrace=§grandTrace; grandFailure=§grandFailure; publication=§publication; present=@(@('parent-entered','functions-extracted','functions-loaded','phase-admitted','d-launch-lifecycle-BACKEND-intent.json','d-launch-lifecycle-BACKEND-confined.json','child-launched','child-entered','grandchild-id.txt','grand-entered') | Where-Object { [IO.File]::Exists((Join-Path §root §_)) }) }
         # Observation must not admit a publication arriving after the wait ended.
         if (-not §grandFilePresentAtWaitEnd) {
           if (-not §parent.HasExited) { throw 'SYNTHETIC_PARENT_START_TIMEOUT' }
@@ -4170,7 +4167,7 @@ class DemoSeedLocalSourceGuardTest {
       } finally {
         if (§null -eq §startObservation) { 'M1D_PARENT_OBSERVATION_ABSENT' }
         else {
-          foreach (§stage in @('parent-entered','functions-hash-verified','functions-loaded','phase-admitted','d-launch-lifecycle-BACKEND-intent.json','d-launch-lifecycle-BACKEND-confined.json','child-launched','child-entered','grandchild-id.txt','grand-entered')) {
+          foreach (§stage in @('parent-entered','functions-extracted','functions-loaded','phase-admitted','d-launch-lifecycle-BACKEND-intent.json','d-launch-lifecycle-BACKEND-confined.json','child-launched','child-entered','grandchild-id.txt','grand-entered')) {
             if (§startObservation.present -ccontains §stage) { 'M1D_PARENT_PRESENT_' + §stage }
           }
           if (§startObservation.parentExited) { 'M1D_PARENT_EXITED_AT_OBSERVATION' }
