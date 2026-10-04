@@ -4103,14 +4103,14 @@ class DemoSeedLocalSourceGuardTest {
           Get-FixtureRelativeTick §stageTicks
         })
         "`nM1D_PARENT_TIMING entry=" + §parentTiming[0] + ' extractEnter=' + §parentTiming[1] + ' extractReturn=' + §parentTiming[2] + ' importEnter=' + §parentTiming[3] + ' importReturn=' + §parentTiming[4] + ' wait=' + (Get-FixtureRelativeTick §waitEndTicks)
-        §importTiming = @(foreach (§stage in @('body-enter','assembly-enter','assembly-return','root-enter','root-return','body-return')) {
+        §importTiming = @(foreach (§stage in @('body-enter','assembly-enter','assembly-return','root-enter','root-resolve-enter','root-resolve-return','root-return','body-return')) {
           §stagePath = [IO.Path]::Combine(§root, ('parent-import-' + §stage))
           if (-not [IO.File]::Exists(§stagePath)) { 'MISSING'; continue }
           §stageTicks = 0L
           if (-not [long]::TryParse([IO.File]::ReadAllText(§stagePath), [ref]§stageTicks) -or §stageTicks -le 0) { 'INVALID'; continue }
           Get-FixtureRelativeTick §stageTicks
         })
-        'M1D_PARENT_IMPORT bodyEnter=' + §importTiming[0] + ' assemblyEnter=' + §importTiming[1] + ' assemblyReturn=' + §importTiming[2] + ' rootEnter=' + §importTiming[3] + ' rootReturn=' + §importTiming[4] + ' bodyReturn=' + §importTiming[5]
+        'M1D_PARENT_IMPORT bodyEnter=' + §importTiming[0] + ' assemblyEnter=' + §importTiming[1] + ' assemblyReturn=' + §importTiming[2] + ' rootEnter=' + §importTiming[3] + ' resolveEnter=' + §importTiming[4] + ' resolveReturn=' + §importTiming[5] + ' rootReturn=' + §importTiming[6] + ' bodyReturn=' + §importTiming[7]
         §bootstrapFailurePath = Join-Path §root 'parent-bootstrap-failure'
         if ([IO.File]::Exists(§bootstrapFailurePath)) {
           §bootstrapFailure = [IO.File]::ReadAllText(§bootstrapFailurePath)
@@ -7048,6 +7048,9 @@ class DemoSeedLocalSourceGuardTest {
         appendLine("  §traceRoot = §statement -is [System.Management.Automation.Language.AssignmentStatementAst] -and §statement.Left.Extent.Text -ceq '§script:RepoRoot'")
         appendLine("  if (§traceAssembly) { §offlineParts.Add('${traceStatement("assembly-enter")}') }")
         appendLine("  if (§traceRoot) { §offlineParts.Add('${traceStatement("root-enter")}') }")
+        appendLine("  if (§traceRoot) { §offlineParts.Add('${traceStatement("root-resolve-enter")}') }")
+        appendLine("  if (§traceRoot) { §offlineParts.Add('if (§Campaign -ceq ''D'' -and §Mode -ceq ''Lifecycle'') { §null = Get-Command -Name Split-Path -ErrorAction Stop }') }")
+        appendLine("  if (§traceRoot) { §offlineParts.Add('${traceStatement("root-resolve-return")}') }")
       }
       appendLine("  §offlineParts.Add(§part)")
       if (traceParentBootstrap) {
