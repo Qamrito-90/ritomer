@@ -13,45 +13,45 @@ M0_STATUS=DONE_CANONICAL_ROADMAP_REBASELINE
 CRITICAL_PATH=M0_TO_M5
 FIRST_AI_NATIVE_VERTICAL_SLICE=MAPPING_ASSISTANT_AGENT
 
-ACTIVE_SPEC=046
-ACTIVE_SPEC_ID=046_AUTHENTICATED_SESSION_FOUNDATION_V1
-ACTIVE_SPEC_COUNT=1
-SPEC_046=ACTIVE
+ACTIVE_SPEC=AUCUNE
+ACTIVE_SPEC_ID=AUCUN
+ACTIVE_SPEC_COUNT=0
+SPEC_046=DONE
 M1_1A_SCOPE=BACKEND_AUTH_TENANT_FOUNDATION_WITH_CORRECTIVE_M8
 M1_1A_IMPLEMENTED=YES
-M1_1_FINAL_OUTCOME_DELIVERED=NO
+M1_1_FINAL_OUTCOME_DELIVERED=YES
 M1_1B_SCOPE=BACKEND_SESSION_KERNEL_PROCESS_LOCAL_DEFAULT_OFF
 M1_1B_IMPLEMENTED=YES
 M1_1C_IMPLEMENTED=YES
 M1_1D_OFFLINE_IMPLEMENTATION=YES
 M1_1D_INTEGRATED_VALIDATION=PASS
 M1_1D_VALIDATION_SCOPE=LOCAL_SYNTHETIC_CANDIDATE_05_20261003
-M1_1D_DELIVERED=NO
+M1_1D_DELIVERED=YES
 ```
 
-M0 a synchronisé les documents vivants et borné le checker 042 à ses responsabilités historiques. La spec 046 est l'unique spec active ; M1.1A avec son correctif M8 borne la fondation backend auth/tenant et M1.1B implémente le kernel de session backend process-local, désactivé par défaut. Ce plan ne constitue aucune autorisation.
+M0 a synchronisé les documents vivants et borné le checker 042 à ses responsabilités historiques. A/B/C/D accomplissent désormais la fondation M1.1 locale/synthétique ; 046 est Done et aucune spec n'est active dans ce candidat. Le classement Done de 046 décrit ce candidat documentaire local ; sa publication reste à autoriser séparément. Ce plan ne constitue aucune autorisation.
 
 Les états de review, delivery, merge, décision owner et autorisation vivent uniquement dans les Evidence Packs, la pull request et les records spécialisés.
 
-## Plus petit incrément actif M1.1 — raccordement D borné
+## Outcome M1.1 local accompli — fondation de session
 
 ```text
 M1_1_SPEC=046_AUTHENTICATED_SESSION_FOUNDATION_V1
 M1_1A_SCOPE=BACKEND_AUTH_TENANT_FOUNDATION_WITH_CORRECTIVE_M8
 M1_1A_IMPLEMENTED=YES
-M1_1_FINAL_OUTCOME_DELIVERED=NO
+M1_1_FINAL_OUTCOME_DELIVERED=YES
 M1_1B_SCOPE=BACKEND_SESSION_KERNEL_PROCESS_LOCAL_DEFAULT_OFF
 M1_1B_IMPLEMENTED=YES
 M1_1C_IMPLEMENTED=YES
 M1_1D_OFFLINE_IMPLEMENTATION=YES
 M1_1D_INTEGRATED_VALIDATION=PASS
 M1_1D_VALIDATION_SCOPE=LOCAL_SYNTHETIC_CANDIDATE_05_20261003
-M1_1D_DELIVERED=NO
+M1_1D_DELIVERED=YES
 ```
 
-L'outcome final M1.1 reste une authentification same-origin par session serveur et cookie opaque sécurisé ; il n'est pas livré. M1.1A établit la fondation backend de principal applicatif, autorité PostgreSQL et sûreté tenant. M1.1B implémente le kernel backend de session process-local, default-off, avec bootstrap/login/logout local/test, cookie opaque, CSRF, rotation, expiration et relecture d'autorité.
+L'outcome final M1.1 est livré dans sa portée locale/synthétique : authentification same-origin par session serveur et cookie opaque sécurisé. M1.1A établit la fondation backend de principal applicatif, autorité PostgreSQL et sûreté tenant. M1.1B implémente le kernel backend de session process-local, default-off, avec bootstrap/login/logout local/test, cookie opaque, CSRF, rotation, expiration et relecture d'autorité. M1 complet reste incomplet et M1.2 reste à cadrer et autoriser.
 
-Le correctif M8 ferme l'exposition web Prometheus ; health et info restent exposés. Pris isolément, il ne livre aucune session, cookie, CSRF, login, logout, UI, IdP réel, IA, agent ou runtime MCP. Le checkpoint B n'ajoute aucun frontend ou coordinator navigateur, aucun OIDC réel ou environnement partagé, aucune session distribuée et aucun changement IA, agent ou MCP. M1.1C est livré. D est implémenté dans le worktree ; son intégration PostgreSQL/navigateur locale sur données synthétiques est validée sur candidate-05 le 03.10.2026. D reste non livré et 046 active ; portée, preuves datées et risques résiduels sont décrits dans la [spec 046](../../specs/active/046-authenticated-session-foundation-v1.md). Cette preuve ne livre ni M1 complet, ni OIDC partagé, ni session distribuée, ni IA/MCP, externe ou production, et ne crée aucune autorisation.
+Le correctif M8 ferme l'exposition web Prometheus ; health et info restent exposés. Pris isolément, il ne livre aucune session, cookie, CSRF, login, logout, UI, IdP réel, IA, agent ou runtime MCP. Le checkpoint B n'ajoute aucun frontend ou coordinator navigateur, aucun OIDC réel ou environnement partagé, aucune session distribuée et aucun changement IA, agent ou MCP. M1.1C est livré ; D l'est par la [PR #127](https://github.com/Qamrito-90/ritomer/pull/127), squash `3d1fad45cf930f446aba50d2e328958cfb1d812a` du 04.10.2026. La validation intégrée PostgreSQL/navigateur reste liée à candidate-05 du 03.10.2026. Le [bilan de clôture de 046](../../specs/done/046-authenticated-session-foundation-v1.md#15-bilan-de-clôture-documentaire-locale-du-04102026) rattache critères, preuves, comptes et réserves. Cette clôture locale ne livre ni M1 complet, ni OIDC partagé, ni session distribuée, ni IA/MCP, externe ou production et ne crée aucune autorisation.
 
 ## Décisions de trajectoire gelées
 
@@ -160,26 +160,28 @@ M7 attend une alpha M5 stable, des captures réelles, un slice IA-native fonctio
 - `specs/done/044-design-partner-readiness-v1.md` — paquet documentaire docs-only de Design Partner Readiness livré et clôturé, sans recherche terrain ni autorisation externe.
 - `specs/done/045-design-partner-research-protocol-v1.md` — `DONE / DOCS_ONLY_RESEARCH_PROTOCOL_DELIVERED` ; protocole documentaire versionné et fail-closed livré et clôturé, sans recherche, collecte, donnée réelle, activité externe ni runtime.
 
-### Active
+- `specs/done/046-authenticated-session-foundation-v1.md` — fondation de session M1.1 locale/synthétique accomplie ; classement Done proposé par ce candidat documentaire, publication restant à autoriser séparément.
+
+### État du candidat après clôture locale de 046
 
 ```text
-ACTIVE_SPEC=046
-ACTIVE_SPEC_ID=046_AUTHENTICATED_SESSION_FOUNDATION_V1
-ACTIVE_SPEC_COUNT=1
-SPEC_046=ACTIVE
+ACTIVE_SPEC=AUCUNE
+ACTIVE_SPEC_ID=AUCUN
+ACTIVE_SPEC_COUNT=0
+SPEC_046=DONE
 M1_1A_SCOPE=BACKEND_AUTH_TENANT_FOUNDATION_WITH_CORRECTIVE_M8
 M1_1A_IMPLEMENTED=YES
-M1_1_FINAL_OUTCOME_DELIVERED=NO
+M1_1_FINAL_OUTCOME_DELIVERED=YES
 M1_1B_SCOPE=BACKEND_SESSION_KERNEL_PROCESS_LOCAL_DEFAULT_OFF
 M1_1B_IMPLEMENTED=YES
 M1_1C_IMPLEMENTED=YES
 M1_1D_OFFLINE_IMPLEMENTATION=YES
 M1_1D_INTEGRATED_VALIDATION=PASS
 M1_1D_VALIDATION_SCOPE=LOCAL_SYNTHETIC_CANDIDATE_05_20261003
-M1_1D_DELIVERED=NO
+M1_1D_DELIVERED=YES
 ```
 
-- `specs/active/046-authenticated-session-foundation-v1.md` — unique spec active ; M1.1A et M1.1B sont implémentés, le kernel de session reste backend process-local et default-off, et l'outcome final M1.1 n'est pas livré.
+Aucune spec active dans ce candidat. La publication de ce delta documentaire demeure distincte de la delivery déjà accomplie des slices A/B/C/D.
 
 ### Clôturé terminalement / résultat inconclusif
 
@@ -218,9 +220,9 @@ PHASE_1_REAL_DATA_AUTHORIZED=NO
 PHASE_1_RUNTIME_AUTHORIZED=NO
 ```
 
-Le paquet documentaire docs-only de 044 reste livré et clôturé sous `specs/done`. La spec 045 a livré et clôturé son outcome documentaire docs-only ; aucune recherche, collecte, donnée réelle, activité externe ou exécution runtime n'en découle. Ces outcomes docs-only ne créent aucune autorisation externe et ne définissent plus la direction de roadmap. La spec 046 est l'unique spec active. M1.1A avec son correctif M8 borne la fondation backend auth/tenant et M1.1B implémente le kernel de session backend process-local, default-off. C est livré ; D est présent dans le worktree et son intégration PostgreSQL/navigateur locale sur données synthétiques est validée sur candidate-05 le 03.10.2026. D reste non livré, 046 non close et l'outcome final M1.1 non livré.
+Le paquet documentaire docs-only de 044 reste livré et clôturé sous `specs/done`. La spec 045 a livré et clôturé son outcome documentaire docs-only ; aucune recherche, collecte, donnée réelle, activité externe ou exécution runtime n'en découle. Ces outcomes docs-only ne créent aucune autorisation externe et ne définissent plus la direction de roadmap. La spec 046 clôt désormais l'outcome M1.1 local/synthétique dans ce candidat : A/B/C/D sont livrés, sans livrer M1 complet ni M1.2. Les preuves intégrées restent datées du 03.10.2026 sur candidate-05 ; les CI renouvelées et le squash du 04.10.2026 sont des objets distincts.
 
-Les sections 2 à 22 de la spec Done conservent le protocole substantiel livré et ne constituent aucune autorisation. La direction M0–M8 provient d'une décision owner distincte de la clôture 043 et des outcomes 044/045. Toute modification matérielle reprend la boucle de preuve applicable. Les marqueurs lifecycle conservés dans les blocs M0 de `README.md` et `docs/product/product-roadmap.md` sont des snapshots historiques de la rebaseline M0 ; ils ne décrivent pas l'état présent. Pour M1.1, cette section et la spec active 046 portent uniquement les vérités durables de périmètre ; les états de review, delivery, merge, décision owner et autorisation restent dans les Evidence Packs, la pull request et les records spécialisés.
+Les sections 2 à 22 de la spec Done conservent le protocole substantiel livré et ne constituent aucune autorisation. La direction M0–M8 provient d'une décision owner distincte de la clôture 043 et des outcomes 044/045. Toute modification matérielle reprend la boucle de preuve applicable. Les marqueurs lifecycle conservés dans les blocs M0 de `README.md` et `docs/product/product-roadmap.md` sont des snapshots historiques de la rebaseline M0 ; ils ne décrivent pas l'état présent. Pour M1.1, cette section et la spec Done 046 portent uniquement les vérités durables de périmètre ; les états de review, delivery, merge, décision owner et autorisation restent dans les Evidence Packs, la pull request et les records spécialisés.
 
 ### Backlog
 

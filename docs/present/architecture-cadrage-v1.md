@@ -25,9 +25,9 @@ Il ne remplace ni les ADRs, ni les specs, ni les contrats, ni les runbooks. Il f
 - Apres `030`, les increments `032` a `035` durcissent les consumers et refreshs frontend sans modifier le backend, les contrats ou l'architecture ; `036` a `041` restent une demo et des preuves locales sur donnees synthetiques, pas une authentification SaaS durable ni un environnement partage.
 - Avec M1.1A, le backend porte un principal applicatif, relit l'autorite PostgreSQL aux frontieres metier protegees et conserve la surete tenant/MDC. Le correctif M8 ferme l'exposition web Prometheus ; seuls health et info restent exposes.
 - M1.1B implemente le kernel backend de session HTTP opaque, cookie `__Host-ritomer-session`, CSRF, rotation, expiration, invalidation et bootstrap/login/logout local/test. Il est process-local et desactive par defaut.
-- La spec 046 reste l'unique spec active. A/B et C sont livres ; C apporte le coordinator frontend et les ecrans de session. D est implemente dans le worktree et valide par integration PostgreSQL/navigateur locale sur donnees synthetiques le 03.10.2026 (candidate-05). D et l'outcome final M1.1 ne sont pas livres ; voir les limites datees dans [046](../../specs/active/046-authenticated-session-foundation-v1.md).
+- La fondation M1.1 locale/synthetique A/B/C/D est livree ; D par la [PR #127](https://github.com/Qamrito-90/ritomer/pull/127), squash `3d1fad45cf930f446aba50d2e328958cfb1d812a` du 04.10.2026. [046](../../specs/done/046-authenticated-session-foundation-v1.md) est Done et aucune spec n'est active dans ce candidat documentaire, dont la publication reste separee. La preuve integree de candidate-05 du 03.10.2026 et les CI du 04.10.2026 restent distinctes, avec leurs reserves. M1 complet, M1.2, OIDC partage, session distribuee et IA/agent/MCP restent non livres par cette cloture.
 - M1.1B ne livre aucun frontend ou coordinator navigateur, aucun OIDC reel ou environnement partage et aucune session distribuee. Il n'ajoute ni dependance, ni migration, ni provisioning.
-- Ce cadrage ne constitue aucune autorisation. La validation locale D reste distincte de sa delivery, de la cloture de 046 et de M1 complet. Les etats de review, delivery, merge, decision owner et autorisation vivent uniquement dans les Evidence Packs, la pull request et les records specialises.
+- Ce cadrage ne constitue aucune autorisation. La delivery A/B/C/D, la publication de cette cloture documentaire et M1 complet restent des etapes distinctes. Les etats de review, delivery, merge, decision owner et autorisation vivent uniquement dans les Evidence Packs, la pull request et les records specialises.
 - Aucun provider IA reel, modele reel, SDK, prompt runtime actif, cout provider ou appel reseau IA n'est actif dans le present.
 - Les artefacts `030d` et `042` restent des preuves historiques ou de backlog ; ils ne constituent pas le rail executable de la future implementation M2 et n'activent aucun provider.
 - `workpapers` reste le module proprietaire pour la justification, les documents et leur verification reviewer ; `011` et `012` n'introduisent pas de module transverse `documents`.
@@ -35,9 +35,10 @@ Il ne remplace ni les ADRs, ni les specs, ni les contrats, ni les runbooks. Il f
 - `exports` est maintenant un module proprietaire distinct qui persiste un `export_pack` immutable, assemble un `ZIP` synchrone et deterministe, et telecharge ce pack via le backend uniquement.
 - L'annexe minimale `027` est un read-model deterministe, tenant-scoped, operationnel non statutaire, non persiste, non exporte, sans IA, sans migration DB et sans `audit_event` sur `GET`.
 
+- Le profil local canonique active la session, avec un Vite 127.0.0.1:5173 et un backend 127.0.0.1:8080, sans bearer navigateur. Le bootstrap D installe la projection fermee et la garde commune avant refresh/Flyway ; son runtime selectionne exclut JUnit, fixtures et ressources de test. Le rail sequentiel supervise les processus, les delais, la quarantaine et la reprise cleanup-only. Le kernel general reste default-off ; application-dev reste separe. L'OIDC partage et la session distribuee relevent de M1.2.
+
 ## Trajectoire architecture approuvee, non livree
 
-- Le profil local canonique active la session, avec un Vite 127.0.0.1:5173 et un backend 127.0.0.1:8080, sans bearer navigateur. Le bootstrap D installe la projection fermee et la garde commune avant refresh/Flyway ; son runtime selectionne exclut JUnit, fixtures et ressources de test. Le rail sequentiel supervise les processus, les delais, la quarantaine et la reprise cleanup-only. Le kernel general reste default-off ; application-dev reste separe. L'OIDC partage et la session distribuee relevent de M1.2.
 - M2 cible une provider gateway OpenAI-first derriere un port interne etroit, avec abstraction provider des le premier runtime. Un spike borne comparera Spring AI et le SDK Java officiel derriere ce meme port ; M0 ne choisit aucune dependance, aucun modele et aucun endpoint.
 - M3 cible dans le monolithe un kernel agentique borne et un registre d'outils interne type, versionne, tenant-scoped, audite et MCP-adaptable. Les outils restent read-only par defaut et toute mutation passe par confirmation humaine puis commande metier deterministe.
 - M4 cible le Mapping Assistant comme premier slice IA-native sur le kernel M3 ; il ne reprend pas le rail 042.
@@ -112,7 +113,7 @@ Il ne remplace ni les ADRs, ni les specs, ni les contrats, ni les runbooks. Il f
 - `specs/done/043-controlled-fiduciary-pilot-readiness-v1.md`
 - `specs/done/044-design-partner-readiness-v1.md`
 - `specs/done/045-design-partner-research-protocol-v1.md`
-- `specs/active/046-authenticated-session-foundation-v1.md`
+- `specs/done/046-authenticated-session-foundation-v1.md`
 - `specs/done/008-financial-rubric-taxonomy-v2.md`
 - `specs/done/009-financial-statements-structured-v1.md`
 - `specs/done/010-workpapers-v1.md`

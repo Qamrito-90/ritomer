@@ -26,7 +26,7 @@ Le `pack final` actuel reste un export audit-ready non statutaire soumis à revu
 | Statut | Vérité actuelle | Limite |
 | --- | --- | --- |
 | `DELIVERED_AND_PROVED` | Cœur déterministe du closing, identity et memberships applicatifs, tenancy/RBAC, import, mapping manuel, contrôles, previews, workpapers, documents, export, annexe minimale, audit append-only et mapping assisté no-provider. | Preuves de repo et de delivery, sans hébergement SaaS ni validation professionnelle. |
-| `LOCAL_OR_SYNTHETIC_ONLY` | Session process-local et coordinator frontend C ; D intégré validé localement sur données synthétiques le 03.10.2026 (candidate-05), présent dans le worktree mais non livré ; fixtures et simulation offline `mapping-suggestion-v2`. | Pas de session SaaS durable, d'environnement partagé ni de donnée réelle ; 046 reste active. |
+| `LOCAL_OR_SYNTHETIC_ONLY` | Fondation de session M1.1 locale A/B/C/D livrée ; D par la [PR #127](https://github.com/Qamrito-90/ritomer/pull/127), squash `3d1fad45cf930f446aba50d2e328958cfb1d812a`. Intégration synthétique prouvée le 03.10.2026 sur candidate-05 ; fixtures et simulation offline `mapping-suggestion-v2`. | 046 Done dans ce candidat documentaire à publier séparément ; aucune session SaaS durable, aucun environnement partagé ni donnée réelle. M1 reste incomplet. |
 | `DOCUMENTED_NOT_IMPLEMENTED` | Cible Cloud Run/Cloud SQL, provider gateway réel, tracing/coûts IA, MCP client/serveur et préparation design-partner. | La documentation ne vaut ni runtime, ni autorisation, ni preuve d'exploitation. |
 | `NOT_STARTED` | Goal/run agentique, registre d'outils exécutable, site public, bêta externe, support et production opérable. | Aucun de ces sujets n'est livré ou engagé par M0. |
 
@@ -228,7 +228,7 @@ M0 n'introduit ni microservice, ni GraphQL, ni RLS généralisée, ni nouvelle i
 
 ## 8. Statuts historiques et gouvernance
 
-Présent M1.1 : 046 est l'unique spec active ; A/B et C sont livrés. Le raccordement D et les protections du rail sont implémentés dans le worktree ; la preuve intégrée PostgreSQL/navigateur locale sur données synthétiques est acquise sur candidate-05 le 03.10.2026, avec les limites de la [spec 046](../../specs/active/046-authenticated-session-foundation-v1.md). Delivery D, clôture de 046 et outcome complet M1 restent non effectués. Aucun outcome M1.2, IA/MCP, externe ou production ni nouvelle autorisation n'en découle.
+Présent M1.1 : A/B/C/D sont livrés ; D par la [PR #127](https://github.com/Qamrito-90/ritomer/pull/127), squash `3d1fad45cf930f446aba50d2e328958cfb1d812a` du 04.10.2026. L'outcome local/synthétique est accompli, 046 Done et aucune spec active dans ce candidat documentaire. Le classement Done de 046 décrit ce candidat documentaire local ; sa publication reste à autoriser séparément. Le [bilan de 046](../../specs/done/046-authenticated-session-foundation-v1.md#15-bilan-de-clôture-documentaire-locale-du-04102026) distingue la preuve intégrée de candidate-05 du 03.10.2026 et les CI renouvelées du 04.10.2026. M1 reste incomplet ; M1.2 reste à cadrer/autoriser, sans choix d'IdP ou dimensionnement approuvé ici. Aucun outcome IA/MCP, externe ou production ni nouvelle autorisation n'en découle.
 
 Le bloc ci-dessous est le snapshot de rebaseline M0, antérieur à 046.
 
