@@ -1712,7 +1712,9 @@ class DemoSeedLocalSourceGuardTest {
       §code = 'using System; using System.IO; namespace Ritomer.M1B { public static class ContainedProcess {' +
         'public static byte[] LastNeedle; private static int SimulatedRead(FileStream stream, byte[] buffer) { return 0; }' +
         §reader + '}}'
+      Write-OfflineFixturePhase 'ADD_TYPE_ENTER'
       Add-Type -TypeDefinition §code -Language CSharp
+      Write-OfflineFixturePhase 'ADD_TYPE_RETURN'
       §script:M1BContainedProcessTypeInitialized = §true
       §container = Join-Path ([IO.Path]::GetTempPath()) ('m1b-incomplete-' + [Guid]::NewGuid().ToString('N'))
       §script:EvidenceBaseRoot = §container
@@ -1722,13 +1724,16 @@ class DemoSeedLocalSourceGuardTest {
       try {
         [IO.File]::WriteAllBytes(§file, [byte[]]@(65, 66, 67))
         §stop = 'NO_STOP'
+        Write-OfflineFixturePhase 'SCAN_ENTER'
         try { Assert-M1BRunnerSecretAbsentFromTree §root 'offline-fixed-incomplete-marker' } catch { §stop = Get-M1BStopCode §_ }
+        Write-OfflineFixturePhase 'SCAN_RETURN'
         if (§stop -cne 'RUNNER_ARTIFACT_SCAN_FAILED') { throw 'SIMULATED_INCOMPLETE_READ_NOT_CLASSIFIED' }
         §captured = [Ritomer.M1B.ContainedProcess]::LastNeedle
         if (§null -eq §captured -or §captured.Length -eq 0 -or @(§captured | Where-Object { §_ -ne 0 }).Count -ne 0) {
           throw 'SIMULATED_INCOMPLETE_READ_NEEDLE_NOT_CLEARED'
         }
         [void][IO.File]::GetAttributes(§file)
+        Write-OfflineFixturePhase 'SCAN_ASSERTED'
       } finally {
         if (-not §file.StartsWith(§container + '\', [StringComparison]::Ordinal)) { throw 'FIXTURE_CLEANUP_BOUNDARY' }
         [IO.File]::Delete(§file)
@@ -1736,7 +1741,8 @@ class DemoSeedLocalSourceGuardTest {
         [IO.Directory]::Delete(§container, §false)
       }
       'M1B_SCAN_SIMULATED_INCOMPLETE_READ_AND_NEEDLE_CLEAR=PASS'
-      """.trimIndent()
+      """.trimIndent(),
+      tracePhases = true
     )
     assertThat(output).contains("M1B_SCAN_SIMULATED_INCOMPLETE_READ_AND_NEEDLE_CLEAR=PASS")
     println(output.trim())
@@ -6934,19 +6940,294 @@ class DemoSeedLocalSourceGuardTest {
     }
   }
 
-  private fun runRailPowerShell(body: String, startProcess: (ProcessBuilder) -> Process = { it.start() }): String {
+  @Test
+  fun offlineFixtureOutputKeepsUtf8AndFragmentedPhasesButRedactsDiagnostics() {
+    val capture = OfflineFixtureOutput()
+    val original = "pièce synthétique €\nM1B_OFFLINE_PHASE phase=AST_ENTER childMs=12\r\n" +
+      "M1B_OFFLINE_PHASE phase=PRIVATE_VALUE childMs=13\n" +
+      "M1B_OFFLINE_PHASE phase=SCAN_RETURN childMs=1234567\n"
+    val bytes = original.toByteArray(StandardCharsets.UTF_8)
+    val input = object : java.io.ByteArrayInputStream(bytes) {
+      override fun read(buffer: ByteArray, offset: Int, length: Int): Int = super.read(buffer, offset, minOf(length, 3))
+    }
+    capture.drain(input)
+    assertThat(capture.completeOutput()).isEqualTo(original)
+    assertThat(capture.diagnostics()).contains("state=EOF", "phase=AST_ENTER childMs=12")
+      .doesNotContain("pièce", "PRIVATE_VALUE", "SCAN_RETURN")
+  }
+
+  @Test
+  fun offlineFixtureOutputRejectsOverflowWhileDrainingAndKeepingLaterPhases() {
+    val capture = OfflineFixtureOutput()
+    val input = java.io.ByteArrayInputStream(("x".repeat(65537) +
+      "\nM1B_OFFLINE_PHASE phase=SCAN_RETURN childMs=23\n").toByteArray(StandardCharsets.UTF_8))
+    capture.drain(input)
+    assertThat(input.available()).isZero()
+    assertThat(capture.diagnostics()).contains("state=EOF kept=65536 overflow=1", "phase=SCAN_RETURN childMs=23")
+    assertThatThrownBy { capture.completeOutput() }.hasMessageContaining("FIXTURE_OUTPUT_LIMIT")
+  }
+
+  @Test
+  fun offlineFixtureOutputRejectsIncompleteAndFailedReads() {
+    val capture = OfflineFixtureOutput()
+    capture.accept("M1B_OFFLINE_PHASE phase=AST_ENTER childMs=1\n")
+    assertThatThrownBy { capture.completeOutput() }.hasMessageContaining("FIXTURE_OUTPUT_INCOMPLETE")
+    val input = object : java.io.InputStream() {
+      override fun read(): Int = throw java.io.IOException("private-synthetic-read-error")
+    }
+    assertThatThrownBy { capture.drain(input) }.isInstanceOf(java.io.IOException::class.java)
+    assertThat(capture.diagnostics()).contains("state=READ_FAILED", "phase=AST_ENTER")
+      .doesNotContain("private-synthetic-read-error")
+    assertThatThrownBy { capture.completeOutput() }.hasMessageContaining("FIXTURE_OUTPUT_INCOMPLETE")
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = ["EOF_ON_CLOSE", "LATE_PASS", "DRAIN_STUCK", "READ_FAULT", "CHILD_STUCK", "CLOSE_FAULT"])
+  @Tag("windows-only")
+  fun offlineFixtureTimeoutKeepsPartialDiagnosticsAndFinalizationFailures(scenario: String) {
+    val waitingForEof = java.util.concurrent.CountDownLatch(1)
+    val release = java.util.concurrent.CountDownLatch(1)
+    val readReturned = java.util.concurrent.CountDownLatch(1)
+    val readerClosed = java.util.concurrent.CountDownLatch(1)
+    val testThread = Thread.currentThread()
+    var alive = true
+    var terminations = 0
+    var exitReads = 0
+    var closeCalls = 0
+    var commandFile: Path? = null
+    val waits = mutableListOf<Long>()
+    val input = object : java.io.InputStream() {
+      private var first = true
+      private var late = scenario == "LATE_PASS"
+      override fun read(): Int = throw AssertionError("unexpected single-byte read")
+      override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+        if (first) {
+          first = false
+          val prefix = ("private-synthetic-output\nM1B_OFFLINE_PHASE phase=AST_ENTER childMs=7\n")
+            .toByteArray(StandardCharsets.UTF_8)
+          check(length >= prefix.size)
+          prefix.copyInto(buffer, offset)
+          return prefix.size
+        }
+        waitingForEof.countDown() // The previous chunk was already accepted by the single drain.
+        check(release.await(15, java.util.concurrent.TimeUnit.SECONDS)) { "test failed to release its inert stream" }
+        try {
+          if (scenario == "READ_FAULT") throw java.io.IOException("private-synthetic-late-read-error")
+          if (late) {
+            late = false
+            val tail = "M1B_OFFLINE_PHASE phase=SCAN_ASSERTED childMs=44\nPASS\n".toByteArray(StandardCharsets.UTF_8)
+            tail.copyInto(buffer, offset)
+            return tail.size
+          }
+          return -1
+        } finally {
+          readReturned.countDown()
+        }
+      }
+      override fun close() {
+        closeCalls++
+        if (Thread.currentThread() != testThread) readerClosed.countDown()
+        if (scenario != "DRAIN_STUCK") release.countDown()
+        if (scenario == "CLOSE_FAULT") throw java.io.IOException("private-synthetic-close-error")
+      }
+    }
+    val child = object : Process() {
+      override fun getOutputStream() = java.io.ByteArrayOutputStream()
+      override fun getInputStream() = input
+      override fun getErrorStream() = java.io.ByteArrayInputStream(byteArrayOf())
+      override fun waitFor(): Int = throw AssertionError("unexpected unbounded wait")
+      override fun waitFor(timeout: Long, unit: java.util.concurrent.TimeUnit): Boolean {
+        waits.add(unit.toSeconds(timeout))
+        if (alive) {
+          check(waitingForEof.await(5, java.util.concurrent.TimeUnit.SECONDS))
+          return false
+        }
+        return true
+      }
+      override fun exitValue(): Int { exitReads++; return 0 }
+      override fun destroy() { throw AssertionError("unexpected second termination path") }
+      override fun destroyForcibly(): Process { terminations++; alive = scenario == "CHILD_STUCK"; return this }
+      override fun isAlive() = alive
+    }
+    try {
+      val failure = requireNotNull(catchThrowable {
+        runRailPowerShell("throw 'must never execute'") { builder ->
+          commandFile = Path.of(builder.command().last())
+          child
+        }
+      })
+      assertThat(failure).isInstanceOf(AssertionError::class.java)
+        .hasMessageContaining("timed out after 45 seconds")
+        .hasMessageContaining("state=READING")
+        .hasMessageContaining("phase=AST_ENTER childMs=7")
+        .hasMessageNotContaining("private-")
+        .hasMessageNotContaining("SCAN_ASSERTED")
+        .hasMessageNotContaining("PASS")
+      assertThat(waits).containsExactly(45L, 5L)
+      assertThat(terminations).isEqualTo(1)
+      assertThat(exitReads).isZero()
+      assertThat(closeCalls).isGreaterThanOrEqualTo(1)
+      if (scenario in setOf("DRAIN_STUCK", "READ_FAULT", "CHILD_STUCK", "CLOSE_FAULT")) {
+        assertThat(failure.suppressed).hasSize(1)
+        val expected = when (scenario) {
+          "DRAIN_STUCK" -> "FIXTURE_OUTPUT_CESSATION_UNCONFIRMED"
+          "CHILD_STUCK" -> "FIXTURE_CHILD_CESSATION_UNCONFIRMED"
+          "CLOSE_FAULT" -> "FIXTURE_OUTPUT_CLOSE_FAILED"
+          else -> "FIXTURE_OUTPUT_READ_FAILED"
+        }
+        assertThat(failure.suppressed[0]).hasMessageContaining("FIXTURE_COMMAND_FINALIZATION_ERROR")
+        assertThat(failure.suppressed[0].cause).hasMessageContaining(expected)
+        if (scenario == "CLOSE_FAULT") {
+          assertThat(failure.suppressed[0].cause!!.suppressed).hasSize(1)
+          assertThat(failure.suppressed[0].cause!!.suppressed[0]).hasMessageContaining("FIXTURE_OUTPUT_READ_FAILED")
+        }
+        assertThat(Files.isRegularFile(requireNotNull(commandFile)))
+          .isEqualTo(scenario in setOf("DRAIN_STUCK", "CHILD_STUCK"))
+      } else {
+        assertThat(failure.suppressed).isEmpty()
+        assertThat(Files.exists(requireNotNull(commandFile))).isFalse()
+      }
+    } finally {
+      alive = false // End only this inert model; no native process was started.
+      release.countDown()
+      check(readReturned.await(5, java.util.concurrent.TimeUnit.SECONDS))
+      check(readerClosed.await(5, java.util.concurrent.TimeUnit.SECONDS))
+      commandFile?.let { file ->
+        val expectedBase = Path.of("../out/ofx").toAbsolutePath().normalize()
+        check(file.fileName.toString() == "f.ps1" && file.parent.parent == expectedBase)
+        Files.deleteIfExists(file)
+      }
+    }
+  }
+
+  @Test
+  @Tag("windows-only")
+  fun offlineFixtureNativeTimeoutTerminatesItsOwnedProcess() {
+    var child: Process? = null
+    var commandFile: Path? = null
+    val started = System.nanoTime()
+    val failure = catchThrowable {
+      runRailPowerShell("[Threading.Thread]::Sleep(60000)", timeoutSeconds = 5) { builder ->
+        commandFile = Path.of(builder.command().last())
+        builder.start().also { child = it }
+      }
+    }
+    assertThat(failure).isInstanceOf(AssertionError::class.java).hasMessageContaining("timed out after 5 seconds")
+    assertThat(requireNotNull(child).isAlive).isFalse()
+    assertThat((System.nanoTime() - started) / 1_000_000).isLessThan(20000L)
+    // The real process and reader are gone; pipe-close errors remain observable.
+    failure!!.suppressed.forEach { suppressed ->
+      assertThat(suppressed).hasMessageContaining("FIXTURE_COMMAND_FINALIZATION_ERROR")
+      assertThat(suppressed.cause).hasMessageContaining("FIXTURE_OUTPUT_READ_FAILED")
+    }
+    assertThat(Files.exists(requireNotNull(commandFile))).isFalse()
+  }
+
+
+  // Keep one drain alive from process start; timeout diagnostics must not wait for EOF.
+  // Only closed phase labels and bounded monotone timings enter the diagnostic snapshot.
+  private class OfflineFixtureOutput(private val startedNanos: Long = System.nanoTime()) {
+    private val output = StringBuilder()
+    private val line = StringBuilder()
+    private val phases = linkedMapOf<String, String>()
+    private var oversizedLine = false
+    private var overflow = false
+    private var state = "READING"
+    private val phasePattern = Regex(
+      "M1B_OFFLINE_PHASE phase=(BOOTSTRAP_ENTER|BOOTSTRAP_RETURN|AST_ENTER|AST_RETURN|AST_VALIDATED|" +
+        "EXTRACTED|LOAD_ENTER|LOAD_RETURN|BODY_ENTER|ADD_TYPE_ENTER|ADD_TYPE_RETURN|" +
+        "SCAN_ENTER|SCAN_RETURN|SCAN_ASSERTED|FINALIZE_ENTER|FINALIZE_RETURN) childMs=([0-9]{1,6})"
+    )
+
+    fun drain(stream: java.io.InputStream) {
+      try {
+        stream.reader(StandardCharsets.UTF_8).use { reader ->
+          val buffer = CharArray(2048)
+          while (true) {
+            val count = reader.read(buffer)
+            if (count < 0) break
+            accept(String(buffer, 0, count))
+          }
+        }
+        synchronized(this) { state = "EOF" }
+      } catch (failure: Throwable) {
+        synchronized(this) { state = "READ_FAILED" }
+        throw failure
+      }
+    }
+
+    @Synchronized
+    fun accept(chunk: String) {
+      val remaining = 65536 - output.length
+      output.append(chunk.take(remaining))
+      if (chunk.length > remaining) overflow = true
+      for (character in chunk) {
+        if (character == '\n') {
+          if (!oversizedLine) {
+            val match = phasePattern.matchEntire(line.toString().removeSuffix("\r"))
+            if (match != null) {
+              val observedMs = (System.nanoTime() - startedNanos) / 1_000_000
+              if (observedMs in 0..999999) {
+                // Keep the first occurrence: a late/repeated success cannot replace a prior phase.
+                phases.putIfAbsent(match.groupValues[1],
+                  "M1B_OFFLINE_TIMING phase=" + match.groupValues[1] +
+                    " childMs=" + match.groupValues[2] + " observedMs=" + observedMs)
+              }
+            }
+          }
+          line.setLength(0)
+          oversizedLine = false
+        } else if (line.length < 160 && !oversizedLine) {
+          line.append(character)
+        } else {
+          oversizedLine = true
+          line.setLength(0)
+        }
+      }
+    }
+
+    @Synchronized
+    fun diagnostics(): String =
+      "M1B_OFFLINE_STREAM state=$state kept=" + output.length + " overflow=" + (if (overflow) 1 else 0) +
+        "\n" + phases.values.joinToString("\n")
+
+    @Synchronized
+    fun completeOutput(): String {
+      check(state == "EOF") { "FIXTURE_OUTPUT_INCOMPLETE\n" + diagnostics() }
+      check(!overflow) { "FIXTURE_OUTPUT_LIMIT\n" + diagnostics() }
+      return output.toString()
+    }
+  }
+
+  private fun runRailPowerShell(
+    body: String,
+    tracePhases: Boolean = false,
+    timeoutSeconds: Long = 45,
+    startProcess: (ProcessBuilder) -> Process = { it.start() }
+  ): String {
+    require(timeoutSeconds in 1..45)
     val scriptPath = Path.of("scripts/m1-1b-postgresql-rail.ps1")
       .toAbsolutePath()
       .normalize()
       .toString()
       .replace("'", "''")
     val command = buildString {
+      appendLine("§script:offlineFixtureClock = [Diagnostics.Stopwatch]::StartNew()")
+      appendLine("function Write-OfflineFixturePhase([string]§phase) {")
+      if (tracePhases) {
+        appendLine("  [Console]::Out.WriteLine('M1B_OFFLINE_PHASE phase=' + §phase + ' childMs=' + §script:offlineFixtureClock.ElapsedMilliseconds)")
+      }
+      appendLine("}")
+      appendLine("Write-OfflineFixturePhase 'BOOTSTRAP_ENTER'")
+      appendLine("Write-OfflineFixturePhase 'BOOTSTRAP_RETURN'")
+      appendLine("Write-OfflineFixturePhase 'AST_ENTER'")
       append("§railPath = '")
       append(scriptPath)
       appendLine("'")
       appendLine("§parseTokens = §null")
       appendLine("§parseErrors = §null")
       appendLine("§railAst = [System.Management.Automation.Language.Parser]::ParseFile(§railPath, [ref]§parseTokens, [ref]§parseErrors)")
+      appendLine("Write-OfflineFixturePhase 'AST_RETURN'")
       appendLine("if (§parseErrors.Count -ne 0) { throw 'rail AST invalid before offline extraction' }")
       appendLine("§cleanBlock = §null")
       appendLine("if (§railAst.PSObject.Properties.Name -contains 'CleanBlock') { §cleanBlock = §railAst.CleanBlock }")
@@ -7030,6 +7311,7 @@ class DemoSeedLocalSourceGuardTest {
       appendLine("  'Invoke-M1BDirectPsql -Phase ''Cleanup'' -SqlText §sql -NeutralRoot §NeutralRoot'")
       appendLine(")")
       appendLine("if ((§directCalls -join [char]0) -cne (§expectedDirectCalls -join [char]0)) { throw 'direct psql call inventory invalid' }")
+      appendLine("Write-OfflineFixturePhase 'AST_VALIDATED'")
       // Retain the existing AST safety checks, but never load the operational
       // dispatch. Extract exact functions and the validated inert initializers.
       appendLine("§offlineParts = [Collections.Generic.List[string]]::new()")
@@ -7044,8 +7326,10 @@ class DemoSeedLocalSourceGuardTest {
       appendLine("§offlineRailPath = [IO.Path]::ChangeExtension(§PSCommandPath, '.functions.ps1')")
       appendLine("if ([IO.File]::Exists(§offlineRailPath)) { throw 'EXTRACTION_FIXTURE_COLLISION' }")
       appendLine("[IO.File]::WriteAllText(§offlineRailPath, §offlineRailSource, [Text.UTF8Encoding]::new(§false))")
+      appendLine("Write-OfflineFixturePhase 'EXTRACTED'")
       appendLine("§extractionPrimaryFailure=§null; §extractionCleanupFailure=§null")
       appendLine("try {")
+      appendLine("Write-OfflineFixturePhase 'LOAD_ENTER'")
       append(". §offlineRailPath -Mode 'Preflight'")
       append(" -RunId '00000000000000000000000000000000'")
       append(" -ReviewedObjectSha256 '")
@@ -7062,6 +7346,8 @@ class DemoSeedLocalSourceGuardTest {
       // wrapper while substituting only its filesystem boundary.
       appendLine("§realLocalAdminReader=(Get-Command Read-M1DLocalAdminPassword).ScriptBlock")
       appendLine("function Read-M1DLocalAdminPassword { 'offline-fixed-admin-marker' }")
+      appendLine("Write-OfflineFixturePhase 'LOAD_RETURN'")
+      appendLine("Write-OfflineFixturePhase 'BODY_ENTER'")
       append(body)
       append('\n')
       appendLine("} catch {")
@@ -7069,11 +7355,13 @@ class DemoSeedLocalSourceGuardTest {
       appendLine("  if (§_.CategoryInfo.Reason -ceq 'ItemNotFoundException' -and §null -ne §_.InvocationInfo -and §null -ne §_.InvocationInfo.MyCommand -and §_.InvocationInfo.MyCommand.Name -ceq 'Get-Item') { Write-Output 'M1D_OFFLINE_GET_ITEM_NOT_FOUND' }")
       appendLine("  if (§_.CategoryInfo.Reason -ceq 'IOException' -and §null -ne §_.InvocationInfo -and §null -ne §_.InvocationInfo.MyCommand -and §_.InvocationInfo.MyCommand.Name -ceq 'Get-Item' -and §_.TargetObject -is [string] -and §_.TargetObject -ceq §script:DQuarantinePath) { Write-Output 'M1D_OFFLINE_QUARANTINE_GET_ITEM_IO' }")
       appendLine("} finally {")
+      appendLine("  Write-OfflineFixturePhase 'FINALIZE_ENTER'")
       appendLine("  try { [IO.File]::Delete(§offlineRailPath) } catch {")
       appendLine("    §extractionCleanupFailure=§_")
       appendLine("    Write-Output ('FIXTURE_EXTRACTION_FINALIZATION_ERROR '+(ConvertTo-Json ([ordered]@{step='extracted-functions-delete';target=§offlineRailPath;category=§_.Exception.GetType().FullName;message=§_.Exception.Message}) -Compress))")
       appendLine("  }")
       appendLine("}")
+      appendLine("Write-OfflineFixturePhase 'FINALIZE_RETURN'")
       appendLine("if(§null -ne §extractionPrimaryFailure){throw §extractionPrimaryFailure}")
       appendLine("if(§null -ne §extractionCleanupFailure){throw §extractionCleanupFailure}")
     }.replace('§', '$')
@@ -7124,35 +7412,84 @@ class DemoSeedLocalSourceGuardTest {
     }
     var primaryFailure: Throwable? = null
     var fixtureProcess: Process? = null
+    var rawOutput: java.io.InputStream? = null
+    var outputFuture: java.util.concurrent.CompletableFuture<Void>? = null
+    val startedNanos = System.nanoTime()
+    val captured = OfflineFixtureOutput(startedNanos)
     try {
       val process = startProcess(processBuilder)
       fixtureProcess = process
-      val outputFuture = java.util.concurrent.CompletableFuture.supplyAsync {
-        process.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
-      }
-      val finished = process.waitFor(45, java.util.concurrent.TimeUnit.SECONDS)
+      val startMs = (System.nanoTime() - startedNanos) / 1_000_000
+      val stream = process.inputStream
+      rawOutput = stream
+      val drain = java.util.concurrent.CompletableFuture.runAsync { captured.drain(stream) }
+      outputFuture = drain
+      val finished = process.waitFor(timeoutSeconds, java.util.concurrent.TimeUnit.SECONDS)
       if (!finished) {
-        throw AssertionError("offline PowerShell fixture timed out after 45 seconds target=$commandFile")
+        // Snapshot now, before termination or late output; timeout remains the primary failure.
+        throw AssertionError("offline PowerShell fixture timed out after $timeoutSeconds seconds target=$commandFile\n" +
+          "M1B_OFFLINE_PROCESS startMs=$startMs\n" + captured.diagnostics())
       }
-      val output = outputFuture.get(5, java.util.concurrent.TimeUnit.SECONDS)
+      drain.get(5, java.util.concurrent.TimeUnit.SECONDS)
+      val output = captured.completeOutput()
       assertThat(process.exitValue())
-        .describedAs("offline PowerShell fixture failed: %s", output)
+        .describedAs("offline PowerShell fixture failed: %s\n%s", output, captured.diagnostics())
         .isZero()
-      return output
+      // Some existing callers consume an exact value without even a trailing newline.
+      // Only the scanner diagnostic fixture opts into phase text in its nominal output.
+      return if (tracePhases) output + "\nM1B_OFFLINE_PROCESS startMs=$startMs\n" + captured.diagnostics() else output
     } catch (failure: Throwable) {
       primaryFailure = failure
       throw failure
     } finally {
-      try {
+      var cleanupFailure: Throwable? = null
+      var childStopped = fixtureProcess == null
+      var drainStopped = outputFuture == null
+      fun finalizeStep(action: () -> Unit) {
+        try {
+          action()
+        } catch (failure: Throwable) {
+          val previous = cleanupFailure
+          if (previous == null) cleanupFailure = failure else previous.addSuppressed(failure)
+        }
+      }
+      finalizeStep {
         val process = fixtureProcess
         if (process != null && process.isAlive) {
           process.destroyForcibly()
           process.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)
-          check(!process.isAlive) { "FIXTURE_CHILD_CESSATION_UNCONFIRMED target=$commandFile" }
         }
+        childStopped = process == null || !process.isAlive
+        check(childStopped) { "FIXTURE_CHILD_CESSATION_UNCONFIRMED target=$commandFile" }
+      }
+      // Attempt every finalizer even when cessation is unconfirmed. Closing the raw
+      // pipe does not wait on a BufferedReader's read lock and cannot make timeout pass.
+      finalizeStep {
+        try {
+          rawOutput?.close()
+        } catch (failure: Throwable) {
+          throw IllegalStateException("FIXTURE_OUTPUT_CLOSE_FAILED", failure)
+        }
+      }
+      finalizeStep {
+        val drain = outputFuture
+        if (drain != null) {
+          try {
+            drain.get(5, java.util.concurrent.TimeUnit.SECONDS)
+            drainStopped = true
+          } catch (failure: java.util.concurrent.ExecutionException) {
+            drainStopped = true // Failed, but finished; retain the error and permit owned-file cleanup.
+            throw IllegalStateException("FIXTURE_OUTPUT_READ_FAILED", failure.cause)
+          } catch (failure: java.util.concurrent.TimeoutException) {
+            throw IllegalStateException("FIXTURE_OUTPUT_CESSATION_UNCONFIRMED", failure)
+          }
+        }
+      }
+      if (childStopped && drainStopped) finalizeStep {
         check(commandFile.parent == fixtureRoot && fixtureRoot.parent == fixtureBase)
         Files.deleteIfExists(commandFile)
-      } catch (cleanup: Throwable) {
+      }
+      cleanupFailure?.let { cleanup ->
         val reported = IllegalStateException("FIXTURE_COMMAND_FINALIZATION_ERROR target=$commandFile", cleanup)
         primaryFailure?.addSuppressed(reported) ?: throw reported
       }
