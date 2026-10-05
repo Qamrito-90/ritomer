@@ -40,6 +40,25 @@ jobs:
           Set-StrictMode -Version Latest
           $reports = @(Get-ChildItem -LiteralPath 'build/test-results/test' -Filter 'TEST-*.xml' -File)
           if ($reports.Count -eq 0) { throw 'Linux JUnit reports are missing.' }
+          # JSON lines are lossless; only a complete, contiguous BEGIN..END is evidence.
+          $script:inventorySequence = 0
+          function Write-JunitInventory([System.Collections.IDictionary]$Record) {
+            $script:inventorySequence++
+            $Record.Add('sequence', $script:inventorySequence)
+            $json = ConvertTo-Json -InputObject $Record -Compress -Depth 4
+            $json = [regex]::Replace($json, '[^\u0020-\u007e]', { param($match) '\u{0:x4}' -f [int][char]$match.Value[0] })
+            $json = $json.Replace('::', '\u003a\u003a').Replace([string][char]0x2028, '\u2028').Replace([string][char]0x2029, '\u2029')
+            if ([System.Text.Encoding]::UTF8.GetByteCount($json) -gt 8192) { throw 'JUnit inventory record exceeds byte limit.' }
+            Write-Output ('RITOMER_JUNIT_V1 ' + $json)
+          }
+          $checkout = (git rev-parse HEAD)
+          if ($LASTEXITCODE -ne 0 -or $checkout -cnotmatch '^[0-9a-f]{40}\z') { throw 'Invalid inventory checkout.' }
+          if ($env:GITHUB_RUN_ID -cnotmatch '^[1-9][0-9]{0,19}\z' -or
+              $env:GITHUB_RUN_ATTEMPT -cnotmatch '^[1-9][0-9]{0,9}\z' -or
+              $env:GITHUB_EVENT_NAME -cnotmatch '^(pull_request|push)\z' -or
+              $env:GITHUB_JOB -cne 'backend_linux') { throw 'Invalid inventory context.' }
+          if ($reports.Count -gt 1024) { throw 'JUnit inventory exceeds report limit.' }
+          Write-JunitInventory ([ordered]@{ kind = 'BEGIN'; run_id = $env:GITHUB_RUN_ID; run_attempt = $env:GITHUB_RUN_ATTEMPT; event = $env:GITHUB_EVENT_NAME; job = $env:GITHUB_JOB; partition = 'test'; checkout = $checkout })
           $settings = [System.Xml.XmlReaderSettings]::new()
           $settings.DtdProcessing = [System.Xml.DtdProcessing]::Prohibit
           $settings.XmlResolver = $null
@@ -48,8 +67,14 @@ jobs:
           foreach ($report in $reports) {
             $document = [System.Xml.XmlDocument]::new()
             $document.XmlResolver = $null
-            $reader = [System.Xml.XmlReader]::Create($report.FullName, $settings)
-            try { $document.Load($reader) } finally { $reader.Dispose() }
+            if ($report.Length -gt 67108864) { throw 'JUnit report exceeds inventory byte limit.' }
+            $bytes = [System.IO.File]::ReadAllBytes($report.FullName)
+            if ($bytes.Length -gt 67108864) { throw 'JUnit report exceeds inventory byte limit.' }
+            $sha = [System.Security.Cryptography.SHA256]::Create()
+            try { $reportHash = [BitConverter]::ToString($sha.ComputeHash($bytes)).Replace('-', '').ToLowerInvariant() } finally { $sha.Dispose() }
+            $stream = [System.IO.MemoryStream]::new($bytes, $false)
+            $reader = [System.Xml.XmlReader]::Create($stream, $settings)
+            try { $document.Load($reader) } catch { throw 'Invalid JUnit XML report.' } finally { $reader.Dispose(); $stream.Dispose() }
             $suite = $document.DocumentElement
             if ($null -eq $suite -or $suite.LocalName -cne 'testsuite') { throw 'Invalid JUnit report root.' }
             foreach ($attribute in @('tests', 'failures', 'errors', 'skipped')) {
@@ -64,8 +89,17 @@ jobs:
             if ($suite.SelectNodes('testcase/failure | testcase/error | testcase/skipped').Count -ne 0) {
               throw 'JUnit reports contain unsuccessful test cases.'
             }
+            if ($totalTests -gt 10000) { throw 'JUnit inventory exceeds case limit.' }
+            Write-JunitInventory ([ordered]@{ kind = 'REPORT'; partition = 'test'; report = $report.Name; sha256 = $reportHash; tests = [long]$suite.GetAttribute('tests'); failures = [long]$suite.GetAttribute('failures'); errors = [long]$suite.GetAttribute('errors'); skipped = [long]$suite.GetAttribute('skipped') })
+            $caseIndex = 0
+            foreach ($case in $suite.SelectNodes('testcase')) {
+              $caseIndex++
+              if ($case.GetAttribute('classname').Length -eq 0 -or $case.GetAttribute('name').Length -eq 0) { throw 'Missing JUnit testcase identity.' }
+              Write-JunitInventory ([ordered]@{ kind = 'CASE'; partition = 'test'; report = $report.Name; case_index = $caseIndex; classname = $case.GetAttribute('classname'); name = $case.GetAttribute('name'); result = 'passed' })
+            }
           }
           if ($totalTests -le 0) { throw 'Linux partition executed no tests.' }
+          Write-JunitInventory ([ordered]@{ kind = 'END'; partition = 'test'; reports = $reports.Count; cases = $totalTests; records = ($inventorySequence + 1) })
           Write-Output "LINUX_JUNIT_EXECUTED=$totalTests;FAILURES=0;ERRORS=0;SKIPPED=0"
 
       - name: Build
@@ -113,6 +147,25 @@ jobs:
           Set-StrictMode -Version Latest
           $reports = @(Get-ChildItem -LiteralPath 'build/test-results/windowsTest' -Filter 'TEST-*.xml' -File)
           if ($reports.Count -eq 0) { throw 'Windows JUnit reports are missing.' }
+          # JSON lines are lossless; only a complete, contiguous BEGIN..END is evidence.
+          $script:inventorySequence = 0
+          function Write-JunitInventory([System.Collections.IDictionary]$Record) {
+            $script:inventorySequence++
+            $Record.Add('sequence', $script:inventorySequence)
+            $json = ConvertTo-Json -InputObject $Record -Compress -Depth 4
+            $json = [regex]::Replace($json, '[^\u0020-\u007e]', { param($match) '\u{0:x4}' -f [int][char]$match.Value[0] })
+            $json = $json.Replace('::', '\u003a\u003a').Replace([string][char]0x2028, '\u2028').Replace([string][char]0x2029, '\u2029')
+            if ([System.Text.Encoding]::UTF8.GetByteCount($json) -gt 8192) { throw 'JUnit inventory record exceeds byte limit.' }
+            Write-Output ('RITOMER_JUNIT_V1 ' + $json)
+          }
+          $checkout = (git rev-parse HEAD)
+          if ($LASTEXITCODE -ne 0 -or $checkout -cnotmatch '^[0-9a-f]{40}\z') { throw 'Invalid inventory checkout.' }
+          if ($env:GITHUB_RUN_ID -cnotmatch '^[1-9][0-9]{0,19}\z' -or
+              $env:GITHUB_RUN_ATTEMPT -cnotmatch '^[1-9][0-9]{0,9}\z' -or
+              $env:GITHUB_EVENT_NAME -cnotmatch '^(pull_request|push)\z' -or
+              $env:GITHUB_JOB -cne 'backend_windows') { throw 'Invalid inventory context.' }
+          if ($reports.Count -gt 1024) { throw 'JUnit inventory exceeds report limit.' }
+          Write-JunitInventory ([ordered]@{ kind = 'BEGIN'; run_id = $env:GITHUB_RUN_ID; run_attempt = $env:GITHUB_RUN_ATTEMPT; event = $env:GITHUB_EVENT_NAME; job = $env:GITHUB_JOB; partition = 'windowsTest'; checkout = $checkout })
           $settings = [System.Xml.XmlReaderSettings]::new()
           $settings.DtdProcessing = [System.Xml.DtdProcessing]::Prohibit
           $settings.XmlResolver = $null
@@ -121,8 +174,14 @@ jobs:
           foreach ($report in $reports) {
             $document = [System.Xml.XmlDocument]::new()
             $document.XmlResolver = $null
-            $reader = [System.Xml.XmlReader]::Create($report.FullName, $settings)
-            try { $document.Load($reader) } finally { $reader.Dispose() }
+            if ($report.Length -gt 67108864) { throw 'JUnit report exceeds inventory byte limit.' }
+            $bytes = [System.IO.File]::ReadAllBytes($report.FullName)
+            if ($bytes.Length -gt 67108864) { throw 'JUnit report exceeds inventory byte limit.' }
+            $sha = [System.Security.Cryptography.SHA256]::Create()
+            try { $reportHash = [BitConverter]::ToString($sha.ComputeHash($bytes)).Replace('-', '').ToLowerInvariant() } finally { $sha.Dispose() }
+            $stream = [System.IO.MemoryStream]::new($bytes, $false)
+            $reader = [System.Xml.XmlReader]::Create($stream, $settings)
+            try { $document.Load($reader) } catch { throw 'Invalid JUnit XML report.' } finally { $reader.Dispose(); $stream.Dispose() }
             $suite = $document.DocumentElement
             if ($null -eq $suite -or $suite.LocalName -cne 'testsuite') { throw 'Invalid JUnit report root.' }
             foreach ($attribute in @('tests', 'failures', 'errors', 'skipped')) {
@@ -137,8 +196,17 @@ jobs:
             if ($suite.SelectNodes('testcase/failure | testcase/error | testcase/skipped').Count -ne 0) {
               throw 'JUnit reports contain unsuccessful test cases.'
             }
+            if ($totalTests -gt 10000) { throw 'JUnit inventory exceeds case limit.' }
+            Write-JunitInventory ([ordered]@{ kind = 'REPORT'; partition = 'windowsTest'; report = $report.Name; sha256 = $reportHash; tests = [long]$suite.GetAttribute('tests'); failures = [long]$suite.GetAttribute('failures'); errors = [long]$suite.GetAttribute('errors'); skipped = [long]$suite.GetAttribute('skipped') })
+            $caseIndex = 0
+            foreach ($case in $suite.SelectNodes('testcase')) {
+              $caseIndex++
+              if ($case.GetAttribute('classname').Length -eq 0 -or $case.GetAttribute('name').Length -eq 0) { throw 'Missing JUnit testcase identity.' }
+              Write-JunitInventory ([ordered]@{ kind = 'CASE'; partition = 'windowsTest'; report = $report.Name; case_index = $caseIndex; classname = $case.GetAttribute('classname'); name = $case.GetAttribute('name'); result = 'passed' })
+            }
           }
           if ($totalTests -le 0) { throw 'Windows partition executed no tests.' }
+          Write-JunitInventory ([ordered]@{ kind = 'END'; partition = 'windowsTest'; reports = $reports.Count; cases = $totalTests; records = ($inventorySequence + 1) })
           Write-Output "WINDOWS_JUNIT_EXECUTED=$totalTests;FAILURES=0;ERRORS=0;SKIPPED=0"
 
   backend:
