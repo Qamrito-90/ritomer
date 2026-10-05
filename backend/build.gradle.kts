@@ -565,6 +565,7 @@ listOf("test", "windowsTest").forEach { taskName ->
           "postgresDQuarantinePersistsWithoutProcessLockAndRejectsIncompleteRecovery" -> "QUARANTINE"
           "postgresDLifecycleOrdersDestructionAndKeepsFailedCleanupQuarantinedOnDoubles" -> "LIFECYCLE"
           "postgresDParentDeathRequiresReceiptsAndSameBootLogonNamespace" -> "PARENT_DEATH"
+          "postgresRunnerArtifactScannerClassifiesSimulatedIncompleteReadAndClearsNeedle" -> "INCOMPLETE_READ_SCANNER"
           else -> return
         }
         // Bound the scan; do not traverse causes/suppressed or print descriptors.
@@ -601,6 +602,24 @@ listOf("test", "windowsTest").forEach { taskName ->
           "M1D_PARENT_PUBLICATION_READABLE"
         ).filter { marker -> messages.any { it.contains(marker) } }
         logger.lifecycle("M1D_CI_FAILURE_TEXT fixture=$fixture truncated=$truncated markers=${markers.joinToString(",").ifEmpty { "UNCLASSIFIED" }}")
+        if (fixture == "INCOMPLETE_READ_SCANNER") {
+          // The hosted runner has no XML artifact for this failure. Publish only this
+          // fixture's closed observations; never print raw output or exception chains.
+          val lines = messages.flatMap { it.lineSequence().map(String::trim).toList() }
+          val timeout = messages.any { it.contains("offline PowerShell fixture timed out after 45 seconds") }
+          logger.lifecycle("M1B_OFFLINE_FAILURE timeout=$timeout")
+          val phase = "(BOOTSTRAP_ENTER|BOOTSTRAP_RETURN|AST_ENTER|AST_RETURN|AST_VALIDATED|" +
+            "EXTRACTED|LOAD_ENTER|LOAD_RETURN|BODY_ENTER|ADD_TYPE_ENTER|ADD_TYPE_RETURN|" +
+            "SCAN_ENTER|SCAN_RETURN|SCAN_ASSERTED|FINALIZE_ENTER|FINALIZE_RETURN)"
+          val timing = Regex("M1B_OFFLINE_TIMING phase=$phase childMs=[0-9]{1,6} observedMs=[0-9]{1,6}")
+          lines.filter(timing::matches).distinctBy { it.substringBefore(" childMs=") }
+            .take(16).forEach { logger.lifecycle(it) }
+          val process = Regex("M1B_OFFLINE_PROCESS startMs=[0-9]{1,6}")
+          lines.firstOrNull(process::matches)?.let { logger.lifecycle(it) }
+          val stream = Regex("M1B_OFFLINE_STREAM state=(READING|EOF|READ_FAILED) kept=([0-9]{1,5}) overflow=[01]")
+          lines.firstOrNull { stream.matchEntire(it)?.groupValues?.get(2)?.toIntOrNull()?.let { kept -> kept <= 65536 } == true }
+            ?.let { logger.lifecycle(it) }
+        }
         if (fixture == "PARENT_DEATH") {
           // Only fixed schemas with bounded numeric fields may leave the fixture.
           val lines = messages.flatMap { it.lineSequence().map { line -> line.trim() }.toList() }
