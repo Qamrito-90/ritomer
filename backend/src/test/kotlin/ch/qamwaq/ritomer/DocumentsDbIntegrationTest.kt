@@ -79,7 +79,7 @@ class DocumentsDbIntegrationTest {
       String::class.java
     )
 
-    assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10")
+    assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11")
     assertThat(tableExists("document")).isTrue()
     assertThat(tableExists("document_verification")).isTrue()
     assertThat(columnExists("document", "tenant_id")).isTrue()

@@ -3,7 +3,7 @@ param(
   [ValidateSet('Preflight', 'Lifecycle')]
   [string]$Mode,
 
-  [ValidateSet('B', 'D')]
+  [ValidateSet('B', 'D', 'M12')]
   [string]$Campaign = 'B',
 
   [ValidateSet('Run', 'CleanupOnly')]
@@ -182,6 +182,109 @@ if ($Campaign -ceq 'D') {
     'runbooks/local-dev.md',
     'specs/active/046-authenticated-session-foundation-v1.md'
   )
+}
+
+if ($Campaign -ceq 'M12') {
+  $script:ExpectedBranch = 'codex/m1-2-local-oidc-session'
+  $script:ExpectedHead = '21564039f27be647e59023007682882701a40bf5'
+  $script:CorrectiveFileSetSummary = 'A1_M16_R0_D0_TOTAL17'
+  $script:CompositeFileSetSummary = 'A22_M27_R0_D0_TOTAL49'
+  $script:ExpectedAddedFileSet = @(
+    'backend/src/main/kotlin/ch/qamwaq/ritomer/identity/api/SharedSessionController.kt',
+    'backend/src/main/kotlin/ch/qamwaq/ritomer/identity/application/OidcIdentityRepository.kt',
+    'backend/src/main/kotlin/ch/qamwaq/ritomer/identity/application/OidcSessionAuthenticationService.kt',
+    'backend/src/main/kotlin/ch/qamwaq/ritomer/identity/infrastructure/persistence/JdbcOidcIdentityRepository.kt',
+    'backend/src/main/kotlin/ch/qamwaq/ritomer/shared/application/OidcActorAdmission.kt',
+    'backend/src/main/kotlin/ch/qamwaq/ritomer/shared/infrastructure/security/GoogleOidcAuthenticationConfiguration.kt',
+    'backend/src/main/kotlin/ch/qamwaq/ritomer/shared/infrastructure/security/SharedSessionBoundaryFilter.kt',
+    'backend/src/main/kotlin/ch/qamwaq/ritomer/shared/infrastructure/security/SharedSessionSecurityConfiguration.kt',
+    'backend/src/main/kotlin/ch/qamwaq/ritomer/shared/infrastructure/web/SharedFrontendController.kt',
+    'backend/src/main/resources/application-shared-internal.yml',
+    'backend/src/main/resources/db/migration/V11__m1_2_oidc_identity_and_jdbc_sessions.sql',
+    'backend/src/test/kotlin/ch/qamwaq/ritomer/SharedOidcSessionDbIntegrationTest.kt',
+    'backend/src/test/kotlin/ch/qamwaq/ritomer/identity/api/SharedOidcSessionSecurityTest.kt',
+    'backend/src/test/kotlin/ch/qamwaq/ritomer/identity/application/OidcSessionAuthenticationServiceTest.kt',
+    'backend/src/test/kotlin/ch/qamwaq/ritomer/shared/infrastructure/security/JdbcSessionConfigurationTest.kt',
+    'backend/src/test/kotlin/ch/qamwaq/ritomer/shared/infrastructure/security/SharedSessionBoundaryTest.kt',
+    'backend/src/test/kotlin/ch/qamwaq/ritomer/shared/infrastructure/web/SharedFrontendControllerTest.kt',
+    'backend/src/test/kotlin/ch/qamwaq/ritomer/testsupport/PostgresTestRailM12Process.kt',
+    'contracts/db/shared-oidc-session-v1.md',
+    'docs/adr/0008-shared-google-oidc-jdbc-session.md',
+    'runbooks/m1-2-shared-nonproduction.md',
+    'specs/active/047-shared-oidc-session-v1.md'
+  )
+  $script:CompositeFileSet = @(
+    'README.md',
+    'backend/.env.example',
+    'backend/build.gradle.kts',
+    'backend/scripts/m1-1b-postgresql-rail.ps1',
+    'backend/src/main/kotlin/ch/qamwaq/ritomer/identity/api/SharedSessionController.kt',
+    'backend/src/main/kotlin/ch/qamwaq/ritomer/identity/application/ActorResolutionSupport.kt',
+    'backend/src/main/kotlin/ch/qamwaq/ritomer/identity/application/OidcIdentityRepository.kt',
+    'backend/src/main/kotlin/ch/qamwaq/ritomer/identity/application/OidcSessionAuthenticationService.kt',
+    'backend/src/main/kotlin/ch/qamwaq/ritomer/identity/infrastructure/persistence/JdbcOidcIdentityRepository.kt',
+    'backend/src/main/kotlin/ch/qamwaq/ritomer/shared/application/AuthenticatedActor.kt',
+    'backend/src/main/kotlin/ch/qamwaq/ritomer/shared/application/OidcActorAdmission.kt',
+    'backend/src/main/kotlin/ch/qamwaq/ritomer/shared/infrastructure/security/GoogleOidcAuthenticationConfiguration.kt',
+    'backend/src/main/kotlin/ch/qamwaq/ritomer/shared/infrastructure/security/SecurityConfig.kt',
+    'backend/src/main/kotlin/ch/qamwaq/ritomer/shared/infrastructure/security/SessionSecurityKernel.kt',
+    'backend/src/main/kotlin/ch/qamwaq/ritomer/shared/infrastructure/security/SharedSessionBoundaryFilter.kt',
+    'backend/src/main/kotlin/ch/qamwaq/ritomer/shared/infrastructure/security/SharedSessionSecurityConfiguration.kt',
+    'backend/src/main/kotlin/ch/qamwaq/ritomer/shared/infrastructure/web/SharedFrontendController.kt',
+    'backend/src/main/resources/application-shared-internal.yml',
+    'backend/src/main/resources/application-test.yml',
+    'backend/src/main/resources/application.yml',
+    'backend/src/main/resources/db/migration/V11__m1_2_oidc_identity_and_jdbc_sessions.sql',
+    'backend/src/test/kotlin/ch/qamwaq/ritomer/BackendApplicationSmokeTest.kt',
+    'backend/src/test/kotlin/ch/qamwaq/ritomer/DocumentsDbIntegrationTest.kt',
+    'backend/src/test/kotlin/ch/qamwaq/ritomer/ExportsDbIntegrationTest.kt',
+    'backend/src/test/kotlin/ch/qamwaq/ritomer/SharedOidcSessionDbIntegrationTest.kt',
+    'backend/src/test/kotlin/ch/qamwaq/ritomer/WorkpapersDbIntegrationTest.kt',
+    'backend/src/test/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalSourceGuardTest.kt',
+    'backend/src/test/kotlin/ch/qamwaq/ritomer/identity/api/LocalTestSessionControllerSecurityTest.kt',
+    'backend/src/test/kotlin/ch/qamwaq/ritomer/identity/api/SharedOidcSessionSecurityTest.kt',
+    'backend/src/test/kotlin/ch/qamwaq/ritomer/identity/application/OidcSessionAuthenticationServiceTest.kt',
+    'backend/src/test/kotlin/ch/qamwaq/ritomer/shared/infrastructure/security/JdbcSessionConfigurationTest.kt',
+    'backend/src/test/kotlin/ch/qamwaq/ritomer/shared/infrastructure/security/SharedSessionBoundaryTest.kt',
+    'backend/src/test/kotlin/ch/qamwaq/ritomer/shared/infrastructure/web/SharedFrontendControllerTest.kt',
+    'backend/src/test/kotlin/ch/qamwaq/ritomer/testsupport/DisposablePostgresTestDatabaseSupport.kt',
+    'backend/src/test/kotlin/ch/qamwaq/ritomer/testsupport/PostgresTestRailM12Process.kt',
+    'contracts/db/shared-oidc-session-v1.md',
+    'contracts/openapi/auth-session-api.yaml',
+    'docs/adr/0008-shared-google-oidc-jdbc-session.md',
+    'docs/present/architecture-cadrage-v1.md',
+    'docs/present/ux-cadrage-v1.md',
+    'docs/product/v1-plan.md',
+    'docs/ui/ui-foundations-v1.md',
+    'frontend/src/app/router.test.tsx',
+    'frontend/src/app/router.tsx',
+    'frontend/src/lib/api/session.test.ts',
+    'frontend/src/lib/api/session.ts',
+    'runbooks/local-dev.md',
+    'runbooks/m1-2-shared-nonproduction.md',
+    'specs/active/047-shared-oidc-session-v1.md'
+  )
+  $script:CorrectiveFileSet = @(
+    'backend/build.gradle.kts',
+    'backend/scripts/m1-1b-postgresql-rail.ps1',
+    'backend/src/test/kotlin/ch/qamwaq/ritomer/testsupport/DisposablePostgresTestDatabaseSupport.kt',
+    'backend/src/test/kotlin/ch/qamwaq/ritomer/devtools/DemoSeedLocalSourceGuardTest.kt',
+    'backend/src/test/kotlin/ch/qamwaq/ritomer/SharedOidcSessionDbIntegrationTest.kt',
+    'backend/src/test/kotlin/ch/qamwaq/ritomer/DocumentsDbIntegrationTest.kt',
+    'backend/src/test/kotlin/ch/qamwaq/ritomer/ExportsDbIntegrationTest.kt',
+    'backend/src/test/kotlin/ch/qamwaq/ritomer/WorkpapersDbIntegrationTest.kt',
+    'backend/src/test/kotlin/ch/qamwaq/ritomer/identity/api/SharedOidcSessionSecurityTest.kt',
+    'backend/src/test/kotlin/ch/qamwaq/ritomer/shared/infrastructure/security/JdbcSessionConfigurationTest.kt',
+    'backend/src/test/kotlin/ch/qamwaq/ritomer/testsupport/PostgresTestRailM12Process.kt',
+    'specs/active/047-shared-oidc-session-v1.md',
+    'contracts/db/shared-oidc-session-v1.md',
+    'runbooks/m1-2-shared-nonproduction.md',
+    'runbooks/local-dev.md',
+    'docs/present/architecture-cadrage-v1.md',
+    'docs/product/v1-plan.md'
+  )
+  $script:DQuarantinePath = $script:EvidenceBaseRoot + '\.m12-unreleased.json'
+  $script:DPhaseMinutes = [ordered]@{ readiness = 30; provision = 5; targeted = 20; full = 20; qualification = 28; stop = 1; cleanup = 5; controls = 1 }
 }
 
 function Stop-M1BRail {
@@ -427,7 +530,7 @@ function Assert-M1BNoCredentialChannels {
 function Assert-M1BInteractiveConsole {
   # D authenticates from its fixed local data file, on the same native launch
   # path. No console handle or prompt is needed; B retains its original gate.
-  if ($Campaign -ceq 'D') { return }
+  if ($Campaign -cin @('D', 'M12')) { return }
   if (
     -not [System.Environment]::UserInteractive -or
     [System.Console]::IsInputRedirected -or
@@ -1092,6 +1195,26 @@ COMMIT;
 '@
 }
 
+function Get-M1BCampaignPrefix {
+  if ($Campaign -ceq 'M12') { return 'ritomer-m1-2' }
+  return 'ritomer-m1-1' + $Campaign.ToLowerInvariant()
+}
+
+function Get-M1BReceiptPrefix {
+  if ($Campaign -ceq 'M12') { return 'm12-' }
+  return 'd-'
+}
+
+function Get-M1BJobPrefix {
+  if ($Campaign -ceq 'M12') { return 'Local\Ritomer.M12.' }
+  return 'Local\Ritomer.M1D.'
+}
+
+function Get-M1BReceiptNamePattern {
+  if ($Campaign -ceq 'M12') { return '^(campaign|provision|cleanup|terminal|recovery-cleanup|recovery-terminal|launch-(preflight|lifecycle|recovery)-(READINESS|TARGETED|FULL|QUALIFICATION|ADMIN_PSQL_(PREFLIGHT|PROVISION|CLEANUP))-(intent|confined|stopped))$' }
+  return '^(campaign|provision|integrated|stopped|cleanup|terminal|recovery-cleanup|recovery-terminal|launch-(preflight|lifecycle|recovery)-(READINESS|SEED|BACKEND|VITE|HARNESS|BROWSER_COOKIE|BROWSER_JOURNEY|TARGETED|FULL|ADMIN_PSQL_(PREFLIGHT|PROVISION|CLEANUP))-(intent|confined|stopped))$'
+}
+
 function Get-M1BProvenance {
   param(
     [Parameter(Mandatory = $true)][string]$RunId,
@@ -1099,7 +1222,7 @@ function Get-M1BProvenance {
     [Parameter(Mandatory = $true)][string]$ClusterSystemIdentifier
   )
 
-  return 'ritomer-m1-1' + $Campaign.ToLowerInvariant() + ':' + $RunId + ':' + $ReviewedObjectSha256 + ':' + $ClusterSystemIdentifier
+  return (Get-M1BCampaignPrefix) + ':' + $RunId + ':' + $ReviewedObjectSha256 + ':' + $ClusterSystemIdentifier
 }
 
 function Assert-M1BProvenance {
@@ -1112,7 +1235,7 @@ function Assert-M1BProvenance {
   if ($ExpectedClusterSystemIdentifier -cnotmatch '\A[1-9][0-9]{0,19}\z') {
     Stop-M1BRail 'CLUSTER_IDENTIFIER_INVALID'
   }
-  $provenancePattern = '\Aritomer-m1-1' + $Campaign.ToLowerInvariant() + ':([0-9a-f]{32}):([0-9a-f]{64}):([1-9][0-9]{0,19})\z'
+  $provenancePattern = '\A' + (Get-M1BCampaignPrefix) + ':([0-9a-f]{32}):([0-9a-f]{64}):([1-9][0-9]{0,19})\z'
   $parts = [regex]::Match($Provenance, $provenancePattern)
   if (-not $parts.Success) { Stop-M1BRail 'PROVENANCE_INVALID' }
   if ($parts.Groups[3].Value -cne $ExpectedClusterSystemIdentifier) {
@@ -1402,7 +1525,7 @@ function Get-M1BCleanupSql {
   )
 
   Assert-M1BProvenance $Provenance $ExpectedClusterSystemIdentifier $RunId
-  if ($Campaign -ceq 'D' -and ($ExpectedDatabaseOid -le 0 -or $ExpectedRoleOid -le 0 -or
+  if ($Campaign -cin @('D', 'M12') -and ($ExpectedDatabaseOid -le 0 -or $ExpectedRoleOid -le 0 -or
       -not (Test-M1BPostmasterStartUnixMicros $script:DExpectedPostmasterStart))) {
     Stop-M1BRail 'D_CLEANUP_EXACT_PROVISION_RECEIPT_REQUIRED'
   }
@@ -1518,10 +1641,10 @@ SELECT 'M1B_CLEANUP|' || replace(replace(encode(convert_to(
   $sql = $sql.Replace('__ROLE_OID__', [string]$ExpectedRoleOid)
   $sql = $sql.Replace('__ADMIN_ROLE_OID__', [string]$ExpectedAdminRoleOid)
   $sql = $sql.Replace('__MAINTENANCE_DATABASE_OID__', [string]$ExpectedMaintenanceDatabaseOid)
-  if ($Campaign -ceq 'D') {
+  if ($Campaign -cin @('D', 'M12')) {
     $restartGuard = "IF (EXTRACT(EPOCH FROM pg_catalog.pg_postmaster_start_time()) * 1000000)::pg_catalog.int8::pg_catalog.text <> '" + $script:DExpectedPostmasterStart + "' THEN RAISE EXCEPTION 'postmaster binding mismatch'; END IF;`n  IF EXISTS (SELECT 1 FROM pg_stat_activity WHERE datname = 'ritomer_043b_test' OR usename = 'ritomer_043b_test_runner') THEN RAISE EXCEPTION 'session remains after stop barrier'; END IF;`n  "
     $sql = $sql.Replace('SELECT oid, datdba INTO database_oid, database_owner', $restartGuard + 'SELECT oid, datdba INTO database_oid, database_owner')
-    $sql = $sql.Replace(('ritomer-m1-1b-' + $RunId), ('ritomer-m1-1d-' + $RunId))
+    $sql = $sql.Replace(('ritomer-m1-1b-' + $RunId), ((Get-M1BCampaignPrefix) + '-' + $RunId))
     # D has already attested every owned tree stopped. Any surviving DB session is
     # evidence contradicting that barrier; never terminate it by SQL.
     $sql = $sql.Replace('IF NOT pg_terminate_backend(target_pid, 5000) THEN', 'IF true THEN')
@@ -1771,6 +1894,17 @@ namespace Ritomer.M1B {
       if (startInfo == null || !startInfo.CreateNoWindow ||
           !startInfo.RedirectStandardInput) throw new InvalidOperationException("D_STARTINFO_INVALID");
       return StartCore(startInfo, "Local\\Ritomer.M1D." + runId + "." + role, beforeResume);
+    }
+
+    public static ContainedProcess StartM12(
+      ProcessStartInfo startInfo, string runId, string role, Action<int, long, string> beforeResume
+    ) {
+      if (!System.Text.RegularExpressions.Regex.IsMatch(runId ?? "", "^[0-9a-f]{32}$") ||
+          !System.Text.RegularExpressions.Regex.IsMatch(role ?? "", "^(READINESS|TARGETED|FULL|QUALIFICATION|ADMIN_PSQL_(PREFLIGHT|PROVISION|CLEANUP))$") ||
+          beforeResume == null) throw new InvalidOperationException("M12_BINDING_INVALID");
+      if (startInfo == null || !startInfo.CreateNoWindow ||
+          !startInfo.RedirectStandardInput) throw new InvalidOperationException("M12_STARTINFO_INVALID");
+      return StartCore(startInfo, "Local\\Ritomer.M12." + runId + "." + role, beforeResume);
     }
 
     static ContainedProcess StartCore(
@@ -2076,6 +2210,18 @@ namespace Ritomer.M1B {
         throw Win32("D_JOB_OPEN_FAILED");
       }
       try { uint count; if (!TryGetActiveCount(handle, out count)) throw Win32("D_JOB_QUERY_FAILED");
+        return checked((int)count); } finally { CloseHandle(handle); }
+    }
+
+    public static int QueryM12Job(string name) {
+      if (!System.Text.RegularExpressions.Regex.IsMatch(name ?? "", "^Local\\\\Ritomer\\.M12\\.[0-9a-f]{32}\\.(READINESS|TARGETED|FULL|QUALIFICATION|ADMIN_PSQL_(PREFLIGHT|PROVISION|CLEANUP))$"))
+        throw new InvalidOperationException("M12_JOB_NAME_INVALID");
+      IntPtr handle = OpenJobObjectW(0x0004, false, name);
+      if (handle == IntPtr.Zero) {
+        if (Marshal.GetLastWin32Error() == 2) return -1;
+        throw Win32("M12_JOB_OPEN_FAILED");
+      }
+      try { uint count; if (!TryGetActiveCount(handle, out count)) throw Win32("M12_JOB_QUERY_FAILED");
         return checked((int)count); } finally { CloseHandle(handle); }
     }
 
@@ -2580,7 +2726,7 @@ function Read-M1BBoundedProcessStreams {
   $clock = [System.Diagnostics.Stopwatch]::StartNew()
   try {
     while (-not ($stdoutEnded -and $stderrEnded -and $Process.HasExited)) {
-      if ($Campaign -ceq 'D') { Assert-M1DDeadline }
+      if ($Campaign -cin @('D', 'M12')) { Assert-M1DDeadline }
       if ($clock.ElapsedMilliseconds -gt $TimeoutMilliseconds) {
         Stop-M1BRail 'CHILD_PROCESS_TIMEOUT'
       }
@@ -2589,7 +2735,8 @@ function Read-M1BBoundedProcessStreams {
         -not $treeTerminated -and
         $Process.HasExited
       ) {
-        if (-not $Process.TerminateTreeAndWait(30000)) {
+        $terminationBudget = if ($Campaign -ceq 'M12') { Get-M1DStopBudget } else { 30000 }
+        if (-not $Process.TerminateTreeAndWait($terminationBudget)) {
           Stop-M1BRail 'GRADLE_PROCESS_TREE_TERMINATION_FAILED'
         }
         $treeTerminated = $true
@@ -2655,11 +2802,11 @@ function Invoke-M1BDirectPsql {
   $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
   $startInfo.FileName = $script:PsqlExeExact
   $arguments = @($script:PsqlArgumentsExact)
-  if ($Campaign -ceq 'D') { $arguments[1] = '-w' }
+  if ($Campaign -cin @('D', 'M12')) { $arguments[1] = '-w' }
   $startInfo.Arguments = ($arguments | ForEach-Object { ConvertTo-M1BProcessArgument ([string]$_) }) -join ' '
   $startInfo.WorkingDirectory = $neutral.Root
   $startInfo.UseShellExecute = $false
-  $startInfo.CreateNoWindow = ($Campaign -ceq 'D')
+  $startInfo.CreateNoWindow = ($Campaign -cin @('D', 'M12'))
   $startInfo.RedirectStandardInput = $true
   $startInfo.RedirectStandardOutput = $true
   $startInfo.RedirectStandardError = $true
@@ -2671,7 +2818,7 @@ function Invoke-M1BDirectPsql {
   }
 
   $process = $null
-  if ($Campaign -cne 'D') {
+  if ($Campaign -cnotin @('D', 'M12')) {
     $process = [System.Diagnostics.Process]::new()
     $process.StartInfo = $startInfo
   }
@@ -2679,7 +2826,7 @@ function Invoke-M1BDirectPsql {
   $terminationPassed = $true
   $firstFailure = $null
   try {
-    if ($Campaign -ceq 'D') {
+    if ($Campaign -cin @('D', 'M12')) {
       $startInfo.EnvironmentVariables['PGPASSWORD'] = Read-M1DLocalAdminPassword
       # CleanupPsql keeps its existing signature. Only CleanupOnly owns this
       # local context; validate its scope before forwarding it explicitly.
@@ -2698,7 +2845,7 @@ function Invoke-M1BDirectPsql {
     } else {
       $SqlText + "`n"
     }
-    if ($Campaign -ceq 'D') { Set-M1DDiagnosticOperation 'child-drain' }
+    if ($Campaign -cin @('D', 'M12')) { Set-M1DDiagnosticOperation 'child-drain' }
     $captured = Read-M1BBoundedProcessStreams `
       -Process $process `
       -LimitChars 65536 `
@@ -2706,7 +2853,7 @@ function Invoke-M1BDirectPsql {
       -StandardInputText $stdinText
     $stdout = $captured.Stdout
     $stderr = $captured.Stderr
-    if ($Campaign -ceq 'D') {
+    if ($Campaign -cin @('D', 'M12')) {
       $exitCode = [int]$process.ExitCode
       if ($exitCode -ne 0) { Stop-M1BRail ('PSQL_' + $Phase.ToUpperInvariant() + '_EXIT_NONZERO') }
     }
@@ -2714,7 +2861,7 @@ function Invoke-M1BDirectPsql {
       Phase = $Phase
       ProcessId = $processId
       ProcessCount = 1
-      ExitCode = $(if ($Campaign -ceq 'D') { $exitCode } else { [int]$process.ExitCode })
+      ExitCode = $(if ($Campaign -cin @('D', 'M12')) { $exitCode } else { [int]$process.ExitCode })
       PsqlPath = $binary.Path
       PsqlSha256 = $binary.Sha256
       PsqlFileVersion = $binary.FileVersion
@@ -2724,13 +2871,13 @@ function Invoke-M1BDirectPsql {
       StdoutSha256 = Get-M1BSha256Bytes ((Get-M1BUtf8).GetBytes($stdout))
       StderrSha256 = Get-M1BSha256Bytes ((Get-M1BUtf8).GetBytes($stderr))
     }
-    if ($Campaign -cne 'D') { return $result }
+    if ($Campaign -cnotin @('D', 'M12')) { return $result }
   } catch {
-    if ($Campaign -cne 'D') { throw }
+    if ($Campaign -cnotin @('D', 'M12')) { throw }
     $firstFailure = $_
     [void](Add-M1DFailure $_)
   } finally {
-    if ($Campaign -ceq 'D') {
+    if ($Campaign -cin @('D', 'M12')) {
       $startInfo.EnvironmentVariables.Remove('PGPASSWORD')
       $stdinText = $null
       if ($started) {
@@ -2753,7 +2900,7 @@ function Invoke-M1BDirectPsql {
       catch { if ($null -eq $firstFailure) { $firstFailure = $_ }; [void](Add-M1DFailure $_) }
     } else {
     $stdinText = $null
-    if ($started -and $Campaign -ceq 'D') {
+    if ($started -and $Campaign -cin @('D', 'M12')) {
       try { $terminationPassed = $process.TerminateTreeAndWait((Get-M1DStopBudget)) } catch { $terminationPassed = $false }
       if ($terminationPassed) { Write-M1DStopReceipt ('ADMIN_PSQL_' + $Phase.ToUpperInvariant()) $process }
     } elseif ($started -and -not $process.HasExited) {
@@ -2883,7 +3030,7 @@ function Assert-M1DPreflightReadinessStopped {
       $i.binarySha256 -cnotmatch '^[0-9a-f]{64}$' -or $i.commandSha256 -cnotmatch '^[0-9a-f]{64}$' -or
       -not (Test-M1BJsonInteger $c.processId) -or $c.processId -le 0 -or
       $c.creationTimeUtcTicks -isnot [string] -or $c.creationTimeUtcTicks -cnotmatch '^[1-9][0-9]{16,18}$' -or
-      $c.jobName -cne ('Local\Ritomer.M1D.' + $RunId + '.READINESS') -or
+      $c.jobName -cne ((Get-M1BJobPrefix) + $RunId + '.READINESS') -or
       $c.confinedBeforeResume -isnot [bool] -or -not $c.confinedBeforeResume -or
       -not (Test-M1BJsonInteger $s.activeProcesses) -or $s.activeProcesses -ne 0 -or
       -not (Test-M1BJsonInteger $s.processId) -or $s.processId -ne $c.processId -or
@@ -2928,7 +3075,7 @@ function Assert-M1DGradleCacheReuse {
 function Invoke-M1BGradleTask {
   param(
     [Parameter(Mandatory = $true)][ValidateSet(
-      'm1BPostgresRailReadiness', 'm1BPostgresRailTargeted', 'm1BPostgresRailFull'
+      'm1BPostgresRailReadiness', 'm1BPostgresRailTargeted', 'm1BPostgresRailFull', 'm1_2PostgresRailQualification'
     )][string]$Task,
     [Parameter(Mandatory = $true)][string]$NeutralRoot,
     [Parameter(Mandatory = $true)][string]$BuildRoot,
@@ -2937,7 +3084,8 @@ function Invoke-M1BGradleTask {
     [AllowNull()][string]$ForbiddenLiteral
   )
 
-  if ($Campaign -ceq 'D' -and $Mode -ceq 'Lifecycle') { Assert-M1DGradleCacheReuse $GradleUserHome }
+  if ($Campaign -cin @('D', 'M12') -and $Mode -ceq 'Lifecycle') { Assert-M1DGradleCacheReuse $GradleUserHome }
+  if ($Task -ceq 'm1_2PostgresRailQualification' -and $Campaign -cne 'M12') { Stop-M1BRail 'M12_CAMPAIGN_REQUIRED' }
   Assert-M1BNoCredentialChannels
   $neutral = New-M1BNeutralEnvironment $NeutralRoot
   $javaHome = [System.Environment]::GetEnvironmentVariable('JAVA_HOME')
@@ -2985,8 +3133,13 @@ function Invoke-M1BGradleTask {
     )
   }
   $actualExtraNames = @($ExtraEnvironment.Keys | ForEach-Object { [string]$_ })
-  if ($Campaign -ceq 'D') {
-    $neutral.Values['RITOMER_DB_RAIL_CAMPAIGN'] = 'D'
+  if ($Campaign -cin @('D', 'M12')) {
+    $neutral.Values['RITOMER_DB_RAIL_CAMPAIGN'] = $Campaign
+  }
+  if ($Task -ceq 'm1_2PostgresRailQualification') {
+    if ($script:M12RuntimeManifestSha256 -cnotmatch '^[0-9a-f]{64}$' -or
+        (Get-M1BSha256File (Join-Path $BuildRoot 'm12-runtime.json')) -cne $script:M12RuntimeManifestSha256) { Stop-M1BRail 'M12_RUNTIME_MANIFEST_CHANGED' }
+    $neutral.Values['RITOMER_DB_RAIL_M12_MANIFEST_SHA256'] = $script:M12RuntimeManifestSha256
   }
   if (
     $actualExtraNames.Count -ne $expectedExtraNames.Count -or
@@ -3024,7 +3177,7 @@ function Invoke-M1BGradleTask {
     '-Pkotlin.compiler.execution.strategy=in-process',
     $Task
   )
-  if ($Campaign -ceq 'D' -and $Mode -ceq 'Lifecycle') { $arguments += '--offline' }
+  if ($Campaign -cin @('D', 'M12') -and $Mode -ceq 'Lifecycle') { $arguments += '--offline' }
   $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
   $startInfo.FileName = $javaExe
   $startInfo.Arguments = ($arguments | ForEach-Object { ConvertTo-M1BProcessArgument ([string]$_) }) -join ' '
@@ -3050,12 +3203,13 @@ function Invoke-M1BGradleTask {
   $firstFailure = $null
   try {
     try {
-      if ($Campaign -ceq 'D') {
+      if ($Campaign -cin @('D', 'M12')) {
         $startInfo.RedirectStandardInput = $true
         $dRole = switch ($Task) {
           'm1BPostgresRailReadiness' { 'READINESS' }
           'm1BPostgresRailTargeted' { 'TARGETED' }
           'm1BPostgresRailFull' { 'FULL' }
+          'm1_2PostgresRailQualification' { 'QUALIFICATION' }
         }
         $process = Start-M1DContainedChild $startInfo $dRole
         $process.StandardInput.Close()
@@ -3070,10 +3224,12 @@ function Invoke-M1BGradleTask {
       $Task -ceq 'm1BPostgresRailReadiness'
     ) {
       1800000
+    } elseif ($Task -ceq 'm1_2PostgresRailQualification' -and $Campaign -ceq 'M12') {
+      1680000
     } else {
       1200000
     }
-    if ($Campaign -ceq 'D') { Set-M1DDiagnosticOperation 'child-drain' }
+    if ($Campaign -cin @('D', 'M12')) { Set-M1DDiagnosticOperation 'child-drain' }
     $captured = Read-M1BBoundedProcessStreams `
       -Process $process `
       -LimitChars 8388608 `
@@ -3108,6 +3264,11 @@ function Invoke-M1BGradleTask {
         if ($manifestMatches.Count -ne 1) { Stop-M1BRail 'D_INTEGRATED_MANIFEST_HASH_MISSING' }
         $script:DIntegratedManifestSha256 = [string]$manifestMatches[0].Groups[1].Value
       }
+      if ($Campaign -ceq 'M12') {
+        $manifestMatches = [regex]::Matches($combined, '(?m)^M12_RUNTIME_MANIFEST_SHA256=([0-9a-f]{64})\r?$')
+        if ($manifestMatches.Count -ne 1) { Stop-M1BRail 'M12_RUNTIME_MANIFEST_HASH_MISSING' }
+        $script:M12RuntimeManifestSha256 = [string]$manifestMatches[0].Groups[1].Value
+      }
     } else {
       $runtimeSha256 = [string]$ExtraEnvironment['RITOMER_DB_RAIL_RUNTIME_SHA256']
       if (
@@ -3125,24 +3286,29 @@ function Invoke-M1BGradleTask {
     } elseif ($Task -ceq 'm1BPostgresRailFull' -and -not $combined.Contains('M1B_POSTGRES_RAIL_FULL=PASS')) {
       Stop-M1BRail 'FULL_PASS_MARKER_MISSING'
     }
+    if ($Task -ceq 'm1_2PostgresRailQualification' -and (
+        -not $combined.Contains('M1B_POSTGRES_RAIL_M12-QUALIFICATION=PASS') -or
+        -not $combined.Contains('M1B_POSTGRES_RAIL_M12-QUALIFICATION_CLASSES=1') -or
+        -not $combined.Contains('M1B_POSTGRES_RAIL_M12-QUALIFICATION_TESTS=5'))) { Stop-M1BRail 'M12_QUALIFICATION_PASS_MARKERS_MISSING' }
     $result = [pscustomobject][ordered]@{
       Task = $Task
       ExitCode = [int]$process.ExitCode
       OutputSha256 = Get-M1BSha256Bytes ((Get-M1BUtf8).GetBytes($combined))
       RuntimeSha256 = $runtimeSha256
     }
-    if ($Campaign -cne 'D') { return $result }
+    if ($Campaign -cnotin @('D', 'M12')) { return $result }
   } catch {
-    if ($Campaign -cne 'D') { throw }
+    if ($Campaign -cnotin @('D', 'M12')) { throw }
     $firstFailure = $_
     [void](Add-M1DFailure $_)
   } finally {
-    if ($Campaign -ceq 'D') {
+    if ($Campaign -cin @('D', 'M12')) {
       if ($started) {
         $treeTerminationPassed = $false
         try {
           Set-M1DDiagnosticOperation 'forced-stop'
-          $treeTerminationPassed = $process.TerminateTreeAndWait(30000)
+          $terminationBudget = if ($Campaign -ceq 'M12') { Get-M1DStopBudget } else { 30000 }
+          $treeTerminationPassed = $process.TerminateTreeAndWait($terminationBudget)
           if (-not $treeTerminationPassed) { Stop-M1BRail 'GRADLE_PROCESS_TREE_TERMINATION_FAILED' }
         } catch { if ($null -eq $firstFailure) { $firstFailure = $_ }; [void](Add-M1DFailure $_) }
         if ($treeTerminationPassed) {
@@ -3172,7 +3338,7 @@ function Invoke-M1BGradleTask {
       } catch {
         $treeTerminationPassed = $false
       }
-      if ($treeTerminationPassed -and $Campaign -ceq 'D') { Write-M1DStopReceipt $dRole $process }
+      if ($treeTerminationPassed -and $Campaign -cin @('D', 'M12')) { Write-M1DStopReceipt $dRole $process }
     }
     if ($null -ne $process) {
       try {
@@ -3215,7 +3381,7 @@ function Invoke-M1BReadiness {
 
   $phaseRoot = New-M1BDirectory (Join-Path $RunRoot ('volatile\' + $PhaseName))
   $buildRoot = New-M1BDirectory (Join-Path $phaseRoot 'build')
-  $gradleHome = if ($Campaign -ceq 'D' -and $Mode -ceq 'Lifecycle') {
+  $gradleHome = if ($Campaign -cin @('D', 'M12') -and $Mode -ceq 'Lifecycle') {
     $cache = Get-M1DGradleCachePath $RunRoot
     Assert-M1DGradleCacheReuse $cache
     $cache
@@ -3456,7 +3622,7 @@ function Get-M1BGitBaseline {
 }
 
 function Assert-M1BInvocation {
-  if ($LifecycleAction -ceq 'CleanupOnly' -and ($Campaign -cne 'D' -or $Mode -cne 'Lifecycle')) {
+  if ($LifecycleAction -ceq 'CleanupOnly' -and ($Campaign -cnotin @('D', 'M12') -or $Mode -cne 'Lifecycle')) {
     Stop-M1BRail 'D_CLEANUP_ONLY_MODE_REQUIRED'
   }
   if (
@@ -3499,7 +3665,7 @@ function Enter-M1BRunLock {
   Assert-M1BNoReparseAncestors $script:EvidenceBaseRoot
   $lockPath = Join-Path $script:EvidenceBaseRoot '.m1b-exclusive.lock'
   try {
-    $lockMode = if ($Campaign -ceq 'D') { [System.IO.FileMode]::OpenOrCreate } else { [System.IO.FileMode]::CreateNew }
+    $lockMode = if ($Campaign -cin @('D', 'M12')) { [System.IO.FileMode]::OpenOrCreate } else { [System.IO.FileMode]::CreateNew }
     $stream = [System.IO.File]::Open(
       $lockPath,
       $lockMode,
@@ -3516,7 +3682,7 @@ function Exit-M1BRunLock {
   param([Parameter(Mandatory = $true)][psobject]$Lock)
 
   $Lock.Stream.Dispose()
-  if ($Campaign -cne 'D') { [System.IO.File]::Delete([string]$Lock.Path) }
+  if ($Campaign -cnotin @('D', 'M12')) { [System.IO.File]::Delete([string]$Lock.Path) }
 }
 
 function Write-M1BCreateNewUtf8 {
@@ -3656,12 +3822,13 @@ function Read-M1BPreflightManifest {
     'observation', 'structuredOutputSha256', 'payloadSha256'
   )
   if ($Campaign -ceq 'D') { $preflightProperties += @('campaignStartTimestamp','stopwatchFrequency','machine','namespaceIdentity','frontendRuntimeSha256','readinessCache') }
+  if ($Campaign -ceq 'M12') { $preflightProperties += @('campaignStartTimestamp','stopwatchFrequency','machine','namespaceIdentity','m12RuntimeManifestSha256','readinessCache') }
   Assert-M1BExactProperties $manifest $preflightProperties
-  if ($Campaign -ceq 'D') { Assert-M1DGradleCacheBinding $manifest.readinessCache }
+  if ($Campaign -cin @('D', 'M12')) { Assert-M1DGradleCacheBinding $manifest.readinessCache }
   if (
     -not (Test-M1BJsonInteger $manifest.schemaVersion) -or [int]$manifest.schemaVersion -ne 1 -or
     $manifest.kind -isnot [string] -or
-    [string]$manifest.kind -cne ('M1' + $Campaign + '_POSTGRES_PREFLIGHT') -or
+    [string]$manifest.kind -cne ($(if ($Campaign -ceq 'M12') { 'M12' } else { 'M1' + $Campaign }) + '_POSTGRES_PREFLIGHT') -or
     $manifest.verdict -isnot [string] -or
     [string]$manifest.verdict -cne 'PASS' -or
     $manifest.runId -isnot [string] -or
@@ -3883,7 +4050,7 @@ function Invoke-M1BCleanupPsql {
 
 function Invoke-M1BTestPhase {
   param(
-    [Parameter(Mandatory = $true)][ValidateSet('targeted', 'full')][string]$Phase,
+    [Parameter(Mandatory = $true)][ValidateSet('targeted', 'full', 'm12-qualification')][string]$Phase,
     [Parameter(Mandatory = $true)][string]$Root,
     [Parameter(Mandatory = $true)][string]$BuildRoot,
     [Parameter(Mandatory = $true)][string]$GradleUserHome,
@@ -3895,12 +4062,13 @@ function Invoke-M1BTestPhase {
     [Parameter(Mandatory = $true)][object]$PostmasterStartUnixMicros
   )
 
+  if ($Phase -ceq 'm12-qualification' -and $Campaign -cne 'M12') { Stop-M1BRail 'M12_CAMPAIGN_REQUIRED' }
   if (-not (Test-M1BPostmasterStartUnixMicros $PostmasterStartUnixMicros)) {
     Stop-M1BRail 'POSTMASTER_START_UNIX_MICROS_INVALID'
   }
   $phaseRoot = New-M1BDirectory (Join-Path $Root ('volatile\' + $Phase))
   $storageRoot = New-M1BDirectory (Join-Path $phaseRoot 'local-fs')
-  $task = if ($Phase -ceq 'targeted') { 'm1BPostgresRailTargeted' } else { 'm1BPostgresRailFull' }
+  $task = switch -CaseSensitive ($Phase) { 'targeted' { 'm1BPostgresRailTargeted' }; 'full' { 'm1BPostgresRailFull' }; 'm12-qualification' { 'm1_2PostgresRailQualification' } }
   $firstFailure = $null
   try {
     $result = Invoke-M1BGradleTask `
@@ -3926,15 +4094,15 @@ function Invoke-M1BTestPhase {
         'RITOMER_DB_TEST_RUN_ROOT' = $Root
         'RITOMER_DB_TEST_PHASE' = $Phase
         'RITOMER_DB_TEST_STORAGE_LOCAL_ROOT' = $storageRoot
-        'RITOMER_DB_TEST_APPLICATION_NAME' = ('ritomer-m1-1' + $Campaign.ToLowerInvariant() + '-' + $RunId + '-' + $Phase)
+        'RITOMER_DB_TEST_APPLICATION_NAME' = ((Get-M1BCampaignPrefix) + '-' + $RunId + '-' + $Phase)
       }
-    if ($Campaign -cne 'D') { return $result }
+    if ($Campaign -cnotin @('D', 'M12')) { return $result }
   } catch {
-    if ($Campaign -cne 'D') { throw }
+    if ($Campaign -cnotin @('D', 'M12')) { throw }
     $firstFailure = $_
     [void](Add-M1DFailure $_)
   } finally {
-    if ($Campaign -ceq 'D') {
+    if ($Campaign -cin @('D', 'M12')) {
       try { Set-M1DDiagnosticOperation 'secret-scan'; Assert-M1BRunnerSecretAbsentFromTree $Root $RunnerPassword }
       catch { if ($null -eq $firstFailure) { $firstFailure = $_ }; [void](Add-M1DFailure $_) }
     } else { Assert-M1BRunnerSecretAbsentFromTree $Root $RunnerPassword }
@@ -3945,7 +4113,7 @@ function Invoke-M1BTestPhase {
 
 function Invoke-M1BPreflight {
   $root = Assert-M1BInvocation
-  if ($Campaign -ceq 'D') {
+  if ($Campaign -cin @('D', 'M12')) {
     Assert-M1DNoQuarantine
     Start-M1DClock 'Preflight'
     $script:DRunRoot = $root
@@ -3962,10 +4130,10 @@ function Invoke-M1BPreflight {
     $initialState = Assert-M1BExecutionState $root 'preflight-initial'
     $baseline = $initialState.Baseline
     $readiness = Invoke-M1BReadiness $root 'preflight-readiness' $RunId $ReviewedObjectSha256
-    $readinessCache = if ($Campaign -ceq 'D') { New-M1DGradleCacheBinding $root } else { $null }
+    $readinessCache = if ($Campaign -cin @('D', 'M12')) { New-M1DGradleCacheBinding $root } else { $null }
     [void](Assert-M1BExecutionState $root 'preflight-post-readiness')
-    if ($Campaign -ceq 'D') {
-      $script:DFrontendRuntimeSha256 = Get-M1DFrontendRuntimeSha256
+    if ($Campaign -cin @('D', 'M12')) {
+      if ($Campaign -ceq 'D') { $script:DFrontendRuntimeSha256 = Get-M1DFrontendRuntimeSha256 }
       Enter-M1DPhase 'provision'
     }
     Assert-M1BInteractiveConsole
@@ -3980,7 +4148,7 @@ function Invoke-M1BPreflight {
     }
     $manifest = [pscustomobject][ordered]@{
       schemaVersion = 1
-      kind = ('M1' + $Campaign + '_POSTGRES_PREFLIGHT')
+      kind = ($(if ($Campaign -ceq 'M12') { 'M12' } else { 'M1' + $Campaign }) + '_POSTGRES_PREFLIGHT')
       verdict = 'PASS'
       createdAtUtc = [System.DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
       runId = $RunId
@@ -4033,12 +4201,13 @@ function Invoke-M1BPreflight {
       structuredOutputSha256 = $preflight.StructuredOutputSha256
       payloadSha256 = $preflight.PayloadSha256
     }
-    if ($Campaign -ceq 'D') {
+    if ($Campaign -cin @('D', 'M12')) {
       $manifest | Add-Member -NotePropertyName campaignStartTimestamp -NotePropertyValue ([string]$script:DPreflightStartTimestamp)
       $manifest | Add-Member -NotePropertyName stopwatchFrequency -NotePropertyValue ([string][Diagnostics.Stopwatch]::Frequency)
       $manifest | Add-Member -NotePropertyName machine -NotePropertyValue ([Environment]::MachineName)
       $manifest | Add-Member -NotePropertyName namespaceIdentity -NotePropertyValue (Get-M1DNamespaceIdentity)
-      $manifest | Add-Member -NotePropertyName frontendRuntimeSha256 -NotePropertyValue $script:DFrontendRuntimeSha256
+      if ($Campaign -ceq 'D') { $manifest | Add-Member -NotePropertyName frontendRuntimeSha256 -NotePropertyValue $script:DFrontendRuntimeSha256 }
+      if ($Campaign -ceq 'M12') { $manifest | Add-Member -NotePropertyName m12RuntimeManifestSha256 -NotePropertyValue $script:M12RuntimeManifestSha256 }
       $manifest | Add-Member -NotePropertyName readinessCache -NotePropertyValue $readinessCache
       Assert-M1DDeadline
     }
@@ -4204,6 +4373,12 @@ function Start-M1DClock {
   if ($null -ne $script:DCampaignClock) { Stop-M1BRail 'D_CLOCK_ALREADY_STARTED' }
   $script:DCampaignClock = [System.Diagnostics.Stopwatch]::StartNew()
   $script:DTotalMilliseconds = switch ($Kind) { 'Preflight' { 2400000L }; 'Lifecycle' { 9300000L }; 'CleanupOnly' { 720000L } }
+  if ($Campaign -ceq 'M12') {
+    $globalRemaining = ([DateTime]::Parse('2026-10-08T05:42:00Z').ToUniversalTime() - [DateTime]::UtcNow).TotalMilliseconds
+    $localLimit = switch ($Kind) { 'Preflight' { 2400000L }; 'Lifecycle' { 6600000L }; 'CleanupOnly' { 420000L } }
+    $script:DTotalMilliseconds = [long][Math]::Min($localLimit, $globalRemaining)
+    if ($script:DTotalMilliseconds -le 0) { Stop-M1BRail 'M12_GLOBAL_BUDGET_EXHAUSTED' }
+  }
   $script:DPhaseDeadline = $script:DTotalMilliseconds
   $script:DEnteredPhases = @{}
   $script:DPhase = 'controls'
@@ -4217,6 +4392,7 @@ function Start-M1DClock {
 
 function Set-M1DDiagnosticOperation {
   param([object]$Operation)
+  if ($Campaign -ceq 'M12' -and $Operation -is [string] -and $Operation -ceq 'qualification-tests') { $script:DOperation = $Operation; return }
   if (-not (Test-M1DDiagnosticLiteral $Operation @('initialization','provision','post-provision-state','integrated-entry','ports','phase',
     'runtime-manifest','runtime-structure','runtime-files','child-environment','java-arguments','child-start-info',
     'launch-identity','launch-intent','native-launch','child-drain','integrated-observations','stop-barrier',
@@ -4522,8 +4698,8 @@ function Get-M1DDiagnostics {
     if ($SchemaVersion -eq 2 -and (-not (Test-M1DChildRole $failure.childRole -AllowNone) -or
         $failure.control -isnot [string] -or
         -not [string]::Equals((Get-M1DControlCode $failure.control), $failure.control, [System.StringComparison]::Ordinal))) { Stop-M1BRail 'D_DIAGNOSTIC_INVALID' }
-    if (-not (Test-M1DDiagnosticLiteral $failure.stage @('readiness','provision','seed','backend','integration','stop','targeted','full','cleanup','controls')) -or
-        -not (Test-M1DDiagnosticLiteral $failure.operation @('initialization','provision','post-provision-state','integrated-entry','ports','phase','runtime-manifest','runtime-structure','runtime-files','child-environment','java-arguments','child-start-info','launch-identity','launch-intent','native-launch','child-drain','integrated-observations','stop-barrier','targeted-tests','full-tests','execution-state','forced-stop','stop-terminate','stop-attestation','stop-root-read','stop-root-wait','stop-job-read','stop-job-wait','stop-drain','stop-receipt','stop-release','stop-job-terminate','stop-job-close','stop-root-release-wait','stop-stdout-close','stop-stderr-close','stop-stdin-close','stop-process-close','cleanup','cleanup-publication','secret-scan','terminal-controls','terminal-publication','lock-release')) -or
+    if (-not (Test-M1DDiagnosticLiteral $failure.stage (@('readiness','provision','seed','backend','integration','stop','targeted','full','cleanup','controls') + $(if ($Campaign -ceq 'M12') { @('qualification') } else { @() }))) -or
+        -not (Test-M1DDiagnosticLiteral $failure.operation (@('initialization','provision','post-provision-state','integrated-entry','ports','phase','runtime-manifest','runtime-structure','runtime-files','child-environment','java-arguments','child-start-info','launch-identity','launch-intent','native-launch','child-drain','integrated-observations','stop-barrier','targeted-tests','full-tests','execution-state','forced-stop','stop-terminate','stop-attestation','stop-root-read','stop-root-wait','stop-job-read','stop-job-wait','stop-drain','stop-receipt','stop-release','stop-job-terminate','stop-job-close','stop-root-release-wait','stop-stdout-close','stop-stderr-close','stop-stdin-close','stop-process-close','cleanup','cleanup-publication','secret-scan','terminal-controls','terminal-publication','lock-release') + $(if ($Campaign -ceq 'M12') { @('qualification-tests') } else { @() }))) -or
         -not (Test-M1DDiagnosticLiteral $failure.category @('UNEXPECTED_FAILURE','ACCESS_DENIED','PATH_NOT_FOUND','PATH_TOO_LONG','IO_FAILURE','PARAMETER_BINDING','INVALID_VALUE','TIMEOUT','CONTROLLED_STOP'))) { Stop-M1BRail 'D_DIAGNOSTIC_INVALID' }
   }
   return [pscustomobject][ordered]@{
@@ -4535,16 +4711,20 @@ function Get-M1DDiagnostics {
 
 function Enter-M1DPhase {
   param([object]$Phase)
-  if (-not (Test-M1DDiagnosticLiteral $Phase @('readiness','provision','seed','backend','integration','stop','targeted','full','cleanup','controls'))) { Stop-M1BRail 'D_DIAGNOSTIC_INVALID' }
+  $allowed = if ($Campaign -ceq 'M12') { @('readiness','provision','targeted','full','qualification','stop','cleanup','controls') } else { @('readiness','provision','seed','backend','integration','stop','targeted','full','cleanup','controls') }
+  if (-not (Test-M1DDiagnosticLiteral $Phase $allowed)) { Stop-M1BRail 'D_DIAGNOSTIC_INVALID' }
   if ($script:DEnteredPhases.ContainsKey($Phase)) { Stop-M1BRail 'D_PHASE_REENTRY_REJECTED' }
   $script:DEnteredPhases[$Phase] = $true
   $reserveMinutes = switch ($Phase) {
     'readiness' { 125 }; 'provision' { 120 }; 'seed' { 115 }; 'backend' { 113 }
     'integration' { 53 }; 'stop' { 52 }; 'targeted' { 32 }; 'full' { 12 }; 'cleanup' { 7 }; 'controls' { 0 }
   }
+  if ($Campaign -ceq 'M12') {
+    $reserveMinutes = switch ($Phase) { 'readiness' { 80 }; 'provision' { 75 }; 'targeted' { 55 }; 'full' { 35 }; 'qualification' { 7 }; 'stop' { 6 }; 'cleanup' { 1 }; 'controls' { 0 } }
+  }
   # Preflight/recovery have no integration or DB-test phases to reserve.
   if ($Mode -ceq 'Preflight') { $reserveMinutes = if ($Phase -eq 'readiness') { 10 } else { 0 } }
-  elseif ($Mode -ceq 'Lifecycle' -and $LifecycleAction -ceq 'CleanupOnly') { $reserveMinutes = if ($Phase -eq 'cleanup') { 7 } else { 0 } }
+  elseif ($Mode -ceq 'Lifecycle' -and $LifecycleAction -ceq 'CleanupOnly') { $reserveMinutes = if ($Phase -eq 'cleanup') { $(if ($Campaign -ceq 'M12') { 1 } else { 7 }) } else { 0 } }
   $script:DPhaseDeadline = [Math]::Min(
     $script:DCampaignClock.ElapsedMilliseconds + [long]$script:DPhaseMinutes[$Phase] * 60000L,
     $script:DTotalMilliseconds - [long]$reserveMinutes * 60000L
@@ -4653,12 +4833,12 @@ function Get-M1DReceiptExpectation {
 
 function Assert-M1DNoRecoveryReceipts {
   foreach ($entry in @(Get-ChildItem -LiteralPath $script:DRunRoot -Force)) {
-    if ($entry.Name.StartsWith('d-recovery-', [StringComparison]::Ordinal) -or
-        $entry.Name.StartsWith('d-launch-recovery-', [StringComparison]::Ordinal)) { Stop-M1BRail 'D_RECOVERY_ALREADY_STARTED' }
+    if ($entry.Name.StartsWith(((Get-M1BReceiptPrefix) + 'recovery-'), [StringComparison]::Ordinal) -or
+        $entry.Name.StartsWith(((Get-M1BReceiptPrefix) + 'launch-recovery-'), [StringComparison]::Ordinal)) { Stop-M1BRail 'D_RECOVERY_ALREADY_STARTED' }
   }
   foreach ($name in @('launch-recovery-ADMIN_PSQL_CLEANUP-intent','launch-recovery-ADMIN_PSQL_CLEANUP-confined',
       'launch-recovery-ADMIN_PSQL_CLEANUP-stopped','recovery-cleanup','recovery-terminal')) {
-    $path = Join-Path $script:DRunRoot ('d-' + $name + '.json')
+    $path = Join-Path $script:DRunRoot ((Get-M1BReceiptPrefix) + $name + '.json')
     foreach ($candidate in @($path, ($path + '.sha256'))) {
       if ([IO.File]::Exists($candidate) -or [IO.Directory]::Exists($candidate)) { Stop-M1BRail 'D_RECOVERY_ALREADY_STARTED' }
     }
@@ -4667,23 +4847,24 @@ function Assert-M1DNoRecoveryReceipts {
 
 function Write-M1DReceipt {
   param([string]$Name, [object]$Payload, [AllowNull()][object]$ReceiptContext)
-  if ($Name -cnotmatch '^(campaign|provision|integrated|stopped|cleanup|terminal|recovery-cleanup|recovery-terminal|launch-(preflight|lifecycle|recovery)-(READINESS|SEED|BACKEND|VITE|HARNESS|BROWSER_COOKIE|BROWSER_JOURNEY|TARGETED|FULL|ADMIN_PSQL_(PREFLIGHT|PROVISION|CLEANUP))-(intent|confined|stopped))$') {
+  if ($Name -cnotmatch (Get-M1BReceiptNamePattern)) {
     Stop-M1BRail 'D_RECEIPT_NAME_INVALID'
   }
   $receipt = [ordered]@{
-    schemaVersion = 1; campaign = 'D'; kind = $Name; runId = $RunId
+    schemaVersion = 1; campaign = $Campaign; kind = $Name; runId = $RunId
     reviewedObjectSha256 = $ReviewedObjectSha256; scriptSha256 = Get-M1BSha256File $PSCommandPath
     machine = [Environment]::MachineName; windowsSessionId = [Diagnostics.Process]::GetCurrentProcess().SessionId
     namespaceIdentity = Get-M1DNamespaceIdentity
     authorizationRecordId = $SensitiveAuthorizationRecordId; payload = $Payload
   }
+  if ($Campaign -ceq 'M12' -and $null -ne $ReceiptContext) { Stop-M1BRail 'M12_FOREIGN_RECOVERY_CONTEXT' }
   if ($null -ne $ReceiptContext) {
     if (-not (Test-M1DRecoveryReceiptName $Name)) { Stop-M1BRail 'D_RECOVERY_RECEIPT_CONTEXT_REJECTED' }
     $expected = Get-M1DReceiptExpectation $Name $ReceiptContext
     $receipt.schemaVersion = $expected.schemaVersion
     $receipt.recoveryOrigin = $expected.recoveryOrigin
   }
-  $path = Join-Path $script:DRunRoot ('d-' + $Name + '.json')
+  $path = Join-Path $script:DRunRoot ((Get-M1BReceiptPrefix) + $Name + '.json')
   $json = (ConvertTo-Json $receipt -Depth 12 -Compress) + "`n"
   if ($json.Length -gt 1048576 -or $json.Contains('SCRAM-SHA-256$') -or $json.Contains('M1B_CLIENT|')) { Stop-M1BRail 'D_RECEIPT_CONTENT_REJECTED' }
   Write-M1BCreateNewUtf8 $path $json
@@ -4693,8 +4874,8 @@ function Write-M1DReceipt {
 
 function Read-M1DReceipt {
   param([string]$Name, [AllowNull()][object]$ReceiptContext)
-  if ($Name -cnotmatch '^(campaign|provision|integrated|stopped|cleanup|terminal|recovery-cleanup|recovery-terminal|launch-(preflight|lifecycle|recovery)-(READINESS|SEED|BACKEND|VITE|HARNESS|BROWSER_COOKIE|BROWSER_JOURNEY|TARGETED|FULL|ADMIN_PSQL_(PREFLIGHT|PROVISION|CLEANUP))-(intent|confined|stopped))$') { Stop-M1BRail 'D_RECEIPT_NAME_INVALID' }
-  $path = Join-Path $script:DRunRoot ('d-' + $Name + '.json')
+  if ($Name -cnotmatch (Get-M1BReceiptNamePattern)) { Stop-M1BRail 'D_RECEIPT_NAME_INVALID' }
+  $path = Join-Path $script:DRunRoot ((Get-M1BReceiptPrefix) + $Name + '.json')
   # The trusted caller and expected filename select identity, never JSON fields.
   $identity = Get-M1DReceiptExpectation $Name $ReceiptContext
   Assert-M1BNoReparseAncestors $path
@@ -4716,7 +4897,7 @@ function Read-M1DReceipt {
     }
   }
   if (-not (Test-M1BJsonInteger $value.schemaVersion) -or $value.schemaVersion -ne $identity.schemaVersion -or
-      $value.campaign -isnot [string] -or $value.campaign -cne 'D' -or $value.kind -isnot [string] -or -not [string]::Equals($value.kind, $Name, [StringComparison]::Ordinal) -or
+      $value.campaign -isnot [string] -or $value.campaign -cne $Campaign -or $value.kind -isnot [string] -or -not [string]::Equals($value.kind, $Name, [StringComparison]::Ordinal) -or
       $value.runId -isnot [string] -or -not [string]::Equals($value.runId, $RunId, [StringComparison]::Ordinal) -or
       $value.reviewedObjectSha256 -isnot [string] -or -not [string]::Equals($value.reviewedObjectSha256, $identity.reviewedObjectSha256, [StringComparison]::Ordinal) -or
       $value.scriptSha256 -isnot [string] -or -not [string]::Equals($value.scriptSha256, $identity.scriptSha256, [StringComparison]::Ordinal) -or
@@ -4758,6 +4939,13 @@ function Get-M1DNamespaceIdentity {
 }
 
 function Assert-M1DNoQuarantine {
+  if ($Campaign -ceq 'M12') {
+    $foreign = $script:EvidenceBaseRoot + '\.m1d-unreleased.json'
+    if ([IO.File]::Exists($foreign) -or [IO.Directory]::Exists($foreign)) { Stop-M1BRail 'M12_FOREIGN_CAMPAIGN_UNRELEASED' }
+  } elseif ($Campaign -ceq 'D') {
+    $foreign = $script:EvidenceBaseRoot + '\.m12-unreleased.json'
+    if ([IO.File]::Exists($foreign) -or [IO.Directory]::Exists($foreign)) { Stop-M1BRail 'D_FOREIGN_CAMPAIGN_UNRELEASED' }
+  }
   if ([IO.File]::Exists($script:DQuarantinePath) -or [IO.Directory]::Exists($script:DQuarantinePath)) { Stop-M1BRail 'D_PREVIOUS_CAMPAIGN_UNRELEASED' }
 }
 
@@ -4774,8 +4962,9 @@ function Assert-M1DQuarantineBinding {
   $campaignReceipt = Read-M1DReceipt 'campaign' -ReceiptContext $ReceiptContext
   $provenanceObject = if ($null -ne $ReceiptContext) { $ReceiptContext.origin.reviewedObjectSha256 } else { $ReviewedObjectSha256 }
   $payload = $campaignReceipt.payload
-  Assert-M1BExactProperties $payload @('preflightAuthorizationRecordId','preflightSha256','psqlSha256','cluster','adminRoleOid','maintenanceDatabaseOid','provenance','runtimeSha256','integratedManifestSha256','frontendRuntimeSha256','controllerProcessId','controllerCreationTicks')
-  foreach ($hashName in @('preflightSha256','psqlSha256','runtimeSha256','integratedManifestSha256','frontendRuntimeSha256')) {
+  $runtimeFields = if ($Campaign -ceq 'M12') { @('m12RuntimeManifestSha256') } else { @('integratedManifestSha256','frontendRuntimeSha256') }
+  Assert-M1BExactProperties $payload (@('preflightAuthorizationRecordId','preflightSha256','psqlSha256','cluster','adminRoleOid','maintenanceDatabaseOid','provenance','runtimeSha256','controllerProcessId','controllerCreationTicks') + $runtimeFields)
+  foreach ($hashName in (@('preflightSha256','psqlSha256','runtimeSha256') + $runtimeFields)) {
     if ($payload.$hashName -isnot [string] -or $payload.$hashName -cnotmatch '^[0-9a-f]{64}$') { Stop-M1BRail 'D_CAMPAIGN_PAYLOAD_INVALID' }
   }
   if ($payload.preflightAuthorizationRecordId -isnot [string] -or $payload.preflightAuthorizationRecordId -cnotmatch '^AUTH-[A-Z0-9][A-Z0-9._:-]{0,122}$' -or
@@ -4793,7 +4982,7 @@ function Assert-M1DQuarantineBinding {
   Assert-M1BExactProperties $marker @('runId','root','receiptSha256')
   if ($marker.runId -isnot [string] -or $marker.runId -cne $RunId -or $marker.root -isnot [string] -or
       $marker.root -cne $script:DRunRoot -or $marker.receiptSha256 -isnot [string] -or
-      $marker.receiptSha256 -cne (Get-M1BSha256File (Join-Path $script:DRunRoot 'd-campaign.json'))) { Stop-M1BRail 'D_QUARANTINE_BINDING_INVALID' }
+      $marker.receiptSha256 -cne (Get-M1BSha256File (Join-Path $script:DRunRoot ((Get-M1BReceiptPrefix) + 'campaign.json')))) { Stop-M1BRail 'D_QUARANTINE_BINDING_INVALID' }
   return $campaignReceipt
 }
 
@@ -4834,6 +5023,7 @@ function Start-M1DContainedChild {
     }) -ReceiptContext $ReceiptContext)
   }
   Set-M1DDiagnosticOperation 'native-launch'
+  if ($Campaign -ceq 'M12') { return [Ritomer.M1B.ContainedProcess]::StartM12($StartInfo, $RunId, $Role, [Action[int,long,string]]$onConfined) }
   return [Ritomer.M1B.ContainedProcess]::StartD($StartInfo, $RunId, $Role, [Action[int,long,string]]$onConfined)
 }
 
@@ -4855,24 +5045,25 @@ function Write-M1DStopReceipt {
 }
 
 function Assert-M1DRecordedCessation {
-  param([AllowNull()][object]$ReceiptContext)
+  param([AllowNull()][object]$ReceiptContext, [string]$LifecycleAuthorizationRecordId)
+  $prefix = Get-M1BReceiptPrefix
   Initialize-M1BContainedProcessType
-  $launchFiles = @(Get-ChildItem -LiteralPath $script:DRunRoot -Filter 'd-launch-*.json' -File)
+  $launchFiles = @(Get-ChildItem -LiteralPath $script:DRunRoot -Filter ($prefix + 'launch-*.json') -File)
   foreach ($file in $launchFiles) {
-    if ($file.BaseName -cnotmatch '^d-launch-(preflight|lifecycle|recovery)-(READINESS|SEED|BACKEND|VITE|HARNESS|BROWSER_COOKIE|BROWSER_JOURNEY|TARGETED|FULL|ADMIN_PSQL_(PREFLIGHT|PROVISION|CLEANUP))-(intent|confined|stopped)$') { Stop-M1BRail 'D_LAUNCH_INVENTORY_INVALID' }
+    if ($file.BaseName.Substring($prefix.Length) -cnotmatch (Get-M1BReceiptNamePattern)) { Stop-M1BRail 'D_LAUNCH_INVENTORY_INVALID' }
     $base = $file.BaseName -creplace '-(intent|confined|stopped)$', ''
     foreach ($required in @('-intent.json','-confined.json')) {
       if (-not [IO.File]::Exists((Join-Path $script:DRunRoot ($base + $required)))) { Stop-M1BRail 'D_LAUNCH_RECEIPT_ORPHAN' }
     }
   }
-  if ([IO.File]::Exists((Join-Path $script:DRunRoot 'd-provision.json'))) {
+  if ([IO.File]::Exists((Join-Path $script:DRunRoot ($prefix + 'provision.json')))) {
     foreach ($requiredRole in @('READINESS','ADMIN_PSQL_PROVISION')) {
-      if (-not [IO.File]::Exists((Join-Path $script:DRunRoot ('d-launch-lifecycle-' + $requiredRole + '-confined.json')))) { Stop-M1BRail 'D_PROVISION_LAUNCH_EVIDENCE_MISSING' }
+      if (-not [IO.File]::Exists((Join-Path $script:DRunRoot ($prefix + 'launch-lifecycle-' + $requiredRole + '-confined.json')))) { Stop-M1BRail 'D_PROVISION_LAUNCH_EVIDENCE_MISSING' }
     }
   }
-  $intents = @(Get-ChildItem -LiteralPath $script:DRunRoot -Filter 'd-launch-*-intent.json' -File)
+  $intents = @(Get-ChildItem -LiteralPath $script:DRunRoot -Filter ($prefix + 'launch-*-intent.json') -File)
   foreach ($intentFile in $intents) {
-    $name = $intentFile.BaseName.Substring(2)
+    $name = $intentFile.BaseName.Substring($prefix.Length)
     $intent = Read-M1DReceipt $name -ReceiptContext $ReceiptContext
     Assert-M1BExactProperties $intent.payload @('role','binaryPath','binarySha256','commandSha256','argumentFileSha256')
     if ($intent.payload.role -isnot [string] -or $intent.payload.binaryPath -isnot [string] -or
@@ -4888,10 +5079,15 @@ function Assert-M1DRecordedCessation {
         $confined.payload.role -cne $intent.payload.role -or $confined.payload.binaryPath -cne $intent.payload.binaryPath -or
         $confined.payload.binarySha256 -cne $intent.payload.binarySha256 -or $confined.payload.commandSha256 -cne $intent.payload.commandSha256 -or
         $confined.payload.argumentFileSha256 -cne $intent.payload.argumentFileSha256 -or
-        $confined.payload.jobName -cne ('Local\Ritomer.M1D.' + $RunId + '.' + $confined.payload.role)) { Stop-M1BRail 'D_CONFINEMENT_RECEIPT_INVALID' }
+        $confined.payload.jobName -cne ((Get-M1BJobPrefix) + $RunId + '.' + $confined.payload.role)) { Stop-M1BRail 'D_CONFINEMENT_RECEIPT_INVALID' }
+    if ($Campaign -ceq 'M12') {
+      $expectedAuthorization = if ($name.StartsWith('launch-preflight-')) { $PreflightAuthorizationRecordId } elseif ($name.StartsWith('launch-lifecycle-')) { $LifecycleAuthorizationRecordId } else { $SensitiveAuthorizationRecordId }
+      if ([string]::IsNullOrWhiteSpace($expectedAuthorization) -or $intent.authorizationRecordId -cne $expectedAuthorization -or $confined.authorizationRecordId -cne $expectedAuthorization) { Stop-M1BRail 'M12_LAUNCH_AUTHORIZATION_MISMATCH' }
+    }
     $stoppedName = $name.Replace('-intent', '-stopped')
-    if ($null -ne $ReceiptContext -and [IO.File]::Exists((Join-Path $script:DRunRoot ('d-' + $stoppedName + '.json')))) {
+    if (($null -ne $ReceiptContext -or $Campaign -ceq 'M12') -and [IO.File]::Exists((Join-Path $script:DRunRoot ($prefix + $stoppedName + '.json')))) {
       $stopped = Read-M1DReceipt $stoppedName -ReceiptContext $ReceiptContext
+      if ($Campaign -ceq 'M12' -and $stopped.authorizationRecordId -cne $expectedAuthorization) { Stop-M1BRail 'M12_LAUNCH_AUTHORIZATION_MISMATCH' }
       Assert-M1BExactProperties $stopped.payload @('processId','creationTimeUtcTicks','jobName','activeProcesses')
       if (-not (Test-M1BJsonInteger $stopped.payload.processId) -or $stopped.payload.processId -ne $confined.payload.processId -or
           $stopped.payload.creationTimeUtcTicks -isnot [string] -or $stopped.payload.creationTimeUtcTicks -cne $confined.payload.creationTimeUtcTicks -or
@@ -4913,6 +5109,7 @@ function Assert-M1DRecordedCessation {
 
 function Get-M1DRecordedJobCount {
   param([string]$JobName)
+  if ($Campaign -ceq 'M12') { return [Ritomer.M1B.ContainedProcess]::QueryM12Job($JobName) }
   return [Ritomer.M1B.ContainedProcess]::QueryDJob($JobName)
 }
 
@@ -5853,7 +6050,182 @@ function Invoke-M1DCleanupOnly {
   return $result
 }
 
+function Invoke-M12Lifecycle {
+  if ($Campaign -cne 'M12') { Stop-M1BRail 'M12_CAMPAIGN_REQUIRED' }
+  $root = Assert-M1BInvocation
+  if (-not [IO.Directory]::Exists($root)) { Stop-M1BRail 'LIFECYCLE_RUN_ROOT_MISSING' }
+  $script:DRunRoot = $root
+  Start-M1DClock 'Lifecycle'
+  $lock = Enter-M1BRunLock $root
+  try {
+    Assert-M1DNoQuarantine
+    $initial = Assert-M1BExecutionState $root 'm12-lifecycle-initial'
+    $preflight = Read-M1BPreflightManifest $root $RunId $ReviewedObjectSha256 $PreflightAuthorizationRecordId $initial.Baseline
+    if ($preflight.Value.campaignStartTimestamp -isnot [string] -or $preflight.Value.campaignStartTimestamp -cnotmatch '^[1-9][0-9]{1,18}$' -or
+        $preflight.Value.stopwatchFrequency -isnot [string] -or $preflight.Value.stopwatchFrequency -cne [string][Diagnostics.Stopwatch]::Frequency -or
+        $preflight.Value.machine -isnot [string] -or $preflight.Value.machine -cne [Environment]::MachineName -or
+        $preflight.Value.namespaceIdentity -isnot [string] -or $preflight.Value.namespaceIdentity -cne (Get-M1DNamespaceIdentity)) { Stop-M1BRail 'M12_CAMPAIGN_CLOCK_BINDING_INVALID' }
+    $elapsed = ([Diagnostics.Stopwatch]::GetTimestamp() - [long]$preflight.Value.campaignStartTimestamp) * 1000.0 / [Diagnostics.Stopwatch]::Frequency
+    if ($elapsed -lt 0 -or $elapsed -ge 9000000) { Stop-M1BRail 'M12_CAMPAIGN_DEADLINE_EXPIRED' }
+    $script:DTotalMilliseconds = [long][Math]::Min($script:DTotalMilliseconds, 9000000 - $elapsed + $script:DCampaignClock.ElapsedMilliseconds)
+    Enter-M1DPhase 'readiness'
+    Initialize-M1DGradleCacheReuse $root $preflight
+    $readiness = Invoke-M1BReadiness $root 'lifecycle-readiness' $RunId $ReviewedObjectSha256
+    [void](Assert-M1BExecutionState $root 'm12-lifecycle-post-readiness')
+    $revalidated = Read-M1BPreflightManifest $root $RunId $ReviewedObjectSha256 $PreflightAuthorizationRecordId $initial.Baseline
+    if ($preflight.Sha256 -cne $revalidated.Sha256 -or $preflight.Value.runtimeSha256 -cne $readiness.Result.RuntimeSha256 -or
+        $preflight.Value.psql.sha256 -cne $ExpectedPsqlSha256) { Stop-M1BRail 'M12_PREFLIGHT_RUNTIME_DIVERGED' }
+    # The normalized runtime digest binds both manifests; their absolute build roots differ.
+    $preflightRuntime = Join-Path $root 'volatile\preflight-readiness\build\m12-runtime.json'
+    Assert-M1BNoReparseAncestors $preflightRuntime
+    if ($preflight.Value.m12RuntimeManifestSha256 -isnot [string] -or
+        $preflight.Value.m12RuntimeManifestSha256 -cnotmatch '^[0-9a-f]{64}$' -or
+        (Get-M1BSha256File $preflightRuntime) -cne $preflight.Value.m12RuntimeManifestSha256) { Stop-M1BRail 'M12_PREFLIGHT_MANIFEST_DIVERGED' }
+    $cluster = [string]$preflight.Value.observation.clusterSystemIdentifier
+    $admin = [long]$preflight.Value.observation.currentRoleOid
+    $maintenance = [long]$preflight.Value.observation.maintenanceDatabaseOid
+    $provenance = Get-M1BProvenance $RunId $ReviewedObjectSha256 $cluster
+    Enter-M1DQuarantine ([ordered]@{
+      preflightAuthorizationRecordId = $PreflightAuthorizationRecordId; preflightSha256 = $preflight.Sha256
+      psqlSha256 = $ExpectedPsqlSha256; cluster = $cluster; adminRoleOid = $admin; maintenanceDatabaseOid = $maintenance
+      provenance = $provenance; runtimeSha256 = $readiness.Result.RuntimeSha256; m12RuntimeManifestSha256 = $script:M12RuntimeManifestSha256
+      controllerProcessId = $PID; controllerCreationTicks = [string][Diagnostics.Process]::GetCurrentProcess().StartTime.ToUniversalTime().Ticks
+    })
+    $runner = $null; $salt = $null; $verifier = $null; $provision = $null; $cleanup = $null
+    $targeted = $null; $full = $null; $qualification = $null; $primaryStop = $null; $cleanupStop = $null
+    try {
+      Enter-M1DPhase 'provision'
+      Set-M1DDiagnosticOperation 'provision'
+      $runner = New-M1BRunnerSecret; $salt = New-M1BRandomSalt
+      try { $verifier = New-M1BScramSha256Verifier $runner.PasswordBytes $salt }
+      finally { [Array]::Clear($runner.PasswordBytes, 0, $runner.PasswordBytes.Length); $runner.PasswordBytes = $null; [Array]::Clear($salt, 0, $salt.Length); $salt = $null }
+      $provision = Invoke-M1BProvisionPsql (Join-Path $root 'volatile\provision-psql') $verifier $provenance $cluster ([int]$preflight.Value.observation.hbaRuleNumber) $admin $maintenance
+      $verifier = $null
+      $script:DExpectedPostmasterStart = $provision.PostmasterStartUnixMicros
+      [void](Write-M1DReceipt 'provision' ([ordered]@{
+        databaseOid = $provision.DatabaseOid; roleOid = $provision.RoleOid; postmasterStartUnixMicros = $provision.PostmasterStartUnixMicros
+        cluster = $cluster; provenance = $provenance; adminRoleOid = $admin; maintenanceDatabaseOid = $maintenance
+        psqlSha256 = $provision.PsqlSha256; structuredOutputSha256 = $provision.StructuredOutputSha256
+      }))
+      Set-M1DDiagnosticOperation 'post-provision-state'
+      [void](Assert-M1BExecutionState $root 'm12-post-provision')
+      # Separate Gradle Jobs, no historical context may overlap the M12 pilot/A/B pools.
+      foreach ($phase in @('targeted','full','m12-qualification')) {
+        Set-M1DDiagnosticOperation 'stop-barrier'
+        Assert-M1DRecordedCessation -LifecycleAuthorizationRecordId $SensitiveAuthorizationRecordId
+        $clockPhase = if ($phase -ceq 'm12-qualification') { 'qualification' } else { $phase }
+        Enter-M1DPhase $clockPhase
+        Set-M1DDiagnosticOperation ($clockPhase + '-tests')
+        $phaseResult = Invoke-M1BTestPhase $phase $root $readiness.BuildRoot $readiness.GradleUserHome $runner.Password $readiness.Result.RuntimeSha256 $cluster $provision.DatabaseOid $provision.RoleOid $provision.PostmasterStartUnixMicros
+        if ($phase -ceq 'targeted') { $targeted = $phaseResult }
+        elseif ($phase -ceq 'full') { $full = $phaseResult }
+        else { $qualification = $phaseResult }
+        [void](Assert-M1BExecutionState $root ('m12-post-' + $phase))
+        Assert-M1DRecordedCessation -LifecycleAuthorizationRecordId $SensitiveAuthorizationRecordId
+      }
+    } catch { $primaryStop = Add-M1DFailure $_ }
+    finally {
+      try {
+        Enter-M1DPhase 'stop'
+        Set-M1DDiagnosticOperation 'stop-barrier'
+        Assert-M1DRecordedCessation -LifecycleAuthorizationRecordId $SensitiveAuthorizationRecordId
+        if ($null -eq $provision) { Stop-M1BRail 'M12_PROVISION_IDENTITY_NOT_PROVEN' }
+        $publishedProvision = Read-M1DReceipt 'provision'
+        if ($publishedProvision.authorizationRecordId -cne $SensitiveAuthorizationRecordId -or
+            $publishedProvision.payload.databaseOid -ne $provision.DatabaseOid -or $publishedProvision.payload.roleOid -ne $provision.RoleOid -or
+            $publishedProvision.payload.postmasterStartUnixMicros -cne $provision.PostmasterStartUnixMicros -or
+            $publishedProvision.payload.cluster -cne $cluster -or $publishedProvision.payload.provenance -cne $provenance) { Stop-M1BRail 'M12_PROVISION_RECEIPT_DIVERGED' }
+        Enter-M1DPhase 'cleanup'
+        Set-M1DDiagnosticOperation 'cleanup'
+        $cleanup = Invoke-M1BCleanupPsql (Join-Path $root 'volatile\cleanup-psql') $provenance $RunId $cluster $provision.DatabaseOid $provision.RoleOid $admin $maintenance
+        Set-M1DDiagnosticOperation 'cleanup-publication'
+        [void](Write-M1DReceipt 'cleanup' ([ordered]@{ targetsAbsent = $true; psqlSha256 = $cleanup.PsqlSha256; structuredOutputSha256 = $cleanup.StructuredOutputSha256 }))
+        Exit-M1DQuarantine 'cleanup'
+      } catch { $cleanupStop = Add-M1DFailure $_ }
+      if ($null -ne $runner) {
+        try { Set-M1DDiagnosticOperation 'secret-scan'; Assert-M1BRunnerSecretAbsentFromTree $root $runner.Password }
+        catch { $stop = Add-M1DFailure $_; if ($null -eq $primaryStop) { $primaryStop = $stop } }
+        if ($null -ne $runner.PasswordBytes) { [Array]::Clear($runner.PasswordBytes, 0, $runner.PasswordBytes.Length) }
+        $runner.Password = $null; $runner.PasswordBytes = $null
+      }
+      if ($null -ne $salt) { [Array]::Clear($salt, 0, $salt.Length) }
+      $verifier = $null
+    }
+    try {
+      Enter-M1DPhase 'controls'
+      Set-M1DDiagnosticOperation 'terminal-controls'
+      [void](Assert-M1BExecutionState $root 'm12-terminal-state')
+      if ($script:DFailures.Count -eq 0 -and ($script:PsqlProcessStarts.Preflight -ne 0 -or $script:PsqlProcessStarts.Provision -ne 1 -or $script:PsqlProcessStarts.Cleanup -ne 1)) { Stop-M1BRail 'M12_PSQL_CARDINALITY_INVALID' }
+    } catch { $stop = Add-M1DFailure $_; if ($null -eq $primaryStop) { $primaryStop = $stop } }
+    $success = $script:DFailures.Count -eq 0 -and $null -eq $primaryStop -and $null -eq $cleanupStop -and $null -ne $targeted -and $null -ne $full -and $null -ne $qualification -and $null -ne $cleanup
+    Set-M1DDiagnosticOperation 'terminal-publication'
+    $path = Write-M1DReceipt 'terminal' ([ordered]@{
+      campaignResult = $(if ($success) { 'PASS' } else { 'FAIL' }); cleanupVerified = ($null -ne $cleanup)
+      targeted = $targeted; full = $full; qualification = $qualification; cleanup = $cleanup
+      primaryStop = $primaryStop; cleanupStop = $cleanupStop; diagnostics = Get-M1DDiagnostics
+    })
+    Assert-M1DDeadline
+    if (-not $success) { Stop-M1BRail 'M12_LIFECYCLE_FAILED_SEE_RECEIPTS' }
+    return [pscustomobject]@{ Path = $path; SizeBytes = (Get-Item -LiteralPath $path).Length; Sha256 = Get-M1BSha256File $path }
+  } finally {
+    $script:DReadinessCacheVerifiedState = $null
+    Exit-M1BRunLock $lock
+  }
+}
+
+function Invoke-M12CleanupOnly {
+  if ($Campaign -cne 'M12') { Stop-M1BRail 'M12_CAMPAIGN_REQUIRED' }
+  $root = Assert-M1BInvocation
+  $script:DRunRoot = $root
+  Start-M1DClock 'CleanupOnly'
+  $lock = Enter-M1BRunLock $root
+  try {
+    [void](Assert-M1BExecutionState $root 'm12-cleanup-only-initial')
+    Assert-M1DNoRecoveryReceipts
+    $campaignReceipt = Assert-M1DQuarantineBinding
+    if ($SensitiveAuthorizationRecordId -ceq $campaignReceipt.authorizationRecordId -or
+        $SensitiveAuthorizationRecordId -ceq $campaignReceipt.payload.preflightAuthorizationRecordId -or
+        $PreflightAuthorizationRecordId -cne $campaignReceipt.payload.preflightAuthorizationRecordId) { Stop-M1BRail 'M12_DISTINCT_CLEANUP_AUTHORIZATION_REQUIRED' }
+    if ($campaignReceipt.payload.psqlSha256 -cne $ExpectedPsqlSha256) { Stop-M1BRail 'M12_RECOVERY_PSQL_DIVERGED' }
+    $oldController = Get-Process -Id ([int]$campaignReceipt.payload.controllerProcessId) -ErrorAction SilentlyContinue
+    if ($null -ne $oldController) {
+      try { if ($oldController.StartTime.ToUniversalTime().Ticks -eq [long]$campaignReceipt.payload.controllerCreationTicks) { Stop-M1BRail 'M12_ORIGINAL_CONTROLLER_STILL_ALIVE' } }
+      finally { $oldController.Dispose() }
+    }
+    $provisionReceipt = Read-M1DReceipt 'provision'
+    if ($provisionReceipt.authorizationRecordId -cne $campaignReceipt.authorizationRecordId) { Stop-M1BRail 'M12_RECOVERY_PROVISION_AUTHORIZATION_INVALID' }
+    $provision = $provisionReceipt.payload
+    Assert-M1BExactProperties $provision @('databaseOid','roleOid','postmasterStartUnixMicros','cluster','provenance','adminRoleOid','maintenanceDatabaseOid','psqlSha256','structuredOutputSha256')
+    if (-not (Test-M1BJsonInteger $provision.databaseOid) -or $provision.databaseOid -le 0 -or
+        -not (Test-M1BJsonInteger $provision.roleOid) -or $provision.roleOid -le 0 -or
+        -not (Test-M1BPostmasterStartUnixMicros $provision.postmasterStartUnixMicros) -or
+        $provision.cluster -cne $campaignReceipt.payload.cluster -or $provision.provenance -cne $campaignReceipt.payload.provenance -or
+        $provision.psqlSha256 -cne $ExpectedPsqlSha256 -or $provision.adminRoleOid -ne $campaignReceipt.payload.adminRoleOid -or
+        $provision.maintenanceDatabaseOid -ne $campaignReceipt.payload.maintenanceDatabaseOid -or
+        $provision.structuredOutputSha256 -isnot [string] -or $provision.structuredOutputSha256 -cnotmatch '^[0-9a-f]{64}$') { Stop-M1BRail 'M12_RECOVERY_PROVISION_BINDING_INVALID' }
+    Enter-M1DPhase 'stop'
+    Set-M1DDiagnosticOperation 'stop-barrier'
+    Assert-M1DRecordedCessation -LifecycleAuthorizationRecordId $campaignReceipt.authorizationRecordId
+    $script:DExpectedPostmasterStart = $provision.postmasterStartUnixMicros
+    Enter-M1DPhase 'cleanup'
+    Set-M1DDiagnosticOperation 'cleanup'
+    $cleanup = Invoke-M1BCleanupPsql (Join-Path $root 'volatile\recovery-cleanup-psql') $provision.provenance $RunId $provision.cluster $provision.databaseOid $provision.roleOid $provision.adminRoleOid $provision.maintenanceDatabaseOid
+    [void](Write-M1DReceipt 'recovery-cleanup' ([ordered]@{ targetsAbsent = $true; psqlSha256 = $cleanup.PsqlSha256; structuredOutputSha256 = $cleanup.StructuredOutputSha256 }))
+    Exit-M1DQuarantine 'recovery-cleanup'
+    Enter-M1DPhase 'controls'
+    [void](Assert-M1BExecutionState $root 'm12-cleanup-only-final')
+    if ($script:PsqlProcessStarts.Preflight -ne 0 -or $script:PsqlProcessStarts.Provision -ne 0 -or $script:PsqlProcessStarts.Cleanup -ne 1) { Stop-M1BRail 'M12_PSQL_CARDINALITY_INVALID' }
+    $path = Write-M1DReceipt 'recovery-terminal' ([ordered]@{ campaignResult = 'FAIL'; cleanupResult = 'PASS'; originalAuthorization = $campaignReceipt.authorizationRecordId })
+    Assert-M1DDeadline
+    return [pscustomobject]@{ Path = $path; SizeBytes = (Get-Item -LiteralPath $path).Length; Sha256 = Get-M1BSha256File $path }
+  } finally { Exit-M1BRunLock $lock }
+}
+
 function Invoke-M1BMain {
+  if ($Campaign -ceq 'M12' -and $Mode -ceq 'Lifecycle') {
+    if ($LifecycleAction -ceq 'CleanupOnly') { return Invoke-M12CleanupOnly }
+    return Invoke-M12Lifecycle
+  }
   if ($Campaign -ceq 'D' -and $Mode -ceq 'Lifecycle') {
     if ($LifecycleAction -ceq 'CleanupOnly') { return Invoke-M1DCleanupOnly -RecoveryOrigin (Get-M1DFixedRecoveryOrigin) }
     return Invoke-M1DLifecycle
@@ -5864,17 +6236,21 @@ function Invoke-M1BMain {
 }
 
 if ($MyInvocation.InvocationName -cne '.') {
+  $outputPrefix = if ($Campaign -ceq 'M12') { 'M12' } else { 'M1' + $Campaign }
   try {
     $result = Invoke-M1BMain
-    if ($Campaign -ceq 'D' -and $LifecycleAction -ceq 'CleanupOnly') {
+    if ($Campaign -ceq 'M12' -and $LifecycleAction -ceq 'CleanupOnly') {
+      Write-Output 'M12_CLEANUP_ONLY_STATUS=PASS;ORIGINAL_CAMPAIGN=FAIL'
+    } elseif ($Campaign -ceq 'M12') { Write-Output 'M12_POSTGRES_RAIL_STATUS=PASS' }
+    elseif ($Campaign -ceq 'D' -and $LifecycleAction -ceq 'CleanupOnly') {
       Write-Output 'M1D_CLEANUP_ONLY_STATUS=PASS;ORIGINAL_CAMPAIGN=FAIL'
     } elseif ($Campaign -ceq 'D') { Write-Output 'M1D_POSTGRES_RAIL_STATUS=PASS' }
     else { Write-Output 'M1B_POSTGRES_RAIL_STATUS=PASS' }
-    Write-Output ('M1' + $Campaign + '_POSTGRES_RAIL_MANIFEST=' + $result.Path)
-    Write-Output ('M1' + $Campaign + '_POSTGRES_RAIL_MANIFEST_SIZE_BYTES=' + $result.SizeBytes)
-    Write-Output ('M1' + $Campaign + '_POSTGRES_RAIL_MANIFEST_SHA256=' + $result.Sha256)
+    Write-Output ($outputPrefix + '_POSTGRES_RAIL_MANIFEST=' + $result.Path)
+    Write-Output ($outputPrefix + '_POSTGRES_RAIL_MANIFEST_SIZE_BYTES=' + $result.SizeBytes)
+    Write-Output ($outputPrefix + '_POSTGRES_RAIL_MANIFEST_SHA256=' + $result.Sha256)
   } catch {
-    Write-Error ('M1' + $Campaign + '_POSTGRES_RAIL_STATUS=FAIL;STOP=' + (Get-M1BStopCode $_))
+    Write-Error ($outputPrefix + '_POSTGRES_RAIL_STATUS=FAIL;STOP=' + (Get-M1BStopCode $_))
     exit 1
   }
 }

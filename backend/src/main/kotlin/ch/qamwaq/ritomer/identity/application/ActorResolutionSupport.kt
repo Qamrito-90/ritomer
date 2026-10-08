@@ -5,6 +5,8 @@ import ch.qamwaq.ritomer.identity.domain.TenantMembership
 import ch.qamwaq.ritomer.identity.domain.TenantMembershipGrant
 import ch.qamwaq.ritomer.shared.application.ActorAuthorityFreshness
 import ch.qamwaq.ritomer.shared.application.ActorAuthorityFreshnessVerifier
+import ch.qamwaq.ritomer.shared.application.AuthenticatedActor
+import ch.qamwaq.ritomer.shared.application.AuthenticationMechanism
 import ch.qamwaq.ritomer.shared.application.TenantContextProvider
 import java.util.UUID
 import org.springframework.http.HttpStatus
@@ -16,10 +18,12 @@ class ActorResolutionSupport(
   private val appUserRepository: AppUserRepository,
   private val tenantMembershipRepository: TenantMembershipRepository,
   private val currentAuthenticatedActorProvider: CurrentAuthenticatedActorProvider,
-  private val tenantContextProvider: TenantContextProvider
+  private val tenantContextProvider: TenantContextProvider,
+  private val oidcIdentityRepository: OidcIdentityRepository? = null
 ) : ActorAuthorityFreshnessVerifier {
   fun resolveActorContext(): ResolvedActorContext {
     val actor = currentAuthenticatedActorProvider.current()
+    if (!oidcBindingIsCurrent(actor)) throw ActorAccessRevokedException()
     val authority = readFreshAuthority(actor.actorId)
     val appUser = authority.appUser
     if (appUser == null || !appUser.isActive() || authority.grants.isEmpty()) {
@@ -36,6 +40,16 @@ class ActorResolutionSupport(
     } else {
       ActorAuthorityFreshness.REVOKED
     }
+  }
+
+  override fun verifyFreshAuthority(actor: AuthenticatedActor): ActorAuthorityFreshness =
+    if (oidcBindingIsCurrent(actor)) verifyFreshAuthority(actor.actorId) else ActorAuthorityFreshness.REVOKED
+
+  private fun oidcBindingIsCurrent(actor: AuthenticatedActor): Boolean {
+    if (actor.authenticationMechanism != AuthenticationMechanism.OIDC) return actor.oidcBindingId == null
+    val bindingId = actor.oidcBindingId ?: return false
+    val binding = oidcIdentityRepository?.findById(bindingId) ?: return false
+    return binding.active && binding.actorId == actor.actorId
   }
 
   fun resolveActiveTenant(

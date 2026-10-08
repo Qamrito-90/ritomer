@@ -55,6 +55,7 @@ import org.springframework.context.annotation.Import
 import org.springframework.context.support.GenericApplicationContext
 import org.springframework.core.env.MapPropertySource
 import org.springframework.core.env.EnumerablePropertySource
+import org.springframework.core.env.PropertySource
 import org.springframework.core.env.StandardEnvironment
 import org.springframework.core.io.FileSystemResource
 import org.springframework.mock.env.MockEnvironment
@@ -165,12 +166,10 @@ class DemoSeedLocalSourceGuardTest {
   fun dbtestFullWorkerPoolBudgetFitsRunnerLimit() {
     val compiledClasses = compiledProjectTestClasses()
     val dbTests = compiledClasses.filter { DB_INTEGRATION_TAG in it.tags }
-    assertThat(dbTests.map { it.simpleName }).containsExactlyInAnyOrderElementsOf(EXPECTED_DB_INTEGRATION_CLASSES)
     val build = postgresRailBuildSource()
-    val declaredFullClasses = Regex("\"(ch\\.qamwaq\\.ritomer\\.[^\"]+)\"")
-      .findAll(build.sliceBetween("val m1BPostgresRailFullClasses = setOf(", "val m1BPostgresRailRequiredCompiledClasses"))
-      .map { it.groupValues[1] }.toSet()
-    assertThat(dbTests.map { it.internalName.replace('/', '.') }.toSet()).isEqualTo(declaredFullClasses)
+    assertExactDbIntegrationInventories(
+      dbTests.map { it.internalName.replace('/', '.') }, declaredRailDbIntegrationClasses(build)
+    )
 
     val noContextLoading = object : CacheAwareContextLoaderDelegate {
       override fun loadContext(mergedConfig: MergedContextConfiguration): ApplicationContext =
@@ -195,6 +194,10 @@ class DemoSeedLocalSourceGuardTest {
     // Count every distinct configuration as retained: no cache eviction, idle timeout or test order credit.
     val groups = configurations.entries.groupBy { it.value }
     val maxima = groups.map { (configuration, entries) ->
+      val applicationSources = YamlPropertySourceLoader().load(
+        "application", FileSystemResource("src/main/resources/application.yml")
+      )
+      assertThat(applicationSources).hasSize(1)
       val sources = listOf(
         MapPropertySource(
           "test-inline",
@@ -203,9 +206,7 @@ class DemoSeedLocalSourceGuardTest {
         AnnotationsPropertySource(configuration.testClass)
       ) + YamlPropertySourceLoader().load(
         "dbtest", FileSystemResource("src/main/resources/application-dbtest.yml")
-      ) + YamlPropertySourceLoader().load(
-        "application", FileSystemResource("src/main/resources/application.yml")
-      )
+      ) + applicationSources
       val propertyNames = sources.flatMap { (it as EnumerablePropertySource<*>).propertyNames.toList() }
       assertThat(propertyNames.filter { it.startsWith("spring.datasource.") }).isSubsetOf(
         "spring.datasource.url", "spring.datasource.username", "spring.datasource.password",
@@ -217,10 +218,7 @@ class DemoSeedLocalSourceGuardTest {
       )
       assertThat(propertyNames.filter { it.startsWith("spring.flyway.") })
         .isSubsetOf("spring.flyway.enabled", "spring.flyway.clean-disabled")
-      assertThat(propertyNames.filter {
-        it.startsWith("spring.config.") || it.startsWith("spring.profiles.") ||
-          it.startsWith("spring.autoconfigure.exclude")
-      }).isEmpty()
+      assertExactDbtestConfigurationSources(sources, applicationSources.single())
       assertThat(System.getProperty("hikaricp.configurationFile")).isNull()
       val pool = HikariConfig()
       Binder(ConfigurationPropertySources.from(sources))
@@ -246,6 +244,463 @@ class DemoSeedLocalSourceGuardTest {
         "poolMaximum:$poolMaximum,extraGuardConnections:$guardConnections,total:$totalMaximum," +
         "runnerLimit:$runnerLimit,margin:${runnerLimit - totalMaximum}"
     )
+  }
+
+  @Test
+  fun `M12 has five compiled cases with one isolated process tag and a reset barrier`() {
+    val classes = compiledProjectTestClasses()
+    val facts = classes.single { it.internalName == SHARED_OIDC_DB_TEST_CLASS.replace('.', '/') }
+    assertM12MethodInventory(facts)
+    val tagged = classes.flatMap { cls -> cls.methods.filter { "m12-process" in it.tags }.map { cls.internalName to it.name } }
+    assertThat(tagged).containsExactly(facts.internalName to M12_METHOD_NAMES.last())
+    assertThat(classes.filter { "m12-process" in it.tags }).isEmpty()
+    assertM12HelperFileCoverage(classes)
+    val build = postgresRailBuildSource()
+    assertM12QualificationClassSelection(build)
+    val generic = build.sliceBetween("tasks.register<Test>(\"dbIntegrationTest\")", "val m1BPostgresRailTargetedClasses")
+    assertThat(generic).contains("excludeTags(\"m12-process\")").doesNotContain("SharedOidcSessionDbIntegrationTest")
+    val qualification = build.sliceBetween("tasks.register<Test>(\"m1_2PostgresRailQualification\")", "gradle.taskGraph.whenReady")
+    assertThat(qualification).contains("configureM1BPostgresRailTest(\"m12-qualification\", m12PostgresRailQualificationClasses, 5)",
+      "postgresRailCampaign() != \"M12\"", "m12PostgresRailQualificationClasses.forEach { includeTestsMatching(it) }")
+      .doesNotContain("excludeTags", "excludeTestsMatching", "ignoreFailures", "onlyIf")
+    val helper = Path.of("src/test/kotlin/ch/qamwaq/ritomer/testsupport/PostgresTestRailM12Process.kt").readText()
+    assertThat(helper).contains("setActiveProfiles(\"shared-internal\")", "\"spring.flyway.enabled\" to \"false\"",
+      "\"spring.datasource.hikari.maximum-pool-size\" to \"2\"", "\"connectionBudget\" to 7", "a1.stop()", "val a2 = start(\"a2\")")
+    assertAppearsInOrder(helper, "val a1 = start(\"a1\")", "val b = start(\"b\")", "a1.stop()", "val a2 = start(\"a2\")")
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = ["missing", "extra", "class-tag", "second-tag", "missing-tag", "disabled", "barrier-order", "missing-process-call",
+    "wrong-process-name", "wrong-process-descriptor", "parameterized", "repeated", "factory", "template", "missing-connection-observation"])
+  fun `M12 method metadata cannot silently omit a case or bypass cessation`(mutation: String) {
+    val original = compiledProjectTestClasses().single { it.internalName == SHARED_OIDC_DB_TEST_CLASS.replace('.', '/') }
+    val facts = original.copy(tags = original.tags.toMutableSet(), methods = original.methods.map {
+      it.copy(tags = it.tags.toMutableSet(), annotations = it.annotations.toMutableSet(), methodCalls = it.methodCalls.toMutableList())
+    }.toMutableList())
+    val process = facts.methods.single { it.name == M12_METHOD_NAMES.last() }
+    when (mutation) {
+      "missing" -> facts.methods.remove(process)
+      "extra" -> facts.methods.add(process.copy(name = "unaccounted"))
+      "class-tag" -> facts.tags.add("m12-process")
+      "second-tag" -> facts.methods.single { it.name == M12_METHOD_NAMES.first() }.tags.add("m12-process")
+      "missing-tag" -> process.tags.clear()
+      "disabled" -> process.annotations.add("Lorg/junit/jupiter/api/Disabled;")
+      "barrier-order" -> facts.methods.single { it.name == "resetGuardedDisposableDatabase" }.methodCalls.reverse()
+      "missing-connection-observation" -> facts.methods.single { it.name == "resetGuardedDisposableDatabase" }.methodCalls.removeIf { it.name.startsWith("observeConnections") }
+      "missing-process-call" -> process.methodCalls.clear()
+      "wrong-process-name", "wrong-process-descriptor" -> {
+        val index = process.methodCalls.indexOfFirst { it.name.startsWith("runQualification") }
+        val call = process.methodCalls[index]
+        process.methodCalls[index] = if (mutation == "wrong-process-name") call.copy(name = "runQualificationWithoutDb") else call.copy(descriptor = "()V")
+      }
+      else -> {
+        val annotation = when (mutation) {
+          "parameterized" -> "Lorg/junit/jupiter/params/ParameterizedTest;"
+          "repeated" -> "Lorg/junit/jupiter/api/RepeatedTest;"
+          "factory" -> "Lorg/junit/jupiter/api/TestFactory;"
+          else -> "Lorg/junit/jupiter/api/TestTemplate;"
+        }
+        facts.methods.add(CompiledMethodFacts("unaccounted", "()V", annotations = linkedSetOf(annotation)))
+      }
+    }
+    assertThatThrownBy { assertM12MethodInventory(facts) }.isInstanceOf(AssertionError::class.java)
+  }
+
+  @Test
+  fun `M12 scanner includes helper descendants without widening connection exceptions`() {
+    val owners = M12_HELPER_ROOTS + M12_HELPER_ROOTS.map { it + "\$Synthetic" } +
+      listOf(SHARED_OIDC_DB_TEST_CLASS.replace('.', '/') + "\$Synthetic")
+    owners.forEach { owner ->
+      assertThat(isClosedDbSafetyOwner(owner)).isTrue()
+      val facts = scanCompiledClass(syntheticDbClass(owner, tagged = false, initializer = false, enableCondition = false,
+        truncateCall = false, sqlCalls = listOf(SyntheticSqlCall(listOf("DELETE FROM app_user")))))
+      assertThat(compiledDeleteProbePolicy(listOf(facts), emptyMap()).unexpectedDeleteCount).isEqualTo(1)
+      val destructive = scanCompiledClass(syntheticDbClass(owner, tagged = false, initializer = false, enableCondition = false,
+        truncateCall = false, sqlCalls = listOf(SyntheticSqlCall(listOf("DROP TABLE app_user")))))
+      assertThat(compiledDestructiveSqlCounts(listOf(destructive)).dropTable).isEqualTo(1)
+    }
+    val allowed = CompiledMethodCall("com/zaxxer/hikari/HikariDataSource", "getMaximumPoolSize", "()I",
+      "ch/qamwaq/ritomer/testsupport/PostgresTestRailM12Process", "worker")
+    assertThat(allowed.isAllowedM12DataSourceObservation()).isTrue()
+    listOf(allowed.copy(name = "<init>"), allowed.copy(name = "setMaximumPoolSize", descriptor = "(I)V"),
+      allowed.copy(callerMethod = "other"), allowed.copy(callerOwner = allowed.callerOwner + "\$Other"))
+      .forEach { assertThat(it.isAllowedM12DataSourceObservation()).isFalse() }
+    val transactionManager = CompiledMethodCall("org/springframework/jdbc/datasource/DataSourceTransactionManager", "<init>", "(Ljavax/sql/DataSource;)V",
+      "ch/qamwaq/ritomer/testsupport/M12SharedServletConfiguration", "transactionManager")
+    assertThat(transactionManager.isAllowedM12DataSourceObservation()).isTrue()
+    listOf(transactionManager.copy(callerOwner = transactionManager.callerOwner + "\$Other"),
+      transactionManager.copy(callerMethod = "other"), transactionManager.copy(descriptor = "()V"),
+      transactionManager.copy(owner = "org/springframework/jdbc/support/JdbcTransactionManager"))
+      .forEach { assertThat(it.isAllowedM12DataSourceObservation()).isFalse() }
+  }
+
+  @Test
+  fun `M12 helper cannot add an unscanned top level owner or select another DB class`() {
+    val classes = compiledProjectTestClasses()
+    val extra = scanCompiledClass(syntheticDbClass("ch/qamwaq/ritomer/testsupport/UnaccountedM12Owner", tagged = false,
+      initializer = false, enableCondition = false, truncateCall = false, sqlCalls = listOf(SyntheticSqlCall(listOf("DELETE FROM app_user")))))
+      .copy(sourceFile = "PostgresTestRailM12Process.kt")
+    assertThatThrownBy { assertM12HelperFileCoverage(classes + extra) }.isInstanceOf(AssertionError::class.java)
+    val build = postgresRailBuildSource()
+    val declaration = "val m12PostgresRailQualificationClasses = setOf(\"$SHARED_OIDC_DB_TEST_CLASS\")"
+    listOf("val m12PostgresRailQualificationClasses = setOf(\"ch.qamwaq.ritomer.DocumentsDbIntegrationTest\")",
+      "val m12PostgresRailQualificationClasses = setOf(\"$SHARED_OIDC_DB_TEST_CLASS\", \"ch.qamwaq.ritomer.DocumentsDbIntegrationTest\")")
+      .forEach { replacement ->
+        assertThatThrownBy { assertM12QualificationClassSelection(build.replace(declaration, replacement)) }.isInstanceOf(AssertionError::class.java)
+      }
+  }
+
+  @Test
+  fun `M12 method scanner decodes repeatable tag containers`() {
+    val writer = ClassWriter(0)
+    writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC, "SyntheticTaggedMethod", null, "java/lang/Object", null)
+    writer.visitSource("PostgresTestRailM12Process.kt", null)
+    val method = writer.visitMethod(Opcodes.ACC_PUBLIC or Opcodes.ACC_ABSTRACT, "tagged", "()V", null, null)
+    val values = method.visitAnnotation(TAGS_DESCRIPTOR, true).visitArray("value")
+    listOf("m12-process", "unexpected").forEach { tag ->
+      values.visitAnnotation(null, TAG_DESCRIPTOR).apply { visit("value", tag); visitEnd() }
+    }
+    values.visitEnd()
+    method.visitEnd()
+    writer.visitEnd()
+    val facts = scanCompiledClass(writer.toByteArray())
+    assertThat(facts.sourceFile).isEqualTo("PostgresTestRailM12Process.kt")
+    assertThat(facts.methods.single().tags).containsExactly("m12-process", "unexpected")
+  }
+
+  private fun declaredRailDbIntegrationClasses(build: String): List<String> =
+    Regex("\"(ch\\.qamwaq\\.ritomer\\.[^\"]+)\"")
+      .findAll(build.sliceBetween("val m1BPostgresRailFullClasses = setOf(", "val m1BPostgresRailRequiredCompiledClasses"))
+      .map { it.groupValues[1] }.toList()
+
+  @Test
+  @Tag("windows-only")
+  fun `M12 native qualification job and actual cessation reader reject live wrong and orphan bindings`() {
+    val output = runRailPowerShell("""
+      §container=Join-Path ([IO.Path]::GetFullPath([IO.Path]::GetTempPath())) ('m12-job-'+[Guid]::NewGuid().ToString('N'))
+      [void][IO.Directory]::CreateDirectory(§container)
+      §script:DRunRoot=§container;§script:EvidenceBaseRoot=§container;§script:DQuarantinePath=Join-Path §container '.m12-unreleased.json'
+      §Mode='Lifecycle';§LifecycleAction='Run';§SensitiveAuthorizationRecordId='AUTH-M12-FIXTURE-LIFECYCLE'
+      §PreflightAuthorizationRecordId='AUTH-M12-FIXTURE-PREFLIGHT'
+      §script:DCampaignClock=[Diagnostics.Stopwatch]::StartNew();§script:DTotalMilliseconds=60000L;§script:DPhaseDeadline=60000L
+      §script:DPhase='qualification';§script:DOperation='initialization';§script:DFailures=[Collections.Generic.List[object]]::new()
+      Initialize-M1BContainedProcessType
+      function Expect-M12Stop(§Expected,[scriptblock]§Action) {
+        §code='NONE';try{& §Action}catch{§code=Get-M1BStopCode §_}
+        if(§code -cne §Expected){throw ('M12_STOP_MISMATCH:'+§Expected+':'+§code)}
+      }
+      §expectedJob='Local\Ritomer.M12.'+§RunId+'.QUALIFICATION'
+      §startedFile=Join-Path §container 'synthetic-child-started.txt'
+      §script:m12ConfinedBeforeResume=§false
+      §script:m12RealReceiptWriter=(Get-Command Write-M1DReceipt).ScriptBlock
+      function Write-M1DReceipt {
+        param([string]§Name,[object]§Payload,[AllowNull()][object]§ReceiptContext)
+        if(§Name -ceq 'launch-lifecycle-QUALIFICATION-confined') {
+          if(§Payload.jobName -cne §expectedJob -or -not §Payload.confinedBeforeResume -or
+            [IO.File]::Exists(§startedFile) -or [Ritomer.M1B.ContainedProcess]::QueryM12Job(§expectedJob) -ne 1) {
+            throw 'M12_JOB_NOT_CONFINED_BEFORE_RESUME'
+          }
+          §script:m12ConfinedBeforeResume=§true
+        }
+        & §script:m12RealReceiptWriter @PSBoundParameters
+      }
+      §psi=[Diagnostics.ProcessStartInfo]::new();§psi.FileName=Join-Path §PSHOME 'powershell.exe'
+      §childCode="[IO.File]::WriteAllText('§startedFile','started');[Threading.Thread]::Sleep(30000)"
+      §psi.Arguments='-NoLogo -NoProfile -NonInteractive -EncodedCommand '+[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes(§childCode))
+      §psi.WorkingDirectory=§container;§psi.UseShellExecute=§false;§psi.CreateNoWindow=§true
+      §psi.RedirectStandardInput=§true;§psi.RedirectStandardOutput=§true;§psi.RedirectStandardError=§true
+      §child=§null
+      try {
+        foreach(§role in @('BACKEND','VITE','SEED','QUALIFICATIONX')){
+          §rejected=§false;try{[void][Ritomer.M1B.ContainedProcess]::StartM12(§psi,§RunId,§role,[Action[int,long,string]]{param(§id,§ticks,§name)})}catch{§rejected=§true}
+          if(-not §rejected){throw 'M12_NATIVE_ROLE_WIDENED'}
+        }
+        §child=Start-M1DContainedChild §psi QUALIFICATION
+        if(-not §script:m12ConfinedBeforeResume -or §child.JobName -cne §expectedJob -or §child.HasExited){throw 'M12_JOB_NOT_CONFINED'}
+        Expect-M12Stop 'D_RECORDED_ROOT_STILL_ALIVE' {Assert-M1DRecordedCessation -LifecycleAuthorizationRecordId §SensitiveAuthorizationRecordId}
+        Expect-M12Stop 'M12_LAUNCH_AUTHORIZATION_MISMATCH' {Assert-M1DRecordedCessation -LifecycleAuthorizationRecordId 'AUTH-WRONG'}
+        §stopClock=[Diagnostics.Stopwatch]::StartNew()
+        if(-not §child.TerminateTreeAndWait(3000)){throw 'M12_FIXTURE_STOP_FAILED'}
+        # Job accounting can reach zero before the root process handle is signaled.
+        # Prove both within the original shared three-second termination budget.
+        while(-not §child.HasExited -and §stopClock.ElapsedMilliseconds -lt 3000) {
+          §remaining=3000L-§stopClock.ElapsedMilliseconds
+          if(§remaining -gt 0){[Threading.Thread]::Sleep([int][Math]::Min(10L,§remaining))}
+        }
+        if(-not §child.HasExited -or §stopClock.ElapsedMilliseconds -gt 3000){throw 'M12_FIXTURE_ROOT_STOP_UNPROVEN'}
+        if(§child.ActiveProcessCount -ne 0 -or [Ritomer.M1B.ContainedProcess]::QueryM12Job(§expectedJob) -ne 0){throw 'M12_JOB_NOT_EMPTY_AFTER_STOP'}
+        §stopStage='write-stop-receipt'
+        try {
+          Write-M1DStopReceipt QUALIFICATION §child
+          §stopStage='read-stop-receipt'
+          Assert-M1DRecordedCessation -LifecycleAuthorizationRecordId §SensitiveAuthorizationRecordId
+        } catch { throw ('M12_FIXTURE_STAGE:'+§stopStage+':'+(Get-M1BStopCode §_)) }
+        function Get-M1DRecordedJobCount {param(§JobName) 1}
+        Expect-M12Stop 'D_RECORDED_DESCENDANT_STILL_ALIVE' {Assert-M1DRecordedCessation -LifecycleAuthorizationRecordId §SensitiveAuthorizationRecordId}
+        §intent=Join-Path §container 'm12-launch-lifecycle-QUALIFICATION-intent.json'
+        [IO.File]::Move(§intent,(§intent+'.fixture-hidden'))
+        Expect-M12Stop 'D_LAUNCH_RECEIPT_ORPHAN' {Assert-M1DRecordedCessation -LifecycleAuthorizationRecordId §SensitiveAuthorizationRecordId}
+        §foreign=Join-Path §container '.m1d-unreleased.json';[IO.File]::WriteAllText(§foreign,'synthetic')
+        Expect-M12Stop 'M12_FOREIGN_CAMPAIGN_UNRELEASED' {Assert-M1DNoQuarantine}
+        [IO.File]::Delete(§foreign);[IO.File]::WriteAllText(§script:DQuarantinePath,'synthetic')
+        §Campaign='D';§script:DQuarantinePath=§foreign
+        Expect-M12Stop 'D_FOREIGN_CAMPAIGN_UNRELEASED' {Assert-M1DNoQuarantine}
+        'M12_NATIVE_CESSATION=PASS'
+      } finally {
+        if(§null -ne §child){[void]§child.TerminateTreeAndWait(3000);§child.Dispose()}
+        §resolved=[IO.Path]::GetFullPath(§container)
+        if([IO.Path]::GetDirectoryName(§resolved) -cne [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\')){throw 'FIXTURE_DELETE_OUTSIDE_TEMP'}
+        Remove-Item -LiteralPath §resolved -Recurse -Force
+      }
+    """.trimIndent(), campaign = "M12")
+    assertThat(output).contains("M12_NATIVE_CESSATION=PASS")
+  }
+
+  @Test
+  @Tag("windows-only")
+  fun `M12 lifecycle and recovery keep real receipts and fail closed at every destructive boundary`() {
+    val output = runRailPowerShell("""
+      §Mode='Lifecycle'; §LifecycleAction='Run'
+      §PreflightAuthorizationRecordId='AUTH-M12-FIXTURE-PREFLIGHT'
+      §SensitiveAuthorizationRecordId='AUTH-M12-FIXTURE-LIFECYCLE'
+      §container=Join-Path ([IO.Path]::GetFullPath([IO.Path]::GetTempPath())) ('m12-lifecycle-'+[Guid]::NewGuid().ToString('N'))
+      [void][IO.Directory]::CreateDirectory(§container)
+      §script:realReceiptWriter=(Get-Command Write-M1DReceipt).ScriptBlock
+      function Write-M1DReceipt {
+        param(§Name,§Payload,§ReceiptContext)
+        if(§Name -ceq 'provision' -and §script:scenario -ceq 'bad-provision'){§Payload.databaseOid=99}
+        & §script:realReceiptWriter §Name §Payload -ReceiptContext §ReceiptContext
+      }
+      function Get-M1DNamespaceIdentity {'00000000000000000000000000000001:0000000000000001:1'}
+      function Assert-M1BInvocation {§script:scenarioRoot}
+      function Enter-M1BRunLock {param(§Root) [pscustomobject]@{synthetic=§true}}
+      function Exit-M1BRunLock {param(§Lock) §script:lockReleased=§true}
+      function Assert-M1BExecutionState {param(§Root,§Phase) [pscustomobject]@{Baseline=[pscustomobject]@{synthetic=§true}}}
+      function Initialize-M1DGradleCacheReuse {param(§Root,§Preflight)}
+      # Substitute only wall-clock admission, retaining real phase/reserve arithmetic.
+      function Start-M1DClock {
+        param(§Kind)
+        if(§null -ne §script:DCampaignClock){throw 'FIXTURE_CLOCK_REUSE'}
+        §script:DCampaignClock=[Diagnostics.Stopwatch]::StartNew()
+        §script:DTotalMilliseconds=if(§Kind -ceq 'CleanupOnly'){420000L}else{6600000L}
+        §script:DPhaseDeadline=§script:DTotalMilliseconds; §script:DEnteredPhases=@{}
+        §script:DPhase='controls'; §script:DOperation='initialization'
+        §script:DFailures=[Collections.Generic.List[object]]::new(); §script:DReadinessCacheVerifiedState=§null
+      }
+      function Invoke-M1BReadiness {
+        param(§Root,§PhaseName,§RunId,§ReviewedObjectSha256)
+        §script:events.Add('readiness'); §script:M12RuntimeManifestSha256='1'*64
+        §digest=if(§script:scenario -ceq 'bad-runtime'){'4'*64}else{'2'*64}
+        [pscustomobject]@{BuildRoot=§Root;GradleUserHome=§Root;Result=[pscustomobject]@{RuntimeSha256=§digest}}
+      }
+      function Read-M1BPreflightManifest {
+        param(§Root,§RunId,§ReviewedObjectSha256,§Authorization,§Baseline)
+        [pscustomobject]@{Sha256=('3'*64);Value=[pscustomobject]@{
+          runtimeSha256=('2'*64);psql=[pscustomobject]@{sha256=§ExpectedPsqlSha256}
+          campaignStartTimestamp=[string][Diagnostics.Stopwatch]::GetTimestamp()
+          stopwatchFrequency=[string][Diagnostics.Stopwatch]::Frequency;machine=[Environment]::MachineName
+          namespaceIdentity=(Get-M1DNamespaceIdentity);m12RuntimeManifestSha256=§script:preflightManifestHash
+          observation=[pscustomobject]@{clusterSystemIdentifier='999';currentRoleOid=10;maintenanceDatabaseOid=11;hbaRuleNumber=1}
+        }}
+      }
+      function New-M1BRunnerSecret {[pscustomobject]@{PasswordBytes=[byte[]]@(1,2,3);Password='offline-runner-marker'}}
+      function New-M1BRandomSalt {return ,([byte[]]@(4,5,6))}
+      function New-M1BScramSha256Verifier {param(§Password,§Salt) 'synthetic-verifier'}
+      function Assert-M1BRunnerSecretAbsentFromTree {param(§Root,§Password)}
+      function Invoke-M1BProvisionPsql {
+        param(§NeutralRoot,§Verifier,§Provenance,§Cluster,§Hba,§Admin,§Maintenance)
+        §script:events.Add('provision');§script:PsqlProcessStarts.Provision=1
+        [pscustomobject]@{DatabaseOid=19;RoleOid=20;PostmasterStartUnixMicros='1789722000123456';PsqlSha256=§ExpectedPsqlSha256;StructuredOutputSha256=('5'*64)}
+      }
+      function Assert-M1DRecordedCessation {
+        param(§ReceiptContext,[string]§LifecycleAuthorizationRecordId)
+        if(§LifecycleAuthorizationRecordId -cne 'AUTH-M12-FIXTURE-LIFECYCLE'){throw 'FIXTURE_WRONG_LIFECYCLE_AUTH'}
+        if(-not §script:stopAttested){Stop-M1BRail 'D_RECORDED_DESCENDANT_STILL_ALIVE'}
+      }
+      function Invoke-M1BTestPhase {
+        param(§Phase,§Root,§BuildRoot,§GradleHome,§Password,§Runtime,§Cluster,§DatabaseOid,§RoleOid,§Postmaster)
+        if(-not §script:stopAttested){throw 'PHASE_BEFORE_CESSATION'}
+        §script:events.Add(§Phase)
+        if(§Phase -ceq 'm12-qualification'){
+          if(§script:scenario -ceq 'uncertain'){§script:stopAttested=§false}
+          if(§script:scenario -cin @('qualification-red','uncertain')){Stop-M1BRail 'M12_FIXTURE_QUALIFICATION_FAILED'}
+        }
+        [pscustomobject]@{OutputSha256=('6'*64)}
+      }
+      function Invoke-M1BCleanupPsql {
+        param(§Root,§Provenance,§RunId,§Cluster,§DatabaseOid,§RoleOid,§Admin,§Maintenance)
+        if(-not §script:stopAttested -or §DatabaseOid -ne 19 -or §RoleOid -ne 20){throw 'UNSAFE_CLEANUP'}
+        §script:events.Add('cleanup');§script:PsqlProcessStarts.Cleanup=1
+        [pscustomobject]@{PsqlSha256=§ExpectedPsqlSha256;StructuredOutputSha256=('7'*64)}
+      }
+      function Invoke-M1DIntegrated {throw 'M12_REACHED_D_INTEGRATION'}
+      function Get-M1DFrontendRuntimeSha256 {throw 'M12_REACHED_FRONTEND'}
+      function Invoke-M1BDirectPsql {throw 'FIXTURE_REAL_SQL_BOUNDARY'}
+      function Read-M1DLocalAdminPassword {throw 'FIXTURE_REAL_SECRET_BOUNDARY'}
+      function Initialize-M12FixtureCase([string]§Case) {
+        §script:scenario=§Case;§script:scenarioRoot=Join-Path §container §Case
+        [void][IO.Directory]::CreateDirectory(§script:scenarioRoot)
+        §script:DRunRoot=§script:scenarioRoot;§script:EvidenceBaseRoot=§script:scenarioRoot
+        §script:DQuarantinePath=Join-Path §script:scenarioRoot '.m12-unreleased.json'
+        §script:DCampaignClock=§null;§script:stopAttested=§true;§script:lockReleased=§false
+        §script:events=[Collections.Generic.List[string]]::new();§script:PsqlProcessStarts=@{Preflight=0;Provision=0;Cleanup=0}
+      }
+      try {
+        foreach(§case in @('nominal','qualification-red','uncertain','bad-runtime','bad-manifest','bad-provision')){
+          Initialize-M12FixtureCase §case
+          §mf=Join-Path §script:scenarioRoot 'volatile\preflight-readiness\build\m12-runtime.json'
+          [void][IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName(§mf));[IO.File]::WriteAllText(§mf,'{}',(Get-M1BUtf8))
+          §script:preflightManifestHash=if(§case -ceq 'bad-manifest'){'f'*64}else{Get-M1BSha256File §mf}
+          §code='NONE';try{[void](Invoke-M12Lifecycle)}catch{§code=Get-M1BStopCode §_}
+          if(-not §script:lockReleased){throw 'LOCK_LEAK'}
+          if(§case -cin @('bad-runtime','bad-manifest')){
+            §expected=if(§case -ceq 'bad-runtime'){'M12_PREFLIGHT_RUNTIME_DIVERGED'}else{'M12_PREFLIGHT_MANIFEST_DIVERGED'}
+            if(§code -cne §expected -or (§script:events -join '|') -cne 'readiness' -or [IO.File]::Exists(§script:DQuarantinePath)){throw ('EARLY_BARRIER:'+§case+':'+§code)}
+          }else{
+            §terminal=Read-M1DReceipt terminal;§cleanupExpected=§case -cin @('nominal','qualification-red')
+            §expectedOrder='readiness|provision|targeted|full|m12-qualification'+§(if(§cleanupExpected){'|cleanup'}else{''})
+            if((§script:events -join '|') -cne §expectedOrder){throw ('ORDER:'+§case+':'+§code+':'+(§script:events -join '|'))}
+            if(§terminal.payload.cleanupVerified -ne §cleanupExpected -or §script:PsqlProcessStarts.Cleanup -ne [int]§cleanupExpected -or [IO.File]::Exists(§script:DQuarantinePath) -eq §cleanupExpected){throw ('CLEANUP_GATE:'+§case)}
+            §expectedResult=if(§case -ceq 'nominal'){'PASS'}else{'FAIL'};§expectedCode=if(§case -ceq 'nominal'){'NONE'}else{'M12_LIFECYCLE_FAILED_SEE_RECEIPTS'}
+            if(§terminal.payload.campaignResult -cne §expectedResult -or §code -cne §expectedCode){throw ('FALSE_PASS:'+§case+':'+§code)}
+            if(§case -ceq 'qualification-red' -and (§terminal.payload.diagnostics.primary.stage -cne 'qualification' -or §terminal.payload.diagnostics.primary.operation -cne 'qualification-tests')){throw 'QUALIFICATION_DIAGNOSTIC_LOST'}
+          }
+        }
+        §LifecycleAction='CleanupOnly'
+        function Get-Process {
+          param(§Id,§ErrorAction)
+          if(§Id -ne 2000000001){throw 'FIXTURE_UNEXPECTED_PROCESS_QUERY'}
+          if(§script:scenario -ceq 'recovery-controller-alive'){
+            §p=[pscustomobject]@{StartTime=[DateTime]::new(638000000000000000L,[DateTimeKind]::Utc)}
+            §p | Add-Member ScriptMethod Dispose {};return §p
+          }
+          return §null
+        }
+        foreach(§case in @('recovery-nominal','recovery-auth','recovery-psql','recovery-provision-auth','recovery-provision-oid','recovery-controller-alive','recovery-uncertain','recovery-existing')){
+          Initialize-M12FixtureCase §case;§script:stopAttested=§case -cne 'recovery-uncertain'
+          §SensitiveAuthorizationRecordId='AUTH-M12-FIXTURE-LIFECYCLE'
+          §provenance=Get-M1BProvenance §RunId §ReviewedObjectSha256 '999'
+          Enter-M1DQuarantine ([ordered]@{
+            preflightAuthorizationRecordId=§PreflightAuthorizationRecordId;preflightSha256=('a'*64)
+            psqlSha256=§(if(§case -ceq 'recovery-psql'){'f'*64}else{§ExpectedPsqlSha256})
+            cluster='999';adminRoleOid=10;maintenanceDatabaseOid=11;provenance=§provenance
+            runtimeSha256=('b'*64);m12RuntimeManifestSha256=('c'*64);controllerProcessId=2000000001;controllerCreationTicks='638000000000000000'
+          })
+          if(§case -ceq 'recovery-provision-auth'){§SensitiveAuthorizationRecordId='AUTH-M12-FIXTURE-OTHER'}
+          [void](Write-M1DReceipt provision ([ordered]@{
+            databaseOid=§(if(§case -ceq 'recovery-provision-oid'){0}else{19});roleOid=20
+            postmasterStartUnixMicros='1789722000123456';cluster='999';provenance=§provenance
+            adminRoleOid=10;maintenanceDatabaseOid=11;psqlSha256=§ExpectedPsqlSha256;structuredOutputSha256=('d'*64)
+          }))
+          §SensitiveAuthorizationRecordId=if(§case -ceq 'recovery-auth'){'AUTH-M12-FIXTURE-LIFECYCLE'}else{'AUTH-M12-FIXTURE-CLEANUP'}
+          if(§case -ceq 'recovery-existing'){[IO.File]::WriteAllText((Join-Path §script:scenarioRoot 'm12-recovery-cleanup.json.sha256'),('0'*64)+"`n",(Get-M1BUtf8))}
+          §code='NONE';try{[void](Invoke-M12CleanupOnly)}catch{§code=Get-M1BStopCode §_}
+          if(-not §script:lockReleased){throw 'RECOVERY_LOCK_LEAK'}
+          if(§case -ceq 'recovery-nominal'){
+            §t=Read-M1DReceipt recovery-terminal
+            if(§code -cne 'NONE' -or (§script:events -join '|') -cne 'cleanup' -or §script:PsqlProcessStarts.Preflight -ne 0 -or §script:PsqlProcessStarts.Provision -ne 0 -or §script:PsqlProcessStarts.Cleanup -ne 1 -or [IO.File]::Exists(§script:DQuarantinePath)){throw ('RECOVERY_NOMINAL_FAILED:'+§code)}
+            if(§t.payload.campaignResult -cne 'FAIL' -or §t.payload.cleanupResult -cne 'PASS' -or §t.payload.originalAuthorization -cne 'AUTH-M12-FIXTURE-LIFECYCLE' -or §t.authorizationRecordId -cne 'AUTH-M12-FIXTURE-CLEANUP'){throw 'RECOVERY_FALSE_CAMPAIGN_PASS'}
+          }else{
+            §expected=switch(§case){
+              'recovery-auth' {'M12_DISTINCT_CLEANUP_AUTHORIZATION_REQUIRED'}; 'recovery-psql' {'M12_RECOVERY_PSQL_DIVERGED'}
+              'recovery-provision-auth' {'M12_RECOVERY_PROVISION_AUTHORIZATION_INVALID'}; 'recovery-provision-oid' {'M12_RECOVERY_PROVISION_BINDING_INVALID'}
+              'recovery-controller-alive' {'M12_ORIGINAL_CONTROLLER_STILL_ALIVE'}; 'recovery-uncertain' {'D_RECORDED_DESCENDANT_STILL_ALIVE'}
+              'recovery-existing' {'D_RECOVERY_ALREADY_STARTED'}
+            }
+            if(§code -cne §expected -or §script:events.Count -ne 0 -or §script:PsqlProcessStarts.Cleanup -ne 0 -or -not [IO.File]::Exists(§script:DQuarantinePath)){throw ('RECOVERY_BARRIER:'+§case+':'+§code)}
+          }
+        }
+        'M12_LIFECYCLE_AND_RECOVERY_FIXTURE=PASS'
+      } finally {
+        §resolved=[IO.Path]::GetFullPath(§container)
+        if([IO.Path]::GetDirectoryName(§resolved) -cne [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\')){throw 'FIXTURE_DELETE_OUTSIDE_TEMP'}
+        Remove-Item -LiteralPath §resolved -Recurse -Force
+      }
+    """.trimIndent(), campaign = "M12")
+    assertThat(output).contains("M12_LIFECYCLE_AND_RECOVERY_FIXTURE=PASS")
+  }
+
+  private fun assertExactDbIntegrationInventories(global: List<String>, rail: List<String>) {
+    // Lists preserve duplicate detection; fully qualified identities prevent same-name substitution.
+    assertThat(global).containsExactlyInAnyOrderElementsOf(EXPECTED_GLOBAL_DB_INTEGRATION_CLASSES)
+    assertThat(rail).containsExactlyInAnyOrderElementsOf(EXPECTED_RAIL_DB_INTEGRATION_CLASSES)
+    assertThat(global.toSet() - rail.toSet()).containsExactly(SHARED_OIDC_DB_TEST_CLASS)
+    assertThat(rail.toSet() - global.toSet()).isEmpty()
+  }
+
+  private fun assertExactDbtestConfigurationSources(
+    sources: List<PropertySource<*>>,
+    applicationSource: PropertySource<*>
+  ) {
+    // The caller supplies the actual object loaded from the fixed application.yml path.
+    // Source names and the merged Binder result cannot attest where an override came from.
+    assertThat(sources.count { it === applicationSource }).isEqualTo(1)
+    var exclusions = 0
+    sources.forEach { source ->
+      val names = (source as EnumerablePropertySource<*>).propertyNames.toList()
+      fun protectedName(name: String) = name.lowercase().filter(Char::isLetterOrDigit)
+      assertThat(names.filter {
+        protectedName(it).startsWith("springconfig") || protectedName(it).startsWith("springprofiles")
+      }).isEmpty()
+      val exclusionNames = names.filter { protectedName(it).startsWith("springautoconfigureexclude") }
+      if (exclusionNames.isNotEmpty()) {
+        assertThat(source).isSameAs(applicationSource)
+        assertThat(exclusionNames).containsExactly(SESSION_AUTO_CONFIGURATION_EXCLUSION_KEY)
+        assertThat(source.getProperty(SESSION_AUTO_CONFIGURATION_EXCLUSION_KEY))
+          .isEqualTo(SESSION_AUTO_CONFIGURATION_EXCLUSION)
+        exclusions++
+      }
+    }
+    assertThat(exclusions).isEqualTo(1)
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = ["missing", "extra", "substitution", "other-package", "duplicate", "rail-includes-shared", "rail-missing", "rail-duplicate"])
+  fun `DB inventories reject every departure from the exact global and rail sets`(mutation: String) {
+    val global = EXPECTED_GLOBAL_DB_INTEGRATION_CLASSES.toMutableList()
+    val rail = EXPECTED_RAIL_DB_INTEGRATION_CLASSES.toMutableList()
+    assertExactDbIntegrationInventories(global, rail)
+    when (mutation) {
+      "missing" -> global.remove(SHARED_OIDC_DB_TEST_CLASS)
+      "extra" -> global.add("ch.qamwaq.ritomer.UnexpectedDbIntegrationTest")
+      "substitution" -> global[0] = "ch.qamwaq.ritomer.SubstitutedDbIntegrationTest"
+      "other-package" -> global[0] = "other.package." + global[0].substringAfterLast('.')
+      "duplicate" -> global.add(global[0])
+      "rail-includes-shared" -> rail[0] = SHARED_OIDC_DB_TEST_CLASS
+      "rail-missing" -> rail.removeAt(0)
+      "rail-duplicate" -> rail.add(rail[0])
+      else -> error("Unknown inventory counterexample.")
+    }
+    assertThatThrownBy { assertExactDbIntegrationInventories(global, rail) }
+      .isInstanceOf(AssertionError::class.java)
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = ["missing", "wrong-value", "flyway-value", "scalar", "extra-index", "alias", "inline", "dbtest", "annotations", "same-name", "duplicate-source", "config-import", "profile", "config-alias"])
+  fun `session auto configuration exception rejects wrong values keys provenance and imports`(mutation: String) {
+    val values = linkedMapOf<String, Any>(SESSION_AUTO_CONFIGURATION_EXCLUSION_KEY to SESSION_AUTO_CONFIGURATION_EXCLUSION)
+    when (mutation) {
+      "missing" -> values.clear()
+      "wrong-value" -> values[SESSION_AUTO_CONFIGURATION_EXCLUSION_KEY] = "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration"
+      "flyway-value" -> values[SESSION_AUTO_CONFIGURATION_EXCLUSION_KEY] = "org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration"
+      "scalar" -> { values.clear(); values["spring.autoconfigure.exclude"] = SESSION_AUTO_CONFIGURATION_EXCLUSION }
+      "extra-index" -> values["spring.autoconfigure.exclude[1]"] = SESSION_AUTO_CONFIGURATION_EXCLUSION
+      "alias" -> values["SPRING_AUTOCONFIGURE_EXCLUDE"] = SESSION_AUTO_CONFIGURATION_EXCLUSION
+      "config-import" -> values["spring.config.import"] = "optional:classpath:unaccounted.yml"
+      "profile" -> values["spring.profiles.active"] = "unaccounted"
+      "config-alias" -> values["SPRING_CONFIG_IMPORT"] = "optional:classpath:unaccounted.yml"
+    }
+    val application = MapPropertySource("application", values)
+    val sources = mutableListOf<PropertySource<*>>(application)
+    when (mutation) {
+      "inline", "dbtest", "annotations", "same-name" -> sources.add(0,
+        MapPropertySource(if (mutation == "same-name") "application" else mutation,
+          mapOf(SESSION_AUTO_CONFIGURATION_EXCLUSION_KEY to SESSION_AUTO_CONFIGURATION_EXCLUSION))
+      )
+      "duplicate-source" -> sources.add(application)
+    }
+    assertThatThrownBy { assertExactDbtestConfigurationSources(sources, application) }
+      .isInstanceOf(AssertionError::class.java)
   }
 
   private fun assertDbtestMetadataHasNoUnaccountedConnectionSource(
@@ -324,7 +779,7 @@ class DemoSeedLocalSourceGuardTest {
     dbTests: List<CompiledClassFacts>,
     build: String
   ) {
-    val roots = dbTests.map { it.internalName } + listOf(
+    val roots = dbTests.map { it.internalName } + M12_HELPER_ROOTS + listOf(
       "ch/qamwaq/ritomer/WorkpapersDbIntegrationTestConfig",
       "ch/qamwaq/ritomer/RollbackAwareAuditTrail"
     )
@@ -332,11 +787,11 @@ class DemoSeedLocalSourceGuardTest {
       roots.any { facts.internalName == it || facts.internalName.startsWith(it + '$') }
     }.flatMap { dbtestMethodCallsIncludingHandles(it.internalName) }
     assertThat(connectionCalls.filter { call ->
-      (call.owner == "java/sql/DriverManager" && call.name == "getConnection") ||
+      !call.isAllowedM12DataSourceObservation() && ((call.owner == "java/sql/DriverManager" && call.name == "getConnection") ||
         (call.owner == "java/sql/Driver" && call.name == "connect") ||
         (call.name == "<init>" && call.owner.contains("DataSource")) ||
         call.owner.startsWith("com/zaxxer/hikari/") ||
-        (call.owner.endsWith("DataSourceBuilder") && call.name == "build")
+        (call.owner.endsWith("DataSourceBuilder") && call.name == "build"))
     }).isEmpty()
     assertThat(connectionCalls.filter {
       it.owner == "org/flywaydb/core/api/configuration/FluentConfiguration" && it.name == "dataSource"
@@ -369,7 +824,9 @@ class DemoSeedLocalSourceGuardTest {
       "tasks.register<Test>(\"m1BPostgresRailTargeted\")"
     )
     assertThat(worker).contains("maxParallelForks = 1")
-    assertThat(build).doesNotContain("junit.jupiter.execution.parallel", "forkEvery")
+    val serialM12 = "systemProperty(\"junit.jupiter.execution.parallel.enabled\", \"false\")"
+    assertThat(build.split(serialM12)).hasSize(2)
+    assertThat(build.replace(serialM12, "")).doesNotContain("junit.jupiter.execution.parallel", "forkEvery")
     assertThat(System.getProperty("junit.jupiter.execution.parallel.enabled", "false")).isEqualTo("false")
     javaClass.classLoader.getResources("junit-platform.properties").asSequence().forEach { resource ->
       val properties = Properties().apply { resource.openStream().use { load(it) } }
@@ -398,17 +855,20 @@ class DemoSeedLocalSourceGuardTest {
       ClassReader(stream).accept(object : ClassVisitor(Opcodes.ASM9) {
         override fun visitMethod(
           access: Int, name: String, descriptor: String, signature: String?, exceptions: Array<out String>?
-        ): MethodVisitor = object : MethodVisitor(Opcodes.ASM9) {
+        ): MethodVisitor {
+          val callingMethod = name
+          return object : MethodVisitor(Opcodes.ASM9) {
           override fun visitMethodInsn(opcode: Int, owner: String, name: String, descriptor: String, isInterface: Boolean) {
-            calls += CompiledMethodCall(owner, name, descriptor)
+            calls += CompiledMethodCall(owner, name, descriptor, internalName, callingMethod)
           }
 
           override fun visitInvokeDynamicInsn(
             name: String, descriptor: String, bootstrapMethodHandle: Handle, vararg bootstrapMethodArguments: Any
           ) {
             (listOf(bootstrapMethodHandle) + bootstrapMethodArguments.filterIsInstance<Handle>()).forEach {
-              calls += CompiledMethodCall(it.owner, it.name, it.desc)
+              calls += CompiledMethodCall(it.owner, it.name, it.desc, internalName, callingMethod)
             }
+          }
           }
         }
       }, ClassReader.SKIP_DEBUG or ClassReader.SKIP_FRAMES)
@@ -534,7 +994,7 @@ class DemoSeedLocalSourceGuardTest {
       "System.Diagnostics.ProcessStartInfo",
       "\$startInfo.FileName = \$script:PsqlExeExact",
       "\$startInfo.UseShellExecute = \$false",
-      "\$startInfo.CreateNoWindow = (\$Campaign -ceq 'D')",
+      "\$startInfo.CreateNoWindow = (\$Campaign -cin @('D', 'M12'))",
       "\$startInfo.RedirectStandardInput = \$true",
       "\$startInfo.EnvironmentVariables.Clear()",
       "Read-M1BBoundedProcessStreams",
@@ -2025,7 +2485,7 @@ class DemoSeedLocalSourceGuardTest {
   @Test
   fun postgresDPlaywrightCompositionIsClosedAndKeepsBrowserOutsidePersonalProfiles() {
     val source = postgresRailScriptSource()
-    val d = source.sliceBetween("if (\$Campaign -ceq 'D') {", "function Stop-M1BRail")
+    val d = source.sliceBetween("if (\$Campaign -ceq 'D') {", "if (\$Campaign -ceq 'M12') {")
       .substringAfter('{').substringBeforeLast('}').trimIndent()
     val added = powershellLiteralArray(d, "ExpectedAddedFileSet")
     val composite = powershellLiteralArray(d, "CompositeFileSet")
@@ -4228,7 +4688,7 @@ class DemoSeedLocalSourceGuardTest {
         [IO.Directory]::Delete(§root, §true)
       }
       'M1D_PARENT_DEATH_JOB_ABSENCE_NAMESPACE=PASS'
-      """.trimIndent()
+      """.trimIndent(), campaign = "D"
     )
     assertThat(output).contains("M1D_PARENT_DEATH_JOB_ABSENCE_NAMESPACE=PASS")
     output.lineSequence().filter { it.startsWith("T1_PARENT_") }.forEach(::println)
@@ -4314,8 +4774,15 @@ class DemoSeedLocalSourceGuardTest {
       "d-post-full",
       "d-terminal-state",
       "d-cleanup-only-initial",
-      "d-cleanup-only-final"
+      "d-cleanup-only-final",
+      "m12-lifecycle-initial",
+      "m12-lifecycle-post-readiness",
+      "m12-post-provision",
+      "m12-terminal-state",
+      "m12-cleanup-only-initial",
+      "m12-cleanup-only-final"
     )
+    assertThat(script).contains("foreach (\$phase in @('targeted','full','m12-qualification'))", "Assert-M1BExecutionState \$root ('m12-post-' + \$phase)")
   }
 
   @Test
@@ -4647,6 +5114,80 @@ class DemoSeedLocalSourceGuardTest {
       DB_TEST_STORAGE_LOCAL_ROOT to "$SYNTHETIC_RUN_ROOT\\volatile\\integrated\\local-fs"
     ) + overrides, systemOverrides = systemOverrides).apply { setActiveProfiles("local") }
 
+  private fun canonicalM12Environment(phase: String): MockEnvironment {
+    val app = "ritomer-m1-2-$SYNTHETIC_RUN_ID-$phase"
+    val storage = "$SYNTHETIC_RUN_ROOT\\volatile\\$phase\\local-fs"
+    return canonicalEnvironment(mapOf("RITOMER_DB_RAIL_CAMPAIGN" to "M12", DB_TEST_PHASE to phase,
+      DB_TEST_APPLICATION_NAME to app, DB_TEST_STORAGE_LOCAL_ROOT to storage),
+      mapOf(DATASOURCE_APPLICATION_NAME to app, STORAGE_LOCAL_ROOT to storage,
+        "spring.flyway.enabled" to if (phase in setOf("m12-a", "m12-b")) "false" else "true"))
+      .apply { setActiveProfiles(if (phase in setOf("m12-a", "m12-b")) "shared-internal" else "dbtest") }
+  }
+
+  @Test
+  fun `M12 common reset refuses active work before acquiring any connection`() {
+    val lease = DisposablePostgresTestDatabase.M12Activity.begin("jdbc-workers")
+    try {
+      listOf("targeted", "full", "m12-qualification").forEach { phase ->
+        val fixture = jdbcFixture()
+        assertThatThrownBy { DisposablePostgresTestDatabase.truncateAllCurrentTables(fixture.dataSource, canonicalM12Environment(phase)) }
+          .hasMessage("M12_RESOURCES_NOT_QUIESCENT")
+        assertThat(fixture.state.acquisitionCount).isZero()
+      }
+    } finally { lease.complete() }
+    DisposablePostgresTestDatabase.M12Activity.requireQuiescent()
+  }
+
+  @Test
+  @Tag("windows-only")
+  fun `M12 exact worker profiles Flyway mode preexisting V11 and destruction rights are guarded offline`() {
+    listOf("m12-a", "m12-b").forEach { phase ->
+      val provenance = postgresTestRailProvenance(SYNTHETIC_RUN_ID, SYNTHETIC_REVIEWED_OBJECT_SHA256, SYNTHETIC_CLUSTER_SYSTEM_IDENTIFIER, "M12")
+      fun fixture(versions: List<String> = (1..11).map(Int::toString)) = jdbcFixture(JdbcOptions(
+        applicationName = "ritomer-m1-2-$SYNTHETIC_RUN_ID-$phase", roleProvenance = provenance, databaseProvenance = provenance, m12Versions = versions))
+      val nominal = fixture()
+      DisposablePostgresTestDatabase.assertCanonicalM12WorkerDataSource(nominal.dataSource, canonicalM12Environment(phase))
+      assertThat(nominal.state.acquisitionCount).isEqualTo(1)
+      assertThat(nominal.state.queryCount).isEqualTo(5)
+      assertThat(nominal.state.executeCount).isZero()
+      listOf((1..10).map(Int::toString), (1..12).map(Int::toString), (1..11).map(Int::toString).reversed()).forEach { versions ->
+        val invalid = fixture(versions)
+        assertThatThrownBy { DisposablePostgresTestDatabase.assertCanonicalM12WorkerDataSource(invalid.dataSource, canonicalM12Environment(phase)) }
+          .hasMessage("M12 worker DataSource or schema validation failed.").hasNoCause()
+        assertThat(invalid.state.queryCount).isEqualTo(5)
+        assertThat(invalid.state.executeCount).isZero()
+      }
+      listOf(arrayOf("dbtest"), arrayOf("local"), arrayOf("shared-internal", "dbtest")).forEach { profiles ->
+        val env = canonicalM12Environment(phase).apply { setActiveProfiles(*profiles) }
+        val invalid = fixture()
+        assertThatThrownBy { DisposablePostgresTestDatabase.assertCanonicalM12WorkerDataSource(invalid.dataSource, env) }
+          .hasMessage("M12 profiles must match the exact pilot or worker phase.")
+        assertThat(invalid.state.acquisitionCount).isZero()
+      }
+      val invalidFlyway = fixture()
+      assertThatThrownBy { DisposablePostgresTestDatabase.assertCanonicalM12WorkerDataSource(invalidFlyway.dataSource,
+        canonicalM12Environment(phase).withProperty("spring.flyway.enabled", "true")) }.hasMessageContaining("Flyway activation")
+      assertThat(invalidFlyway.state.acquisitionCount).isZero()
+      val reset = fixture()
+      assertThatThrownBy { DisposablePostgresTestDatabase.truncateAllCurrentTables(reset.dataSource, canonicalM12Environment(phase)) }.isInstanceOf(IllegalStateException::class.java)
+      assertThatThrownBy { DisposablePostgresTestDatabase.recreatePublicSchemaForFlyway(reset.dataSource, canonicalM12Environment(phase)) }.isInstanceOf(IllegalStateException::class.java)
+      assertThat(reset.state.acquisitionCount).isZero()
+      // The startup initializer must reach the same V11 check before a pool/context can start.
+      val startup = fixture((1..10).map(Int::toString))
+      GenericApplicationContext().use { context ->
+        context.environment = canonicalM12Environment(phase)
+        assertThatThrownBy { DisposablePostgresTestDatabaseGuardInitializer { _, _ -> startup.dataSource.connection }.initialize(context) }
+          .isInstanceOf(IllegalStateException::class.java)
+      }
+      assertThat(startup.state.queryCount).isEqualTo(5)
+      assertThat(startup.state.executeCount).isZero()
+    }
+    val pilot = jdbcFixture()
+    assertThatThrownBy { DisposablePostgresTestDatabase.recreatePublicSchemaForFlyway(pilot.dataSource, canonicalM12Environment("m12-qualification")) }
+      .hasMessage("M12 qualification cannot recreate the schema.")
+    assertThat(pilot.state.acquisitionCount).isZero()
+  }
+
   @Test
   fun postgresAdminChannelsAreAbsentOutsideNativePsql() {
     val lifecycle = postgresRailLifecycleSource()
@@ -4751,7 +5292,7 @@ class DemoSeedLocalSourceGuardTest {
       Regex("""PostgresTestRailJdbcLogging\.disableAndVerifyForTest\(\)""")
         .findAll(runtimeGuard)
         .count()
-    ).isEqualTo(3)
+    ).isEqualTo(4)
   }
 
   @Test
@@ -4823,7 +5364,7 @@ class DemoSeedLocalSourceGuardTest {
     ).doesNotContain("onlyIf", "ignoreFailures", "dbIntegrationTest", "m1BPostgresRail")
     val railScript = postgresRailScriptSource()
     val registrations = Regex(
-      """tasks\.register(?:<[^>]+>)?\("(m1BPostgresRail[^"]+)"\)"""
+      """tasks\.register(?:<[^>]+>)?\("(m1BPostgresRail[^"]+|m1_2PostgresRailQualification)"\)"""
     ).findAll(buildScript).map { it.groupValues[1] }.toList()
     val railIdentifierCounts = Regex("""\bm1BPostgresRail[A-Za-z0-9_]*\b""")
       .findAll(buildScript)
@@ -4880,18 +5421,19 @@ class DemoSeedLocalSourceGuardTest {
     assertThat(registrations).containsExactlyInAnyOrder(
       "m1BPostgresRailReadiness",
       "m1BPostgresRailTargeted",
-      "m1BPostgresRailFull"
+      "m1BPostgresRailFull",
+      "m1_2PostgresRailQualification"
     )
     assertThat(railIdentifierCounts).isEqualTo(
       mapOf(
-        "m1BPostgresRailDetachedRuntimeClasspath" to 2,
+        "m1BPostgresRailDetachedRuntimeClasspath" to 3,
         "m1BPostgresRailDetachedTestClassesDirs" to 2,
         "m1BPostgresRailFull" to 3,
         "m1BPostgresRailFullClasses" to 3,
-        "m1BPostgresRailJavaLauncher" to 6,
+        "m1BPostgresRailJavaLauncher" to 8,
         "m1BPostgresRailReadiness" to 2,
         "m1BPostgresRailRequiredCompiledClasses" to 2,
-        "m1BPostgresRailRuntimeClasspathFiles" to 3,
+        "m1BPostgresRailRuntimeClasspathFiles" to 4,
         "m1BPostgresRailRuntimeInputs" to 4,
         "m1BPostgresRailTargeted" to 3,
         "m1BPostgresRailTargetedClasses" to 3
@@ -5014,7 +5556,7 @@ class DemoSeedLocalSourceGuardTest {
       "jvmArgs(DB_TEST_PASSWORD_ENV"
     )
     assertThat(runnerTaskGraph).contains(
-      "val runnerCredentialTasks = setOf(\"m1BPostgresRailTargeted\", \"m1BPostgresRailFull\")",
+      "val runnerCredentialTasks = setOf(\"m1BPostgresRailTargeted\", \"m1BPostgresRailFull\", \"m1_2PostgresRailQualification\")",
       "providers.gradleProperty(\"kotlin.compiler.execution.strategy\").orNull != \"in-process\"",
       "compileOrResourceTasks.isNotEmpty()"
     )
@@ -5052,7 +5594,7 @@ class DemoSeedLocalSourceGuardTest {
   fun `structural scanner covers the exact destructive integration test inventory`() {
     val compiledClasses = compiledProjectTestClasses()
     val dbTests = compiledClasses.filter { it.tags.contains(DB_INTEGRATION_TAG) }
-    val actualClasses = dbTests.map(CompiledClassFacts::simpleName).sorted()
+    val actualClasses = dbTests.map { it.internalName.replace('/', '.') }.sorted()
     val classesWithInitializer = dbTests.count { facts ->
       facts.contextInitializers == listOf(GUARD_INITIALIZER_INTERNAL_NAME)
     }
@@ -5063,7 +5605,7 @@ class DemoSeedLocalSourceGuardTest {
     }
     val classesUsingTruncate = dbTests.count { it.calls(TRUNCATE_METHOD_NAME) }
     val authoritativeClasses = compiledClasses.filter { facts ->
-      facts.tags.contains(DB_INTEGRATION_TAG) ||
+      facts.tags.contains(DB_INTEGRATION_TAG) || isClosedDbSafetyOwner(facts.internalName) ||
         facts.internalName in setOf(SUPPORT_INTERNAL_NAME, SUPPORT_FILE_INTERNAL_NAME)
     }
     val scannableClasses = authoritativeClasses.filterNot { facts ->
@@ -5076,7 +5618,7 @@ class DemoSeedLocalSourceGuardTest {
       .sorted()
     val truncateClasses = scannableClasses
       .filter { it.calls(TRUNCATE_METHOD_NAME) }
-      .map(CompiledClassFacts::simpleName)
+      .map { it.internalName.replace('/', '.') }
       .sorted()
     val destructiveSql = compiledDestructiveSqlCounts(scannableClasses)
     val deletePolicy = compiledDeleteProbePolicy(
@@ -5090,12 +5632,12 @@ class DemoSeedLocalSourceGuardTest {
       it.internalName == AUTH_ME_DB_TEST_INTERNAL_NAME
     }
 
-    assertThat(actualClasses).containsExactlyElementsOf(EXPECTED_DB_INTEGRATION_CLASSES.sorted())
-    assertThat(dbTests).hasSize(12)
-    assertThat(classesWithInitializer).isEqualTo(12)
-    assertThat(classesWithEnableCondition).isEqualTo(12)
-    assertThat(classesUsingTruncate).isEqualTo(12)
-    assertThat(truncateClasses).containsExactlyElementsOf(EXPECTED_DB_INTEGRATION_CLASSES.sorted())
+    assertExactDbIntegrationInventories(actualClasses, declaredRailDbIntegrationClasses(postgresRailBuildSource()))
+    assertThat(dbTests).hasSize(13)
+    assertThat(classesWithInitializer).isEqualTo(13)
+    assertThat(classesWithEnableCondition).isEqualTo(13)
+    assertThat(classesUsingTruncate).isEqualTo(13)
+    assertThat(truncateClasses).containsExactlyElementsOf(EXPECTED_GLOBAL_DB_INTEGRATION_CLASSES.sorted())
     assertThat(schemaRecreateClasses).containsExactly(
       "DocumentsDbIntegrationTest",
       "ExportsDbIntegrationTest"
@@ -5227,6 +5769,31 @@ class DemoSeedLocalSourceGuardTest {
         setOf("UnauthorizedRecreate")
       )
     ).contains("UNAUTHORIZED_SCHEMA_RECREATE_CALL")
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = ["tag", "initializer", "activation", "primitive"])
+  fun `new OIDC DB class is subject to the same compiled guard requirements`(missing: String) {
+    val facts = EXPECTED_GLOBAL_DB_INTEGRATION_CLASSES.map { name ->
+      val shared = name == SHARED_OIDC_DB_TEST_CLASS
+      scanCompiledClass(syntheticDbClass(
+        name.replace('.', '/'),
+        tagged = !shared || missing != "tag",
+        initializer = !shared || missing != "initializer",
+        enableCondition = !shared || missing != "activation",
+        truncateCall = !shared || missing != "primitive"
+      ))
+    }
+    val expectedViolation = when (missing) {
+      "tag" -> "DB_INTEGRATION_INVENTORY"
+      "initializer" -> "MISSING_EXACT_INITIALIZER"
+      "activation" -> "MISSING_EXACT_ENABLE_CONDITION"
+      "primitive" -> "MISSING_TRUNCATE_CALL"
+      else -> error("Unknown guard counterexample.")
+    }
+    assertThat(validateSyntheticCompiledSafety(
+      facts, EXPECTED_GLOBAL_DB_INTEGRATION_CLASSES.mapTo(mutableSetOf()) { it.substringAfterLast('.') }
+    )).contains(expectedViolation)
   }
 
   @Test
@@ -7203,9 +7770,11 @@ class DemoSeedLocalSourceGuardTest {
     body: String,
     tracePhases: Boolean = false,
     timeoutSeconds: Long = 45,
+    campaign: String = "B",
     startProcess: (ProcessBuilder) -> Process = { it.start() }
   ): String {
     require(timeoutSeconds in 1..45)
+    require(campaign in setOf("B", "D", "M12"))
     val scriptPath = Path.of("scripts/m1-1b-postgresql-rail.ps1")
       .toAbsolutePath()
       .normalize()
@@ -7234,7 +7803,7 @@ class DemoSeedLocalSourceGuardTest {
       appendLine("if (§null -ne §railAst.DynamicParamBlock -or §null -ne §railAst.BeginBlock -or §null -ne §railAst.ProcessBlock -or §null -ne §cleanBlock -or §null -eq §railAst.EndBlock) { throw 'unsafe named script block' }")
       appendLine("§expectedParameterTexts = @(")
       appendLine("  '[ValidateSet(''Preflight'', ''Lifecycle'')] [string]§Mode',")
-      appendLine("  '[ValidateSet(''B'', ''D'')] [string]§Campaign = ''B''',")
+      appendLine("  '[ValidateSet(''B'', ''D'', ''M12'')] [string]§Campaign = ''B''',")
       appendLine("  '[ValidateSet(''Run'', ''CleanupOnly'')] [string]§LifecycleAction = ''Run''',")
       appendLine("  '[ValidatePattern(''^[0-9a-f]{32}$'')] [string]§RunId',")
       appendLine("  '[ValidatePattern(''^[0-9a-f]{64}$'')] [string]§ReviewedObjectSha256',")
@@ -7290,6 +7859,11 @@ class DemoSeedLocalSourceGuardTest {
       appendLine("      foreach (§binding in §statement.Clauses[0].Item2.Statements) { if (§binding -isnot [System.Management.Automation.Language.AssignmentStatementAst] -or §binding.Left.Extent.Text.TrimStart([char]'§') -notin @('script:ExpectedBranch','script:ExpectedHead','script:CorrectiveFileSetSummary','script:CompositeFileSetSummary','script:ExpectedAddedFileSet','script:CompositeFileSet','script:CorrectiveFileSet')) { throw 'unknown D binding' } }")
       appendLine("      continue")
       appendLine("    }")
+      appendLine("    if (§statement.Clauses[0].Item1.Extent.Text.Trim() -ceq ([string][char]36 + 'Campaign -ceq ' + [char]39 + 'M12' + [char]39)) {")
+      appendLine("      if (§statement.Clauses.Count -ne 1 -or §null -ne §statement.ElseClause -or @(§statement.FindAll({ param(§node) §node -is [System.Management.Automation.Language.CommandAst] -or §node -is [System.Management.Automation.Language.InvokeMemberExpressionAst] }, §true)).Count -ne 0) { throw 'active M12 bindings rejected' }")
+      appendLine("      foreach (§binding in §statement.Clauses[0].Item2.Statements) { if (§binding -isnot [System.Management.Automation.Language.AssignmentStatementAst] -or §binding.Left.Extent.Text.TrimStart([char]'§') -notin @('script:ExpectedBranch','script:ExpectedHead','script:CorrectiveFileSetSummary','script:CompositeFileSetSummary','script:ExpectedAddedFileSet','script:CompositeFileSet','script:CorrectiveFileSet','script:DQuarantinePath','script:DPhaseMinutes')) { throw 'unknown M12 binding' } }")
+      appendLine("      continue")
+      appendLine("    }")
       appendLine("    §footerCount++")
       appendLine("    §footerCondition = §statement.Clauses[0].Item1.Extent.Text.Trim()")
       appendLine("    §expectedFooterCondition = [string][char]36 + 'MyInvocation.InvocationName -cne ' + [char]39 + '.' + [char]39")
@@ -7331,6 +7905,7 @@ class DemoSeedLocalSourceGuardTest {
       appendLine("try {")
       appendLine("Write-OfflineFixturePhase 'LOAD_ENTER'")
       append(". §offlineRailPath -Mode 'Preflight'")
+      append(" -Campaign '$campaign'")
       append(" -RunId '00000000000000000000000000000000'")
       append(" -ReviewedObjectSha256 '")
       append("0".repeat(64))
@@ -7622,24 +8197,85 @@ class DemoSeedLocalSourceGuardTest {
       PERSISTENCE_DB_TEST_INTERNAL_NAME to AUDIT_EVENT_DELETE_SQL
     )
 
-    val EXPECTED_DB_INTEGRATION_CLASSES = listOf(
-      "BalanceImportPersistenceIntegrationTest",
-      "ControlsDbIntegrationTest",
-      "DocumentsDbIntegrationTest",
-      "ExportsDbIntegrationTest",
-      "FinancialStatementsStructuredDbIntegrationTest",
-      "FinancialSummaryDbIntegrationTest",
-      "ManualMappingPersistenceIntegrationTest",
-      "MappingSuggestionDecisionDbIntegrationTest",
-      "PersistenceFoundationIntegrationTest",
-      "WorkpapersDbIntegrationTest",
-      "DemoSeedLocalAuthMeDbIntegrationTest",
-      "DemoSeedLocalDbIntegrationTest"
+    const val SHARED_OIDC_DB_TEST_CLASS = "ch.qamwaq.ritomer.SharedOidcSessionDbIntegrationTest"
+    const val SESSION_AUTO_CONFIGURATION_EXCLUSION_KEY = "spring.autoconfigure.exclude[0]"
+    const val SESSION_AUTO_CONFIGURATION_EXCLUSION =
+      "org.springframework.boot.autoconfigure.session.SessionAutoConfiguration"
+    val EXPECTED_RAIL_DB_INTEGRATION_CLASSES = listOf(
+      "ch.qamwaq.ritomer.BalanceImportPersistenceIntegrationTest",
+      "ch.qamwaq.ritomer.ControlsDbIntegrationTest",
+      "ch.qamwaq.ritomer.DocumentsDbIntegrationTest",
+      "ch.qamwaq.ritomer.ExportsDbIntegrationTest",
+      "ch.qamwaq.ritomer.FinancialStatementsStructuredDbIntegrationTest",
+      "ch.qamwaq.ritomer.FinancialSummaryDbIntegrationTest",
+      "ch.qamwaq.ritomer.ManualMappingPersistenceIntegrationTest",
+      "ch.qamwaq.ritomer.MappingSuggestionDecisionDbIntegrationTest",
+      "ch.qamwaq.ritomer.PersistenceFoundationIntegrationTest",
+      "ch.qamwaq.ritomer.WorkpapersDbIntegrationTest",
+      "ch.qamwaq.ritomer.devtools.DemoSeedLocalAuthMeDbIntegrationTest",
+      "ch.qamwaq.ritomer.devtools.DemoSeedLocalDbIntegrationTest"
     )
+    val EXPECTED_GLOBAL_DB_INTEGRATION_CLASSES = EXPECTED_RAIL_DB_INTEGRATION_CLASSES + SHARED_OIDC_DB_TEST_CLASS
   }
 }
 
 private const val TAG_DESCRIPTOR = "Lorg/junit/jupiter/api/Tag;"
+private val M12_HELPER_ROOTS = listOf("M12BoundRuntime", "M12OwnedWorker", "M12PrivateProtocol", "M12SerializationObserver",
+  "M12SharedServletConfiguration", "PostgresTestRailM12Activity", "PostgresTestRailM12Process", "PostgresTestRailM12ProcessKt")
+  .map { "ch/qamwaq/ritomer/testsupport/$it" }
+private fun isClosedDbSafetyOwner(name: String): Boolean =
+  (M12_HELPER_ROOTS + DemoSeedLocalSourceGuardTest.EXPECTED_GLOBAL_DB_INTEGRATION_CLASSES.map { it.replace('.', '/') })
+    .any { name == it || name.startsWith(it + '$') }
+
+private fun assertM12HelperFileCoverage(classes: List<CompiledClassFacts>) {
+  M12_HELPER_ROOTS.forEach { root -> assertThat(classes.any { it.internalName == root && it.sourceFile == "PostgresTestRailM12Process.kt" }).isTrue() }
+  assertThat(classes.filter { it.sourceFile == "PostgresTestRailM12Process.kt" }
+    .all { facts -> M12_HELPER_ROOTS.any { facts.internalName == it || facts.internalName.startsWith(it + '$') } }).isTrue()
+}
+
+private fun assertM12QualificationClassSelection(build: String) {
+  val declaration = build.substringAfter("val m12PostgresRailQualificationClasses = ")
+    .substringBefore("tasks.register<Test>(\"m1_2PostgresRailQualification\")").trim()
+  assertThat(declaration).isEqualTo("setOf(\"ch.qamwaq.ritomer.SharedOidcSessionDbIntegrationTest\")")
+}
+
+private fun CompiledMethodCall.isAllowedM12DataSourceObservation(): Boolean =
+  (callerOwner == "ch/qamwaq/ritomer/testsupport/M12SharedServletConfiguration" && callerMethod == "transactionManager" &&
+    owner == "org/springframework/jdbc/datasource/DataSourceTransactionManager" && name == "<init>" && descriptor == "(Ljavax/sql/DataSource;)V") ||
+    (callerOwner == "ch/qamwaq/ritomer/testsupport/PostgresTestRailM12Process" && callerMethod == "worker" &&
+      owner == "com/zaxxer/hikari/HikariDataSource" && ((name in setOf("getMaximumPoolSize", "getMinimumIdle") && descriptor == "()I") ||
+      (name == "isClosed" && descriptor == "()Z")))
+
+private val M12_METHOD_NAMES = listOf(
+  "V11 exists and binding uniqueness revocation generation and parameterized lookup hold",
+  "two repository instances share only minimal session attributes and logout stays deleted after a stale save",
+  "atomic consumption across two DB connections has one winner and committed failure cannot replay",
+  "database TTL constraint expiration and cleanup retain no usable expired transaction",
+  "two owned JVMs preserve sessions across restart and logout without affecting the second account"
+)
+private fun assertM12MethodInventory(facts: CompiledClassFacts) {
+  assertThat(facts.tags).containsExactly("db-integration")
+  val testAnnotations = setOf("Lorg/junit/jupiter/api/Test;", "Lorg/junit/jupiter/params/ParameterizedTest;",
+    "Lorg/junit/jupiter/api/RepeatedTest;", "Lorg/junit/jupiter/api/TestFactory;", "Lorg/junit/jupiter/api/TestTemplate;")
+  val methods = facts.methods.filter { method -> method.annotations.any { it in testAnnotations } }
+  assertThat(methods.map { it.name }).containsExactlyInAnyOrderElementsOf(M12_METHOD_NAMES)
+  methods.forEach { method ->
+    val process = method.name == M12_METHOD_NAMES.last()
+    assertThat(method.tags).containsExactlyElementsOf(if (process) listOf("m12-process") else emptyList())
+    assertThat(method.annotations).containsExactlyInAnyOrderElementsOf(setOf("Lorg/junit/jupiter/api/Test;") + if (process) setOf(TAG_DESCRIPTOR) else emptySet())
+  }
+  val hook = facts.methods.single { it.name == "resetGuardedDisposableDatabase" }
+  assertThat(hook.annotations).containsExactlyInAnyOrder("Lorg/junit/jupiter/api/BeforeEach;", "Lorg/junit/jupiter/api/AfterEach;")
+  val barrier = hook.methodCalls.indexOfFirst { it.owner == "ch/qamwaq/ritomer/testsupport/PostgresTestRailM12Activity" && it.name == "requireQuiescent" }
+  val reset = hook.methodCalls.indexOfFirst { it.owner == DemoSeedLocalSourceGuardTest.SUPPORT_INTERNAL_NAME && it.name == "truncateAllCurrentTables" }
+  assertThat(barrier).isGreaterThanOrEqualTo(0).isLessThan(reset)
+  val observation = hook.methodCalls.indexOfFirst { it.owner == "ch/qamwaq/ritomer/testsupport/PostgresTestRailM12Process" && it.name == "observeConnections\$ritomer_test" }
+  assertThat(observation).isGreaterThan(barrier).isLessThan(reset)
+  assertThat(methods.single { it.name == M12_METHOD_NAMES.last() }.methodCalls.count {
+    it.owner == "ch/qamwaq/ritomer/testsupport/PostgresTestRailM12Process" && it.name == "runQualification\$ritomer_test" &&
+      it.descriptor == "(Lorg/springframework/jdbc/core/JdbcTemplate;Lorg/springframework/core/env/Environment;)V"
+  }).isEqualTo(1)
+}
 private const val TAGS_DESCRIPTOR = "Lorg/junit/jupiter/api/Tags;"
 private const val CONTEXT_CONFIGURATION_DESCRIPTOR =
   "Lorg/springframework/test/context/ContextConfiguration;"
@@ -7656,7 +8292,9 @@ private data class EnabledEnvironmentCondition(
 private data class CompiledMethodCall(
   val owner: String,
   val name: String,
-  val descriptor: String
+  val descriptor: String,
+  val callerOwner: String? = null,
+  val callerMethod: String? = null
 )
 
 private data class CompiledSqlCall(
@@ -7669,6 +8307,8 @@ private data class CompiledSqlCall(
 private data class CompiledMethodFacts(
   val name: String,
   val descriptor: String,
+  val annotations: MutableSet<String> = linkedSetOf(),
+  val tags: MutableSet<String> = linkedSetOf(),
   val methodCalls: MutableList<CompiledMethodCall> = mutableListOf(),
   val sqlCalls: MutableList<CompiledSqlCall> = mutableListOf(),
   val stringConstants: MutableList<String> = mutableListOf(),
@@ -7678,6 +8318,7 @@ private data class CompiledMethodFacts(
 
 private data class CompiledClassFacts(
   var internalName: String = "",
+  var sourceFile: String? = null,
   val tags: MutableSet<String> = linkedSetOf(),
   val contextInitializers: MutableList<String> = mutableListOf(),
   val enabledEnvironmentConditions: MutableList<EnabledEnvironmentCondition> = mutableListOf(),
@@ -7746,6 +8387,8 @@ private fun scanCompiledClass(bytes: ByteArray): CompiledClassFacts {
         facts.internalName = name
       }
 
+      override fun visitSource(source: String?, debug: String?) { facts.sourceFile = source }
+
       override fun visitAnnotation(descriptor: String, visible: Boolean): AnnotationVisitor? =
         when (descriptor) {
           TAG_DESCRIPTOR -> tagVisitor(facts)
@@ -7779,7 +8422,7 @@ private fun scanCompiledClass(bytes: ByteArray): CompiledClassFacts {
         return SqlOperandTrackingMethodVisitor(methodFacts)
       }
     },
-    ClassReader.SKIP_DEBUG or ClassReader.EXPAND_FRAMES
+    ClassReader.EXPAND_FRAMES
   )
   return facts
 }
@@ -7806,6 +8449,22 @@ private class SqlOperandTrackingMethodVisitor(
   private val controlFlowTargets = linkedSetOf<Label>()
   private val targetsWithUsableFrames = linkedSetOf<Label>()
   private var lastVisitedLabel: Label? = null
+
+  override fun visitAnnotation(descriptor: String, visible: Boolean): AnnotationVisitor? {
+    methodFacts.annotations += descriptor
+    fun tag() = object : AnnotationVisitor(Opcodes.ASM9) {
+      override fun visit(name: String?, value: Any?) { if (name == "value" && value is String) methodFacts.tags += value }
+    }
+    return when (descriptor) {
+      TAG_DESCRIPTOR -> tag()
+      TAGS_DESCRIPTOR -> object : AnnotationVisitor(Opcodes.ASM9) {
+        override fun visitArray(name: String?): AnnotationVisitor? = if (name != "value") null else object : AnnotationVisitor(Opcodes.ASM9) {
+          override fun visitAnnotation(name: String?, descriptor: String?): AnnotationVisitor? = if (descriptor == TAG_DESCRIPTOR) tag() else null
+        }
+      }
+      else -> null
+    }
+  }
 
   override fun visitFrame(
     type: Int,
@@ -8490,7 +9149,7 @@ private fun compiledDeleteProbePolicy(
   val supportClasses = classes.filter { it.internalName in supportNames }
   val deleteSqlInsideSupport = supportClasses.sumOf(::deleteSqlSurfaceCount)
   val scopedClasses = classes.filter { facts ->
-    facts.tags.contains(DemoSeedLocalSourceGuardTest.DB_INTEGRATION_TAG) ||
+    facts.tags.contains(DemoSeedLocalSourceGuardTest.DB_INTEGRATION_TAG) || isClosedDbSafetyOwner(facts.internalName) ||
       facts.internalName in supportNames ||
       facts.internalName in allowedProbes
   }
@@ -9118,6 +9777,7 @@ private data class SyntheticPreloadCatalogue(
 }
 
 private data class JdbcOptions(
+  val m12Versions: List<String> = (1..11).map(Int::toString),
   val metadataUrl: String = DemoSeedLocalSourceGuardTest.EXPECTED_JDBC_URL,
   val metadataUsername: String = DemoSeedLocalSourceGuardTest.EXPECTED_ROLE,
   val metadataDriverVersion: String? = "42.7.10",
@@ -9299,6 +9959,15 @@ private fun jdbcFixture(options: JdbcOptions = JdbcOptions()): JdbcFixture {
           throw options.selectFailure ?: SQLException("synthetic SELECT failure")
         }
         val sql = rawSql.lowercase()
+        if (sql == "select version from flyway_schema_history where success=true and version is not null order by installed_rank") {
+          var cursor = -1
+          return@proxy proxy<ResultSet> { getter, _ -> when (getter.name) {
+            "next" -> ++cursor < options.m12Versions.size
+            "getString" -> options.m12Versions[cursor]
+            "close" -> { state.resultSetCloseCount++; null }
+            else -> defaultProxyValue(getter)
+          } }
+        }
         if (options.restrictAdministrativeSettings && Regex(
             """(?:\bpg_catalog\.)?\bcurrent_setting\s*\(\s*'(?:shared|session)_preload_libraries'""",
             RegexOption.IGNORE_CASE

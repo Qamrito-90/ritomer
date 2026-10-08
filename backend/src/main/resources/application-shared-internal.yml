@@ -1,0 +1,35 @@
+# Explicit shared profile. No discovery or Google call occurs at startup.
+spring:
+  datasource:
+    url: ${RITOMER_SHARED_DB_URL}
+    username: ${RITOMER_SHARED_DB_USER}
+    password: ${RITOMER_SHARED_DB_PASSWORD}
+    hikari:
+      data-source-properties:
+        sslmode: verify-full
+        sslrootcert: ${RITOMER_SHARED_DB_CA_PATH}
+  flyway:
+    enabled: false # Schema application is a separately authorized operation.
+server:
+  address: 0.0.0.0
+  forward-headers-strategy: none
+logging:
+  level:
+    org.springframework.security: WARN
+    org.springframework.session: WARN
+    org.springframework.web.client: WARN
+    org.springframework.jdbc: WARN
+ritomer:
+  security:
+    session:
+      enabled: true
+      absolute-timeout: 8h
+    jwt:
+      hmac-secret: ""
+    shared:
+      canonical-origin: ${RITOMER_SHARED_ORIGIN}
+      client-id: ${RITOMER_SHARED_OIDC_CLIENT_ID}
+      client-secret: ${RITOMER_SHARED_OIDC_CLIENT_SECRET}
+      proxy-mode: CLOUD_RUN
+      expected-cloud-run-service: ${RITOMER_SHARED_CLOUD_RUN_SERVICE}
+

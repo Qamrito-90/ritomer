@@ -1,5 +1,26 @@
 # Runbook local-dev
 
+## Candidat M1.2 — qualification locale M12
+
+La campagne `M12` est portée par `backend/scripts/m1-1b-postgresql-rail.ps1`,
+sur `codex/m1-2-local-oidc-session`, base
+`21564039f27be647e59023007682882701a40bf5`. Elle conserve les sélections
+historiques B/D : targeted 2 classes/13 cas, FULL 12 classes/55 cas ; une tâche
+distincte `m1_2PostgresRailQualification` couvre les cinq cas de 047, dont une
+continuité A1/B/A2. Les 13 classes globales et les descendants des helpers
+restent soumis aux gardes compilées. Le 07.10.2026, la campagne locale complète
+a réussi les 13 ciblés, les 55 historiques et les 5 M12, sans échec, erreur ou
+skip, avec cessation et nettoyage attestés. Les 13 ciblés sont inclus dans les 55.
+Les checks hors DB restent une preuve distincte ; Google réel, HTTPS réseau et
+Cloud ne sont pas qualifiés par cette campagne à IdP synthétique.
+
+Les commandes sensibles, RunId, empreintes, résultats et reviews sont conservés
+dans la remise privée. Les records de campagne sont clos ; ce texte n'autorise
+aucune nouvelle exécution SQL ni lecture du secret réel par un agent.
+Le [runbook M1.2](m1-2-shared-nonproduction.md#résolution-autonome-locale-du-7-octobre-2026)
+décrit le résultat daté et ses limites. Les records B/D consommés restent
+historiques ; cette campagne ne les réactive pas.
+
 Le raccordement Playwright M1.1D du 21 septembre 2026 et ses correctifs sont
 décrits en fin de runbook. Leurs preuves hors DB restent distinctes du résultat
 intégré ultérieur de candidate-05, résumé ci-dessous.

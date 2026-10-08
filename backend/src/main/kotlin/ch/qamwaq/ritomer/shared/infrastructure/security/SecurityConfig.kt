@@ -55,6 +55,8 @@ class SecurityConfig {
     sessionCredentialConflictFilterProvider: ObjectProvider<SessionCredentialConflictFilter>,
     sessionExpiryFilterProvider: ObjectProvider<SessionExpiryFilter>,
     localAuthBoundaryFilterProvider: ObjectProvider<LocalAuthBoundaryFilter>,
+    sharedBoundaryProvider: ObjectProvider<SharedSessionBoundaryFilter>,
+    googleOidcSecurityProvider: ObjectProvider<GoogleOidcSecurity>,
     sessionAuthorityFreshnessFilterProvider: ObjectProvider<SessionAuthorityFreshnessFilter>,
     sessionSecurityContextRepositoryProvider: ObjectProvider<HttpSessionSecurityContextRepository>,
     sessionCsrfTokenRepositoryProvider: ObjectProvider<HttpSessionCsrfTokenRepository>,
@@ -65,17 +67,23 @@ class SecurityConfig {
     sessionLogoutSuccessHandler: LogoutSuccessHandler,
     sessionCookieClearingLogoutHandler: LogoutHandler
   ): SecurityFilterChain {
+    val shared = environment.activeProfiles.contains("shared-internal")
+    check(!shared || sessionProperties.enabled) { "Shared authentication requires the session kernel." }
     http
       .authorizeHttpRequests {
+        if (shared) {
+          it.requestMatchers(HttpMethod.GET, "/", "/assets/**", "/closing-folders/*", OIDC_START_PATH, OIDC_CALLBACK_PATH).permitAll()
+        }
         it.requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
         it.requestMatchers(HttpMethod.GET, SESSION_BOOTSTRAP_PATH).permitAll()
-        it.requestMatchers(HttpMethod.POST, SESSION_LOCAL_LOGIN_PATH).permitAll()
+        if (!shared) it.requestMatchers(HttpMethod.POST, SESSION_LOCAL_LOGIN_PATH).permitAll()
         it.requestMatchers(HttpMethod.POST, SESSION_LOGOUT_PATH).authenticated()
         it.requestMatchers(HttpMethod.GET, "/api/me").authenticated()
         it.anyRequest().authenticated()
       }
 
     val jwtDecoder = jwtDecoderProvider.getIfAvailable()
+    check(!shared || jwtDecoder == null) { "Legacy bearer authentication is forbidden in the shared profile." }
     if (jwtDecoder != null) {
       http.oauth2ResourceServer {
         if (sessionProperties.enabled) {
@@ -95,7 +103,6 @@ class SecurityConfig {
       val csrfTokenRequestHandler = sessionCsrfTokenRequestHandlerProvider.getObject()
       val conflictFilter = sessionCredentialConflictFilterProvider.getObject()
       val expiryFilter = sessionExpiryFilterProvider.getObject()
-      val localBoundaryFilter = localAuthBoundaryFilterProvider.getObject()
       val authorityFreshnessFilter = sessionAuthorityFreshnessFilterProvider.getObject()
 
       http
@@ -123,9 +130,15 @@ class SecurityConfig {
         }
         .addFilterAfter(conflictFilter, SecurityContextHolderFilter::class.java)
         .addFilterAfter(expiryFilter, SessionCredentialConflictFilter::class.java)
-        .addFilterAfter(localBoundaryFilter, SessionExpiryFilter::class.java)
-        .addFilterAfter(tenantMdcFilter, LocalAuthBoundaryFilter::class.java)
-        .addFilterAfter(authorityFreshnessFilter, TenantMdcFilter::class.java)
+      if (shared) {
+        http.addFilterAfter(sharedBoundaryProvider.getObject(), SessionExpiryFilter::class.java)
+          .addFilterAfter(tenantMdcFilter, SharedSessionBoundaryFilter::class.java)
+        googleOidcSecurityProvider.getObject().configure(http)
+      } else {
+        http.addFilterAfter(localAuthBoundaryFilterProvider.getObject(), SessionExpiryFilter::class.java)
+          .addFilterAfter(tenantMdcFilter, LocalAuthBoundaryFilter::class.java)
+      }
+      http.addFilterAfter(authorityFreshnessFilter, TenantMdcFilter::class.java)
     } else {
       check(jwtDecoder != null) {
         "A non-blank legacy JWT HMAC secret is required while the session kernel is disabled."
@@ -158,7 +171,7 @@ class SecurityConfig {
   ): JwtDecoder =
     createLocalTestDbtestJwtDecoder(hmacSecret, Clock.systemUTC())
 
-  @Profile("!local & !test & !dbtest")
+  @Profile("!local & !test & !dbtest & !shared-internal")
   @Bean
   @ConditionalOnNonBlankLegacyJwtSecret
   fun jwtDecoder(

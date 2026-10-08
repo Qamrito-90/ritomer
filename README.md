@@ -20,6 +20,7 @@ Le parcours cible est : utilisateur authentifié → tenant et rôle → dossier
 | `DELIVERED_AND_PROVED` | Noyau déterministe du closing, tenancy et RBAC applicatifs, import, mapping manuel, contrôles, previews, workpapers, documents, export, annexe minimale, audit append-only et mapping assisté no-provider. |
 | `LOCAL_OR_SYNTHETIC_ONLY` | Fondation de session M1.1 locale livrée : A/B/C et raccordement D ([PR #127](https://github.com/Qamrito-90/ritomer/pull/127), squash `3d1fad45cf930f446aba50d2e328958cfb1d812a`). Intégration PostgreSQL/navigateur sur données synthétiques prouvée le 03.10.2026 sur candidate-05 ; simulation offline `mapping-suggestion-v2`. Aucune session partagée. |
 | `DOCUMENTED_NOT_IMPLEMENTED` | Auth/session SaaS durables, cible Cloud Run/Cloud SQL, provider IA réel, gateway provider générale, tracing IA et MCP. |
+| `LOCAL_CANDIDATE_NOT_DELIVERED` | [047 Active](specs/active/047-shared-oidc-session-v1.md) : profil partagé OIDC/JDBC/same-origin. Qualification PostgreSQL locale réussie le 07.10.2026 : V11, cinq cas M12 et reprise A1/B/A2 avec IdP synthétique, cessation et nettoyage vérifiés. Google réel, HTTPS réseau et déploiement restent à prouver. |
 | `NOT_STARTED` | Runtime agentique goal/run/tools, site public, bêta externe et production opérable. |
 
 `DELIVERED_AND_PROVED` décrit des preuves du repo ; il ne signifie ni SaaS partagé, ni production, ni validation professionnelle. Ritomer est actuellement AI-ready, sans provider réel ni runtime agentique.
@@ -120,7 +121,23 @@ Le code et les tests offline ne valent ni Preflight, ni preuve PostgreSQL, ni QA
 
 ## État présent M1.1
 
-Les quatre slices A/B/C/D accomplissent l'outcome M1.1 local/synthétique ; D est livré par la [PR #127](https://github.com/Qamrito-90/ritomer/pull/127), squash `3d1fad45cf930f446aba50d2e328958cfb1d812a` du 04.10.2026. 046 est classée Done et aucune spec n'est active dans ce candidat. Le classement Done de 046 décrit ce candidat documentaire local ; sa publication reste à autoriser séparément. M1 complet, M1.2, l'OIDC partagé, les sessions distribuées, l'IA/MCP, l'usage externe et la production restent non livrés. Les records C1-04/C2-04 et ceux de delivery/merge de #127 restent consommés ; aucune autorisation nouvelle n'en découle.
+Les quatre slices A/B/C/D accomplissent l'outcome M1.1 local/synthétique ; D est livré par la [PR #127](https://github.com/Qamrito-90/ritomer/pull/127), squash `3d1fad45cf930f446aba50d2e328958cfb1d812a` du 04.10.2026. 046 est classée Done ; 047 est Active pour le candidat local M1.2. M1 complet, M1.2, l'OIDC partagé, les sessions distribuées, l'IA/MCP, l'usage externe et la production restent non livrés. Les records C1-04/C2-04 et ceux de delivery/merge de #127 restent consommés ; aucune autorisation nouvelle n'en découle.
+
+## Candidat local M1.2 — OIDC/JDBC/same-origin
+
+`shared-internal` est exclusif, exige une origine HTTPS canonique, un client OIDC configuré, la session et un frontend embarqué. Admission par binding issuer/subject vers une identité existante, jamais par email ; aucune auto-inscription. Le profil local reste séparé. Le bootstrap partagé ne permet aucun login local ou fallback legacy ; le bouton Google est une navigation native. Aucun token Google n'est sauvegardé dans la session.
+
+Packaging explicite, après `pnpm build` depuis `frontend` :
+
+```powershell
+# Depuis backend ; assemblage seulement, aucun déploiement ni accès DB.
+.\gradlew.bat bootJar -PbundleFrontend=true --no-daemon
+.\gradlew.bat bootJar --no-daemon
+```
+
+Le second build standard doit être sans assets résiduels et reste indépendant de Node. Les attentes historiques sont alignées sur V1–V11. La campagne locale M12 du 07.10.2026 a réussi : 13 ciblés inclus dans les 55 historiques, puis 5 cas M12, sans échec, erreur ou skip ; cessation et nettoyage attestés. Ses records sont clos. Ce résultat n'autorise aucune nouvelle exécution DB, Google réel ou delivery ; voir le runbook pour l'objet exact et les limites.
+
+La cible future réutilise **une seule instance SQL existante**, avec base logique dédiée et réseau privé à préparer. Estimation conditionnelle recalculée **64,67 CHF / 30 jours**, dans l'enveloppe inchangée de 100 CHF ; ni facture observée ni plafond garanti. Fin d'essai incluant l'instance réaffectée, sans suppression programmée. Voir [ADR 0008](docs/adr/0008-shared-google-oidc-jdbc-session.md), [contrat DB](contracts/db/shared-oidc-session-v1.md) et [runbook M1.2](runbooks/m1-2-shared-nonproduction.md).
 
 ## État de séquencement et historique
 

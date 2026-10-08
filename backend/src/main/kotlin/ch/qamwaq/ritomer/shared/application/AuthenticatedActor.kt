@@ -14,7 +14,8 @@ data class AuthenticatedActor(
   val actorId: UUID,
   val authenticationMechanism: AuthenticationMechanism,
   val authenticatedAt: Instant,
-  val opaqueAuthCorrelation: String
+  val opaqueAuthCorrelation: String,
+  val oidcBindingId: UUID? = null
 ) : Serializable {
   companion object {
     private const val serialVersionUID: Long = 1L
@@ -32,4 +33,11 @@ enum class ActorAuthorityFreshness {
 
 fun interface ActorAuthorityFreshnessVerifier {
   fun verifyFreshAuthority(actorId: UUID): ActorAuthorityFreshness
+
+  fun verifyFreshAuthority(actor: AuthenticatedActor): ActorAuthorityFreshness =
+    if (actor.authenticationMechanism == AuthenticationMechanism.OIDC) {
+      ActorAuthorityFreshness.REVOKED
+    } else {
+      verifyFreshAuthority(actor.actorId)
+    }
 }

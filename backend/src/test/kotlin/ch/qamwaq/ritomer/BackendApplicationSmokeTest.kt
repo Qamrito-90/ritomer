@@ -326,7 +326,7 @@ class BackendApplicationSmokeTest {
   }
 
   @Test
-  fun `authenticated actor has exactly four fields and stable serialization`() {
+  fun `authenticated actor has exactly five minimal fields and stable serialization`() {
     val user = identityTestStore.seedUser("serial-user")
     val actor = withAuthentication(JwtAuthenticationToken(syntheticJwt("serial-user"), emptyList())) {
       currentAuthenticatedActorProvider.current()
@@ -340,7 +340,8 @@ class BackendApplicationSmokeTest {
       "actorId",
       "authenticationMechanism",
       "authenticatedAt",
-      "opaqueAuthCorrelation"
+      "opaqueAuthCorrelation",
+      "oidcBindingId"
     )
 
     val serialized = serialize(actor)
@@ -351,6 +352,7 @@ class BackendApplicationSmokeTest {
     assertThat(restored).isEqualTo(actor)
     assertThat(serialize(restored)).isEqualTo(serialized)
     assertThat(restored.actorId).isEqualTo(user.id)
+    assertThat(restored.oidcBindingId).isNull()
     assertThat(identityTestStore.repositoryCounters().totalWrites).isZero()
   }
 

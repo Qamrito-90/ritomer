@@ -43,6 +43,7 @@ import org.springframework.security.web.authentication.logout.LogoutSuccessHandl
 import org.springframework.security.web.authentication.session.ChangeSessionIdAuthenticationStrategy
 import org.springframework.security.web.authentication.session.CompositeSessionAuthenticationStrategy
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy
+import org.springframework.security.web.authentication.session.SessionFixationProtectionStrategy
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository
 import org.springframework.security.web.csrf.CsrfAuthenticationStrategy
 import org.springframework.security.web.csrf.CsrfException
@@ -131,8 +132,9 @@ class SessionSecurityKernelConfiguration {
 
   @Bean
   @ConditionalOnProperty(name = ["ritomer.security.session.enabled"], havingValue = "true")
-  fun sessionSecurityContextRepository(): HttpSessionSecurityContextRepository =
-    HttpSessionSecurityContextRepository().apply {
+  fun sessionSecurityContextRepository(environment: ConfigurableEnvironment): HttpSessionSecurityContextRepository =
+    (if (environment.activeProfiles.contains("shared-internal")) MinimalSessionSecurityContextRepository()
+    else HttpSessionSecurityContextRepository()).apply {
       setDisableUrlRewriting(true)
     }
 
@@ -152,11 +154,14 @@ class SessionSecurityKernelConfiguration {
   @ConditionalOnProperty(name = ["ritomer.security.session.enabled"], havingValue = "true")
   fun sessionAuthenticationStrategy(
     sessionCsrfTokenRepository: CsrfTokenRepository,
-    sessionCsrfTokenRequestHandler: CsrfTokenRequestHandler
+    sessionCsrfTokenRequestHandler: CsrfTokenRequestHandler,
+    environment: ConfigurableEnvironment
   ): SessionAuthenticationStrategy =
     CompositeSessionAuthenticationStrategy(
       listOf(
-        ChangeSessionIdAuthenticationStrategy(),
+        if (environment.activeProfiles.contains("shared-internal"))
+          SessionFixationProtectionStrategy().apply { setMigrateSessionAttributes(false) }
+        else ChangeSessionIdAuthenticationStrategy(),
         CsrfAuthenticationStrategy(sessionCsrfTokenRepository).apply {
           setRequestHandler(sessionCsrfTokenRequestHandler)
         }
@@ -510,7 +515,7 @@ class SessionAuthorityFreshnessFilter(
     if (
       actor != null &&
       authentication.isAuthenticated &&
-      authorityFreshnessVerifier.verifyFreshAuthority(actor.actorId) == ActorAuthorityFreshness.REVOKED
+      authorityFreshnessVerifier.verifyFreshAuthority(actor) == ActorAuthorityFreshness.REVOKED
     ) {
       terminationSupport.terminate(request, response)
       writeSecurityError(response, HttpServletResponse.SC_FORBIDDEN, "ACCESS_REVOKED")

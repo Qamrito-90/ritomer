@@ -10,10 +10,15 @@ import { loadMeShellState, type MeShellState } from "./me";
 
 const csrfSchema = z.object({ headerName: z.literal("X-CSRF-TOKEN"), token: z.string().min(1).max(4096) }).strict();
 const actorSchema = z.object({ actorKey: z.string().min(1).max(128), displayLabel: z.string().min(1).max(200) }).strict();
-const bootstrapSchema = z.discriminatedUnion("sessionState", [
+const localBootstrapSchema = z.discriminatedUnion("sessionState", [
   z.object({ sessionState: z.literal("ANONYMOUS"), localLoginAvailable: z.literal(true), csrf: csrfSchema, actors: z.array(actorSchema).max(50) }).strict(),
   z.object({ sessionState: z.literal("AUTHENTICATED"), localLoginAvailable: z.literal(true), csrf: csrfSchema }).strict()
 ]);
+const sharedBootstrapSchema = z.discriminatedUnion("sessionState", [
+  z.object({ sessionState: z.literal("ANONYMOUS"), localLoginAvailable: z.literal(false), oidcLoginAvailable: z.literal(true), csrf: csrfSchema }).strict(),
+  z.object({ sessionState: z.literal("AUTHENTICATED"), localLoginAvailable: z.literal(false), oidcLoginAvailable: z.literal(true), csrf: csrfSchema }).strict()
+]);
+const bootstrapSchema = z.union([localBootstrapSchema, sharedBootstrapSchema]);
 
 export type SessionErrorKind = "network_error" | "timeout" | "server_error" | "invalid_response" | "capability_unavailable" | "authentication_failed" | "access_denied" | "access_revoked" | "csrf_rejected" | "not_found";
 export type SessionMode = "INITIALIZING" | "ANONYMOUS" | "AUTHENTICATING" | "SESSION_READY" | "LEGACY_PROXY_TRANSITION" | "EXPIRED" | "FORBIDDEN" | "CONTEXT_REQUIRED" | "ERROR" | "LOGGING_OUT" | "LOGOUT_UNCONFIRMED";
@@ -23,6 +28,7 @@ export interface SessionSnapshot {
   meState: MeShellState | null;
   actors: readonly z.infer<typeof actorSchema>[];
   localLoginAvailable: boolean;
+  oidcLoginAvailable: boolean;
   error: SessionErrorKind | null;
 }
 
@@ -35,7 +41,9 @@ export function safeReturnPath(path: string): string {
 }
 
 export function createSessionCoordinator(fetcher: Fetcher = fetch) {
-  let snapshot: SessionSnapshot = { mode: "INITIALIZING", generation: 0, meState: null, actors: [], localLoginAvailable: false, error: null };
+  let snapshot: SessionSnapshot = { mode: "INITIALIZING", generation: 0, meState: null, actors: [], localLoginAvailable: false, oidcLoginAvailable: false, error: null };
+  // Bundled production assets are shared-only. A shared response permanently locks this coordinator.
+  let sharedOnly = !import.meta.env.DEV;
   let csrf: string | null = null;
   let capability: "unknown" | "session" | "legacy" = "unknown";
   let pending: Promise<void> | null = null;
@@ -65,7 +73,7 @@ export function createSessionCoordinator(fetcher: Fetcher = fetch) {
   function clear(mode: SessionMode, error: SessionErrorKind | null = null, cancelNegotiation = true) {
     csrf = null;
     advance(cancelNegotiation);
-    publish({ mode, meState: null, actors: [], localLoginAvailable: false, error });
+    publish({ mode, meState: null, actors: [], localLoginAvailable: false, oidcLoginAvailable: false, error });
   }
 
   function current(generation: number) { return !disposed && snapshot.generation === generation; }
@@ -159,6 +167,8 @@ export function createSessionCoordinator(fetcher: Fetcher = fetch) {
     }
     const parsed = bootstrapSchema.safeParse(payload);
     if (!parsed.success) throw new SessionFailure("invalid_response");
+    if (sharedOnly && parsed.data.localLoginAvailable) throw new SessionFailure("invalid_response");
+    if (!parsed.data.localLoginAvailable) sharedOnly = true;
     return { response, data: parsed.data };
   }
 
@@ -172,7 +182,7 @@ export function createSessionCoordinator(fetcher: Fetcher = fetch) {
         if (current(generation)) publish({ mode: "LEGACY_PROXY_TRANSITION", meState, error: null });
         return;
       }
-      const mayEnterLegacy = !bootstrapAttempted && capability === "unknown";
+      const mayEnterLegacy = !sharedOnly && !bootstrapAttempted && capability === "unknown";
       const result = await bootstrap();
       if (!current(generation)) return;
       if (result.response.status === 404 && mayEnterLegacy) {
@@ -198,7 +208,7 @@ export function createSessionCoordinator(fetcher: Fetcher = fetch) {
           return;
         }
         csrf = result.data.csrf.token;
-        publish({ mode: "ANONYMOUS", meState: null, actors: result.data.actors, localLoginAvailable: result.data.localLoginAvailable, error: null });
+        publish({ mode: "ANONYMOUS", meState: null, actors: "actors" in result.data ? result.data.actors : [], localLoginAvailable: result.data.localLoginAvailable, oidcLoginAvailable: !result.data.localLoginAvailable, error: null });
         return;
       }
       if (expectAnonymous) throw new SessionFailure("invalid_response");
@@ -216,11 +226,11 @@ export function createSessionCoordinator(fetcher: Fetcher = fetch) {
         } else clear("ERROR", meState.reason ?? "invalid_response");
         return;
       }
-      const sameContext = snapshot.mode === "SESSION_READY" && csrf === result.data.csrf.token && JSON.stringify(snapshot.meState) === JSON.stringify(meState);
+      const sameContext = snapshot.mode === "SESSION_READY" && snapshot.localLoginAvailable === result.data.localLoginAvailable && csrf === result.data.csrf.token && JSON.stringify(snapshot.meState) === JSON.stringify(meState);
       if (sameContext) return;
       if (snapshot.meState !== null) advance();
       csrf = result.data.csrf.token;
-      publish({ mode: meState.kind === "ready" ? "SESSION_READY" : "CONTEXT_REQUIRED", meState, actors: [], localLoginAvailable: true, error: null });
+      publish({ mode: meState.kind === "ready" ? "SESSION_READY" : "CONTEXT_REQUIRED", meState, actors: [], localLoginAvailable: result.data.localLoginAvailable, oidcLoginAvailable: !result.data.localLoginAvailable, error: null });
     } catch (error) {
       if (!current(generation)) return;
       const kind = errorKind(error);
@@ -248,7 +258,7 @@ export function createSessionCoordinator(fetcher: Fetcher = fetch) {
 
   function login(actorKey: string): Promise<void> {
     if (pending) return pending;
-    if (disposed || snapshot.mode !== "ANONYMOUS" || !csrf || !snapshot.actors.some((actor) => actor.actorKey === actorKey)) return Promise.resolve();
+    if (disposed || snapshot.mode !== "ANONYMOUS" || !snapshot.localLoginAvailable || snapshot.oidcLoginAvailable || !csrf || !snapshot.actors.some((actor) => actor.actorKey === actorKey)) return Promise.resolve();
     const token = csrf;
     const generation = snapshot.generation;
     publish({ mode: "AUTHENTICATING", error: null });
@@ -299,7 +309,7 @@ export function createSessionCoordinator(fetcher: Fetcher = fetch) {
           if (recoveringUnconfirmed && result.data.sessionState === "ANONYMOUS") {
             // This confirms current anonymity, not receipt of the lost logout response.
             csrf = result.data.csrf.token;
-            publish({ mode: "ANONYMOUS", meState: null, actors: result.data.actors, localLoginAvailable: result.data.localLoginAvailable, error: null });
+            publish({ mode: "ANONYMOUS", meState: null, actors: "actors" in result.data ? result.data.actors : [], localLoginAvailable: result.data.localLoginAvailable, oidcLoginAvailable: !result.data.localLoginAvailable, error: null });
             return;
           }
           logoutToken = result.data.csrf.token;

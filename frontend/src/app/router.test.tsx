@@ -1681,7 +1681,60 @@ describe("router authenticated session", () => {
     activeRouters.splice(0).forEach((router) => router.dispose());
     vi.useRealTimers();
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
+  });
+
+  const sharedBootstrap = (authenticated = false) => jsonResponse(200, {
+    sessionState: authenticated ? "AUTHENTICATED" : "ANONYMOUS", localLoginAvailable: false,
+    oidcLoginAvailable: true, csrf: { headerName: "X-CSRF-TOKEN", token: SESSION_TOKEN }
+  });
+
+  it.each(["/", CLOSING_ROUTE, `${CLOSING_ROUTE}?next=https://example.test`, `${CLOSING_ROUTE}#secret`])(
+    "offers a native Google link with a bounded return path at %s", async (path) => {
+      const fetchMock = sessionRouteFetch({ "GET /api/session/bootstrap": [() => sharedBootstrap()] });
+      const { container } = renderSessionRoute(path);
+      const link = await screen.findByRole("link", { name: "Se connecter avec Google" });
+      const allowed = path === CLOSING_ROUTE ? CLOSING_ROUTE : "/";
+      expect(link).toHaveAttribute("href", `/oauth2/authorization/google?returnPath=${encodeURIComponent(allowed)}`);
+      expect(link.tagName).toBe("A");
+      expect(screen.queryByLabelText("Choix de connexion locale")).not.toBeInTheDocument();
+      expect(screen.queryByLabelText("tenant actif")).not.toBeInTheDocument();
+      expect(fetchMock.mock.calls.map(([request]) => request)).toEqual(["/api/session/bootstrap"]);
+      expect(container.outerHTML).not.toContain(SESSION_TOKEN);
+      expect((await axe(container)).violations).toEqual([]);
+    }
+  );
+
+  it("shows a fixed OIDC failure without reflecting provider parameters", async () => {
+    sessionRouteFetch({ "GET /api/session/bootstrap": [() => sharedBootstrap()] });
+    const { container } = renderSessionRoute("/?login=failed&error_description=private-provider-detail");
+    expect(await screen.findByText("La connexion a été refusée. Réessayez.")).toBeInTheDocument();
+    expect(container.outerHTML).not.toContain("private-provider-detail");
+    expect(screen.getByRole("link", { name: "Se connecter avec Google" })).toHaveAttribute("href", "/oauth2/authorization/google?returnPath=%2F");
+  });
+
+  it("blocks production legacy fallback before any protected load", async () => {
+    vi.stubEnv("DEV", false);
+    const fetchMock = sessionRouteFetch({ "GET /api/session/bootstrap": [() => jsonResponse(404, {})] });
+    renderSessionRoute();
+    expect(await screen.findByText("La connexion n’est pas disponible dans cette configuration.")).toBeInTheDocument();
+    expect(fetchMock.mock.calls.map(([path]) => path)).toEqual(["/api/session/bootstrap"]);
+    expect(screen.queryByRole("link", { name: "Se connecter avec Google" })).not.toBeInTheDocument();
+  });
+
+  it("clears a shared protected context after logout and offers Google again", async () => {
+    const fetchMock = sessionRouteFetch({
+      "GET /api/session/bootstrap": [() => sharedBootstrap(true), () => sharedBootstrap()],
+      "POST /api/session/logout": [() => new Response(null, { status: 204 })]
+    });
+    renderSessionRoute();
+    expect(await screen.findByText("Portefeuille de closing")).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Déconnexion" }));
+    expect(await screen.findByRole("link", { name: "Se connecter avec Google" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("tenant actif")).not.toBeInTheDocument();
+    expect(screen.queryByText("Portefeuille de closing")).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([path]) => path === "/api/session/local")).toBe(false);
   });
 
   it("installs the real coordinator before children and coalesces StrictMode bootstrap", async () => {

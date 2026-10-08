@@ -60,7 +60,7 @@ class ExportsDbIntegrationTest {
       String::class.java
     )
 
-    assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10")
+    assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11")
     assertThat(tableExists("export_pack")).isTrue()
     assertThat(columnExists("export_pack", "tenant_id")).isTrue()
     assertThat(columnExists("export_pack", "source_fingerprint")).isTrue()
@@ -202,7 +202,7 @@ class ExportsDbIntegrationTest {
       String::class.java
     )
 
-    assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10")
+    assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11")
   }
 
   private fun tableExists(tableName: String): Boolean =
