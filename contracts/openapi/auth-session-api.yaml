@@ -1,12 +1,13 @@
 openapi: 3.1.1
 info:
   title: Ritomer Authenticated Session API
-  version: 1.0.0
+  version: 1.1.0
   description: |
-    Contrat du kernel de session authentifiée M1.1B.
+    Contrat du kernel M1.1B et du profil partagé explicite M1.2.
 
     La capacité de session est désactivée par défaut et confinée aux topologies
-    process-local autorisées. Les réponses de cette surface ne doivent pas être
+    process-local autorisées, sauf le profil exclusif shared-internal qui utilise
+    Google OIDC et Spring Session JDBC. Les réponses ne doivent pas être
     mises en cache. Les clés d'acteur exposées par l'adaptateur local sont des
     alias de transport non normatifs ; ce contrat n'en fixe ni les valeurs ni
     les libellés.
@@ -17,7 +18,7 @@ servers:
   - url: /
 tags:
   - name: Authenticated session
-    description: Bootstrap, ouverture et fermeture de la session process-local.
+    description: Bootstrap, ouverture et fermeture de la session locale ou partagée.
   - name: Current actor
     description: Contexte d'autorité relu depuis la base pour la requête courante.
 paths:
@@ -30,7 +31,9 @@ paths:
       description: |
         Cette opération est accessible sans authentification. Elle établit une
         session anonyme lorsque nécessaire et retourne le jeton CSRF courant.
-        La liste d'acteurs locaux n'est retournée que pour une session anonyme.
+        La liste d'acteurs locaux n'est retournée que pour une session locale anonyme.
+        En partagé, localLoginAvailable=false et oidcLoginAvailable=true ; aucun
+        catalogue d'acteurs, token fournisseur ou URL fournie par le serveur.
         Une session déjà authentifiée reste stable : cette lecture ne doit pas
         provoquer une nouvelle rotation du SID.
       security: []
@@ -94,6 +97,7 @@ paths:
 
         La présence conjointe du cookie de session anonyme et du jeton CSRF est
         obligatoire. Un bearer est toujours refusé sur cette opération.
+        La route est indisponible dans shared-internal (404).
       security:
         - cookieSession: []
           csrfToken: []
@@ -217,6 +221,9 @@ paths:
         historique sont deux alternatives ; ils ne doivent jamais être envoyés
         ensemble. Le header X-Tenant-Id ne sélectionne qu'une appartenance
         autorisée et ne remplace jamais la vérification d'autorité.
+        En shared-internal seul le cookie est admis ; le bearer historique est
+        désactivé. externalSubject reste un identifiant applicatif interne,
+        jamais le subject Google brut.
       security:
         - cookieSession: []
         - bearerAuth: []
@@ -273,7 +280,88 @@ paths:
               schema:
                 $ref: '#/components/schemas/SessionError'
 
+  /oauth2/authorization/google:
+    get:
+      tags: [Authenticated session]
+      operationId: startGoogleOidcSession
+      summary: Ouvre une transaction OIDC liée à la session anonyme
+      description: |
+        Profil shared-internal uniquement. Un bootstrap préalable est requis.
+        Navigation native GET, origine HTTPS canonique, state, nonce et PKCE S256.
+        Une transaction par session, valable au plus cinq minutes et conservée
+        hors des attributs de session. Le bearer et tout header de tenant sont refusés.
+      security:
+        - cookieSession: []
+      parameters:
+        - name: returnPath
+          in: query
+          required: false
+          description: Seuls / et /closing-folders/{uuid canonique} sont retenus ; tout autre retour devient /.
+          schema: {type: string, maxLength: 100}
+      responses:
+        '302':
+          description: Redirection Google, ou /?login=failed en cas de refus générique.
+          headers:
+            Location: {schema: {type: string}}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+        '400': {$ref: '#/components/responses/OidcBoundaryError'}
+        '401': {$ref: '#/components/responses/OidcBoundaryError'}
+        '403': {$ref: '#/components/responses/OidcBoundaryError'}
+        '405': {$ref: '#/components/responses/OidcBoundaryError'}
+        '409': {$ref: '#/components/responses/OidcBoundaryError'}
+
+  /login/oauth2/code/google:
+    get:
+      tags: [Authenticated session]
+      operationId: completeGoogleOidcSession
+      summary: Consomme une seule fois le callback OIDC puis installe l'acteur minimal
+      description: |
+        Le callback GET peut légitimement ne pas porter Origin. L'origine HTTPS
+        canonique de redirection, state/session, nonce, PKCE, signature RS256,
+        issuer, audience et expiration restent vérifiés. La consommation est
+        atomique et engagée avant l'échange code/token ; un échec ne la réactive pas.
+        L'admission exige un binding issuer/subject actif, un utilisateur actif et
+        une appartenance active. Aucun provisioning automatique. L'ancienne session
+        est invalidée et une nouvelle créée avant la sauvegarde du seul acteur.
+        Aucun token ou profil Google n'est persisté. Aucun détail fournisseur n'est
+        reflété dans l'erreur. Bearer et header de tenant interdits.
+      security:
+        - cookieSession: []
+      parameters:
+        - name: state
+          in: query
+          required: true
+          schema: {type: string, minLength: 1, maxLength: 256}
+        - name: code
+          in: query
+          required: false
+          schema: {type: string}
+        - name: error
+          in: query
+          required: false
+          schema: {type: string}
+      responses:
+        '302':
+          description: Retour interne borné après succès, sinon /?login=failed ; aucun corps métier.
+          headers:
+            Location: {schema: {type: string}}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+            Set-Cookie: {$ref: '#/components/headers/SessionCookie'}
+        '400': {$ref: '#/components/responses/OidcBoundaryError'}
+        '401': {$ref: '#/components/responses/OidcBoundaryError'}
+        '403': {$ref: '#/components/responses/OidcBoundaryError'}
+        '405': {$ref: '#/components/responses/OidcBoundaryError'}
+        '409': {$ref: '#/components/responses/OidcBoundaryError'}
+
 components:
+  responses:
+    OidcBoundaryError:
+      description: Requête ou origine refusée, session expirée/révoquée, méthode interdite ou session déjà authentifiée.
+      headers:
+        Cache-Control: {$ref: '#/components/headers/NoStore'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/SessionError'}
   securitySchemes:
     cookieSession:
       type: apiKey
@@ -295,7 +383,8 @@ components:
       description: |
         Compatibilité backend historique uniquement. Cette alternative est
         conditionnelle à la configuration JWT existante et n'est pas un contrat
-        d'authentification navigateur. Elle est interdite sur /api/session/*.
+        d'authentification navigateur. Elle est interdite sur /api/session/*,
+        les deux routes OIDC et sur toute API dans shared-internal.
 
   parameters:
     OptionalTenantId:
@@ -335,11 +424,29 @@ components:
       oneOf:
         - $ref: '#/components/schemas/AnonymousSessionBootstrapResponse'
         - $ref: '#/components/schemas/AuthenticatedSessionBootstrapResponse'
-      discriminator:
-        propertyName: sessionState
-        mapping:
-          ANONYMOUS: '#/components/schemas/AnonymousSessionBootstrapResponse'
-          AUTHENTICATED: '#/components/schemas/AuthenticatedSessionBootstrapResponse'
+        - $ref: '#/components/schemas/SharedAnonymousSessionBootstrapResponse'
+        - $ref: '#/components/schemas/SharedAuthenticatedSessionBootstrapResponse'
+      description: Variantes strictes discriminées par sessionState et localLoginAvailable ensemble.
+
+    SharedAnonymousSessionBootstrapResponse:
+      type: object
+      additionalProperties: false
+      required: [sessionState, localLoginAvailable, oidcLoginAvailable, csrf]
+      properties:
+        sessionState: {type: string, const: ANONYMOUS}
+        localLoginAvailable: {type: boolean, const: false}
+        oidcLoginAvailable: {type: boolean, const: true}
+        csrf: {$ref: '#/components/schemas/SessionCsrf'}
+
+    SharedAuthenticatedSessionBootstrapResponse:
+      type: object
+      additionalProperties: false
+      required: [sessionState, localLoginAvailable, oidcLoginAvailable, csrf]
+      properties:
+        sessionState: {type: string, const: AUTHENTICATED}
+        localLoginAvailable: {type: boolean, const: false}
+        oidcLoginAvailable: {type: boolean, const: true}
+        csrf: {$ref: '#/components/schemas/SessionCsrf'}
 
     AnonymousSessionBootstrapResponse:
       type: object

@@ -67,7 +67,7 @@ class WorkpapersDbIntegrationTest {
   }
 
   @Test
-  fun `flyway applies migrations from scratch through V10 and keeps workpaper schema intact`() {
+  fun `flyway applies migrations from scratch through V11 and keeps workpaper schema intact`() {
     val versions = jdbcTemplate.queryForList(
       """
       select version
@@ -79,7 +79,7 @@ class WorkpapersDbIntegrationTest {
       String::class.java
     )
 
-    assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10")
+    assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11")
     assertThat(tableExists("workpaper")).isTrue()
     assertThat(tableExists("workpaper_evidence")).isTrue()
     assertThat(tableExists("document")).isTrue()

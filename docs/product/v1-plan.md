@@ -13,9 +13,9 @@ M0_STATUS=DONE_CANONICAL_ROADMAP_REBASELINE
 CRITICAL_PATH=M0_TO_M5
 FIRST_AI_NATIVE_VERTICAL_SLICE=MAPPING_ASSISTANT_AGENT
 
-ACTIVE_SPEC=AUCUNE
-ACTIVE_SPEC_ID=AUCUN
-ACTIVE_SPEC_COUNT=0
+ACTIVE_SPEC=047_SHARED_OIDC_SESSION_V1
+ACTIVE_SPEC_ID=047
+ACTIVE_SPEC_COUNT=1
 SPEC_046=DONE
 M1_1A_SCOPE=BACKEND_AUTH_TENANT_FOUNDATION_WITH_CORRECTIVE_M8
 M1_1A_IMPLEMENTED=YES
@@ -29,7 +29,7 @@ M1_1D_VALIDATION_SCOPE=LOCAL_SYNTHETIC_CANDIDATE_05_20261003
 M1_1D_DELIVERED=YES
 ```
 
-M0 a synchronisé les documents vivants et borné le checker 042 à ses responsabilités historiques. A/B/C/D accomplissent désormais la fondation M1.1 locale/synthétique ; 046 est Done et aucune spec n'est active dans ce candidat. Le classement Done de 046 décrit ce candidat documentaire local ; sa publication reste à autoriser séparément. Ce plan ne constitue aucune autorisation.
+M0 a synchronisé les documents vivants et borné le checker 042 à ses responsabilités historiques. A/B/C/D accomplissent la fondation M1.1 locale/synthétique ; 046 est Done. La spec [047](../../specs/active/047-shared-oidc-session-v1.md) est ouverte pour le candidat local OIDC/JDBC/same-origin M1.2. Le candidat n'est ni livré ni déployé ; ce plan ne constitue aucune autorisation.
 
 Les états de review, delivery, merge, décision owner et autorisation vivent uniquement dans les Evidence Packs, la pull request et les records spécialisés.
 
@@ -49,7 +49,7 @@ M1_1D_VALIDATION_SCOPE=LOCAL_SYNTHETIC_CANDIDATE_05_20261003
 M1_1D_DELIVERED=YES
 ```
 
-L'outcome final M1.1 est livré dans sa portée locale/synthétique : authentification same-origin par session serveur et cookie opaque sécurisé. M1.1A établit la fondation backend de principal applicatif, autorité PostgreSQL et sûreté tenant. M1.1B implémente le kernel backend de session process-local, default-off, avec bootstrap/login/logout local/test, cookie opaque, CSRF, rotation, expiration et relecture d'autorité. M1 complet reste incomplet et M1.2 reste à cadrer et autoriser.
+L'outcome final M1.1 est livré dans sa portée locale/synthétique : authentification same-origin par session serveur et cookie opaque sécurisé. M1.1A établit la fondation backend de principal applicatif, autorité PostgreSQL et sûreté tenant. M1.1B implémente le kernel backend de session process-local, default-off, avec bootstrap/login/logout local/test, cookie opaque, CSRF, rotation, expiration et relecture d'autorité. M1 complet reste incomplet. M1.2 dispose d'un candidat local sous 047 ; DB réelle, Google réel, réseau, déploiement et delivery restent des frontières séparées.
 
 Le correctif M8 ferme l'exposition web Prometheus ; health et info restent exposés. Pris isolément, il ne livre aucune session, cookie, CSRF, login, logout, UI, IdP réel, IA, agent ou runtime MCP. Le checkpoint B n'ajoute aucun frontend ou coordinator navigateur, aucun OIDC réel ou environnement partagé, aucune session distribuée et aucun changement IA, agent ou MCP. M1.1C est livré ; D l'est par la [PR #127](https://github.com/Qamrito-90/ritomer/pull/127), squash `3d1fad45cf930f446aba50d2e328958cfb1d812a` du 04.10.2026. La validation intégrée PostgreSQL/navigateur reste liée à candidate-05 du 03.10.2026. Le [bilan de clôture de 046](../../specs/done/046-authenticated-session-foundation-v1.md#15-bilan-de-clôture-documentaire-locale-du-04102026) rattache critères, preuves, comptes et réserves. Cette clôture locale ne livre ni M1 complet, ni OIDC partagé, ni session distribuée, ni IA/MCP, externe ou production et ne crée aucune autorisation.
 
@@ -162,12 +162,12 @@ M7 attend une alpha M5 stable, des captures réelles, un slice IA-native fonctio
 
 - `specs/done/046-authenticated-session-foundation-v1.md` — fondation de session M1.1 locale/synthétique accomplie ; classement Done proposé par ce candidat documentaire, publication restant à autoriser séparément.
 
-### État du candidat après clôture locale de 046
+### État du candidat local M1.2 après clôture de 046
 
 ```text
-ACTIVE_SPEC=AUCUNE
-ACTIVE_SPEC_ID=AUCUN
-ACTIVE_SPEC_COUNT=0
+ACTIVE_SPEC=047_SHARED_OIDC_SESSION_V1
+ACTIVE_SPEC_ID=047
+ACTIVE_SPEC_COUNT=1
 SPEC_046=DONE
 M1_1A_SCOPE=BACKEND_AUTH_TENANT_FOUNDATION_WITH_CORRECTIVE_M8
 M1_1A_IMPLEMENTED=YES
@@ -181,7 +181,9 @@ M1_1D_VALIDATION_SCOPE=LOCAL_SYNTHETIC_CANDIDATE_05_20261003
 M1_1D_DELIVERED=YES
 ```
 
-Aucune spec active dans ce candidat. La publication de ce delta documentaire demeure distincte de la delivery déjà accomplie des slices A/B/C/D.
+047 porte le profil partagé exclusif, Google OIDC, les sessions JDBC, V11 additive et le packaging frontend opt-in. La campagne PostgreSQL locale du 07.10.2026 a réussi les cinq cas M12, dont continuité A1/B/A2 et logout avec second compte indépendant. Les attentes historiques restent alignées exactement sur V1–V11 : targeted 2/13, FULL 12/55 puis qualification séparée 1/5 passent sans échec, erreur ou skip ; les 13 ciblés sont inclus dans les 55 historiques. Cessation et nettoyage sont attestés, avec review distincte favorable et limites locales explicites. Google réel, HTTPS réseau et déploiement restent à prouver séparément ; M1.2 n'est ni clôturé ni livré. Les records de cette campagne sont clos, sans autorisation implicite suivante.
+
+Le scénario Cloud retenu réutilise une seule instance existante à Zurich, initialement 1 vCPU/3,75 GiB, PostgreSQL 17 Enterprise zonal, avec base logique dédiée et futur réseau privé. Pas de seconde SQL permanente. Le recalcul conditionnel du FEP donne 64,67 CHF / 30 jours, dans l'enveloppe inchangée de 100 CHF ; ce n'est pas une dépense observée ni un plafond garanti. La fin d'essai doit inclure l'instance réaffectée, sous autorisations séparées. Voir [le runbook M1.2](../../runbooks/m1-2-shared-nonproduction.md).
 
 ### Clôturé terminalement / résultat inconclusif
 

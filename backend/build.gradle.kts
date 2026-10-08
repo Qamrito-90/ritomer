@@ -31,6 +31,7 @@ val DB_RAIL_POSTMASTER_START_UNIX_MICROS_ENV = "RITOMER_DB_RAIL_POSTMASTER_START
 val DB_RAIL_DATABASE_OID_ENV = "RITOMER_DB_RAIL_DATABASE_OID"
 val DB_RAIL_RUNNER_ROLE_OID_ENV = "RITOMER_DB_RAIL_RUNNER_ROLE_OID"
 val DB_RAIL_RUNTIME_SHA256_ENV = "RITOMER_DB_RAIL_RUNTIME_SHA256"
+val DB_RAIL_M12_MANIFEST_SHA256_ENV = "RITOMER_DB_RAIL_M12_MANIFEST_SHA256"
 val DB_TEST_RUN_ROOT_ENV = "RITOMER_DB_TEST_RUN_ROOT"
 val DB_TEST_PHASE_ENV = "RITOMER_DB_TEST_PHASE"
 val DB_TEST_STORAGE_LOCAL_ROOT_ENV = "RITOMER_DB_TEST_STORAGE_LOCAL_ROOT"
@@ -46,7 +47,8 @@ val DB_RAIL_COMMON_ENV = setOf(
   DB_RAIL_POSTMASTER_START_UNIX_MICROS_ENV,
   DB_RAIL_DATABASE_OID_ENV,
   DB_RAIL_RUNNER_ROLE_OID_ENV,
-  DB_RAIL_RUNTIME_SHA256_ENV
+  DB_RAIL_RUNTIME_SHA256_ENV,
+  DB_RAIL_M12_MANIFEST_SHA256_ENV
 )
 val DB_RAIL_TEST_ENV = setOf(
   DB_TESTS_ENABLED_ENV,
@@ -135,7 +137,7 @@ private fun allowlistedEnvironment(names: Set<String>): Map<String, String> {
 }
 
 private fun postgresRailCampaign(): String = (exactEnvironmentValue("RITOMER_DB_RAIL_CAMPAIGN") ?: "B").also {
-  if (it !in setOf("B", "D")) throw GradleException("PostgreSQL rail campaign is invalid.")
+  if (it !in setOf("B", "D", "M12")) throw GradleException("PostgreSQL rail campaign is invalid.")
 }
 
 private fun requireCanonicalRailBuildRoot(configuredBuildRoot: File) {
@@ -339,6 +341,8 @@ dependencies {
   implementation("org.springframework.boot:spring-boot-starter-actuator")
   implementation("org.springframework.boot:spring-boot-starter-jdbc")
   implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
+  implementation("org.springframework.boot:spring-boot-starter-oauth2-client")
+  implementation("org.springframework.session:spring-session-jdbc")
   implementation("org.springframework.boot:spring-boot-starter-security")
   implementation("org.springframework.boot:spring-boot-starter-validation")
   implementation("org.springframework.boot:spring-boot-starter-web")
@@ -384,6 +388,9 @@ val m1BPostgresRailDetachedTestClassesDirs = files(providers.provider {
   testSourceSet.output.classesDirs.files.map(File::getAbsoluteFile)
 })
 val m1BPostgresRailDetachedRuntimeClasspath = files(m1BPostgresRailRuntimeClasspathFiles)
+val m12PostgresRailManifest = layout.buildDirectory.file("m12-runtime.json")
+val m12PostgresRailBinding = layout.buildDirectory.file("m12-runtime-binding.json")
+val m12PostgresRailArgfile = layout.buildDirectory.file("m12-worker.args")
 val m1DPostgresRailSupportOwners = setOf(
   "PostgresTestRailDBootstrap", "PostgresTestRailJdbcLogging",
   "DisposablePostgresTestDatabaseGuardInitializer", "DisposablePostgresTestDatabase",
@@ -422,6 +429,8 @@ val m1BPostgresRailRuntimeInputs = providers.provider {
     }
   ) + if (postgresRailCampaign() == "D") {
     m1DPostgresRailRuntimeInputs.get() + ("integrated-manifest" to m1DPostgresRailBinding.get().asFile)
+  } else if (postgresRailCampaign() == "M12") {
+    listOf("m12-launch-binding" to m12PostgresRailBinding.get().asFile)
   } else emptyList()
 }
 
@@ -430,6 +439,70 @@ providers.environmentVariable(DB_RAIL_BUILD_ROOT_ENV).orNull
   ?.let { layout.buildDirectory.set(file(it)) }
 
 mainSourceSet.resources.srcDir("../contracts/reference")
+
+// Inert M12 launch data. No JavaExec, SQL, runner credential or application initialization.
+tasks.named("testClasses") {
+  inputs.files(m1BPostgresRailDetachedRuntimeClasspath).withPropertyName("m12ClosedRuntimeInputs")
+  outputs.file(m12PostgresRailManifest)
+  outputs.file(m12PostgresRailBinding)
+  outputs.file(m12PostgresRailArgfile)
+  doLast {
+    // Operational M12 manifests are Windows-only; ordinary portable compilation stays unchanged.
+    if (!m1DPostgresRailNativeWindows) return@doLast
+    val entries = m1BPostgresRailRuntimeClasspathFiles.get()
+    val javaExecutable = m1BPostgresRailJavaLauncher.get().executablePath.asFile.absolutePath
+    val jdkRoot = m1BPostgresRailJavaLauncher.get().metadata.installationPath.asFile
+    val roots = entries.mapIndexed { index, file -> "classpath/${index.toString().padStart(5, '0')}" to file } +
+      ("worker-jdk" to jdkRoot)
+    val structure = mutableListOf<Map<String, String>>()
+    val inventory = mutableListOf<Map<String, String>>()
+    roots.forEach { (label, input) ->
+      val root = input.toPath().toAbsolutePath().normalize()
+      if (!Files.exists(root, LinkOption.NOFOLLOW_LINKS)) {
+        structure += mapOf("label" to label, "relativePath" to ".", "kind" to "M")
+      } else Files.walk(root).use { paths ->
+        paths.sorted().forEach { path ->
+          val attributes = Files.readAttributes(path, BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
+          if (attributes.isSymbolicLink || attributes.isOther) throw GradleException("M12 runtime link rejected.")
+          structure += mapOf("label" to label, "relativePath" to root.relativize(path).toString().replace('\\', '/').ifEmpty { "." },
+            "kind" to if (attributes.isDirectory) "D" else "F")
+          if (attributes.isRegularFile) {
+            val digest = MessageDigest.getInstance("SHA-256")
+            Files.newInputStream(path).use { stream ->
+              val buffer = ByteArray(65536)
+              while (true) { val size = stream.read(buffer); if (size < 0) break; digest.update(buffer, 0, size) }
+            }
+            inventory += mapOf("path" to path.toString(), "sha256" to digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) })
+          }
+        }
+      }
+    }
+    val arguments = listOf("-XX:-HeapDumpOnOutOfMemoryError", "-XX:ErrorFile=" + if (m1DPostgresRailNativeWindows) "NUL" else "/dev/null",
+      "-cp", entries.joinToString(File.pathSeparator) { it.absolutePath },
+      "ch.qamwaq.ritomer.testsupport.PostgresTestRailM12Process", "worker")
+    fun quoted(value: String) = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+    val argfileText = arguments.joinToString("\n", postfix = "\n", transform = ::quoted)
+    m12PostgresRailArgfile.get().asFile.writeText(argfileText, Charsets.UTF_8)
+    val manifest = linkedMapOf<String, Any>(
+      "schemaVersion" to 1, "mainClass" to "ch.qamwaq.ritomer.testsupport.PostgresTestRailM12Process",
+      "javaExecutablePath" to javaExecutable, "classpathEntries" to entries.map(File::getAbsolutePath),
+      "runtimeInputs" to roots.map { (label, file) -> mapOf("label" to label, "path" to file.absolutePath) },
+      "structure" to structure, "files" to inventory, "arguments" to arguments,
+      "argfilePath" to m12PostgresRailArgfile.get().asFile.absolutePath, "argfileText" to argfileText
+    )
+    val json = groovy.json.JsonOutput.toJson(manifest) + "\n"
+    m12PostgresRailManifest.get().asFile.writeText(json, Charsets.UTF_8)
+    var binding = json
+    (roots + ("build-root" to layout.buildDirectory.get().asFile)).sortedByDescending { it.second.absolutePath.length }
+      .forEach { (label, file) ->
+        val path = file.absolutePath
+        listOf(path.replace("\\", "\\\\"), path).forEach { spelling ->
+          binding = binding.replace(groovy.json.JsonOutput.toJson(spelling).removeSurrounding("\""), "<$label>")
+        }
+      }
+    m12PostgresRailBinding.get().asFile.writeText(binding, Charsets.UTF_8)
+  }
+}
 
 // Compile-only output, also available to offline checks; no operational verdict or database call.
 tasks.named("testClasses") {
@@ -650,6 +723,7 @@ tasks.register<Test>("dbIntegrationTest") {
   shouldRunAfter(tasks.named("test"))
   useJUnitPlatform {
     includeTags("db-integration")
+    excludeTags("m12-process")
   }
   onlyIf {
     val enabled = System.getenv(DB_TESTS_ENABLED_ENV).equals("true", ignoreCase = true)
@@ -725,7 +799,7 @@ tasks.register("m1BPostgresRailReadiness") {
   dependsOn(tasks.named("testClasses"))
 
   doFirst {
-    if (postgresRailCampaign() == "D" && !m1DPostgresRailNativeWindows) {
+    if (postgresRailCampaign() in setOf("D", "M12") && !m1DPostgresRailNativeWindows) {
       throw GradleException("D operational readiness requires the native Windows inventory.")
     }
     requireCanonicalRailBuildRoot(layout.buildDirectory.get().asFile)
@@ -785,6 +859,18 @@ tasks.register("m1BPostgresRailReadiness") {
       throw GradleException("PostgreSQL rail requires the exact reviewed pgJDBC runtime version.")
     }
     requireM1BPostgresRailCompiledClasses(m1BPostgresRailRequiredCompiledClasses)
+    if (postgresRailCampaign() == "M12") {
+      requireM1BPostgresRailCompiledClasses(setOf(
+        "ch/qamwaq/ritomer/SharedOidcSessionDbIntegrationTest.class",
+        "ch/qamwaq/ritomer/testsupport/PostgresTestRailM12Process.class"
+      ))
+      if (!m12PostgresRailManifest.get().asFile.isFile || !m12PostgresRailArgfile.get().asFile.isFile) {
+        throw GradleException("M12 compiled launch data is missing.")
+      }
+      val manifestHash = MessageDigest.getInstance("SHA-256").digest(m12PostgresRailManifest.get().asFile.readBytes())
+        .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+      logger.lifecycle("M12_RUNTIME_MANIFEST_SHA256=$manifestHash")
+    }
     if (postgresRailCampaign() == "D") {
       val manifest = m1DPostgresRailManifest.get().asFile
       if (!manifest.isFile) throw GradleException("D compiled runtime manifest is missing.")
@@ -866,6 +952,15 @@ fun Test.configureM1BPostgresRailTest(
       throw GradleException("PostgreSQL rail runtime inputs diverged after readiness.")
     }
     logger.lifecycle("M1B_POSTGRES_RAIL_RUNTIME_SHA256_VERIFIED=$actualRuntimeSha256")
+    if (phase == "m12-qualification") {
+      val manifestHash = MessageDigest.getInstance("SHA-256").digest(m12PostgresRailManifest.get().asFile.readBytes())
+        .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+      val expectedManifestHash = requireNonBlankEnvironment(DB_RAIL_M12_MANIFEST_SHA256_ENV)
+      if (!expectedManifestHash.matches(Regex("[0-9a-f]{64}")) || manifestHash != expectedManifestHash) {
+        throw GradleException("M12 launch manifest diverged after readiness.")
+      }
+      systemProperty("ritomer.m12.manifest.sha256", manifestHash)
+    }
     val testRunRoot = Path.of(requireNonBlankEnvironment(DB_TEST_RUN_ROOT_ENV))
     val storageRoot = Path.of(requireNonBlankEnvironment(DB_TEST_STORAGE_LOCAL_ROOT_ENV))
     val expectedStorageRoot = testRunRoot.resolve("volatile").resolve(phase).resolve("local-fs")
@@ -885,7 +980,8 @@ fun Test.configureM1BPostgresRailTest(
       "-XX:HeapDumpPath=${crashRoot.resolve("heapdump_pid%p.hprof")}",
       "-XX:-HeapDumpOnOutOfMemoryError"
     )
-    val expectedApplicationName = "ritomer-m1-1${postgresRailCampaign().lowercase()}-${requireNonBlankEnvironment(DB_RAIL_RUN_ID_ENV)}-$phase"
+    val prefix = if (postgresRailCampaign() == "M12") "ritomer-m1-2" else "ritomer-m1-1${postgresRailCampaign().lowercase()}"
+    val expectedApplicationName = "$prefix-${requireNonBlankEnvironment(DB_RAIL_RUN_ID_ENV)}-$phase"
     if (System.getenv(DB_TEST_APPLICATION_NAME_ENV) != expectedApplicationName) {
       throw GradleException("PostgreSQL rail application name is not run-bound.")
     }
@@ -926,9 +1022,22 @@ tasks.register<Test>("m1BPostgresRailFull") {
   }
 }
 
+val m12PostgresRailQualificationClasses = setOf("ch.qamwaq.ritomer.SharedOidcSessionDbIntegrationTest")
+tasks.register<Test>("m1_2PostgresRailQualification") {
+  configureM1BPostgresRailTest("m12-qualification", m12PostgresRailQualificationClasses, 5)
+  systemProperty("junit.jupiter.execution.parallel.enabled", "false")
+  doFirst {
+    if (postgresRailCampaign() != "M12") throw GradleException("M12 qualification requires campaign M12.")
+  }
+  filter {
+    m12PostgresRailQualificationClasses.forEach { includeTestsMatching(it) }
+    isFailOnNoMatchingTests = true
+  }
+}
+
 gradle.taskGraph.whenReady {
   val taskNames = allTasks.map { it.name }.toSet()
-  val runnerCredentialTasks = setOf("m1BPostgresRailTargeted", "m1BPostgresRailFull")
+  val runnerCredentialTasks = setOf("m1BPostgresRailTargeted", "m1BPostgresRailFull", "m1_2PostgresRailQualification")
   val compileOrResourceTasks = allTasks.filter { task ->
     task.name in setOf(
       "compileJava",
@@ -987,5 +1096,30 @@ tasks.register<JavaExec>("demoSeedLocal") {
   val demoSeedVariant = providers.gradleProperty("ritomerDemoSeedVariant")
   if (demoSeedVariant.isPresent) {
     args("--ritomer.demo.seed.variant=${demoSeedVariant.get()}")
+  }
+}
+
+// Shared deployment packaging is explicit; the ordinary backend build stays Node-independent.
+val bundleFrontend = providers.gradleProperty("bundleFrontend").map {
+  require(it == "true" || it == "false") { "bundleFrontend must be true or false." }
+  it == "true"
+}.orElse(false)
+tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
+  inputs.property("bundleFrontend", bundleFrontend)
+  if (bundleFrontend.get()) {
+    val frontendDist = rootDir.resolve("../frontend/dist").toPath().toAbsolutePath().normalize()
+    require(Files.isRegularFile(frontendDist.resolve("index.html"), LinkOption.NOFOLLOW_LINKS)) {
+      "Run the explicit frontend build before packaging the shared JAR."
+    }
+    require(frontendDist.toRealPath() == frontendDist) { "Frontend bundle path must not traverse a link." }
+    Files.walk(frontendDist).use { paths ->
+      paths.forEach { path ->
+        require(!Files.isSymbolicLink(path) && path.toRealPath().startsWith(frontendDist)) {
+          "Frontend bundle contains a link or an out-of-root path."
+        }
+      }
+    }
+    inputs.dir(frontendDist)
+    from(frontendDist) { into("BOOT-INF/classes/static") }
   }
 }

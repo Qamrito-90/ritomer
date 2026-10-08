@@ -39,6 +39,10 @@ internal class DisposablePostgresTestDatabaseGuardInitializer(
     try {
       connect(configuration.jdbcUrl, connectionProperties).use { connection ->
         validateConnectedPostgresIdentity(connection, configuration, diagnostics)
+        if (applicationContext.environment.processEnvironmentValue(DB_RAIL_CAMPAIGN_VARIABLE) == "M12" &&
+          applicationContext.environment.processEnvironmentValue(DB_TEST_PHASE_VARIABLE) in setOf("m12-a", "m12-b")) {
+          validateM12WorkerSchema(connection)
+        }
         diagnostics.checkpoint(StartupControl.CONNECTION_CLOSE)
       }
     } catch (failure: Throwable) {
@@ -119,6 +123,23 @@ private class StartupDiagnostics {
 }
 
 internal object DisposablePostgresTestDatabase {
+  /** Kept in this closed support root so the historical D runtime remains self-contained. */
+  object M12Activity {
+    private var next = 0L
+    private val active = linkedSetOf<Long>()
+    @Synchronized fun begin(label: String): Lease {
+      require(label in setOf("jdbc-workers", "idp", "a1", "a2", "b", "private-io"))
+      val id = ++next
+      check(active.add(id))
+      return Lease(id)
+    }
+    @Synchronized fun requireQuiescent() { check(active.isEmpty()) { "M12_RESOURCES_NOT_QUIESCENT" } }
+    @Synchronized private fun complete(id: Long) { check(active.remove(id)) { "M12_LEASE_ALREADY_COMPLETED" } }
+    class Lease internal constructor(private val id: Long) {
+      fun complete() = M12Activity.complete(id)
+    }
+  }
+
   fun truncateAllCurrentTables(dataSource: DataSource, environment: Environment) {
     runGuardedDestruction(dataSource, environment, DestructivePrimitive.TRUNCATE_ALL_CURRENT_TABLES)
   }
@@ -153,6 +174,32 @@ internal object DisposablePostgresTestDatabase {
   fun requireRunBoundLocalStorageLeaf(environment: Environment): Path {
     requireDestructiveTestPhase(environment)
     return requireCanonicalRuntimeConfiguration(environment).storageLocalRoot
+  }
+
+  /** Workers only consume the already migrated schema; they never own Flyway or reset rights. */
+  fun assertCanonicalM12WorkerDataSource(dataSource: DataSource, environment: Environment) {
+    if (environment.processEnvironmentValue(DB_RAIL_CAMPAIGN_VARIABLE) != "M12" ||
+      environment.processEnvironmentValue(DB_TEST_PHASE_VARIABLE) !in setOf("m12-a", "m12-b")) {
+      fail("M12 worker identity validation requires an exact worker phase.")
+    }
+    if (!PostgresTestRailJdbcLogging.disableAndVerifyForTest()) fail("PostgreSQL JDBC logging safety gate failed.")
+    val configuration = requireCanonicalRuntimeConfiguration(environment)
+    sanitizePostgresFailure("M12 worker DataSource or schema validation failed.") {
+      dataSource.connection.use { connection ->
+        validateConnectedPostgresIdentity(connection, configuration)
+        validateM12WorkerSchema(connection)
+      }
+    }
+  }
+}
+
+private fun validateM12WorkerSchema(connection: Connection) {
+  connection.createStatement().use { statement ->
+    statement.executeQuery("select version from flyway_schema_history where success=true and version is not null order by installed_rank").use { rows ->
+      val versions = mutableListOf<String>()
+      while (rows.next()) versions.add(rows.getString(1))
+      if (versions != (1..11).map(Int::toString)) fail("M12 worker requires the exact preexisting V11 schema.")
+    }
   }
 }
 
@@ -435,13 +482,20 @@ private fun requireCanonicalRuntimeConfiguration(environment: Environment): Cano
   val roleOid = parseOid(environment.requiredProcessEnvironmentValue(DB_RAIL_RUNNER_ROLE_OID_VARIABLE), "role")
   val phase = environment.requiredProcessEnvironmentValue(DB_TEST_PHASE_VARIABLE)
   val campaign = environment.processEnvironmentValue(DB_RAIL_CAMPAIGN_VARIABLE) ?: "B"
-  if (campaign !in setOf("B", "D")) fail("PostgreSQL rail campaign is invalid.")
+  if (campaign !in setOf("B", "D", "M12")) fail("PostgreSQL rail campaign is invalid.")
   val integrated = phase in setOf("d-seed", "d-backend")
-  if (phase !in setOf("targeted", "full") && !(campaign == "D" && integrated)) {
+  val m12Worker = campaign == "M12" && phase in setOf("m12-a", "m12-b")
+  if (phase !in setOf("targeted", "full") && !(campaign == "D" && integrated) &&
+    !(campaign == "M12" && phase in setOf("m12-qualification", "m12-a", "m12-b"))) {
     fail("PostgreSQL test phase is invalid.")
   }
+  if (campaign == "M12" && environment.activeProfiles.toSet() !=
+    if (m12Worker) setOf("shared-internal") else setOf("dbtest")) {
+    fail("M12 profiles must match the exact pilot or worker phase.")
+  }
   val applicationName = environment.requiredProcessEnvironmentValue(DB_TEST_APPLICATION_NAME_VARIABLE)
-  requireExact(applicationName, "ritomer-m1-1${campaign.lowercase()}-$runId-$phase", "PostgreSQL application name")
+  val prefix = if (campaign == "M12") "ritomer-m1-2" else "ritomer-m1-1${campaign.lowercase()}"
+  requireExact(applicationName, "$prefix-$runId-$phase", "PostgreSQL application name")
 
   val runRoot = requireAbsoluteNormalizedLocalPath(
     environment.requiredProcessEnvironmentValue(DB_RAIL_RUN_ROOT_VARIABLE),
@@ -485,7 +539,7 @@ private fun requireCanonicalRuntimeConfiguration(environment: Environment): Cano
     storageLocalRoot.toString(),
     "storage local root"
   )
-  requireExact(environment.requiredSpringProperty("spring.flyway.enabled"), "true", "Flyway activation")
+  requireExact(environment.requiredSpringProperty("spring.flyway.enabled"), if (m12Worker) "false" else "true", "Flyway activation")
   requireExact(environment.requiredSpringProperty("spring.flyway.clean-disabled"), "true", "Flyway clean guard")
   requireExact(environment.requiredSpringProperty("spring.sql.init.mode"), "never", "SQL initializer mode")
   listOf("spring.flyway.url", "spring.flyway.user", "spring.flyway.password", "spring.flyway.driver-class-name")
@@ -512,6 +566,13 @@ private fun runGuardedDestruction(
   primitive: DestructivePrimitive
 ) {
   requireDestructiveTestPhase(environment)
+  if (environment.processEnvironmentValue(DB_RAIL_CAMPAIGN_VARIABLE) == "M12") {
+    DisposablePostgresTestDatabase.M12Activity.requireQuiescent()
+  }
+  if (environment.processEnvironmentValue(DB_TEST_PHASE_VARIABLE) == "m12-qualification" &&
+    primitive != DestructivePrimitive.TRUNCATE_ALL_CURRENT_TABLES) {
+    fail("M12 qualification cannot recreate the schema.")
+  }
   if (!PostgresTestRailJdbcLogging.disableAndVerifyForTest()) {
     fail("PostgreSQL JDBC logging safety gate failed.")
   }
@@ -555,7 +616,9 @@ private fun runGuardedDestruction(
 }
 
 private fun requireDestructiveTestPhase(environment: Environment) {
-  if (environment.processEnvironmentValue(DB_TEST_PHASE_VARIABLE) !in setOf("targeted", "full")) {
+  val phase = environment.processEnvironmentValue(DB_TEST_PHASE_VARIABLE)
+  if (phase !in setOf("targeted", "full") &&
+    !(environment.processEnvironmentValue(DB_RAIL_CAMPAIGN_VARIABLE) == "M12" && phase == "m12-qualification")) {
     fail("PostgreSQL reset primitives are restricted to targeted/full test phases.")
   }
 }
@@ -715,8 +778,9 @@ internal fun postgresTestRailProvenance(
   clusterSystemIdentifier: String,
   campaign: String = "B"
 ): String {
-  if (campaign !in setOf("B", "D")) fail("PostgreSQL rail campaign is invalid.")
-  return "ritomer-m1-1${campaign.lowercase()}:$runId:$reviewedObjectSha256:$clusterSystemIdentifier"
+  if (campaign !in setOf("B", "D", "M12")) fail("PostgreSQL rail campaign is invalid.")
+  val prefix = if (campaign == "M12") "ritomer-m1-2" else "ritomer-m1-1${campaign.lowercase()}"
+  return "$prefix:$runId:$reviewedObjectSha256:$clusterSystemIdentifier"
 }
 
 private fun Environment.requiredProcessEnvironmentValue(name: String): String =

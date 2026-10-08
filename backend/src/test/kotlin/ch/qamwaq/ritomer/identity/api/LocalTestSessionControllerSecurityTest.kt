@@ -863,7 +863,18 @@ class LocalTestSessionControllerSecurityTest {
         successCodes = setOf("200")
       )
     )
-    assertThat(paths.keys).containsExactlyInAnyOrderElementsOf(expectedOperations.map { it.path })
+    val oidcPaths = listOf("/oauth2/authorization/google", "/login/oauth2/code/google")
+    assertThat(paths.keys).containsExactlyInAnyOrderElementsOf(expectedOperations.map { it.path } + oidcPaths)
+    oidcPaths.forEach { path ->
+      val item = paths.mapValue(path)
+      assertThat(item.keys).containsExactly("get")
+      val operation = item.mapValue("get")
+      assertThat(operation.securityRequirements()).isEqualTo(listOf(setOf("cookieSession")))
+      val responses = operation.mapValue("responses")
+      assertThat(responses.keys).containsExactlyInAnyOrder("302", "400", "401", "403", "405", "409")
+      assertThat(responses.mapValue("302")).doesNotContainKey("content")
+      assertThat(responses.mapValue("302").mapValue("headers")).containsKeys("Location", "Cache-Control")
+    }
     expectedOperations.forEach { expected ->
       val pathItem = paths.mapValue(expected.path)
       assertThat(pathItem.keys.toList()).describedAs(expected.path).containsExactly(expected.method)
@@ -919,6 +930,8 @@ class LocalTestSessionControllerSecurityTest {
     listOf(
       "AnonymousSessionBootstrapResponse",
       "AuthenticatedSessionBootstrapResponse",
+      "SharedAnonymousSessionBootstrapResponse",
+      "SharedAuthenticatedSessionBootstrapResponse",
       "SessionCsrf",
       "LocalSessionActor",
       "LocalSessionLoginRequest",
@@ -931,6 +944,15 @@ class LocalTestSessionControllerSecurityTest {
       assertThat(schemas.mapValue(schemaName)["additionalProperties"])
         .describedAs(schemaName)
         .isEqualTo(false)
+    }
+    assertThat(schemas.mapValue("SessionBootstrapResponse")["oneOf"] as List<*>).hasSize(4)
+    for (variant in listOf("SharedAnonymousSessionBootstrapResponse", "SharedAuthenticatedSessionBootstrapResponse")) {
+      val schema = schemas.mapValue(variant)
+      assertThat(schema["required"] as List<*>).containsExactlyInAnyOrder("sessionState", "localLoginAvailable", "oidcLoginAvailable", "csrf")
+      val properties = schema.mapValue("properties")
+      assertThat(properties.keys).containsExactlyInAnyOrder("sessionState", "localLoginAvailable", "oidcLoginAvailable", "csrf")
+      assertThat(properties.mapValue("localLoginAvailable")["const"]).isEqualTo(false)
+      assertThat(properties.mapValue("oidcLoginAvailable")["const"]).isEqualTo(true)
     }
     assertThat(schemas.mapValue("SessionError")["required"] as List<*>)
       .containsExactlyInAnyOrder("code", "message")

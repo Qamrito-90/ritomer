@@ -61,7 +61,7 @@ import type {
   ActiveTenant,
   EffectiveRolesHint
 } from "../lib/api/me";
-import { createSessionCoordinator } from "../lib/api/session";
+import { createSessionCoordinator, safeReturnPath } from "../lib/api/session";
 import { formatLocalDate } from "../lib/format/date";
 import { formatOptionalText } from "../lib/format/text";
 
@@ -4448,9 +4448,19 @@ function SessionBoundary({ coordinator, closing = false }: {
           {snapshot.mode === "FORBIDDEN" ? <p>Vous ne disposez pas de l’accès demandé.</p> : null}
           {snapshot.mode === "LOGOUT_UNCONFIRMED" ? <p>Le contexte local est effacé. La fermeture côté serveur n’a pas pu être confirmée.</p> : null}
           {snapshot.error ? <p>{sessionErrorMessage(snapshot.error)}</p> : null}
+          {snapshot.mode === "ANONYMOUS" && snapshot.oidcLoginAvailable &&
+            new URLSearchParams(location.search).get("login") === "failed" ?
+            <p>La connexion a été refusée. Réessayez.</p> : null}
           {legacy && meState?.kind === "profile_unavailable" && meState.reason ? <p>{sessionErrorMessage(meState.reason)}</p> : null}
           {legacy && meState?.kind === "auth_required" ? <p>La connexion locale n’est pas disponible dans cette configuration.</p> : null}
         </div>
+        {snapshot.mode === "ANONYMOUS" && snapshot.oidcLoginAvailable ? (
+          <Button asChild className="justify-self-start">
+            <a href={`/oauth2/authorization/google?returnPath=${encodeURIComponent(safeReturnPath(`${location.pathname}${location.search}${location.hash}`))}`}>
+              Se connecter avec Google
+            </a>
+          </Button>
+        ) : null}
         {snapshot.mode === "ANONYMOUS" && snapshot.localLoginAvailable ? (
           <div className="flex flex-wrap gap-3" aria-label="Choix de connexion locale">
             {snapshot.actors.map((actor, index) => (
@@ -4486,7 +4496,7 @@ function sessionErrorMessage(error: string): string {
     case "access_revoked": return "Votre accès a été révoqué.";
     case "csrf_rejected": return "La session doit être actualisée avant une nouvelle action.";
     case "authentication_failed": return "La connexion demandée a été refusée.";
-    case "capability_unavailable": return "La connexion locale n’est plus disponible.";
+    case "capability_unavailable": return "La connexion n’est pas disponible dans cette configuration.";
     default: return "La réponse du serveur ne permet pas de poursuivre.";
   }
 }

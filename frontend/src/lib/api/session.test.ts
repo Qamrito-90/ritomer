@@ -44,9 +44,88 @@ afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 describe("session negotiation and protected transport", () => {
+  const sharedBootstrap = (authenticated = false, token = "shared-csrf") => json({
+    sessionState: authenticated ? "AUTHENTICATED" : "ANONYMOUS",
+    localLoginAvailable: false, oidcLoginAvailable: true,
+    csrf: { headerName: "X-CSRF-TOKEN", token }
+  });
+
+  it("admits shared anonymity without actors, local login or a protected read", async () => {
+    const fetcher = vi.fn().mockResolvedValueOnce(sharedBootstrap());
+    const session = coordinator(fetcher);
+    await session.initialize();
+    expect(session.getSnapshot()).toMatchObject({ mode: "ANONYMOUS", actors: [], localLoginAvailable: false, oidcLoginAvailable: true });
+    await session.login(actor.actorKey);
+    expect(fetcher.mock.calls.map(([path]) => path)).toEqual(["/api/session/bootstrap"]);
+    expect(JSON.stringify(session.getSnapshot())).not.toContain("shared-csrf");
+  });
+
+  it.each(["404", "local"])("fails closed on production bootstrap %s", async (kind) => {
+    vi.stubEnv("DEV", false);
+    const fetcher = vi.fn().mockResolvedValueOnce(kind === "404" ? json({}, 404) : bootstrap(false));
+    const session = coordinator(fetcher);
+    await session.initialize();
+    expect(session.getSnapshot()).toMatchObject({ mode: "ERROR", meState: null, actors: [], localLoginAvailable: false });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    { localLoginAvailable: true, oidcLoginAvailable: true },
+    { localLoginAvailable: false, oidcLoginAvailable: false },
+    { localLoginAvailable: false, oidcLoginAvailable: true, actors: [actor] },
+    { localLoginAvailable: false }
+  ])("rejects inconsistent or leaky shared capabilities %j", async (capabilities) => {
+    const fetcher = vi.fn().mockResolvedValue(json({ sessionState: "ANONYMOUS", ...capabilities, csrf: { headerName: "X-CSRF-TOKEN", token: "csrf" } }));
+    const session = coordinator(fetcher);
+    await session.initialize();
+    expect(session.getSnapshot()).toMatchObject({ mode: "ERROR", error: "invalid_response", actors: [] });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("retains the shared boundary after clear and refuses a local downgrade", async () => {
+    const fetcher = vi.fn().mockResolvedValueOnce(sharedBootstrap()).mockResolvedValueOnce(bootstrap(false))
+      .mockResolvedValueOnce(json({}, 404));
+    const session = coordinator(fetcher);
+    await session.initialize();
+    await session.retry();
+    expect(session.getSnapshot()).toMatchObject({ mode: "ERROR", error: "invalid_response", localLoginAvailable: false });
+    await session.retry();
+    expect(session.getSnapshot()).toMatchObject({ mode: "ERROR", error: "capability_unavailable" });
+    expect(fetcher.mock.calls.every(([path]) => path === "/api/session/bootstrap")).toBe(true);
+  });
+
+  it("uses shared CSRF, clears the protected context on logout and remains shared", async () => {
+    const fetcher = vi.fn().mockResolvedValueOnce(sharedBootstrap(true)).mockResolvedValueOnce(json(me))
+      .mockResolvedValueOnce(new Response(null, { status: 204 })).mockResolvedValueOnce(sharedBootstrap(false, "new-csrf"));
+    const session = coordinator(fetcher);
+    await session.initialize();
+    expect(session.getSnapshot().mode).toBe("SESSION_READY");
+    const mutation = vi.fn().mockResolvedValue(json({}));
+    await requestJson("/api/business", { method: "POST" }, mutation);
+    expect(new Headers(mutation.mock.calls[0][1].headers).get("X-CSRF-TOKEN")).toBe("shared-csrf");
+    await session.logout();
+    expect(session.getSnapshot()).toMatchObject({ mode: "ANONYMOUS", meState: null, actors: [], localLoginAvailable: false, oidcLoginAvailable: true });
+    expect(fetcher.mock.calls.map(([path]) => path)).toEqual(["/api/session/bootstrap", "/api/me", "/api/session/logout", "/api/session/bootstrap"]);
+    expect(new Headers(fetcher.mock.calls[2][1].headers).get("X-CSRF-TOKEN")).toBe("shared-csrf");
+    expect(JSON.stringify(session.getSnapshot())).not.toMatch(/shared-csrf|new-csrf|private-subject/);
+  });
+
+  it("keeps shared logout unconfirmed on network failure then confirms fresh anonymity", async () => {
+    const fetcher = vi.fn().mockResolvedValueOnce(sharedBootstrap(true)).mockResolvedValueOnce(json(me))
+      .mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce(sharedBootstrap());
+    const session = coordinator(fetcher);
+    await session.initialize();
+    await session.logout();
+    expect(session.getSnapshot()).toMatchObject({ mode: "LOGOUT_UNCONFIRMED", meState: null });
+    await session.retry();
+    expect(session.getSnapshot()).toMatchObject({ mode: "ANONYMOUS", oidcLoginAvailable: true, localLoginAvailable: false });
+    expect(fetcher.mock.calls.filter(([path]) => path === "/api/session/logout")).toHaveLength(1);
+  });
+
   it("has no import/install network side effect, shares initialization and blocks premature protected requests", async () => {
     const first = deferred<Response>();
     const fetcher = vi.fn().mockReturnValueOnce(first.promise).mockResolvedValueOnce(json(me));
