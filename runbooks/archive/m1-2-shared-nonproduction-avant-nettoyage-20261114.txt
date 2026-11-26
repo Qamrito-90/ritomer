@@ -1,0 +1,1399 @@
+# M1.2 — Préparation de l'environnement interne partagé
+
+## Vérification locale des sessions dans Chromium
+
+Le test démarre Spring et son fournisseur OIDC synthétique sur deux ports loopback.
+Le pilote ordonne ACTIVATE en mémoire ; ses effets Cloud (révocation, restauration
+et retour au repos) sont simulés. Le navigateur et les réponses HTTP sont réels.
+Un filtre de la fixture retient l’expiration des cookies de test et vérifie les
+sessions effectivement présentées. Aucune connexion Google n’est nécessaire.
+
+Depuis la racine du dépôt sous Windows, utiliser le Python local et le Chromium
+Headless Shell installé pour la version Playwright du lockfile. Avec Playwright
+1.63.0, il s’agit de la révision 1243, version 153.0.8010.12. Le test compare
+la version renvoyée par le navigateur lancé aux métadonnées de Playwright.
+Le Chromium 1200 du précédent parcours à neuf observations ne convient pas.
+
+```powershell
+$env:RITOMER_M12_FIXTURE_PYTHON = (Get-Command python.exe -ErrorAction Stop).Source
+$env:RITOMER_M12_BROWSER_TEST = 'true'
+$env:RITOMER_M12_CHROMIUM = (Resolve-Path "$env:LOCALAPPDATA\ms-playwright\chromium_headless_shell-1243\chrome-headless-shell-win64\chrome-headless-shell.exe").Path
+$env:RITOMER_M12_BROWSER_RESULT = (New-Item -ItemType Directory -Path ("out/recette-locale-" + [guid]::NewGuid())).FullName
+# Les assets frontend/dist doivent correspondre au frontend courant.
+Push-Location backend
+try { .\gradlew.bat --offline --no-daemon test --rerun --tests '*SharedOidcBrowserTest'; if ($LASTEXITCODE) { throw 'Parcours local incomplet' } }
+finally { Pop-Location }
+$env:RITOMER_M12_LOCAL_OBSERVATIONS = Join-Path $env:RITOMER_M12_BROWSER_RESULT 'local-browser-observations.json'
+& $env:RITOMER_M12_FIXTURE_PYTHON -B out/m1-2-termination-20261011-01/test-recette-directe-p6-p7-31.py LocalBrowserEvidence
+```
+
+Le collecteur doit corréler les 14 challenges et refuser l’attribution à deux
+instances. Le refus de l’ancien CSRF doit précéder le logout réussi de A ; B reste
+fonctionnel. La version réellement exécutée figure dans l’export. Le rail PostgreSQL
+à deux JVM conserve sa preuve distincte. La configuration de test ne permet pas
+d’ouvrir ACTIVATE sur Cloud.
+
+État : socle de [047](../specs/active/047-shared-oidc-session-v1.md) livré par
+PR #130 (`2188dd553f13ac8fda9019ebe391c2ec3bde171b`) ; complément Cloud candidat
+non livré par Git, déployé en non-production, qualification Google P1–P9 non
+concluante. Ce runbook n'est ni une autorisation Cloud ni une
+commande de migration. Les records exacts et les comptes réels sont privés.
+
+## Résolution OIDC du 10 octobre 2026 — candidat en cours de qualification
+
+Le mandat de résolution conserve les 33 chemins candidats et les mêmes ressources,
+100 CHF et période d'essai. Sa fenêtre commence à 14:49:21 UTC le 10 octobre ;
+les expériences cessent à 00:49:21 UTC le 11, avant deux heures réservées au
+repos et à la restitution. Les fenêtres et records antérieurs restent historiques.
+
+L'observation temporaire distingue désormais l'entrée réelle des filtres,
+la consommation de transaction, l'appel et la réponse token, le décodeur JWT,
+la validation protocolaire complète, l'admission et les appels de stratégie de
+session et de sauvegarde de contexte. Les catégories sont un enum fermé ;
+messages, classes dynamiques, réponses fournisseur et valeurs OAuth restent
+absents. Le premier événement `FAILURE_*` d'une requête conserve le premier
+échec observé ; les événements suivants gardent les erreurs tardives, sans
+réécrire ce premier constat. Une catégorie inconnue reste explicite.
+
+La tentative manuelle CLOUD09 du 10 octobre a atteint la consommation de
+transaction puis échoué dans le client token, avant toute validation JWT ou
+admission. `invalid_token_response` peut envelopper une erreur HTTP, transport
+ou décodage ; il ne prouve pas la réception d'une réponse Google ni un secret
+incorrect. Les réponses synthétiques 401/403/503, vide, de type incompatible et
+la fermeture avant réponse reproduisent cette agrégation dans le vrai pipeline.
+Le classificateur distingue ces familles par des catégories constantes, à partir
+d'au plus huit références de cause examinées par identité : statuts HTTP bornés,
+TLS, résolution d'adresse, timeout, connexion, contenu incompatible, décodage ou
+IO. Les causes spécifiques priment sur leurs enveloppes génériques ; cycles et
+accès défaillants gardent le fallback fermé. Aucun message, corps, en-tête, URI,
+exception supprimée ou nom de classe dynamique n'est lu ou émis. L'exception
+originale et le comportement d'authentification restent inchangés. Une catégorie
+HTTP401 ne désigne pas à elle seule le paramètre de configuration défectueux.
+
+`TRANSACTION_UNAVAILABLE` ne départage pas expiration, absence, consommation
+antérieure ou mauvais state. `invalid_grant` n'établit pas seul un défaut PKCE,
+ni `invalid_client` un secret erroné. `JWT_VALIDATED` précède encore le contrôle
+nonce de Spring ; seul `PROTOCOL_VALIDATED` marque le retour complet du provider.
+`CONTEXT_SAVE_COMPLETED` atteste le retour du délégué, pas à lui seul le commit
+JDBC final. Les erreurs tardives, la fin du filtre et la photographie SQL restent
+des preuves séparées. L'identifiant de corrélation demeure propre à la requête,
+sans appariement artificiel avec un départ Google.
+
+L'activation reste default-off, conditionnée aux probes et bornée à deux heures,
+avec 64 événements par démarrage ; saturation ou perte interdit une conclusion
+positive. La transaction reste limitée à cinq minutes et consommée une seule
+fois avant l'échange. Aucun protocole, secret, réponse utilisateur, droit métier
+ou migration ne change pour obtenir un succès. Les fixtures discriminantes et
+la nouvelle image ne constituent pas une preuve de connexion Google réelle.
+La cause des refus historiques reste inconnue jusqu'à une observation probante.
+
+## Reprise ciblée A du 10 octobre 2026 — échec avant admission, cause non déterminée
+
+Luis indique ne pas avoir réalisé l'action personnelle de la fenêtre précédente.
+La reprise ciblée conserve le départ du mandat à 10:37:48 UTC, la réserve à
+14:37:48 UTC, la fin à 16:37:48 UTC et les mêmes 100 CHF sur la même période.
+Aucun nouveau build ni changement de code exécutable : CLOUD08 est réutilisée.
+Les contrôles et records sensibles sont renouvelés sur leurs objets exacts.
+
+La génération10, révision Ready `00010-dwp`, est vérifiée à 13:20 UTC.
+Le canary de 13:24–13:26 UTC contrôle les réponses synthétiques, l'ingestion
+positive et l'absence bornée de request logs dans les deux vues, sur deux
+lectures stables. La photo SQL préalable de 13:32 UTC constate deux tenants,
+deux acteurs, deux appartenances, zéro binding, contexte authentifié et
+transaction OIDC ; le Job est restauré neutre, génération38, compte19.
+Les inventaires de confidentialité actualisés restent conformes : les lectures
+de 13:52 UTC constatent les mêmes routages, exclusions, rétentions et politiques.
+
+Le signal prêt est suivi de l'ACK personnel explicite de Luis avant l'ouverture
+à 13:44:23 UTC ; l'échéance personnelle est 13:49:23 UTC. Luis rapporte
+« La connexion a été refusée. Réessayez. ». La collecte serveur fermée observe
+deux départs préparés, puis deux callbacks avec `PROTOCOL_NOT_COMPLETED`,
+sans `PROTOCOL_VALIDATED` ni `ADMISSION_DENIED`. Les douze événements,
+sur une même instance et révision, sont stables et tous dans la fenêtre ;
+le dernier callback termine à 13:48:59 UTC. Deux départs serveur ne prouvent
+pas deux clics de Luis, et les corrélations par requête ne prouvent pas leur
+appariement. L'unique parcours attendu n'est pas établi. Le compte effectivement
+authentifié et son subject ne sont pas prouvés. P2 reste INCONCLUSIVE.
+
+La photo SQL après A, à 14:03 UTC, retrouve les mêmes ensembles 2/2/2/0,
+zéro contexte authentifié et zéro transaction OIDC. Le Job est restauré neutre,
+génération40, compte20, sans référence de secret. Cette photo ne prouve pas
+l'absence de tout état transitoire ; le compteur OIDC nul ne distingue pas
+consommation, expiration et purge.
+
+CLOUD08 ne conserve pas la catégorie précise de l'échec. Les reviews distinctes
+confirment qu'une répétition identique ne serait pas discriminante. Un diagnostic
+utile exigerait une observation fermée du passage dans le filtre et de la cause
+catégorisée, puis tests, nouvelle image, provenance, review, canary et essai réel.
+Aucune chaîne complète réaliste n'est démontrée tenir avant la réserve restante.
+Elle n'est donc pas engagée ; cela ne signifie ni épuisement des six heures
+ni épuisement financier. B, les bindings et les phases suivantes restent non réalisés.
+
+Le repos est vérifié à 14:05 UTC : même CLOUD08, génération11, révision Ready
+`00011-gpp`, probes désactivées, observateur absent, minimum0/maximum2 et dix
+anciennes révisions sans trafic configuré, tag ou minimum. À 14:10 UTC,
+migrator/v1 est désactivé et son unique grant local opérateur retiré ;
+les cinq autres secrets restent inchangés. Cela ne prouve pas l'extinction
+physique des instances ni l'absence de droits hérités.
+
+Les allocations Job atteignent 12 480/14 640 secondes, soit 2 160 restantes.
+La provision build reste 47,1325/100 minutes ; aucune nouvelle facture n'est
+déduite de ces allocations. La projection datée reste 93,89 CHF dans les mêmes
+100 CHF ; SQL et stockage restent facturables au repos. Le FEP privé et les
+reviews exactes conservent les preuves, les limites et les records consommés.
+La fenêtre personnelle est fermée. Qualification globale INCONCLUSIVE,
+047 Active, sans delivery Git ni production.
+
+## Historique — reprise CLOUD08 du 10 octobre 2026, première fenêtre
+
+Le FIX owner ouvre une nouvelle fenêtre de six heures à partir de 10:37:48 UTC,
+avec réserve à 14:37:48 UTC et fin à 16:37:48 UTC. Les 100 CHF et la période
+initiale de trente jours restent inchangés. Les anciennes échéances ci-dessous
+restent historiques. Aucun nouveau build ni changement de code exécutable
+n'est effectué ; les preuves applicatives et de provenance CLOUD08 sont réutilisées.
+
+CLOUD08 est effectivement déployée à 11:22 UTC, génération8, révision Ready
+`00008-dh7`, avec observation temporaire bornée à 12:45 UTC. Le canary de
+11:27–11:28 UTC prouve les réponses synthétiques 401/400 attendues, une ingestion
+positive, trois événements fermés cohérents et deux ensembles stables espacés
+de soixante secondes. Les recherches contrôlées restent négatives pour les
+request logs et le marqueur synthétique dans les deux destinations projet.
+Ce résultat ne constitue pas un parcours Google personnel.
+
+La photographie SQL de 11:35 UTC, en TLS privé et transaction en lecture seule,
+observe deux tenants, deux acteurs, deux appartenances, zéro binding, contexte
+de sécurité ou transaction OIDC. Le Job est restauré neutre à 11:36 UTC,
+génération36, avec dix-huit exécutions terminées. Les reviews natives du
+déploiement, du canary et de cette photographie sont favorables avec réserves.
+
+Une action personnelle A à réaliser dans Edge standard par Luis est préparée
+à 11:38:56 UTC. Aucun retour personnel n'est reçu avant l'expiration de la fenêtre
+de collecte de vingt minutes. La réalisation éventuelle, le protocole et
+l'admission restent NON DÉTERMINÉ : l'absence de réponse ne prouve ni absence
+de tentative ni refus. Aucun lecteur personnel A, essai B, sujet réel, binding
+ou jeu métier n'est exécuté par le conducteur de cette reprise. La photographie
+SQL préalable ne remplace pas les contrôles après essai. P2 reste INCONCLUSIVE ;
+P3–P7 ne sont pas qualifiés. Une reprise personnelle exige une nouvelle préparation
+fraîche dans le solde du mandat ; cette attente ne renouvelle pas le budget.
+
+Le repos est vérifié à 12:00 UTC : même image CLOUD08, génération9, révision Ready
+`00009-v5v`, probes désactivées, observateur absent, minimum0 et maximum2. Les huit
+anciennes révisions sont sans trafic configuré, tag ou minimum. À 12:07 UTC,
+migrator/v1 est désactivé et son seul grant local opérateur retiré ; les cinq
+autres secrets sont relus inchangés et le Job reste neutre. Cela ne prouve ni
+l'extinction physique des instances ni l'absence de droits IAM hérités.
+L'inventaire Logging de 12:02 UTC confirme les routages et rétentions inchangés,
+l'exclusion exacte active, zéro contrainte personnalisée et douze politiques
+effectives compatibles. Il reste une observation datée.
+
+Les allocations Job atteignent 11 040/14 640 secondes, soit 3 600 restantes ;
+aucun build supplémentaire. La projection datée reste 93,89 CHF, pilotée à
+94 CHF dans les mêmes 100 CHF ; la facture finale et les taxes ne sont pas
+déterminées. SQL et stockage restent facturables au repos. Le FEP privé de la
+reprise conserve aussi les échecs techniques corrigés et les records consommés.
+La qualification globale reste INCONCLUSIVE, 047 Active, sans delivery ni production.
+
+## Historique — avenant manuel du 10 octobre 2026, préparation vérifiée
+
+L'avenant activé par l'owner conserve le budget initial : réserve à 07:46 UTC,
+fin à 09:46 UTC, mêmes 100 CHF. Il autorise conditionnellement deux chemins OIDC
+supplémentaires. La review distincte de méthode est favorable avec réserves ;
+elle ne constitue ni une review du futur déploiement ni un résultat Google.
+
+Luis ouvre lui-même Ritomer dans Chrome ou Edge standard. La fenêtre personnelle
+n'est ni pilotée ni inspectée par un agent pendant Google ; aucun profil ou cookie
+Google n'est transféré. Les essais Chromium précédents restent arrêtés. Un nouveau
+refus de sécurité Google arrête l'action concernée, sans répétition pour le forcer.
+
+Le diagnostic candidat est séparé du filtre de qualification historique. Il est
+désactivé par défaut et exige les sondes actives, le mode Cloud Run, une révision
+valide et une échéance UTC explicite inférieure à deux heures. Le mandat prévoit
+07:40 UTC au plus. Les attributs de diagnostic restent dans la requête HTTP,
+jamais dans la session. Les événements fermés distinguent départ sauvegardé et
+redirection préparée, callback reçu, validation Spring, admission et fin du login.
+Ils ne contiennent aucune valeur OAuth, identité, URL, cookie ou exception.
+
+Les UUID du départ et du callback sont distincts. Leur interprétation nécessite
+une seule tentative personnelle dans une fenêtre bornée, la consommation
+protocolaire normale, des observations complètes et des photographies SQL avant
+et après. Un refus d'admission n'établit pas seul l'absence de binding. Toute
+ambiguïté, saturation ou collecte incomplète impose INCONCLUSIVE. Le plafond de
+64 événements s'applique par démarrage, pas globalement. Les événements stdout
+suivent la rétention Logging existante : l'échéance arrête les émissions sans
+effacer les anciennes. Le snapshot daté indique 30 jours pour le _Default projet.
+
+Aucun résultat P2, identification technique A/B ou moyen de qualification P4–P7
+ne découle de cette méthode. Les bindings sensibles, confidentialité, tests et
+reviews exactes doivent être renouvelés avant les opérations correspondantes.
+
+La préparation locale a passé 780 tests backend (594 portables et 186 Windows,
+sans échec, erreur ou test ignoré). Le build CLOUD08 est réussi ; son JAR est
+identique octet pour octet au paquet local qualifié. Ces preuves et leurs reviews
+natives sont conservées dans le FEP privé de l'avenant. À cette clôture historique,
+CLOUD08 n'était pas encore déployée.
+
+La borne de départ du déploiement revu, à 07:23 UTC, a été atteinte avant la fin
+de la vérification de provenance à 07:29 UTC. Les marges vers l'arrêt de
+l'observateur à 07:40 UTC et la réserve à 07:46 UTC n'ont pas été réduites.
+Aucune nouvelle authentification personnelle A ou B, aucun canary CLOUD08,
+binding ou qualification P2–P7 n'a été exécuté. La cause du premier refus
+Ritomer reste indéterminée ; aucun résultat Google nouveau n'est revendiqué.
+
+INITIAL à 07:12 UTC, en lecture seule et TLS privé, observe deux tenants,
+deux acteurs, deux appartenances, zéro binding, contexte de sécurité ou
+transaction OIDC. Il ne remplace pas une photographie après un essai Google.
+Le Job est restauré neutre, génération34, avec dix-sept exécutions terminées.
+À 07:35 UTC, le migrateur v1 est redésactivé et son seul accès opérateur local
+retiré ; les cinq autres secrets restent dans leurs états attendus. Le service
+est relu conforme au repos CLOUD07, génération7, sondes désactivées et minimum0.
+À 07:36 UTC, les trois droits locaux du compte build sont retirés et relus.
+Les reviews des deux cessations sont favorables avec risques résiduels.
+
+La projection datée reste 93,89 CHF dans les mêmes 100 CHF ; le cumul de build
+atteint environ 47,13 minutes sur les 100 provisionnées et les allocations Job
+10 320 secondes sur 14 640. Ce ne sont pas des durées facturées certifiées.
+Les ressources conservées restent facturables. La qualification globale reste
+INCONCLUSIVE ; 047 reste Active, sans delivery ni autorisation de production.
+
+## Reprise Google du 10 octobre 2026
+
+Cette reprise activée par l'owner conserve le candidat de 31 chemins et les
+mêmes ressources, dans une fenêtre de six heures à partir de 03:46 UTC et les
+100 CHF existants. Aucun code produit ni image n'est changé. Les inventaires
+de confidentialité sont renouvelés ; le canary synthétique de 04:20–04:22 UTC
+établit les refus HTTP attendus et des recherches négatives bornées dans les
+destinations examinées. Le dernier inventaire Logging est daté de 04:44–04:45 UTC ;
+sa fraîcheur n'est pas une garantie permanente. INITIAL avant les essais prouve
+deux acteurs, deux tenants, deux appartenances, aucun binding, contexte de
+sécurité ou transaction OIDC, puis la restauration du Job neutre.
+
+Lors du premier essai A, l'owner rapporte une page Google puis le retour Ritomer
+« La connexion a été refusée. Réessayez. ». L'assertion de parcours du conducteur
+échoue avant la qualification du callback : ce résultat FAIL est conservé et
+ne prouve pas un refus d'admission attendu. La cause exacte reste indéterminée.
+Le diagnostic privé suivant ajoute des observations booléennes, sans conserver
+de valeur OAuth ni retirer d'assertion ; ses 22 contrôles offline passent.
+Au second essai, l'owner rapporte « Ce navigateur ou cette application ne sont
+peut-être pas sécurisés ». Le reçu technique ne contient pas de diagnostic Google
+indépendant. Conformément au mandat, cette voie est arrêtée sans contournement,
+sans nouvel essai ni changement destiné à éluder le refus. Les navigateurs détenus
+sont fermés avec cessation des processus prouvée à 04:39 et 04:52 UTC.
+
+B n'est pas tenté ; aucun sujet réel, binding ou jeu métier n'est créé par la
+campagne. P2 est INCONCLUSIVE ; les phases P3–P7 ne sont pas exécutées. Il n'y a
+pas de nouvelle photographie SQL après les essais : l'état INITIAL antérieur
+ne la remplace pas. Les acquis partiels P1/P8 et le repos ne qualifient pas Google.
+
+Le repos est relu à 04:58 UTC : service Ready génération7, révision `00007-glj`,
+même image CLOUD07, sondes désactivées, minimum0 et maximum2. Les six anciennes
+révisions sont sans trafic, tag ou minimum réservé. Le Job reste neutre à la
+génération32, sans secret, avec seize exécutions terminées. À 05:07 UTC, migrator
+v1 est redésactivé et les quatre accès locaux de l'opérateur aux secrets sont
+retirés et relus ; runtime/OAuth restent activés, bootstrap désactivé, le tombstone
+synthétique A/v1 détruit et B sans version. Les droits SQL restent conservés et
+l'administration privée dormante ; aucun accès IAM hérité absent n'est prétendu
+prouvé. Il n'y a ni test HTTP après désactivation des sondes, ni mesure de
+l'extinction physique instantanée des instances.
+
+L'inventaire de 05:16 UTC confirme le service et le Job ci-dessus. L'unique SQL
+reste privée et `RUNNABLE` ; sept sauvegardes réussies totalisent 24 392 576 octets
+maximaux facturables, sans taille inconnue. Le bucket métier contient zéro objet
+vivant ; le bucket build conserve 29 objets, 676 058 417 octets, et le registre
+716 212 686 octets. Les volumes sont inchangés depuis la lecture de 03:55 UTC.
+Aucun binding IAM projet local des trois comptes dédiés n'est retourné ; ni
+l'héritage IAM, ni les versions GCS non courantes ou soft-deleted, ni les
+opérations SQL actives ne sont couverts par cet inventaire.
+
+La projection actualisée est 93,89 CHF, pilotée à 94 CHF dans les mêmes 100 CHF,
+avec cessation et contingence déjà incluses. La lecture de facturation à 04:13 UTC
+affiche 15,76 CHF d'usage et 15,74 CHF de sous-total après remise ; elle est datée,
+ne donne pas une facture finale et n'est pas ajoutée intégralement une seconde fois.
+SQL, stockage et autres ressources conservées restent facturables. Le FEP privé
+porte le rapprochement, l'inventaire final et leurs limites.
+
+La limite de reprise est le refus fournisseur rapporté, pas l'épuisement du temps.
+Toute autre méthode de qualification doit être cadrée sans contournement, avec
+preuves de confidentialité et bindings renouvelés ; aucun ancien record consommé
+ne l'autorise. 047 reste Active ; aucun stage, commit, push, PR, merge ou passage
+en production n'est effectué. Les sections suivantes conservent les acquis et
+échecs historiques avec leurs dates, sans les présenter comme l'état courant.
+
+## Reprise TLS du 9–10 octobre 2026
+
+La conservation du FQDN Cloud SQL exact, avec son point terminal, rétablit la
+connexion privée `verify-full`. Les observations du 9 octobre à 18:10 UTC
+prouvent la connexion positive, le refus du mauvais hostname et de la mauvaise
+CA, puis une nouvelle connexion positive. Le conducteur TLS04 termine pourtant
+en échec sur son contrôle de sortie ; la réconciliation en lecture seule à
+18:21 UTC confirme le succès de la tâche et sa restauration sans rejouer SQL.
+Cet échec du conducteur reste conservé, distinct du résultat TLS.
+
+La base logique M1.2 existe, V1–V11 sont appliquées et les droits runtime ont
+leurs vérifications positives et négatives. L'administration privée restreinte
+a été démontrée, puis le rôle bootstrap supprimé ; son ancien OID et ses sessions
+étaient absents lors du contrôle du 9 octobre à 20:10 UTC. Son secret v1 a été
+désactivé et son accès opérateur local retiré. Les rôles SQL migrateur/runtime
+restent conservés. La lecture INITIAL05 a réussi mais sa restauration vers
+l'ancien template bootstrap a échoué : la neutralisation distincte suivante
+rend le Job prêt, sans secret, avec la commande fermée `exit 0`, sans nouvelle
+exécution. Le compte de quinze exécutions terminées est une preuve datée.
+
+CLOUD07 passe 774 tests backend (588 portables et 186 Windows), sans échec,
+erreur ou skip. Les deux passes historiques de 1359 tests frontend, lint/build,
+restent applicables aux mêmes entrées, sans les rejouer pour changer leur date.
+Le JAR embarqué reproductible concorde avec celui du build régional ; l'image
+déployée est identifiée par son digest exact dans le FEP privé. Le rejet observé
+du header `Forwarded` Cloud Run a été corrigé avec une grammaire fermée dont
+`for` ne confère aucune autorité. Le canary du 10 octobre à 00:29 UTC prouve le
+401 anonyme attendu, un refus de header tenant injecté, la corrélation native
+et des recherches négatives bornées dans les deux destinations applicables.
+Il ne prouve ni un login Google, ni une absence universelle de fuite.
+
+L'owner a confirmé l'URI OAuth publique exacte. Ouvrir directement le callback
+sans paramètres ne constitue pas un parcours OAuth. Après contrôles des logs
+et canary, la campagne a ouvert Ritomer pour A ; la fin de l'authentification
+personnelle n'a pas été confirmée. Aucun refus A/B pré-binding corrélé, binding
+réel, admission, fixture métier, test sur deux instances, révocation ou logout
+Google n'est revendiqué. Le navigateur détenu a été fermé normalement le
+10 octobre à 01:16 UTC, avec zéro processus et libération sans échec.
+P1/P8 restent partiellement étayés, P2 non concluant et P3–P7 non qualifiés.
+
+Le service a ensuite été relu prêt à la génération5, avec sondes désactivées,
+minimum0, maximum2 et 100 % du trafic sur sa nouvelle révision. Les quatre
+anciennes révisions sont sans trafic, tag ou minimum réservé. Ce contrôle de
+configuration ne mesure pas l'arrêt physique instantané des instances et ne
+constitue pas un test HTTP après désactivation. Trois appartenances IAM locales
+temporaires du compte build ont été retirées et relues ; sources et images
+restent conservées. Les reçus de cessation et leur review sont dans le FEP privé.
+
+Le secret migrateur v1 est désactivé à 01:34 UTC et les quatre accès locaux de
+l'opérateur aux secrets migrateur/runtime/sujets A et B sont retirés. Runtime et
+OAuth v1 restent activés avec le seul accès runtime prévu ; bootstrap demeure
+désactivé, le canary synthétique A/v1 détruit et B sans version. Aucun sujet Google
+réel n'a été capturé par cette campagne. Cette fermeture ne supprime pas les
+rôles SQL, ne prouve pas l'absence de droits hérités et rend l'administration
+privée dormante : une reprise exige de nouvelles autorisations exactes pour
+réactivation/grant/Job, sans réutiliser l'ancien template bootstrap.
+
+L'inventaire final du 10 octobre à 01:41 UTC relit le service au repos, le Job
+neutre et ses quinze exécutions terminées. La SQL unique reste privée et
+`RUNNABLE`. Huit sauvegardes `SUCCESSFUL` en EU/Zurich déclarent ensemble
+26 329 536 octets maximaux facturables, sans taille inconnue ; aucune n'est
+supprimée. Le bucket métier ne contient aucun objet vivant, le bucket build
+676 058 417 octets en 29 objets vivants et le registre 716 212 686 octets.
+Aucun binding IAM projet local des trois comptes dédiés n'est retourné ; les
+droits hérités ne sont pas inspectés. Cet inventaire ne prouve ni l'absence
+d'opérations SQL actives, ni les volumes de générations GCS non courantes ou
+soft-deleted, ni la fin des frais.
+
+Le chiffrage de reprise rapproche 65,06 CHF de préparation, 14,27 CHF de coûts
+antérieurs majorés de l'hypothèse de taxe et deux provisions de 5 CHF, dont la
+cessation : 90,49 CHF. Après incertitude d'allocation et provisions ajustées,
+la projection est 91,02 CHF, pilotée à 92 CHF dans les mêmes 100 CHF et les mêmes
+30 jours. Ce n'est pas une facture finale. L'instance SQL conservée en `ALWAYS`,
+son stockage/autogrow/backups, DNS et autres ressources conservées continuent
+de coûter après l'arrêt de Codex ; aucun arrêt automatique n'est installé.
+047 reste Active ; aucun commit, push, PR, merge ou passage en production
+n'est effectué par cette reprise. Une nouvelle campagne doit revalider l'état,
+les préconditions de confidentialité, les budgets et ses bindings exacts ; aucun
+record consommé ne peut être réutilisé.
+
+## État historique du candidat16 — 9 octobre 2026, avant reprise TLS
+
+La stabilisation synthétique a ensuite satisfait les deux passes complètes de
+1359 tests frontend, lint/build et la review distincte sur l'objet14. Le
+candidat15 ajoute le suffixe Cloud SQL PSA aux gardes ; ses 761 tests backend
+passent et son JAR reproductible est identique à celui du build Cloud régional.
+Les échecs historiques décrits plus bas restent des échecs de leurs objets.
+
+L'infrastructure dédiée, l'image15, le réseau privé et la configuration OAuth
+Externe/Test avec `openid` et deux testeurs existent. La qualification Cloud
+reste **FAIL** : le bootstrap échoue et les deux diagnostics privés échouent
+avant toute requête SQL ; le dernier localise le rejet à la vérification du nom
+d'hôte TLS. Le certificat public déclaré actif par l'API porte des SAN avec un
+point terminal, tandis que le hostname fourni au JDBC n'en porte pas. Le
+comparateur PgJDBC42.7.10 reproduit cette différence hors réseau ; le certificat
+effectivement présenté sur le socket n'a pas été observé. Le candidat16 historique
+n'inclut aucun correctif de ce défaut. La reprise TLS porte maintenant un correctif
+local de conservation du nom exact ; ses preuves ultérieures sont rapportées
+dans la section de reprise ci-dessus. `verify-full` reste obligatoire.
+
+L'inventaire du 09.10 à 15:24 UTC constate trois exécutions Job terminées,
+aucune opération administrative SQL active, aucune base `ritomer_m12` et aucun
+service HTTP M1.2. Aucun canary, login Google applicatif, migration ou P1–P9
+réussi n'est revendiqué. Les rôles SQL NOLOGIN et sessions restent non vérifiés.
+Le Job est restauré à sa définition bootstrap ; il n'est pas techniquement
+désactivé. Bootstrap et son accès au secret sont conservés, car l'administration
+privée réutilisable exigée avant leur retrait n'est pas prouvée. Les ressources
+conservées continuent de coûter ; aucun arrêt automatique n'est installé.
+Les objets, commandes, autorisations consommées et preuves sont dans le FEP
+privé. Le complément reste local, sans commit, push, merge ou production.
+
+## Complément Cloud candidat du 8 octobre 2026
+
+Le mandat privé `RITOMER-M1-2-CLOUD-AUTONOMOUS-20261008-01` distingue
+implémentation locale, chaque exécution sensible, Git et production. Ce runbook
+décrit les familles d'opérations ; seuls les records exacts préalables autorisent
+leur invocation. Les artefacts ne s'autorisent pas par leur présence dans le repo.
+Le socle #130 reste livré ; le nouveau complément n'est ni commité ni qualifié Cloud.
+
+### Contrôles avant exécution
+
+L'arbitrage du 09.10.2026 borne la finalisation navigateur à **7500 ms** depuis
+l'entrée du finaliseur, sur une horloge monotone, travail synchrone compris.
+Pages et contextes gardent chacun 1500 ms au maximum ; toutes les ressources
+d'une phase partagent la même échéance. La fermeture native reçoit
+`min(4500, max(0, échéanceFinale - maintenant - 3000))` ms, puis privacy et
+attachment gardent chacun au plus 1500 ms. Le navigateur non natif reste à
+1500 ms. Toutes les opérations sont aussi bornées par l'échéance globale ;
+aucune opération de qualification nouvelle ne démarre à budget épuisé.
+Une vérification de l'horloge après résolution et vérification refuse une fin
+tardive même si le timer a été retardé. L'identité du profil, les protections
+anti-liens, la sortie normale du processus détenu et la suppression/absence
+vérifiée restent obligatoires. Un échec antérieur ou une cessation tardive ne
+deviennent jamais un succès.
+
+C'est une nouvelle règle temporelle explicite, sans changement de latence
+applicative, version Chromium ou deadline runner/rail. Les 10000 ms d'écart entre
+timeouts Playwright ne garantissent pas une réserve au finaliseur, appelé dans
+le corps du test. Windows/Node n'offrent pas une cessation temps réel ; les
+mécanismes existants gardent la responsabilité des opérations tardives.
+L'objet04 reste **FAIL : 1304/1307** en mode standard. Le nouveau candidat exige
+ses déterministes et deux passes standard complètes sur les mêmes sources
+gelées, puis lint/build et review exacte. Expiry/logout appellent directement le
+propriétaire natif : cette réallocation ne démontre pas leur correction causale.
+Les preuves exactes, résultats nouveaux et consommations restent dans le FEP de
+reprise privé ; aucun ancien PASS M1D, C1/C2 ou PostgreSQL n'est réattribué.
+Les treize répertoires synthétiques dont le nettoyage a été refusé restent en
+conservation passive, exclus des entrées et publications, sans nouvelle tentative.
+
+Résultats du 09.10.2026 : 46 contrôles ciblés passent, dont les 13 régressions du
+profil et 17 nouveaux contre-exemples temporels. Lint/build passent. Le standard
+du candidat05 reste **FAIL : 1322/1324**, avec expiry/logout en échec. Une passe
+diagnostique instrumentée conserve **1322/1324**, cette fois avec les fermetures
+article/A en échec : attente de sortie native observée par Node de 4599,444 ms,
+avant contrôle/suppression du profil. La cessation tardive réussit sans effacer
+l'échec. Ces mesures n'isolent ni le temps interne Chromium ni une cause système.
+L'instrumentation est retirée ; la confirmation prescrite n'est pas exécutée et
+aucun succès historique ou diagnostic ne remplace les deux standards requis.
+Les preuves détaillées restent dans le FEP de reprise. La qualification Cloud
+dépendante demeure non exécutée ; un arbitrage technique sur les contraintes ou
+l'environnement était nécessaire avant une nouvelle correction hors de ces zones.
+
+L'avenant de stabilisation du 09.10.2026 ouvre ensuite le dispositif synthétique
+de lancement/connexion/fermeture et, si les comparaisons le justifient, son
+ordonnancement. Première route : Playwright verrouillé 1.63.0 avec sa distribution
+officielle Chromium 153.0.8010.12 (révision1243), installée côte à côte dans les
+preuves privées. Les auxiliaires FFmpeg1011/Winldd1007 appartiennent à cette
+installation isolée ; aucun package, dépendance OS ou cache historique ne change.
+Les fixtures ordinaires et natives utilisent cette cible exacte, sans fallback
+ni sélection par variable d'environnement. Version/package/manifeste et empreinte
+complète des fichiers/répertoires de la distribution sont contrôlés avant chaque
+lancement ; la version renvoyée au runtime est aussi vérifiée. Cela ne garantit
+pas contre une modification concurrente après le contrôle.
+
+Le binding D historique conserve Chromium143/r1200 et refuse la nouvelle cible.
+Aucun ancien PASS M1D/C1/C2 ne lui est attribué. Les traces synthétiques bornées
+mesurent des événements reçus par Node, sans URL, cookie, message CDP ou erreur
+brute. Pour les fixtures ordinaires, l'API publique prouve fermeture/déconnexion,
+sans code de sortie ni profil interne observable. Les deux parents temporaires
+ordinaires sont conservés passivement, sans suppression générique après un échec
+de lancement/fermeture ; ils sont distincts des treize anciens dossiers refusés.
+Playwright conserve la fermeture normale de ses propres ressources.
+Les délais7500/4500/3000/1500,
+focus natif, contextes indépendants et assertions restent inchangés.
+
+L'alignement seul donne **1331 PASS / 3 FAIL sur 1334**, sans skip : article et A
+dépassent leur délai ; DRAIN_STREAM rejette son nettoyage après fermeture
+Playwright. La confirmation de cet objet10 est invalidée. Une instrumentation
+expurgée distingue désormais étape et catégorie fermées du rejet, tout en
+relançant l'erreur initiale, même si ses propriétés ou l'observateur lèvent.
+L'expérience12 exécute ensuite le fichier complet seul : **357/357 PASS**, sans
+skip, en 109,66 s. Fermeture article 471 ms, fermeture A 2639 ms ; les trois
+variantes expiry et logout terminent leur nettoyage. Le rejet DRAIN précédent
+n'est pas reproduit et sa cause reste inconnue.
+
+Cette comparaison justifie le candidat à deux groupes : `pnpm test:ci` exécute
+les fichiers ordinaires, puis le fichier Chromium, avec isolation et concurrences
+fonctionnelles internes inchangées. Les deux rapports sont contrôlés ; un échec
+ou un rapport absent rend le résultat global non nul. Les délais restent
+identiques. La conservation du corpus et des multiplicités est vérifiée dans les
+preuves d'adoption ; deux passes complètes du même candidat et la review finale
+restent nécessaires. Le ciblé isolé ne vaut ni readiness ni qualification Cloud.
+Voir aussi [TESTING_STRATEGY.md](../TESTING_STRATEGY.md).
+
+1. Vérifier base/tree, plan et mandat, budget global partagé, remaining et réserve
+   de récupération. Le mandat activé fixe le budget : la reprise du 09.10 avait
+   12 heures ; celle du 10.10 a six heures depuis 03:46 UTC, avec réserve dès
+   07:46 UTC et fin à 09:46 UTC. Inclure attentes, agents et relances, sans
+   réinitialisation ; arrêter les nouvelles expériences à la réserve ou à une
+   limite préalable. La reprise Google du 10.10 est arrêtée pour refus fournisseur.
+2. Construire les preuves offline, dont portable et Windows natif, frontières,
+   helper d'identité, conducteur et JAR reproductible. Un test rouge reste rouge.
+   Ne pas réexécuter le rail PostgreSQL local au titre de ce complément Cloud.
+3. Produire le manifeste des octets réellement sélectionnés par `.gcloudignore`,
+   avec hashes et contrôles de liens. Les racines d'upload sont fermées aux sources
+   nécessaires au build ; aucune preuve privée, valeur env, cache ou sortie locale.
+   Refaire le manifeste au dernier état avant review/upload ; une liste ancienne
+   ne couvre pas des sources modifiées. `.dockerignore` ferme le contexte image.
+4. Revoir l'artefact/commande/identité/cible/configuration exacts avec le Reviewer
+   natif distinct, puis persister le record YES délégué applicable avant l'action.
+   Consommer/clôturer avec résultat réel, effets et cessation. Un nouvel objet ou
+   retry renouvelle les bindings concernés ; aucune approbation rétroactive.
+
+### Image et administration
+
+`Dockerfile` épingle les bases Node22/JDK21/JRE21 par digest, pnpm9.15.9 et la CA
+publique `europe-west6.pem` par SHA-256. Gradle8.14.4 reste inchangé avec son SHA
+officiel. Le build frontend précède `bootJar -PbundleFrontend=true` ; le JAR est
+sans timestamps variables et ordonné. Prouver deux builds identiques, puis le
+retour à un JAR standard sans assets. Le build Cloud est régional, avec SA,
+bucket source/logs et repository dédiés, avant tout déploiement serveur. Acquérir
+le digest de l'image construite et le lier à chaque service/Job ; aucun `latest`.
+
+L'image démarre par défaut le serveur non-root. Le Job admin privé remplace
+explicitement commande/arguments par cette entrée, avec **un seul** mode fermé :
+
+```text
+java -Dloader.main=ch.qamwaq.ritomer.devtools.SharedCloudOperations -cp /opt/ritomer/app.jar org.springframework.boot.loader.launch.PropertiesLauncher
+```
+
+Le dernier argument est `bootstrap`, `migrate`, `bind`, `revoke` ou `probe` dans
+le record exact. Aucun SQL fourni par l'appelant, SpringApplication, profil de
+secours ou endpoint admin. Job `ritomer-m12-ops`, une tâche, index0/attempt0,
+parallelism1, max-retries0, timeout au plus10min et arrêt avant deadline globale.
+Les variables fermées `RITOMER_M12_PROJECT`, `INSTANCE`, `HOST`, `PRIVATE_IP`,
+`CA_PATH`, `DB_USER`, `DB_PASSWORD`, `DEADLINE_UTC` portent les valeurs réellement
+acquises et revues ; les noms abrégés dans cette phrase ont tous le préfixe
+`RITOMER_M12_`. Mot de passe seulement depuis une version numérique Secret Manager,
+jamais argument, log ou preuve. Aucun secret PostgreSQL local n'est transféré.
+
+Pour la CA partagée Google, acquérir le nom réel dans `dnsNames` de l'instance :
+`PRIVATE_SERVICES_ACCESS` utilise le suffixe `sql-psa.goog`, tandis que les noms
+publics/PSC utilisent `sql.goog`. Les gardes serveur et opérateur reconnaissent
+ces deux suffixes exacts, avec un unique point terminal optionnel et des labels
+DNS non vides. Le binding conserve exactement le nom réellement acquis jusque
+dans l'hôte JDBC, point terminal compris lorsqu'il est présent. Les variables
+HOST de l'opérateur et DB_HOST/DB_URL du serveur doivent transmettre le même nom
+revu, sans ajout ni retrait implicite de point. `verify-full` avec la CA épinglée
+reste obligatoire. Un suffixe reconnu ne prouve ni la résolution privée ni le SAN.
+[Référence Google](https://docs.cloud.google.com/sql/docs/postgres/configure-ssl-instance#server_identity_verification).
+
+`bind` exige `RITOMER_M12_ACTOR=A|B` et le subject Google validé en mémoire ;
+`revoke` exige cet acteur et `RITOMER_M12_BINDING_ACTIVE=false|true`. Ces valeurs
+ne confèrent aucune autorisation : le record lie l'acteur, la ligne et l'action.
+Les erreurs sont des codes fermés ; le processus ne restitue jamais l'exception.
+Chaque connexion vérifie base, utilisateur, version17, IP privée et TLS ; chaque
+connexion Flyway assume le NOLOGIN migrator. SQL/connexion/lock et phase sont bornés.
+La comparaison de l'adresse serveur utilise `host(inet_server_addr())` : le cast
+PostgreSQL `inet::text` ajoute le masque réseau, même `/32` pour une IPv4 unique.
+L'égalité avec l'IP privée exacte reste obligatoire, ainsi que `pg_stat_ssl` et
+`verify-full` ; aucune autre adresse ni valeur nulle n'est acceptée.
+[Référence PostgreSQL17](https://www.postgresql.org/docs/17/functions-net.html).
+Le mode probe exige aussi un refus de vérification hostname sur l'IP privée exacte
+et un refus PKIX avec la racine publique ISRG Root X1 explicitement épinglée depuis
+le JRE, puis une nouvelle connexion DNS/CA normale. Erreur DNS, parsing, timeout ou
+authentification ne satisfait pas ces contrôles. Le certificat public temporaire
+est supprimé dans finally ; sa présence dans le JRE de l'image reste à vérifier.
+Fermer les canaux LOADER_PATH/CONFIG_LOCATION/ARGS et les options JVM dans le Job ;
+aucune configuration additionnelle du launcher n'est admise par le record.
+
+Bootstrap ne touche aucune table des bases historiques. Il refuse les rôles/base
+M12 déjà présents, crée les rôles NOLOGIN puis la base hors transaction, active
+le propriétaire et retire les droits PUBLIC, dont TEMPORARY. Après création API
+des deux LOGIN avec rôles explicites, migrer V1–V11 puis appliquer les grants du
+[contrat DB](../contracts/db/shared-oidc-session-v1.md). Runtime sans DDL ni écriture
+binding ou modification d'audit ; probes négatifs rollbackés, SQLSTATE42501 requis.
+Un état partiel est conservé et diagnostiqué : aucune adoption par nom, clean,
+repair aveugle, suppression historique ou restauration globale implicite.
+
+Le seed prépare A accountant et B admin dans deux tenants distincts, sans binding
+initial et sans dossier SQL. Dossiers, pièces et exports sont créés ensuite par
+API/UI métier, avec l'audit existant. A fournit le contre-exemple rôle insuffisant
+sur archive ; B ne reçoit aucun rôle Cloud.
+
+### Ordre des portes réelles
+
+Réseau VPC/PSA/DNS/Direct VPC, image+CA, attachement privé de l'unique SQL et
+bascule CA partagée précèdent les probes privés. Vérifier DNS/SAN/chaîne et refus
+mauvais hostname/CA, puis droits runtime, avant retrait IPv4 ; recontrôler ensuite.
+Le passage CA partagée n'a pas de retour vers CA interne. Aucune seconde SQL,
+clone/PITR, NAT, connecteur ou VM n'est implicitement permis.
+
+Avant exposition/login : inventorier les sinks projet et hérités, suivre toutes
+destinations/rétentions, exclure les seuls request logs du service M12 dans chaque
+routage applicable et éprouver l'effet par canari synthétique. `_Required` et les
+audits administratifs restent présents. Un refus IAM, une sortie nulle ou une
+destination inaccessible ne signifie jamais « aucun sink ». Aucun login réel A/B,
+même pré-binding, tant que cette porte n'est pas satisfaite.
+
+Relire l'origine HTTPS réellement créée et le callback exact.
+Les redirections Tomcat sont relatives (`server.tomcat.use-relative-redirects=true`)
+et cette valeur est gardée avant les beans. Le customizer Boot réel est testé avec
+Tomcat HTTP éphémère, sans DB, pour éviter une Location HTTP interne derrière le
+proxy. Cela ne prouve pas encore le parcours Google réel.
+
+Google Auth Platform
+Testing, scope openid, client web dédié ; le mode Testing n'accorde aucun accès
+métier. A/B se connectent personnellement dans Google. Pas de capture HAR, vidéo,
+storageState, console/URL/exception brute, ni mot de passe demandé dans le chat.
+Refus du navigateur piloté : arrêter cette voie, jamais contourner Google.
+
+Après les deux refus pré-binding, exécuter le helper revu
+`backend/scripts/m1_2_google_identity_capture.py` avec A ou B. Il utilise le SDK
+installé, son audience CLI exacte et la validation cryptographique officielle.
+Il charge le compte sans refresh puis construit un nouvel objet credentials de base,
+sans le hook de cache du SDK. Seule cette copie est rafraîchie en mémoire ; ni
+`gcloud auth print-identity-token`, ni le refresh de l'objet SDK chargé ne sont utilisés.
+Les journaux SDK/HTTP sont désactivés dans le processus, les endpoints Google sont
+fermés et les appels bornés, avec refus après échéance et certificats X509 uniquement.
+Le conducteur exact borne aussi la durée du processus. Le chargement SDK peut
+initialiser ses tables ; les nouveaux jetons ne sont pas persistés par ce helper.
+Compte absent ou réauthentification requise : refus,
+sans login implicite. Sortie privée : label/issuer/subject, sans JWT/email.
+L'audience CLI n'est pas celle du client web Ritomer. Le login SDK B éventuel
+reste une opération exacte distincte, sans defaults/ADC ni droit Cloud changé.
+Créer les bindings exacts par Job ; refaire un login produit explicite.
+
+La matrice réelle reste P1 réseau/cookies/CSRF ; P2 refus pré-binding ; P3 admission,
+tenant et rôles ; P4 deux bootId ET deux instanceId natifs d'une même révision ;
+P5 pièce/export relus sur autre instance puis révision remplacée sans relogin ;
+P6 révocation/restauration sans résurrection ; P7 logout avec rejeu de l'ancien
+cookie gardé uniquement en mémoire et B préservé ; P8 confidentialité des destinations
+et stockages ; P9 min0/probes off, cessation et inventaire. Chaque téléchargement,
+refus ou logout est lié à **son propre** challenge et instance, jamais à la probe
+précédente. Une configuration min2 seule ne prouve pas deux instances observées.
+
+Lorsque la qualification est activée, un refus de frontière sur `GET /api/me`
+anonyme, sans query, Cookie ni Authorization et avec un challenge UUID unique peut
+émettre une ligne distincte `M12_BOUNDARY_01` : uniquement `diagnostic`, `challenge`
+et un enum de premier refus (`HOST`, `FORWARDED_FORBIDDEN`, `PROTO`,
+`FORWARDED_UNKNOWN`, `DIRECT_TRANSPORT`, `ORIGIN`, `TRACKING`). Aucune valeur ou
+nom dynamique d'en-tête n'est émis ; ce diagnostic ne modifie pas le verdict de la garde.
+La corrélation habituelle à quatre champs reste inchangée. Cette observation ne
+prouve pas encore la cause externe du prédicat, ni l'autorisation de l'assouplir.
+Pour `FORWARDED_FORBIDDEN`, une seconde ligne `M12_FORWARDED_01` décrit les quatre
+présences par `mask` (bits 1/2/4/8 : Forwarded/Host/Port/Prefix), un compteur
+`forwardedCount` plafonné à 2, et quatre catégories fermées. `forwardedShape`
+vaut `ABSENT`, `MULTIPLE`, `KEYS_FOR_PROTO_HTTPS`,
+`KEYS_FOR_PROTO_HTTPS_HOST_CANONICAL` ou `OTHER` ; les deux catégories `KEYS`
+décrivent uniquement des noms de paramètres et leur forme, sans valider l'adresse
+`for` ni la provenance. `hostShape`, `portShape`, `prefixShape` valent `ABSENT`,
+respectivement `CANONICAL_SINGLE`/`HTTPS_SINGLE`/`EMPTY_SINGLE`, ou `OTHER`.
+Avec `diagnostic` et `challenge`, ces huit champs sont les seuls autorisés.
+Aucune valeur d'en-tête n'est enregistrée ; la classification de Forwarded est
+bornée à 2 048 caractères et toute ambiguïté traitée donne `OTHER`. Ce classificateur
+ne sert jamais de validateur d'admission. Le lecteur doit séparer cette ligne de la corrélation et du
+premier diagnostic, puis vérifier challenge, révision et instance communs.
+
+En mode `CLOUD_RUN`, la garde admet un `Forwarded` optionnel unique selon un
+prédicat distinct : exactement deux clés uniques `for` et `proto`, `proto=https`
+exact, aucune liste ni clé supplémentaire, valeur totale ASCII imprimable de
+1 à 2 048 caractères sans virgule ni antislash. Le champ `for` opaque est limité
+à 1–256 caractères alphanumériques ou `._-` ; une paire de guillemets fermée
+permet aussi `:[]`. L'ordre des deux paramètres est libre, les espaces autour
+des paramètres sont admis ; les doublons, contrôles et valeurs ambiguës sont refusés.
+Ce champ n'a aucune autorité de sécurité. Host canonique, X-Forwarded-Proto
+unique `https`, Origin/CSRF et tracking COOKIE restent contrôlés séparément ;
+seule l'origine configurée détermine l'URL normalisée. Le mode direct refuse
+toujours tous les forwarded headers. Une réponse anonyme 401 attendue après
+ce contrôle ne constitue ni un login Google réussi ni une qualification Cloud.
+
+### Conducteur fermé de recette Google/HTTPS
+
+Le bloc suivant conserve la recette historique de la reprise TLS du 9–10 octobre,
+avec sa deadline passée ; il ne décrit pas les octets de la recette diagnostique02
+utilisée ensuite. Les artefacts, hashes, contrôles offline et records privés du
+FEP identifient chaque version réellement exécutée. Ce bloc n'est pas une commande
+de reprise ; ne pas le relancer ni réutiliser ses autorisations consommées.
+Le lancement réel lie l'artefact, Node, Playwright1.63.0, l'origine HTTPS relue,
+une deadline UTC de deux heures maximum et chaque phase au record sensible revu.
+L'environnement exclut DEBUG, PWDEBUG, NODE_OPTIONS et toute journalisation de
+Playwright. Aucun paramètre d'origine/deadline fictif ne doit être exécuté.
+
+Entrée standard : un objet JSON fermé par ligne, `action` et `actor=A|B`.
+`open` affiche le produit pour l'authentification Google personnelle ; `denied`
+constate callback et anonymat avant binding. Les preuves administratives doivent
+établir séparément l'absence de bindings/admission/créations ; une redirection
+failed seule ne distingue pas refus d'admission et échec de protocole Google.
+P2 reste INCONCLUSIVE tant que ne sont pas réunis : sélection personnelle du compte
+A/B, refus observé sans admission, reçus administratifs avant/après attestant
+bindings absents puis présents et aucune création implicite d'acteur/membership,
+même digest image/révision/configuration et mêmes numéros de versions secrets,
+puis login admis après la seule mutation de binding autorisée. Aucune valeur ni
+empreinte de secret n'est extraite. Même cet ensemble ne prouve pas la cause
+interne de chaque premier échec : le claim reste « non liés, non admis ; après
+binding, admis », et non « tous les échecs viennent exclusivement du binding ».
+
+Après binding revu : `open`, `admitted`, `fixture` pour chacun des deux comptes.
+Les deux fixtures doivent exister avant `negative`, puis `headers` et
+`proxy-headers` pour chaque compte. `fixture` crée seulement le contenu synthétique décrit ci-dessous
+par les API métier ; aucune relance silencieuse après création partielle.
+Le conducteur observe uniquement en mémoire la requête d'autorisation Google et
+compare exactement redirect_uri avec l'origine revue + `/login/oauth2/code/google`,
+scope openid seul ; ni URL ni query ni valeur ne sort. Le reçu indique MATCHED.
+Pour Host forgé et X-Forwarded-Proto=http, `proxy-headers` distingue refus fermé
+400/403/404/421 et normalisation amont : un 200 exige le bon tenant puis sa propre
+corrélation native avec le serveur dont la garde canonique demeure stricte.
+Un refus sans corrélation applicative conserve la couche NON DÉTERMINÉE ; ne pas
+l'attribuer à une instance ni l'utiliser pour P4–P7. Les métadonnées réseau du
+record P1 complètent l'observation ; toute autre réponse ou ambiguïté décisive
+reste FAIL/INCONCLUSIVE. L'APIRequestContext utilise le jar navigateur et TLS
+normal, sans ignorer d'erreur certificat, sans suivre de redirection ni lire la
+réponse de refus. Les cinq autres forgeries du mode headers exigent leur refus
+applicatif et leur corrélation propre ; aucune garde produit n'est assouplie.
+
+`me` et `downloads` servent à P4/P5. Conserver le processus et les sessions pendant
+le changement de révision autorisé ; relire les mêmes objets, sans refaire
+`open` ni `fixture`. Pour P6 : `snapshot` A authentifié, révocation externe revue,
+`replay-denied` pour les deux instances, restauration revue, puis encore
+`replay-denied`, `me`/`downloads` B ; un nouveau `open`/`admitted` A est nécessaire.
+Refaire `replay-denied` avec l'ancien jar après ce nouveau login pour prouver que
+la nouvelle session ne ressuscite pas l'ancien SID.
+`renewed-csrf` vérifie que l'ancien CSRF est refusé après cette reconnexion.
+Pour P7 : nouveau `snapshot` A, `logout` vérifie l'identité en mémoire de l'ancien
+SID avec celui effectivement déconnecté ; `replay-denied` sur l'autre instance,
+puis `me`/`downloads` B. Aucune valeur ou empreinte de cookie/CSRF n'est émise.
+
+Le rapprochement `{"action":"correlate","rows":[...]}` ne lit aucun Cloud : rows
+provient d'une lecture séparément revue des seuls champs challenge/bootId/revision/
+status/labels.instanceId natifs, normalisés en instanceId. Chaque challenge émis
+exige une unique ligne exacte, même HTTP status ; exception/async/absence/ambiguïté
+ne passe pas. Le FEP vérifie ensuite, par phase et requête, deux bootId ET deux
+instanceId dans la même révision, puis la nouvelle révision attendue. Aucun PASS
+P4–P7 n'est produit par le seul conducteur, par un échantillon précédent ou par
+min2. La fenêtre min2 reste 15 minutes dans son record exact ; elle n'est pas
+prolongée par la deadline du navigateur. Les séquences/challenges permettent de
+lier l'ordre des observations aux opérations Cloud exactes et à leurs horodatages.
+
+`{"action":"stop"}` ferme le navigateur ; deadline, erreur réseau ou fermeture
+non prouvée reste INCONCLUSIVE, assertion contredite FAIL. L'arrêt du conducteur
+ne retire aucune ressource Cloud : P8 et P9 restent des opérations distinctes,
+avec leurs preuves de logs/DB, configuration, coûts et cessation. Un refus Google
+du navigateur piloté arrête cette voie ; aucun contournement ni capture d'écran.
+
+<!-- M12_RECIPE_BEGIN -->
+```javascript
+// M12 campaign only. No execution is authorized by this file's presence.
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { createHash, randomUUID } from 'node:crypto';
+import { createInterface } from 'node:readline';
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const hash = value => createHash('sha256').update(value).digest('hex');
+const must = value => { if (!value) throw new Error('ASSERTION_REJECTED'); };
+const closedFailure = error => JSON.stringify({ event: 'STOP',
+  status: error?.message === 'ASSERTION_REJECTED' ? 'FAIL' : 'INCONCLUSIVE',
+  code: error?.message === 'ASSERTION_REJECTED' ? 'CONTRACT_ASSERTION_FAILED' :
+    error?.message === 'DEADLINE_EXCEEDED' ? 'DEADLINE_EXCEEDED' : 'RECIPE_FAILED' });
+const tenants = { A: '036a0000-0000-4000-8000-000000000001', B: '047c0000-0000-4000-8000-000000000001' };
+function validGoogleAuthorization(raw, origin) {
+  try {
+    const url = new URL(raw);
+    return url.origin === 'https://accounts.google.com' && url.pathname === '/o/oauth2/v2/auth' &&
+      url.searchParams.getAll('redirect_uri').length === 1 &&
+      url.searchParams.get('redirect_uri') === origin + '/login/oauth2/code/google' &&
+      url.searchParams.getAll('scope').length === 1 && url.searchParams.get('scope') === 'openid';
+  } catch { return false; }
+}
+function correlate(receipts, rows) {
+  must(Array.isArray(rows) && rows.length === receipts.length && rows.length > 0);
+  const byChallenge = new Map();
+  for (const row of rows) {
+    must(Object.keys(row).sort().join(',') === 'bootId,challenge,instanceId,revision,status');
+    must(UUID.test(row.challenge) && UUID.test(row.bootId));
+    must(/^[a-z][a-z0-9-]{0,62}$/.test(row.revision) && /^[0-9a-f]{16,256}$/.test(row.instanceId));
+    must(Number.isInteger(row.status) && !byChallenge.has(row.challenge));
+    byChallenge.set(row.challenge, row);
+  }
+  return receipts.map(receipt => {
+    const row = byChallenge.get(receipt.challenge);
+    must(row && row.status === receipt.status);
+    return { ...receipt, bootId: row.bootId, revision: row.revision, instanceId: row.instanceId };
+  });
+}
+function selfTest() {
+  const challenge = '00000000-0000-4000-8000-000000000001';
+  const bootId = '00000000-0000-4000-8000-000000000002';
+  const receipt = { event: 'DOWNLOAD', actor: 'A', challenge, status: 200, sha256: hash('synthetic'), bytes: 9 };
+  const row = { challenge, bootId, revision: 'ritomer-m12-r1', status: 200, instanceId: 'a'.repeat(64) };
+  assert.equal(correlate([receipt], [row])[0].sha256, hash('synthetic'));
+  for (const rows of [[], [row, row], [{ ...row, status: 403 }], [{ ...row, instanceId: '' }], [{ ...row, token: 'private' }]]) {
+    assert.throws(() => correlate([receipt], rows));
+  }
+  assert.equal(closedFailure(new Error('private callback token')), '{"event":"STOP","status":"INCONCLUSIVE","code":"RECIPE_FAILED"}');
+  assert.equal(JSON.parse(closedFailure(new Error('ASSERTION_REJECTED'))).status, 'FAIL');
+  assert.equal(JSON.parse(closedFailure(new Error('DEADLINE_EXCEEDED'))).code, 'DEADLINE_EXCEEDED');
+  assert.equal(Object.values(tenants).every(id => UUID.test(id)), true);
+  const origin = 'https://ritomer-m12-synthetic.run.app';
+  const authorization = 'https://accounts.google.com/o/oauth2/v2/auth?scope=openid&redirect_uri=' + encodeURIComponent(origin + '/login/oauth2/code/google');
+  assert.equal(validGoogleAuthorization(authorization, origin), true);
+  assert.equal(validGoogleAuthorization(authorization + '&redirect_uri=other', origin), false);
+  assert.equal(validGoogleAuthorization(authorization.replace('scope=openid', 'scope=openid%20email'), origin), false);
+  assert.equal(validGoogleAuthorization(authorization.replace('accounts.google.com', 'provider.example.test'), origin), false);
+  assert.equal(validGoogleAuthorization(authorization, origin + '.invalid'), false);
+  console.log(JSON.stringify({ event: 'OFFLINE', status: 'PASS', checks: 15 }));
+}
+async function campaign() {
+  const [origin, deadlineText] = process.argv.slice(2);
+  must(process.argv.length === 4 && /^https:\/\/ritomer-m12-[a-z0-9.-]+\.run\.app$/.test(origin));
+  must(new URL(origin).origin === origin);
+  const deadline = Date.parse(deadlineText);
+  must(Number.isFinite(deadline) && deadline > Date.now() && deadline - Date.now() <= 2 * 3600_000);
+  must(deadline <= Date.parse('2026-10-10T02:27:01Z'));
+  must(!process.env.DEBUG && !process.env.PWDEBUG && !process.env.NODE_OPTIONS);
+  const require = createRequire('C:/dev/ritomer/frontend/package.json');
+  must(require('@playwright/test/package.json').version === '1.63.0');
+  const { chromium } = require('@playwright/test');
+  const browser = await chromium.launch({ headless: false, timeout: 30_000 });
+  const states = {};
+  const receipts = [];
+  const lines = createInterface({ input: process.stdin, terminal: false });
+  let stopped = false;
+  const timer = setTimeout(() => { stopped = true; lines.close(); void browser.close().catch(() => {}); }, deadline - Date.now());
+  const emit = value => console.log(JSON.stringify(value));
+  const assertLive = () => { if (stopped || Date.now() >= deadline) throw new Error('DEADLINE_EXCEEDED'); };
+  async function blank(state) {
+    await state.page.route(origin + '/', route => route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>M12 qualification</title>' }));
+    await state.page.goto(origin + '/', { waitUntil: 'domcontentloaded', timeout: 20_000 });
+  }
+  async function request(actor, path, { method = 'GET', body, multipart, expected = 200, event = 'CHECK', csrf = true, tenant = tenants[actor], binary = false, headers = {} } = {}) {
+    assertLive();
+    const state = states[actor]; must(state && new URL(state.page.url()).origin === origin);
+    const challenge = randomUUID();
+    const traced = path === '/api/me' || path === '/api/session/logout' || /\/(documents|export-packs)\/[0-9a-f-]+\/content$/.test(path);
+    const outgoing = { ...headers };
+    if (tenant) outgoing['X-Tenant-Id'] = tenant;
+    if (traced) outgoing['X-Ritomer-Qualification-Challenge'] = challenge;
+    if (method !== 'GET' && csrf) { must(state.csrf); outgoing['X-CSRF-TOKEN'] = state.csrf; }
+    const result = await state.page.evaluate(async ({ path, method, body, multipart, headers, binary }) => {
+      const init = { method, headers, credentials: 'include', redirect: 'error', signal: AbortSignal.timeout(15_000) };
+      if (body !== undefined) { init.body = JSON.stringify(body); headers['Content-Type'] = 'application/json'; }
+      if (multipart) {
+        const form = new FormData();
+        form.append('file', new Blob([multipart.content], { type: 'text/csv' }), multipart.name);
+        if (multipart.sourceLabel) form.append('sourceLabel', multipart.sourceLabel);
+        init.body = form;
+      }
+      const response = await fetch(path, init);
+      const result = { status: response.status };
+      if (binary && response.ok) {
+        const bytes = await response.arrayBuffer();
+        const digest = await crypto.subtle.digest('SHA-256', bytes);
+        result.sha256 = [...new Uint8Array(digest)].map(x => x.toString(16).padStart(2, '0')).join('');
+        result.bytes = bytes.byteLength;
+      } else if (response.headers.get('content-type')?.includes('application/json')) result.body = await response.json();
+      return result;
+    }, { path, method, body, multipart, headers: outgoing, binary });
+    const receipt = { event, actor, sequence: receipts.length + 1, ...(traced ? { challenge } : {}), status: result.status,
+      ...(result.sha256 ? { sha256: result.sha256, bytes: result.bytes } : {}) };
+    emit(receipt); if (traced) receipts.push(receipt);
+    must((Array.isArray(expected) ? expected : [expected]).includes(result.status));
+    return result;
+  }
+  async function bootstrap(actor, authenticated) {
+    const result = await request(actor, '/api/session/bootstrap', { tenant: null });
+    must(result.body.sessionState === (authenticated ? 'AUTHENTICATED' : 'ANONYMOUS'));
+    must(result.body.localLoginAvailable === false && result.body.oidcLoginAvailable === true);
+    must(result.body.csrf.headerName === 'X-CSRF-TOKEN' && typeof result.body.csrf.token === 'string');
+    states[actor].csrf = result.body.csrf.token;
+  }
+  async function downloads(actor) {
+    const state = states[actor]; must(state.folder && state.document && state.export);
+    for (const [kind, item] of [['documents', state.document], ['export-packs', state.export]]) {
+      const result = await request(actor, `/api/closing-folders/${state.folder}/${kind}/${item.id}/content`, { binary: true, event: 'DOWNLOAD' });
+      must(result.sha256 === item.sha256 && result.bytes === item.bytes);
+    }
+  }
+  async function fixture(actor) {
+    const state = states[actor]; must(!state.folder); await bootstrap(actor, true);
+    const folder = await request(actor, '/api/closing-folders', { method: 'POST', expected: 201,
+      body: { name: `M12 synthetic ${actor}`, periodStartOn: '2025-01-01', periodEndOn: '2025-12-31', externalRef: null } });
+    must(UUID.test(folder.body.id) && folder.body.tenantId === tenants[actor] && folder.body.status === 'DRAFT');
+    state.folder = folder.body.id;
+    const root = `/api/closing-folders/${state.folder}`;
+    const imported = await request(actor, root + '/imports/balance', { method: 'POST', expected: 201,
+      multipart: { name: 'm12-balance.csv', content: 'accountCode,accountLabel,debit,credit\n1000,Synthetic cash,100.00,0.00\n3000,Synthetic revenue,0.00,100.00\n' } });
+    must(imported.body.version === 1 && imported.body.rowCount === 2);
+    for (const [accountCode, targetCode] of [['1000', 'BS.ASSET.CASH_AND_EQUIVALENTS'], ['3000', 'PL.REVENUE.OPERATING_REVENUE']]) {
+      await request(actor, root + '/mappings/manual', { method: 'PUT', expected: 201, body: { accountCode, targetCode } });
+    }
+    const workpapers = (await request(actor, root + '/workpapers')).body;
+    must(workpapers.readiness === 'READY' && workpapers.latestImportVersion === 1);
+    const anchor = workpapers.items.find(x => x.isCurrentStructure && x.statementKind === 'BALANCE_SHEET')?.anchorCode;
+    must(anchor === 'BS.ASSET.CURRENT_SECTION');
+    await request(actor, root + '/workpapers/' + anchor, { method: 'PUT', expected: 201,
+      body: { noteText: 'M12 synthetic persistence', status: 'DRAFT', evidences: [] } });
+    const content = 'kind,value\nM12_SYNTHETIC,1\n';
+    const document = (await request(actor, root + '/workpapers/' + anchor + '/documents', { method: 'POST', expected: 201,
+      multipart: { name: 'm12-proof.csv', content, sourceLabel: 'M12 synthetic' } })).body;
+    must(UUID.test(document.id) && document.checksumSha256 === hash(content) && document.byteSize === Buffer.byteLength(content));
+    state.document = { id: document.id, sha256: document.checksumSha256, bytes: document.byteSize };
+    const pack = (await request(actor, root + '/export-packs', { method: 'POST', expected: 201, headers: { 'Idempotency-Key': randomUUID() } })).body;
+    must(UUID.test(pack.exportPackId) && /^[0-9a-f]{64}$/.test(pack.checksumSha256) && pack.byteSize > 0);
+    must(pack.closingFolderId === state.folder && pack.basisImportVersion === 1 && pack.basisTaxonomyVersion === 2);
+    state.export = { id: pack.exportPackId, sha256: pack.checksumSha256, bytes: pack.byteSize };
+    emit({ event: 'FIXTURE_IDENTIFIERS', actor, folderId: state.folder, documentId: state.document.id, exportId: state.export.id });
+    await downloads(actor);
+  }
+  try {
+    emit({ event: 'READY', status: 'WAITING_FOR_EXACT_AUTHORIZED_PHASE' });
+    for await (const line of lines) {
+      assertLive(); must(line.length <= 100000);
+      const command = JSON.parse(line);
+      if (command.action === 'stop') { must(Object.keys(command).length === 1); break; }
+      if (command.action === 'correlate') {
+        must(Object.keys(command).sort().join(',') === 'action,rows');
+        for (const row of correlate(receipts, command.rows)) emit(row);
+        continue;
+      }
+      must(Object.keys(command).sort().join(',') === 'action,actor');
+      const { actor, action } = command; must(actor === 'A' || actor === 'B');
+      let state = states[actor];
+      if (action === 'open') {
+        if (!state) {
+          const context = await browser.newContext({ serviceWorkers: 'block' });
+          state = states[actor] = { context, page: await context.newPage(), callbackSeen: false };
+          state.page.on('request', request => {
+            try {
+              const url = new URL(request.url());
+              if (url.origin === 'https://accounts.google.com' && url.pathname === '/o/oauth2/v2/auth') {
+                state.authorizationObserved = validGoogleAuthorization(request.url(), origin);
+              }
+            } catch { /* URL and parameters are never persisted or emitted. */ }
+          });
+          state.page.on('response', response => {
+            try {
+              const url = new URL(response.url());
+              if (url.origin === origin && url.pathname === '/login/oauth2/code/google') {
+                const parameters = url.searchParams;
+                state.callbackSeen = response.request().method() === 'GET' && response.status() === 302 &&
+                  parameters.getAll('code').length === 1 && !!parameters.get('code') &&
+                  parameters.getAll('state').length === 1 && !!parameters.get('state') && !parameters.has('error');
+                state.callbackDestination = response.headers().location;
+              }
+            } catch { /* No URL or exception output. */ }
+          });
+        }
+        state.callbackSeen = false;
+        state.authorizationObserved = false;
+        await state.page.unroute(origin + '/');
+        await state.page.goto(origin + '/', { waitUntil: 'domcontentloaded', timeout: 20_000 });
+        emit({ event: 'HUMAN_GOOGLE_LOGIN', actor, status: 'WAITING' });
+      } else {
+        must(state);
+        if (action === 'denied' || action === 'admitted') {
+          must(state.callbackSeen && state.authorizationObserved);
+          emit({ event: 'REDIRECT_URI_AND_SCOPE', actor, status: 'MATCHED' });
+          must(state.callbackDestination === (action === 'admitted' ? '/' : '/?login=failed'));
+          await blank(state);
+          const admitted = action === 'admitted'; await bootstrap(actor, admitted);
+          const result = await request(actor, '/api/me', { expected: admitted ? 200 : 401, event: admitted ? 'ADMITTED' : 'PRE_BINDING_DENIED' });
+          if (admitted) {
+            must(result.body.activeTenant?.tenantId === tenants[actor]);
+            must(result.body.effectiveRoles.length === 1 && result.body.effectiveRoles[0] === (actor === 'A' ? 'ACCOUNTANT' : 'ADMIN'));
+            const cookies = (await state.context.cookies(origin)).filter(x => x.name === '__Host-ritomer-session');
+            must(cookies.length === 1 && cookies[0].secure && cookies[0].httpOnly && cookies[0].sameSite === 'Lax' && cookies[0].path === '/');
+          }
+        } else if (action === 'fixture') await fixture(actor);
+        else if (action === 'downloads') await downloads(actor);
+        else if (action === 'me') await request(actor, '/api/me', { event: 'CONTINUITY' });
+        else if (action === 'snapshot') {
+          const me = await request(actor, '/api/me', { event: 'AUTHENTICATED_SNAPSHOT' });
+          must(me.body.activeTenant?.tenantId === tenants[actor]);
+          state.oldCookies = (await state.context.cookies(origin)).filter(x => x.name === '__Host-ritomer-session');
+          state.oldCsrf = state.csrf;
+          must(state.oldCookies.length === 1);
+          emit({ event: 'OLD_COOKIE_IN_MEMORY', actor, status: 'READY' });
+        } else if (action === 'replay-denied') {
+          must(state.oldCookies?.length === 1);
+          const original = state;
+          const context = await browser.newContext({ serviceWorkers: 'block' });
+          try {
+            const replay = { context, page: await context.newPage() };
+            await blank(replay); await context.addCookies(original.oldCookies);
+            states[actor] = replay;
+            await request(actor, '/api/me', { expected: [401, 403], event: 'OLD_COOKIE_DENIED' });
+          } finally { states[actor] = original; await context.close(); }
+        } else if (action === 'logout') {
+          must(state.oldCookies?.length === 1); await bootstrap(actor, true);
+          const current = (await state.context.cookies(origin)).filter(x => x.name === '__Host-ritomer-session');
+          must(current.length === 1 && current[0].value === state.oldCookies[0].value);
+          await request(actor, '/api/session/logout', { method: 'POST', tenant: null, expected: 204, event: 'LOGOUT' });
+        } else if (action === 'proxy-headers') {
+          for (const [kind, forged] of [
+            ['HOST', { Host: 'm12-invalid.example.test' }], ['PROTO', { 'X-Forwarded-Proto': 'http' }]
+          ]) {
+            assertLive();
+            const challenge = randomUUID();
+            const response = await state.context.request.get(origin + '/api/me', {
+              timeout: 15000, maxRedirects: 0,
+              headers: { ...forged, 'X-Tenant-Id': tenants[actor], 'X-Ritomer-Qualification-Challenge': challenge }
+            });
+            const status = response.status();
+            must([200, 400, 403, 404, 421].includes(status));
+            if (status === 200) {
+              const me = await response.json(); must(me.activeTenant?.tenantId === tenants[actor]);
+              const receipt = { event: 'PROXY_NORMALIZED', actor, kind, sequence: receipts.length + 1, challenge, status };
+              emit(receipt); receipts.push(receipt); // App success MUST have its own native correlation.
+            } else {
+              // A frontal refusal may have no application instance. Never use it for P4-P7.
+              emit({ event: 'PROXY_REFUSED_LAYER_UNDETERMINED', actor, kind, challenge, status });
+            }
+            await response.dispose();
+          }
+        } else if (action === 'headers') {
+          for (const forged of [
+            { Origin: 'https://m12-invalid.example.test' },
+            { Forwarded: 'proto=https;host=m12-invalid.example.test' },
+            { 'X-Forwarded-Host': 'm12-invalid.example.test' },
+            { 'X-Forwarded-Port': '443' },
+            { 'X-Forwarded-Prefix': '/synthetic' }
+          ]) {
+            assertLive();
+            const challenge = randomUUID();
+            const response = await state.context.request.get(origin + '/api/me', {
+              timeout: 15000, maxRedirects: 0,
+              headers: { ...forged, 'X-Tenant-Id': tenants[actor], 'X-Ritomer-Qualification-Challenge': challenge }
+            });
+            const receipt = { event: 'FORGED_HEADER_DENIED', actor, sequence: receipts.length + 1, challenge, status: response.status() };
+            emit(receipt); receipts.push(receipt); await response.dispose(); must(receipt.status === 403);
+          }
+        } else if (action === 'renewed-csrf') {
+          must(state.oldCsrf && state.csrf && state.csrf !== state.oldCsrf);
+          await request(actor, '/api/session/logout', { method: 'POST', tenant: null, csrf: false,
+            headers: { 'X-CSRF-TOKEN': state.oldCsrf }, expected: 403, event: 'OLD_CSRF_DENIED' });
+        } else if (action === 'negative') {
+          must(states.A?.folder && states.B?.folder); await bootstrap(actor, true);
+          const other = actor === 'A' ? 'B' : 'A';
+          await request(actor, '/api/me', { tenant: tenants[other], expected: 403, event: 'WRONG_TENANT' });
+          await request(actor, `/api/closing-folders/${states[other].folder}/documents/${states[other].document.id}/content`, { expected: 404, event: 'CROSS_TENANT' });
+          await request(actor, `/api/closing-folders/${states[other].folder}/export-packs/${states[other].export.id}/content`, { expected: 404, event: 'CROSS_TENANT' });
+          await request(actor, '/api/session/logout', { method: 'POST', tenant: null, csrf: false, expected: 403, event: 'CSRF_ABSENT' });
+          await request(actor, '/api/session/logout', { method: 'POST', tenant: null, csrf: false, headers: { 'X-CSRF-TOKEN': 'synthetic-invalid' }, expected: 403, event: 'CSRF_INVALID' });
+          if (actor === 'A') await request(actor, `/api/closing-folders/${state.folder}/archive`, { method: 'POST', expected: 403, event: 'ROLE_DENIED' });
+        } else throw new Error('COMMAND_REJECTED');
+      }
+      emit({ event: 'PHASE_FINISHED', actor, status: 'OBSERVED_PENDING_CORRELATION' });
+    }
+    if (stopped) throw new Error('DEADLINE_EXCEEDED');
+  } finally {
+    clearTimeout(timer); lines.close(); await browser.close();
+    must(!browser.isConnected()); emit({ event: 'DRIVER_CLOSED', status: 'OBSERVED' });
+  }
+}
+try {
+  if (process.argv.length === 3 && process.argv[2] === '--self-test') selfTest();
+  else await campaign();
+} catch (error) { console.log(closedFailure(error)); process.exitCode = 1; }
+```
+<!-- M12_RECIPE_END -->
+
+### Coût, récupération et cessation
+
+Modèle de préparation du08.10.2026 : 60,182656 CHF HT, soit65,06 CHF avec TVA8,1%
+hypothétique, prix/FX historiques explicités dans le plan privé. Enveloppe100 CHF
+sur30jours incluant5 CHF de cessation ; seuils50/75/90 et arrêt anticipé si prévision
+>=100. Relever T_TRIAL avant la première opération payante M12 et FIN_TRIAL=T_TRIAL+30j,
+en incluant la SQL existante sur cette même fenêtre. Coûts antérieurs séparés,
+sauvegardes EU anciennes non déplacées, délais billing et résidus pris en compte.
+
+Annuler seulement les exécutions détenues ; retirer min2/traffic/tags temporaires,
+probes et bootstrap/versions/droits temporaires sous leurs records exacts. Conserver
+un chemin admin privé réutilisable. Première installation sans digest connu bon :
+aucun rollback fictif. Réparer DNS/CA/VPC dans le chemin privé, sans rouvrir IPv4.
+La restauration destructive de l'instance et la suppression finale SQL/backups
+requièrent encore une décision sur l'inventaire exact. Luis reste responsable de
+la décision de fin d'essai ; aucune surveillance ou suppression J30 automatique
+n'est fournie par cette campagne de18h. Arrêter un service ne prouve pas coût zéro.
+
+## Tranche locale initiale
+
+Le mandat initial couvrait code, tests hors DB, compilation des tests DB,
+documentation et review distincte, sans exécution SQL. Des mandats distincts ont
+ensuite couvert les campagnes PostgreSQL locales datées ci-dessous. Google réel,
+Cloud, production et commit/push/PR/merge restent hors de ces campagnes locales.
+La sous-étape M12 ajoute une campagne distincte au
+rail existant ; ses sélections B/D et records historiques restent séparés, sans
+réactivation. Aucun nettoyage du poste ni des archives locales.
+
+Depuis `frontend`, les checks de cette tranche locale Windows sont
+`pnpm test:ci --no-file-parallelism`, `pnpm lint`, `pnpm build`, selon l'amendement
+`AUTH-20261006-M1-2-LOCAL-GUARD-FIX-01`. Le corpus et les concurrences internes
+restent complets ; aucun skip, délai ou assertion n'est modifié. Le mode standard
+a des échecs natifs historiques conservés dans les preuves. La CI garde
+`pnpm test:ci` et doit encore établir son propre succès lors d'une delivery autorisée.
+Depuis `backend`, les checks hors DB sont :
+
+```powershell
+.\gradlew.bat test windowsTest build --no-daemon --rerun-tasks
+.\gradlew.bat bootJar -PbundleFrontend=true --no-daemon
+.\gradlew.bat bootJar --no-daemon
+```
+
+La dernière commande vérifie qu'un JAR standard après l'opt-in ne garde aucun
+asset. Le build frontend doit précéder l'opt-in ; index absent, symlink ou chemin
+sortant de dist sont refusés. Aucun Exec pnpm, copie dans les sources ou changement CI.
+Contrôler les XML portable/Windows : tests présents, positifs, aucun échec, erreur
+ou skipped ; preuve Modulith incluse. Les tests DB sont compilés dans testClasses
+mais exclus de ces tâches ; les opérations DB sensibles passent uniquement par
+le rail et les records exacts d'un mandat distinct, jamais par un lancement parallèle.
+
+Si le JDK Windows refuse son socket temporaire avant la compilation, le correctif
+de processus documenté par le FEP fixe `jdk.net.unixdomain.tmpdir` sur le répertoire
+de preuves existant de cette mission, puis restaure JAVA_TOOL_OPTIONS. Aucun
+changement système ou d'assertion n'est requis. Conserver la commande et sa sortie.
+
+## Préparation PostgreSQL M12 — mandat initial sans exécution
+
+Cette section décrit la préparation initiale du 6 octobre, conservée comme
+historique. `AUTH-20261006-M1-2-M12-IMPLEMENTATION-01` couvrait les adaptations
+locales et tests hors DB. Aucun Preflight, Lifecycle, CleanupOnly, psql ou cas
+`m12-process` réel n'était exécuté dans cette sous-étape. Les résultats des
+campagnes ultérieures sont consignés séparément ci-dessous, avec leurs FEP.
+
+Depuis `backend`, les contrôles prescrits sont :
+
+```powershell
+.\gradlew.bat testClasses --no-daemon
+.\gradlew.bat test --tests '*DemoSeedLocalSourceGuardTest*' --tests '*JdbcSessionConfigurationTest*' --tests '*SharedOidcSessionSecurityTest*' --no-daemon --rerun-tasks
+.\gradlew.bat windowsTest --tests '*DemoSeedLocalSourceGuardTest*' --no-daemon --rerun-tasks
+.\gradlew.bat test windowsTest build --no-daemon --rerun-tasks
+```
+
+| Sélection du dispositif | Classes / cas | Connexions maximales |
+|---|---|---|
+| targeted historique | 2 / 13 | Dans le budget historique |
+| FULL historique | 12 / 55 | Six pools × 2 + garde 1 = 13 |
+| `m1_2PostgresRailQualification` | 1 / 5 | Pilote 2 + A 2 + B 2 + garde 1 = 7 |
+
+Les phases utilisent des Jobs Windows successifs. Les 13 classes de l'inventaire
+global restent contrôlées ; le seul tag de méthode `m12-process` est exclu de
+`dbIntegrationTest` et inclus dans la qualification M12. Le chevauchement de
+19 connexions est interdit ; la limite du rôle reste 16. A1 doit être arrêté
+avant A2. Les workers n'ont que `shared-internal`, Flyway false et un schéma V11
+déjà vérifié ; le pilote conserve `dbtest`/Flyway. MockMvc et l'IdP loopback
+éprouvent le pipeline servlet, pas un serveur HTTPS ou Google réel.
+
+La qualification réalise des observations `pg_stat_activity` via le pool pilote
+déjà détenu, avant chaque reset et aux frontières A1/B/A2. Les chiffres expurgés
+ne sont pas un pic continu : le calcul gardé réserve toujours la septième connexion.
+Une session inconnue ou masquée est refusée, y compris un backend dont le type est
+invisible au rôle ; ce refus conservateur peut arrêter une campagne. La clôture de
+l'IdP utilise un thread détenu et une attente bornée ; interruption, erreur ou fin
+tardive laissent la barrière de reset active. Leurs résultats locaux sont datés
+dans les sous-sections de campagne ci-dessous.
+
+La cible locale du dispositif est PostgreSQL 17 sur `127.0.0.1:15432`, base
+`ritomer_043b_test`, rôle `ritomer_043b_test_runner`, créés de novo après preuve
+de leur absence. PostgreSQL 16/5432 est hors scope. L'observation datée de
+listeners `0.0.0.0`/`::` n'établit pas une exclusivité loopback ; le Preflight
+autorisé vérifie les conditions réelles. Aucun service, HBA, listener
+ou pare-feu n'est changé par cette préparation.
+
+Le dossier privé initial sous `out/m1-2-postgresql-implementation-20261006-01`
+devait lier un seul RunId, les commandes absolues Preflight/Lifecycle/CleanupOnly,
+les octets/hashes de scripts et exécutables, les manifests et les trois projets
+de records distincts. Ces projets ne valent pas autorisation. Les valeurs de
+cluster/OID encore inconnues doivent provenir de l'unique Preflight exact ;
+elles ne sont ni inventées ni copiées d'un record consommé. La transition vers
+Lifecycle est vérifiée directement entre principal et Reviewer selon les
+conditions préalablement autorisées, sans modification du launcher.
+
+Preflight est borné à 40 minutes, Lifecycle à 110 minutes, dont 7 réservées à
+arrêt/nettoyage/contrôles, et CleanupOnly à 7 minutes. Lifecycle doit aussi se
+terminer dans les 150 minutes depuis le début du Preflight, attente de
+transition comprise. Toutes ces opérations, récupération comprise, expirent
+avec les octets du mandat initial le **07.10.2026 à 11:19:27 UTC**. Cette échéance
+est historique ; elle n'est pas celle de la résolution autonome ci-dessous.
+Une campagne ultérieure exige
+une nouvelle enveloppe explicite et le renouvellement des octets, contrôles,
+review et bindings affectés ; la date ne peut pas être corrigée silencieusement
+après review. Le secret administrateur fixe reste hors
+Git ; seule son utilisation future autorisée par psql est prévue. Aucun agent
+ne le lit, crée, affiche ou hashe dans cette sous-étape. Le secret runner reste
+éphémère, limité aux processus autorisés, absent des logs et artefacts.
+
+Un résultat rouge reste rouge même si le cleanup réussit. Aucune destruction
+si reçu de provisionnement/OID/instance ou cessation sont inconnus : quarantaine
+conservée, récupération distincte. CleanupOnly vérifie le contrôleur précédent,
+les reçus, les Jobs et les sessions SQL ; il ne relance pas les tests. Toute
+session SQL restante bloque le nettoyage, sans `pg_terminate_backend` M12.
+Une relance conserve l'échec, justifie l'expérience, prouve cessation et cleanup
+ou laisse la quarantaine, puis vérifie les bindings et droits encore valides.
+Un changement matériel exige leur renouvellement ; aucun hash futur inconnu
+n'est couvert implicitement.
+
+### Résultat de la reprise locale r2 du 7 octobre 2026
+
+Le mandat distinct `ODR-20261007-M1-2-M12-EXECUTION-02` a couvert une invocation
+Preflight puis Lifecycle sur les seuls objets exacts alors revus. Preflight,
+targeted 2/13 et FULL historique 12/55 passent. La qualification M12 reste
+**FAIL** : V11/binding passe, le scénario deux JVM échoue ; un cas est skipped
+et deux sont absents après fail-fast. Le nettoyage intégré et la cessation
+sont attestés ; CleanupOnly n'a pas été nécessaire. Les deux droits invoqués
+sont consommés et le droit de secours est fermé sans exécution. Les preuves
+exactes et la review FAIL sont conservées dans le FEP privé de cette reprise.
+
+Après préservation de l'objet exécuté et clôture de sa review, le correctif
+hors DB garde l'erreur primaire et les échecs secondaires par étape sous forme
+de codes fermés, sans cause, message ou suppressed privé. Tous les nettoyages
+et le contrôle de quiescence restent tentés ; un échec reste bloquant.
+La vérification de chaque fichier du runtime conserve ses contrôles d'ancêtres,
+type et SHA-256, répartis entre au plus quatre lecteurs détenus. Leur executor
+attend la fin de toutes les tâches de lecture avant tout retour, même sur erreur ou interruption ;
+l'inventaire de structure est toujours contrôlé ensuite. Aucun délai ne change.
+Les tests attendent séparément la mort des threads observés ; la fixture native
+attend aussi le signal de fin du processus racine, distinct du Job vide, dans
+le restant de son budget de terminaison initial de trois secondes.
+
+Ce correctif et ses vérifications hors DB ne qualifient pas le scénario réel
+et ne prouvent pas rétrospectivement sa cause initiale, masquée par l'ancien
+finally. Toute nouvelle exécution sensible exige une review et des bindings
+renouvelés ; aucun record consommé ni runtime corrigé n'autorise une relance.
+
+### Résolution autonome locale du 7 octobre 2026
+
+Le mandat `ODR-20261007-M12-AUTONOMOUS-RESOLUTION-01` a couvert les corrections
+nécessaires dans les 49 chemins existants et une extension unique de 12 heures,
+de **17:42 UTC le 7 octobre à 05:42 UTC le 8 octobre**. L'ancienne échéance et
+le contrôle tardif après son expiration restent historiques, sans autorisation
+rétroactive. La nouvelle échéance du rail a été vérifiée séparément ; les
+plafonds 40/110/7 minutes, la fenêtre de 150 minutes, INIT et les oracles n'ont
+pas été augmentés ou affaiblis.
+
+La campagne `f6b31f2daadf44189bcb043cedcc9b3c` a terminé Preflight et Lifecycle
+avec codes natifs 0. **Targeted 13/13, FULL historique 55/55 et M12 5/5** passent,
+sans échec, erreur, skip ou méthode absente ; les 13 ciblés sont inclus dans
+les 55 historiques. V11, consommation concurrente, TTL/purge, attributs minimaux
+et non-résurrection sont qualifiés. Le scénario A1/B/A2 établit la reprise sans
+nouveau login, le logout effectif depuis l'autre JVM et le second compte préservé.
+
+Les observations de connexions donnent 2/4/6/4/6/2 aux frontières contrôlées,
+sans connexion inconnue ni phase historique survivante. Le maximum **observé**
+est 6 ; ce n'est pas une mesure continue du pic. Les pools et le budget M12 de 7
+restent sous le plafond de rôle 16. Workers, IdP et activités JDBC sont cessés
+avant reset/nettoyage ; les reçus et l'observation OS corroborent la cessation.
+La base et le rôle propres au run ont été supprimés, les sessions résiduelles
+sont nulles selon le rail et aucune quarantaine ne subsiste.
+
+Lifecycle dure 29,747 minutes ; du début de Preflight à sa fin, 56,256 minutes.
+La review distincte conclut **PASS_WITH_RESIDUAL_RISK**, sans finding bloquant,
+sur l'objet exécuté. Les records Preflight/Lifecycle sont consommés ; CleanupOnly
+est fermé `NOT_REQUIRED`, jamais activé ni invoqué. Les 735 tests hors DB réussis
+le même jour entre 07:50 et 08:21 UTC sont réutilisés comme preuves datées du code
+inchangé ; huit contrôles d'horloge et une compilation ont été renouvelés.
+
+Les sources/diff exécutés, les runtimes, XML, reçus, commandes, clôtures et reviews
+sont conservés dans le FEP privé `out/m12-resolution-autonome-20261007-01`.
+Le cumul documentaire postérieur reste identifié séparément du diff exécuté.
+L'échec r2 ci-dessus est conservé ; ce succès ne prouve pas rétrospectivement sa
+cause primaire. La preuve reste locale servlet/PostgreSQL avec IdP synthétique :
+Google réel, HTTPS réseau, Cloud, production, delivery et clôture complète de
+M1.2/047 restent hors de ce verdict. Les reviews sont IA, sans signature humaine
+ni séparation réelle des fonctions.
+
+## Connexions de qualification M1.2
+
+Les clients A et B passent par la page d’accueil et « Se connecter avec Google ».
+Le navigateur qui lance le parcours reçoit le callback. Après révocation et
+restauration, vérifier l’ancienne session avant de guider la troisième
+connexion. SharedOidcSessionSecurityTest exerce cet ordre par HTTP local.
+SharedOidcSessionDbIntegrationTest appelle PostgresTestRailM12Process sur
+la base jetable prévue par le rail. Son reset exige son propre mandat.
+
+Pour une campagne réelle, établir avant START que le client produit les reçus
+nécessaires à P5/P6/P7 dans les fenêtres autorisées. Le conducteur a retiré le
+Job qui lisait les sessions vivantes. Le retour visuel à l’écran de connexion
+ne démontre pas le refus de la valeur déconnectée sur une autre instance.
+Les conditions de preuve figurent dans le
+[contrat de qualification](../contracts/qualification/shared-session-witness-v1.md).
+
+## Préconditions d'une future exécution Cloud
+
+1. Établir le budget global du mandat explicite de l'exécution concernée et sa
+   consommation réelle. Aucun budget local ou historique ne s'applique par défaut.
+2. Identifier les artefacts exacts, hashes, environnement et opérations nécessaires,
+   leurs permissions effectives et la review sensible requise. Ne pas fabriquer
+   de commandes sensibles exactes avant observation des préconditions.
+3. Cibler le projet existant et **une seule instance SQL réutilisée**, initialement
+   PostgreSQL 17 Enterprise zonal, 1 vCPU/3,75 GiB, `europe-west6`. Préparer une base
+   logique dédiée et les rôles appropriés dans cette instance. Aucun doublon SQL,
+   remplacement, clone ou PITR dans le mandat Cloud du 8 octobre.
+4. La déclaration owner rend les anciennes données d'essai jetables. Aucun export
+   de conservation n'est exigé pour ces seules données. Elle n'autorise aucun
+   nettoyage global et ne prouve pas une inspection de toutes les lignes SQL.
+   Les sauvegardes futures restent provisionnées ; aucun changement de PITR,
+   rétention ou protection contre suppression ne découle de cette déclaration.
+5. Séquencer réseau privé, accès Cloud Run via Direct VPC egress, vérification de
+   la nouvelle connectivité, puis retrait IPv4 publique de l'instance réaffectée.
+   L'ordre exact dépend de l'état observé. Pas de NAT/connecteur permanent/load
+   balancer ajouté dans le scénario chiffré. Cloud Run Zurich, min instances zéro,
+   facturation à la requête, sous contrôle des limites réellement configurées.
+6. Préparer origine canonique HTTPS, client OAuth dédié et callback exact, secrets
+   runtime et bindings A/B explicites sans exposer leurs valeurs dans Git/FEP.
+   `app_user.external_subject` reste interne ; aucun subject Google dans `/api/me`.
+7. Profil partagé exclusif, service Cloud Run attendu, HMAC absent, TLS DB
+   `verify-full` et CA, migrations séparées, frontend embarqué. Vérifier les
+   en-têtes réellement remis par la plateforme ; aucun contournement permissif
+   si la topologie observée ne respecte pas la frontière.
+   Configurer explicitement `RITOMER_WORKPAPERS_DOCUMENTS_STORAGE_BACKEND=GCS`
+   et le bucket privé via `RITOMER_WORKPAPERS_DOCUMENTS_STORAGE_GCS_BUCKET`, avec
+   les accès runtime appropriés. Le profil partagé candidat fixe désormais `GCS`
+   et refuse `LOCAL_FS`. Vérifier leur lecture après redémarrage
+   et depuis deux instances avant toute acceptation de l'environnement partagé.
+8. Garder les logs sécurité/session/JDBC/client HTTP hors DEBUG/TRACE et refuser
+   toute collecte de query de callback, tokens, SID ou identités fournisseur.
+   Le candidat ne configure ni ne certifie une journalisation durable Cloud ;
+   vérifier séparément les logs de requêtes/plateforme et leur rétention avant
+   Google réel. Aucune promesse de preuve d'audit pré-tenant durable.
+
+## État des validations et campagnes restantes
+
+- Le correctif local autorisé distingue l'inventaire global exact de treize classes
+  DB et la sélection historique exacte de douze. La différence est le seul test
+  OIDC nouveau ; aucun filtrage hors scanner, métadonnées ou budget de connexions.
+  L'unique exclusion admise de SessionAutoConfiguration est contrôlée par clé,
+  valeur et provenance dans application.yml ; tout override reste refusé.
+  Les preuves d'échec initiales restent historiques, les résultats du correctif
+  et sa review sont conservés séparément dans le nouveau FEP.
+- La campagne PostgreSQL locale ci-dessus qualifie V11, contraintes/repositories,
+  expiration/purge, consommation concurrente, sauvegarde obsolète, sérialisation
+  minimale et continuité A1/B/A2. Les attentes historiques restent V1–V11,
+  FULL 12/55 puis M12 1/5 ; leurs résultats locaux ne qualifient pas la cible Cloud.
+- Google réel A/B, callback légitime sans Origin, refus d'identité non liée,
+  révocation, CSRF, cookie, safe return et audit de sélection tenant conservé.
+- QA navigateur same-origin : closing autorisé, refus inter-tenant, expiration,
+  reconnexion explicite, logout, focus/multi-tab, clavier et viewport étroit.
+
+Un défaut local se corrige dans un mandat applicable ; une action hors scope,
+un coût, une permission ou un file-set supplémentaire, ou un budget atteint,
+marque une frontière à consolider. La campagne locale ne remplace pas les
+campagnes Google/Cloud et navigateur restantes.
+
+## Historique du budget du 6 octobre et fin d'essai
+
+Le modèle de préparation du 8 octobre en tête de ce runbook remplace ce chiffrage
+historique pour la campagne courante. Scénario : une seule instance réaffectée sur
+30 jours. Recalcul des prix
+et volumes du FEP du 06.10.2026, sans nouveau relevé billing :
+
+| Poste | CHF HT |
+|---|---:|
+| Instance existante, SSD et provision backups | 55,267678 |
+| Accessoires M1.2 hors seconde SQL | 4,552248 |
+| Total | 59,819926 |
+
+Avec l'hypothèse budgétaire TVA 8,1 % : 64,665340006 CHF, arrondi **64,67 CHF** ;
+marge indicative **35,33 CHF** sur **100 CHF / 30 jours**. Ni nouvelle facture,
+ni devis, ni plafond garanti. Dépenses déjà engagées distinctes. Localisation et
+facturation des journaux PITR étaient alors à confirmer ; le relevé du 8 octobre
+indique CLOUD_STORAGE, sans présumer les futurs coûts réels de reconfiguration.
+Pas de restriction à 21 jours, pas de deuxième SQL chiffrée
+en parallèle. Aucun prix ou état réseau n'est présenté comme nouvellement observé.
+
+La liste future de fin d'essai inclura l'instance réaffectée, même préexistante,
+et les seuls nouveaux services utiles. Distinguer arrêt, suppression et frais
+persistants de stockage/sauvegardes. Chaque opération exige ses cibles exactes,
+review et autorisation ; aucune suppression à J30 n'est programmée ou annoncée.
+Ne jamais supprimer l'instance en se fondant uniquement sur son nom historique.

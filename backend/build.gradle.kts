@@ -601,6 +601,12 @@ tasks.withType<Test>().configureEach {
 }
 
 tasks.named<Test>("test") {
+  // The nonproduction P1 witness tests must exercise Host with the flag set at JVM startup.
+  systemProperty("jdk.httpclient.allowRestrictedHeaders", "host")
+  // The browser fixture is run separately with its local identity provider and Chromium.
+  if (providers.environmentVariable("RITOMER_M12_BROWSER_TEST").orNull != "true") {
+    filter.excludeTestsMatching("ch.qamwaq.ritomer.identity.api.SharedOidcBrowserTest")
+  }
   useJUnitPlatform {
     excludeTags("db-integration", "windows-only")
   }
@@ -1105,6 +1111,8 @@ val bundleFrontend = providers.gradleProperty("bundleFrontend").map {
   it == "true"
 }.orElse(false)
 tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
+  isPreserveFileTimestamps = false
+  isReproducibleFileOrder = true
   inputs.property("bundleFrontend", bundleFrontend)
   if (bundleFrontend.get()) {
     val frontendDist = rootDir.resolve("../frontend/dist").toPath().toAbsolutePath().normalize()

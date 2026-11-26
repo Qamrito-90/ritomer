@@ -3,7 +3,8 @@
 Portée : [047](../../specs/active/047-shared-oidc-session-v1.md), migration V11 additive,
 PostgreSQL 17. V11 et les cinq cas M12 sont qualifiés sur la campagne locale du
 07.10.2026, avec IdP synthétique, cessation et nettoyage attestés. Le candidat
-reste non livré ; cette preuve ne vaut ni qualification Google réel ni Cloud.
+est livré par PR #130 (`2188dd553f13ac8fda9019ebe391c2ec3bde171b`) ; cette preuve
+ne vaut ni qualification Google réel ni Cloud.
 
 ## Identité globale, autorité tenant séparée
 
@@ -67,11 +68,48 @@ L'expiration interdit déjà l'usage, même avant la purge physique.
 
 ## Droits, rétention et preuve
 
-Le futur rôle runtime doit lire les bindings/utilisateurs/appartenances, accéder
-aux tables de session et de transaction, et garder ses seuls droits métier
-nécessaires. Il ne reçoit pas le provisionnement des bindings ou les migrations
-par le parcours login. Les droits exacts seront revus sur la base dédiée dans
-l'instance existante réaffectée ; aucune connexion ni modification de droits ici.
+### Candidat opérateur Cloud du 8 octobre 2026
+
+La base dédiée `ritomer_m12` appartient au rôle NOLOGIN `ritomer_m12_migrator`.
+Le bootstrap temporaire se connecte à `postgres` pour les rôles et CREATE DATABASE
+hors transaction, sans écrire dans ses tables ni dans une base historique.
+Son appartenance SET temporaire précède la création ; le rôle propriétaire est
+effectivement activé avant les ACL. Toute collision de nom ferme le bootstrap ;
+une récupération partielle doit être liée aux reçus et revue séparément.
+
+Les logins créés par API avec `databaseRoles` explicites ne reçoivent pas
+cloudsqlsuperuser. Chaque connexion Flyway vérifie cible, PostgreSQL17, TLS,
+session_user et memberships, puis SET ROLE migrator. Schéma public fixé ; V1–V11
+inchangées, clean désactivé, aucune réparation ou baseline implicite. Inventaire
+attendu : 18 tables applicatives et flyway_schema_history, aucune séquence.
+
+| Tables | Droits runtime attendus |
+|---|---|
+| tenant, app_user, tenant_membership, oidc_identity_binding | SELECT |
+| audit_event, export_pack, balance_import, balance_import_line, document | SELECT, INSERT |
+| closing_folder, workpaper, document_verification, mapping_suggestion_decision_request | SELECT, INSERT, UPDATE |
+| manual_mapping | SELECT, INSERT, UPDATE, DELETE |
+| workpaper_evidence | SELECT, INSERT, DELETE |
+| spring_session, spring_session_attributes, oidc_authorization_transaction | SELECT, INSERT, UPDATE, DELETE |
+| flyway_schema_history | AUCUN |
+
+Le runtime n'a ni CREATE/TEMPORARY, ni TRUNCATE, ni droit de migration ou de
+provisionnement des bindings. Les grants futurs sont fermés par défaut ; toute
+nouvelle table nécessite des droits explicites. Les permissions effectives et
+les refus SQLSTATE 42501 restent des critères d'intégration Cloud à prouver.
+
+Le seed administratif prépare seulement deux tenants synthétiques séparés,
+acteurs et memberships : A accountant historique, B admin historique dans un
+second tenant fixe. Aucun dossier n'est inséré par SQL : création par API/UI
+métier après admission, avec audit produit. Bindings après les refus pré-binding
+réels ; révocation/restauration tourne la référence du binding et modifie le
+membership exact. Les reçus administratifs privés ne sont pas un audit comptable
+pré-tenant fictif. Aucun secret ou subject fournisseur n'est ajouté à ces docs.
+
+La matrice ci-dessus fixe les droits du candidat ; elle ne prouve pas encore les
+grants effectifs sur Cloud. Le rôle runtime n'obtient ni le provisionnement des
+bindings ni les migrations par le parcours login. La vérification réelle reste
+liée à la base dédiée dans l'unique instance existante et à ses records sensibles.
 
 Les tests hors DB vérifient le schéma embarqué, les paramètres/transactions et
 le refus de persister un principal fournisseur. Les tests DB couvrent
@@ -90,5 +128,5 @@ se chevauchent pas. Toute session SQL survivante interdit le cleanup M12,
 sans `pg_terminate_backend`. Une identité de provisionnement incomplète laisse
 la quarantaine en place. La campagne locale a réussi targeted 13 et FULL 55
 (13 inclus dans 55), puis M12 5 ; ses records sont clos. Les objets exacts et
-limites figurent dans le [runbook](../../runbooks/m1-2-shared-nonproduction.md#résolution-autonome-locale-du-7-octobre-2026).
+limites figurent dans le [archive PostgreSQL du 7 octobre](../../runbooks/archive/m1-2-shared-nonproduction-avant-nettoyage-20261114.txt#L1255).
 Chaque nouvelle exécution ou delivery exige ses propres autorisations applicables.

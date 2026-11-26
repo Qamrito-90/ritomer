@@ -17,7 +17,7 @@ Cloud ne sont pas qualifiés par cette campagne à IdP synthétique.
 Les commandes sensibles, RunId, empreintes, résultats et reviews sont conservés
 dans la remise privée. Les records de campagne sont clos ; ce texte n'autorise
 aucune nouvelle exécution SQL ni lecture du secret réel par un agent.
-Le [runbook M1.2](m1-2-shared-nonproduction.md#résolution-autonome-locale-du-7-octobre-2026)
+Le [archive PostgreSQL du 7 octobre](archive/m1-2-shared-nonproduction-avant-nettoyage-20261114.txt#L1255)
 décrit le résultat daté et ses limites. Les records B/D consommés restent
 historiques ; cette campagne ne les réactive pas.
 
@@ -992,6 +992,14 @@ La devDependency @playwright/test est verrouillée à 1.63.0 dans le manifeste
 et le lockfile. Utiliser le Node et le pnpm du projet ; aucune extension,
 connexion CDP, configuration de navigateur personnel ou profil persistant
 n'est nécessaire. Le navigateur est Chromium Headless Shell géré par Playwright.
+
+Sous Windows, `pnpm test:ci` exerce aussi les cas qui utilisent Chromium
+complet 153.0.8010.12, révision 1243. Leur lanceur vérifie le répertoire
+`out/m1-2-cloud-autonomous-20261008-01/resume-20261009-01/playwright-browsers-1243/chromium-1243/chrome-win64`
+depuis la racine du dépôt. Son empreinte de distribution attendue est
+`9052829182dfa007f2acb6de0946b06fe30bf2dc8c54d3bdaf674488011cff82`.
+La commande `--only-shell` ci-dessous installe le navigateur du smoke.
+Le check Windows nécessite en plus la distribution complète à cet emplacement.
 
 Après installation des dépendances frontend, exécuter depuis frontend dans
 un mandat local autorisé. La protection du cache empêche la collecte des

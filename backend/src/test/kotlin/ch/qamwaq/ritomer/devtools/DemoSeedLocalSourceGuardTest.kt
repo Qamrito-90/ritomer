@@ -8115,12 +8115,27 @@ class DemoSeedLocalSourceGuardTest {
 
   private fun mainDevtoolsSource(): String {
     val root = Path.of("src/main/kotlin/ch/qamwaq/ritomer/devtools")
-    return Files.walk(root).use { paths ->
-      paths.asSequence()
-        .filter { Files.isRegularFile(it) }
-        .sorted()
-        .joinToString(separator = "\n") { it.readText() }
-    }
+    val seedFiles = setOf("DemoSeedLocalActivation.kt", "DemoSeedLocalCommand.kt", "DemoSeedLocalService.kt")
+    val actual = Files.walk(root).use { paths -> paths.asSequence().filter { Files.isRegularFile(it) }
+      .map { root.relativize(it).toString().replace('\\', '/') }.toSet() }
+    assertThat(actual).containsExactlyInAnyOrderElementsOf(seedFiles + setOf("SharedCloudOperations.kt", "SharedSessionResetContext.kt"))
+    // Historical assertions remain complete for the three historical seed files.
+    return seedFiles.sorted().joinToString("\n") { root.resolve(it).readText() }
+  }
+
+  @Test
+  fun `cloud operator is a separate closed entrypoint without local rail or business bypass`() {
+    mainDevtoolsSource() // Also proves the complete devtools source inventory.
+    val source = Path.of("src/main/kotlin/ch/qamwaq/ritomer/devtools/SharedCloudOperations.kt").readText()
+    assertThat(source).doesNotContain("SpringApplication", "@Component", "@Service", "@RestController", "@Configuration",
+      "closing.application", "INSERT INTO closing_folder", "insert into closing_folder", "DROP DATABASE", "TRUNCATE TABLE", ".env")
+    assertThat(source).contains("object SharedCloudOperations", "CLOUD_RUN_JOB", "ritomer-m12-ops", "verify-full",
+      "project-74f86561-bbba-4eb0-aa6", "free-trial-first-project", "CONFIGURATION_REJECTED", "OPERATION_FAILED",
+      "SET ROLE", "cleanDisabled(true)", "validateOnMigrate(true)")
+    val resetContext = Path.of("src/main/kotlin/ch/qamwaq/ritomer/devtools/SharedSessionResetContext.kt").readText()
+    assertThat(resetContext).contains("ObjectInputFilter.Status.REJECTED")
+    assertThat(resetContext).doesNotContain("HttpClient", "java.sql", "SpringApplication", "@Component")
+    assertThat(source).doesNotContain("witness-persistence", "witness-revocation")
   }
 
   internal companion object {

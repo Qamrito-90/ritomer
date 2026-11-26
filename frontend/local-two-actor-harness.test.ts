@@ -13,6 +13,73 @@ import {
   createHarnessRuntime, createSessionJar, drainChildOutput, exerciseTwoJars, expectedMePayload, runCli,
   sessionCookieFromHeaders, validateHarnessInvocation
 } from "./local-two-actor-harness.mjs";
+import { runTestCi, validateGroup, windowsOnlyCases } from "./scripts/test-ci.mjs";
+
+describe("complete frontend CI groups", () => {
+  const result = () => ({ status: 0, signal: null });
+  function report(group: string) {
+    return { success: true, numTotalTests: 1, numPassedTests: 1, numPendingTests: 0, numFailedTests: 0, numTodoTests: 0,
+      testResults: [{ name: path.resolve(group === "browser" ? "m1d-browser-evidence.test.ts" : "src/synthetic.test.ts"), status: "passed",
+        assertionResults: [{ ancestorTitles: [] as string[], title: "synthetic passing case", status: "passed" }] }] };
+  }
+  function quiet() {
+    vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+  }
+  it("runs both disjoint groups once and preserves duplicate test identities", () => {
+    quiet(); const execute = vi.fn((group: string) => ({ result: result(), report: report(group) }));
+    expect(runTestCi([], execute, "win32")).toBe(0); expect(execute.mock.calls).toEqual([["ordinary"], ["browser"]]);
+    const duplicate = report("browser"); duplicate.testResults[0].assertionResults.push(duplicate.testResults[0].assertionResults[0]);
+    duplicate.numTotalTests = 2; duplicate.numPassedTests = 2;
+    const summary = validateGroup("browser", result(), duplicate, "win32");
+    expect(summary.identities).toHaveLength(2); expect(new Set(summary.identities).size).toBe(1);
+  });
+  it.each(["exit", "missing-report", "spawn-error"])("still executes browser after ordinary %s and returns failure", mode => {
+    quiet(); const execute = vi.fn((group: string) => {
+      if (group === "ordinary" && mode === "missing-report") throw new Error("synthetic missing report");
+      return { result: group === "ordinary" ? { ...result(), status: mode === "exit" ? 1 : 0,
+        error: mode === "spawn-error" ? new Error("synthetic spawn error") : undefined } : result(), report: report(group) };
+    });
+    expect(runTestCi([], execute, "win32")).toBe(1); expect(execute.mock.calls).toEqual([["ordinary"], ["browser"]]);
+  });
+  it("rejects a missing second group and filtering arguments", () => {
+    quiet(); const execute = vi.fn((group: string) => group === "ordinary" ? { result: result(), report: report(group) } : undefined);
+    expect(runTestCi([], execute, "win32")).toBe(1); expect(execute).toHaveBeenCalledTimes(2);
+    execute.mockClear(); expect(runTestCi(["--exclude=anything"], execute, "win32")).toBe(1); expect(execute).not.toHaveBeenCalled();
+  });
+  it.each(["wrong-file", "duplicate-file", "empty-group", "failed-assertion", "windows-skip", "pending", "todo", "counter", "signal", "report-failure"])("refuses %s despite a nominally successful child", mode => {
+    const value = report("browser"), child = { ...result(), signal: null as string | null };
+    if (mode === "wrong-file") value.testResults[0].name = path.resolve("nested/m1d-browser-evidence.test.ts");
+    if (mode === "duplicate-file") value.testResults.push(value.testResults[0]);
+    if (mode === "empty-group") value.testResults = [];
+    if (mode === "failed-assertion") value.testResults[0].assertionResults[0].status = "failed";
+    if (mode === "windows-skip") value.testResults[0].assertionResults[0].status = "skipped";
+    if (mode === "pending") value.testResults[0].assertionResults[0].status = "pending";
+    if (mode === "todo") value.numTodoTests = 1;
+    if (mode === "counter") value.numPassedTests = 2;
+    if (mode === "signal") child.signal = "SIGTERM";
+    if (mode === "report-failure") value.success = false;
+    expect(() => validateGroup("browser", child, value, "win32")).toThrow("TEST_CI_INVALID_GROUP");
+  });
+  it("refuses native-file overlap in the ordinary group", () => {
+    expect(() => validateGroup("ordinary", result(), report("browser"), "win32")).toThrow("TEST_CI_INVALID_GROUP");
+  });
+  it("counts exactly the ten historical native skips outside Windows without calling them passes", () => {
+    expect(windowsOnlyCases).toHaveLength(10);
+    for (const group of ["ordinary", "browser"]) {
+      const value = report(group), cases = windowsOnlyCases.filter(([file]: string[]) => group === "ordinary" ? file !== "m1d-browser-evidence.test.ts" : file === "m1d-browser-evidence.test.ts");
+      if (group === "ordinary") value.testResults[0].name = path.resolve("local-two-actor-harness.test.ts");
+      value.testResults[0].assertionResults.push(...cases.map(([, name]: string[]) => {
+        const titles = name.split(" > "); return { ancestorTitles: titles.slice(0, -1), title: titles.at(-1)!, status: "skipped" };
+      }));
+      value.numTotalTests += cases.length; value.numPendingTests = cases.length;
+      expect(validateGroup(group, result(), value, "linux")).toMatchObject({ passed: 1, skipped: cases.length });
+      value.testResults[0].assertionResults.at(-1)!.title = "unexpected native skip";
+      expect(() => validateGroup(group, result(), value, "linux")).toThrow("TEST_CI_INVALID_GROUP");
+    }
+  });
+});
+
 const RUN = "1234567890abcdef1234567890abcdef";
 const ENV = { RITOMER_DB_RAIL_CAMPAIGN: "D", RITOMER_DB_RAIL_RUN_ID: RUN,
   RITOMER_DB_RAIL_REVIEWED_OBJECT_SHA256: "a".repeat(64), RITOMER_DB_RAIL_RUNTIME_SHA256: "b".repeat(64) };
@@ -578,6 +645,7 @@ describe("real CLI diagnostic producer and first failure", () => {
     const ps = String.raw`param([string]§Rail, [string]§Root)
 §ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
+§script:Campaign='D'
 if (§PSVersionTable.PSEdition -cne 'Desktop' -or §PSVersionTable.PSVersion.Major -ne 5 -or §PSVersionTable.PSVersion.Minor -ne 1) { throw 'FIXTURE_PS_VERSION' }
 [void][Reflection.Assembly]::Load('System.Runtime.Serialization, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089')
 §tokens=§null; §errors=§null

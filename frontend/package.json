@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx",
     "test": "vitest",
-    "test:ci": "vitest run",
+    "test:ci": "node ./scripts/test-ci.mjs",
     "test:browser": "playwright test"
   },
   "dependencies": {

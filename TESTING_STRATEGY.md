@@ -63,6 +63,26 @@ try {
 
 ## Frontend
 
+`pnpm test:ci` exécute deux groupes disjoints, dans l'ordre : les fichiers
+ordinaires, puis `m1d-browser-evidence.test.ts` seul. L'isolation des fichiers et
+les concurrences A/B à l'intérieur des scénarios sont conservées. Les deux
+groupes sont exécutés même si le premier échoue ; tout échec, rapport manquant,
+groupe vide ou incohérence rend la commande globale non nulle. Chaque invocation
+conserve ses deux rapports JSON dans un répertoire neuf sous
+`out/frontend-test-ci/`.
+
+Sous Windows, tous les cas doivent passer sans skip. Hors Windows, seuls les dix
+cas natifs déjà identifiés restent explicitement skipped ; cette réussite CI ne
+constitue pas une qualification native Windows. Le conducteur vérifie les
+fichiers, statuts et compteurs ; la review du diff et l'inventaire de qualification
+vérifient la conservation des identités et de leurs multiplicités.
+
+La commande complète refuse les arguments de filtrage. Pour un diagnostic ciblé,
+utiliser `pnpm exec vitest run <fichier> -t <motif>` ; ce résultat ne remplace pas
+la suite complète. Le séquencement réduit la concurrence entre fichiers pendant
+les fixtures Chromium, sans augmenter leurs délais ni établir une cause interne
+aux variations observées.
+
 Tests frontend CI :
 
 ```powershell

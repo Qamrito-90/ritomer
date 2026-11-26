@@ -11,6 +11,19 @@ export default [
   },
   js.configs.recommended,
   {
+    files: ["e2e/shared-oidc-*.mjs"],
+    languageOptions: { globals: globals.node }
+  },
+  {
+    files: ["e2e/shared-oidc-campaign.mjs", "e2e/shared-oidc-campaign.fixture.mjs", "e2e/shared-oidc-client.mjs"],
+    languageOptions: { globals: globals.browser }
+  },
+  {
+    files: ["e2e/shared-oidc-campaign.mjs"],
+    // The witness removes the private invitation before forwarding the remaining fields.
+    rules: { "no-unused-vars": ["error", { ignoreRestSiblings: true }] }
+  },
+  {
     files: ["**/*.{ts,tsx}"],
     languageOptions: {
       parser: tsParser,

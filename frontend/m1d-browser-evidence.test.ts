@@ -13,14 +13,47 @@ import Reporter, { BROWSER, BrowserFailures, capturedValue, capturePageSnapshot,
 vi.mock("@playwright/test", () => ({ test: vi.fn() })); // registration only; scenario functions below are real
 import { activateLogoutPage, cookie, Observer, proofCookie, reviewerReadOnly, reviewerWriteRequest, workpaperEditor } from "./e2e/m1d/session.spec";
 import { browserOperationTitle, ORIGIN, validateBrowserDiagnostic, type BrowserDiagnostic } from "./e2e/m1d/evidence";
+import { browserDistributionFingerprint, checkSyntheticBrowserVersion, resolveSyntheticBrowser, SYNTHETIC_BROWSER, SYNTHETIC_BROWSER_VERSION,
+  type NativeRuntimeCheckpoint } from "./e2e/m1d/evidence";
+type RuntimeFixture = "ARTICLE" | "REVIEWER" | "A" | "STATUS_ONLY" | "READ_BODY" | "DRAIN_STREAM" | "LOGOUT";
+function runtimeTrace(fixture: RuntimeFixture) {
+  const events: Array<{ step: string; atMs: number; normalExit?: boolean }> = [];
+  let overflow = false;
+  const observe = (event: NativeRuntimeCheckpoint) => { if (events.length < 64) events.push(event); else overflow = true; };
+  const mark = (step: string) => { if (events.length < 64) events.push({ step, atMs: performance.now() }); else overflow = true; };
+  return { observe, mark, print() {
+    const start = events[0]?.atMs ?? 0;
+    process.stdout.write("M1D_SYNTHETIC_RUNTIME " + JSON.stringify({ fixture, version: SYNTHETIC_BROWSER_VERSION, clock: "NODE_OBSERVATION",
+      overflow, events: events.map(event => ({ ...event, atMs: event.atMs - start })) }) + "\n");
+  } };
+}
+async function launchSynthetic(chromium: import("@playwright/test").BrowserType, root: string, trace: ReturnType<typeof runtimeTrace>) {
+  try {
+    trace.mark("VALIDATION_BEGIN"); const executablePath = resolveSyntheticBrowser(); trace.mark("VALIDATION_END");
+    trace.mark("LAUNCH_BEGIN");
+    const browser = await chromium.launch({ executablePath, headless: true, chromiumSandbox: true, timeout: 10_000,
+      env: { SystemRoot: "C:\\Windows", WINDIR: "C:\\Windows", OS: "Windows_NT", Path: "C:\\Windows\\System32;C:\\Windows",
+        TEMP: root, TMP: root, HOME: root, USERPROFILE: root, APPDATA: root, LOCALAPPDATA: root } });
+    trace.mark("LAUNCH_RESOLVED"); browser.once("disconnected", () => trace.mark("DISCONNECTED"));
+    const close = browser.close.bind(browser); let closeCalls = 0;
+    vi.spyOn(browser, "close").mockImplementation(async options => {
+      const call = ++closeCalls === 1 ? "FIRST_CLOSE" : "REPEAT_CLOSE";
+      trace.mark(`${call}_BEGIN`);
+      try { await close(options); trace.mark(`${call}_RESOLVED`); }
+      catch (error) { trace.mark(`${call}_REJECTED`); throw error; }
+    });
+    return browser;
+  } catch (error) { trace.mark("LAUNCH_REJECTED"); trace.print(); throw error; }
+}
 
 it.skipIf(process.platform !== "win32")("uses one real article for the note and save button and reports the reproduced ambiguity safely", async () => {
   const { chromium } = await vi.importActual<typeof import("@playwright/test")>("@playwright/test");
-  const root = mkdtempSync(path.join(os.tmpdir(), "m1d-synthetic-evidence-")); roots.push(root);
-  const browser = await chromium.launch({ executablePath: BROWSER, headless: true, chromiumSandbox: true, timeout: 10_000,
-    env: { SystemRoot: "C:\\Windows", WINDIR: "C:\\Windows", OS: "Windows_NT", Path: "C:\\Windows\\System32;C:\\Windows",
-      TEMP: root, TMP: root, HOME: root, USERPROFILE: root, APPDATA: root, LOCALAPPDATA: root } });
+  // Playwright owns its process/profile cleanup. Its public Browser API does
+  // not attest this environment parent's tree/identity; retain it passively.
+  const root = mkdtempSync(path.join(os.tmpdir(), "m1d-synthetic-evidence-"));
+  const trace = runtimeTrace("ARTICLE"), browser = await launchSynthetic(chromium, root, trace);
   try {
+    checkSyntheticBrowserVersion(browser.version());
     const context = await browser.newContext(), page = await context.newPage();
     await page.setContent(["one", "two"].map(id => `<article><label>Note de justification<textarea></textarea></label><button onclick="document.body.dataset.saved='${id}'">Enregistrer la justification</button></article>`).join(""));
     const historicNote = page.getByLabel("Note de justification", { exact: true }).first();
@@ -53,16 +86,15 @@ it.skipIf(process.platform !== "win32")("uses one real article for the note and 
     expect(JSON.parse(lines[0].slice("M1D_BROWSER_DIAGNOSTIC ".length)).diagnostic).toEqual(failures.browserDiagnostic);
     expect(lines[0]).not.toContain("synthetic-note"); expect(lines[0]).not.toContain("strict mode violation");
     expect(() => reduce(decode(attachment!, b))).toThrow("M1D_OBSERVATION_FAILED");
-  } finally { await browser.close(); }
+  } finally { try { await browser.close(); } finally { trace.print(); } }
 }, 25_000);
 
 it.skipIf(process.platform !== "win32")("scopes reviewer read-only evidence to Preuves instead of hidden Mapping", async () => {
   const { chromium } = await vi.importActual<typeof import("@playwright/test")>("@playwright/test");
-  const root = mkdtempSync(path.join(os.tmpdir(), "m1d-synthetic-evidence-")); roots.push(root);
-  const browser = await chromium.launch({ executablePath: BROWSER, headless: true, chromiumSandbox: true, timeout: 10_000,
-    env: { SystemRoot: "C:\\Windows", WINDIR: "C:\\Windows", OS: "Windows_NT", Path: "C:\\Windows\\System32;C:\\Windows",
-      TEMP: root, TMP: root, HOME: root, USERPROFILE: root, APPDATA: root, LOCALAPPDATA: root } });
+  const root = mkdtempSync(path.join(os.tmpdir(), "m1d-synthetic-evidence-")); // passive parent, as for ARTICLE
+  const trace = runtimeTrace("REVIEWER"), browser = await launchSynthetic(chromium, root, trace);
   try {
+    checkSyntheticBrowserVersion(browser.version());
     const context = await browser.newContext(), page = await context.newPage();
     // Router keeps Mapping before Preuves, with children mounted under hidden.
     // Both real reviewer views render this exact text; labels link each panel.
@@ -87,11 +119,12 @@ it.skipIf(process.platform !== "win32")("scopes reviewer read-only evidence to P
     await expect(reviewerReadOnly(page).waitFor({ timeout: 1000 })).rejects.toMatchObject({ name: "TimeoutError" });
     await page.evaluate(() => document.getElementById("evidence")!.remove());
     await expect(reviewerReadOnly(page).waitFor({ timeout: 1000 })).rejects.toMatchObject({ name: "TimeoutError" });
-  } finally { await browser.close(); }
+  } finally { try { await browser.close(); } finally { trace.print(); } }
 }, 25_000);
 
 it.skipIf(process.platform !== "win32")("observes native A tab transitions beside isolated B and confirms owned Chromium exit and profile removal", async () => {
   const { chromium } = await vi.importActual<typeof import("@playwright/test")>("@playwright/test");
+  const trace = runtimeTrace("A");
   // Real loopback HTTP exercises ExtraInfo/body delivery and a live storage
   // scan. The data: fixture did not cover either prerequisite of the journey.
   const server = createServer((request, response) => {
@@ -152,7 +185,7 @@ it.skipIf(process.platform !== "win32")("observes native A tab transitions besid
     await bounded("LISTEN", () => new Promise<void>((resolve, reject) => {
       server.once("error", reject); server.listen({ port: 5173, host: "127.0.0.1", signal: listenController.signal }, () => { server.removeListener("error", reject); resolve(); });
     }));
-    nativeOwner = createNativeBrowser(chromium, BROWSER, root);
+    nativeOwner = createNativeBrowser(chromium, SYNTHETIC_BROWSER, root, trace.observe);
     const browser = await bounded("CONNECT", () => nativeOwner!.connect(), 10_000), a = nativeOwner.context!;
     a.setDefaultTimeout(10_000); a.setDefaultNavigationTimeout(10_000);
     const initial = a.pages(), failures = new BrowserFailures(), observer = new Observer(a, failures);
@@ -220,13 +253,172 @@ it.skipIf(process.platform !== "win32")("observes native A tab transitions besid
     // observable using fixture-owned labels/booleans only, never error text.
     process.stdout.write("M1D_NATIVE_HTTP_DIAGNOSTIC " + JSON.stringify({ scenario: scenarioSnapshot, allCompleted: completed, pending: [...pending],
       cleanupFailures: cleanupErrors.length, nativeClosedCleanly: nativeOwner?.closedCleanly ?? null, httpListening: server.listening }) + "\n");
+    trace.print();
   }
   if (originalError || cleanupErrors.length) throw new AggregateError([...(originalError ? [originalError] : []), ...cleanupErrors], "SYNTHETIC_NATIVE_HTTP_FAILED");
 }, 60_000);
 
+describe("owned native profile lifecycle", () => {
+  // Exercise the real filesystem checks and removal through the public owner.
+  // Only the child is synthetic; no browser process or personal profile exists.
+  async function lifecycle() {
+    const fs = await vi.importActual<typeof import("node:fs")>("node:fs");
+    const { EventEmitter } = await import("node:events"), { PassThrough } = await import("node:stream");
+    const fixtureRoot = mkdtempSync(path.join(os.tmpdir(), "m1d-synthetic-evidence-")); roots.push(fixtureRoot);
+    const root = fs.realpathSync.native(fixtureRoot);
+    const temp = path.join(root, "temp"), outside = path.join(root, "outside");
+    fs.mkdirSync(temp); fs.mkdirSync(outside); fs.mkdirSync(path.join(outside, "leaf"));
+    fs.writeFileSync(path.join(outside, "sentinel"), "synthetic-sentinel");
+    const child = Object.assign(new EventEmitter(), { stdio: [null, null, null, new PassThrough(), new PassThrough()] });
+    const spawn = vi.fn(() => child);
+    const enumerated: string[] = [], stats: string[] = [], resolved: string[] = [];
+    const hooks: { beforeStat?: (p: string) => void; afterStat?: (p: string, value: import("node:fs").Stats) => import("node:fs").Stats;
+      resolve?: (p: string, value: string) => string } = {};
+    const native = (p: string) => { resolved.push(p); const value = fs.realpathSync.native(p); return hooks.resolve ? hooks.resolve(p, value) : value; };
+    vi.resetModules();
+    vi.doMock("node:child_process", () => ({ spawn, default: { spawn } }));
+    const mockFs = { ...fs,
+      lstatSync: (p: string) => { stats.push(p); hooks.beforeStat?.(p); const value = fs.lstatSync(p); return hooks.afterStat ? hooks.afterStat(p, value) : value; },
+      readdirSync: (p: string, options: { withFileTypes: true }) => { enumerated.push(p); return fs.readdirSync(p, options); },
+      realpathSync: Object.assign((p: string) => fs.realpathSync(p), { native })
+    };
+    vi.doMock("node:fs", () => ({ ...mockFs, default: mockFs }));
+    const module = await import("./e2e/m1d/evidence");
+    const chromium = {} as Parameters<typeof createNativeBrowser>[0];
+    const links: string[] = [];
+    return { fs, root, temp, outside, hooks, stats, resolved, enumerated, spawn,
+      create: (location = temp, observe?: (checkpoint: NativeRuntimeCheckpoint) => void) => module.createNativeBrowser(chromium, BROWSER, location, observe),
+      profile: () => path.join(temp, fs.readdirSync(temp)[0]),
+      redirect: (directory: string) => {
+        fs.renameSync(directory, path.join(root, "preserved"));
+        fs.symlinkSync(outside, directory, "junction"); links.push(directory);
+      },
+      exit: () => child.emit("exit", 0, null),
+      restore: () => {
+        // Remove only fixture-created junctions before generic fixture cleanup.
+        for (const link of links) { expect(fs.lstatSync(link).isSymbolicLink()).toBe(true); fs.unlinkSync(link); }
+        expect(fs.readFileSync(path.join(outside, "sentinel"), "utf8")).toBe("synthetic-sentinel");
+        vi.doUnmock("node:fs"); vi.doUnmock("node:child_process"); vi.resetModules();
+      }
+    };
+  }
+
+  it.each(["relative", "file", "junction", "ancestor-junction"])("refuses %s before profile creation and spawn", async mode => {
+    const f = await lifecycle();
+    try {
+      let location = f.temp;
+      if (mode === "relative") location = "relative-profile-root";
+      else if (mode === "file") { location = path.join(f.root, "file"); f.fs.writeFileSync(location, "synthetic"); }
+      else { f.redirect(f.temp); if (mode === "ancestor-junction") location = path.join(f.temp, "leaf"); }
+      expect(() => f.create(location)).toThrow(); expect(f.spawn).not.toHaveBeenCalled();
+      expect(f.fs.readdirSync(f.outside).sort()).toEqual(["leaf", "sentinel"]);
+    } finally { f.restore(); }
+  });
+
+  it("traverses every plain directory afresh, removes only its profile and closes idempotently", async () => {
+    const f = await lifecycle();
+    try {
+      const owner = f.create(), profile = f.profile(), deep = path.join(profile, "one", "two");
+      f.fs.mkdirSync(deep, { recursive: true }); f.fs.writeFileSync(path.join(deep, "entry"), "synthetic");
+      f.stats.length = 0; f.resolved.length = 0;
+      const closing = owner.close(); expect(owner.closedCleanly).toBe(false); f.exit(); await closing;
+      expect(owner.closedCleanly).toBe(true); expect(f.fs.readdirSync(f.temp)).toEqual([]);
+      expect(f.enumerated).toEqual([profile, path.dirname(deep), deep]);
+      expect(f.resolved).toEqual([...f.enumerated, profile]);
+      // Repeated ancestor lstats caused the measured close overrun. The full
+      // chain is now freshly resolved per directory, not cached or omitted.
+      expect(f.stats).not.toContain(f.temp); expect(f.stats).not.toContain(f.root);
+      expect(owner.close()).toBe(closing); await owner.close(); expect(f.spawn).toHaveBeenCalledOnce();
+    } finally { f.restore(); }
+  });
+
+  it("keeps verified closure when an optional runtime observer throws", async () => {
+    const f = await lifecycle();
+    try {
+      const owner = f.create(f.temp, () => { throw new Error("SYNTHETIC_OBSERVER_FAILURE"); });
+      const closing = owner.close(); f.exit(); await closing;
+      expect(owner.closedCleanly).toBe(true); expect(f.fs.readdirSync(f.temp)).toEqual([]);
+      expect(owner.close()).toBe(closing);
+    } finally { f.restore(); }
+  });
+
+  it.each(["ENOENT", "EACCES", "EPERM", "EBUSY", "ENOTDIR", "UNKNOWN"])("reports only closed cleanup category %s and preserves the rejection", async code => {
+    const f = await lifecycle();
+    try {
+      const events: NativeRuntimeCheckpoint[] = [], owner = f.create(f.temp, event => events.push(event));
+      const original = Object.assign(new Error("synthetic-private-path-and-value"), { code });
+      f.hooks.resolve = () => { throw original; };
+      const closing = owner.close(); f.exit(); await expect(closing).rejects.toBe(original);
+      expect(owner.closedCleanly).toBe(false);
+      expect(events.at(-1)).toEqual({ step: "CLOSE_REJECTED", atMs: expect.any(Number), stage: "PROFILE_TREE", error: code === "UNKNOWN" ? "OTHER" : code });
+      expect(JSON.stringify(events)).not.toContain(original.message);
+      expect(f.fs.existsSync(f.profile())).toBe(true);
+    } finally { f.restore(); }
+  });
+
+  it.each(["code", "message"])("preserves the original cleanup rejection when its %s accessor throws", async property => {
+    const f = await lifecycle();
+    try {
+      const events: NativeRuntimeCheckpoint[] = [], owner = f.create(f.temp, event => events.push(event));
+      const original = new Error("synthetic-private-value");
+      Object.defineProperty(original, property, { get() { throw new Error("synthetic-secondary-error"); } });
+      f.hooks.resolve = () => { throw original; };
+      const closing = owner.close(); f.exit(); await expect(closing).rejects.toBe(original);
+      expect(owner.closedCleanly).toBe(false);
+      expect(events.at(-1)).toEqual({ step: "CLOSE_REJECTED", atMs: expect.any(Number), stage: "PROFILE_TREE", error: "OTHER" });
+      expect(JSON.stringify(events)).not.toContain("synthetic-");
+    } finally { f.restore(); }
+  });
+
+  it.each(["before-current-stat", "after-current-stat"])("refuses an ancestor redirected %s before descendant enumeration", async phase => {
+    const f = await lifecycle();
+    try {
+      const owner = f.create(), profile = f.profile(), ancestor = path.join(profile, "tree"), leaf = path.join(ancestor, "leaf");
+      f.fs.mkdirSync(leaf, { recursive: true });
+      let calls = 0;
+      const swap = (p: string) => { if (p === leaf && ++calls === 2) f.redirect(ancestor); };
+      if (phase === "before-current-stat") f.hooks.beforeStat = swap;
+      else f.hooks.afterStat = (p, value) => { swap(p); return value; };
+      const closing = owner.close(); f.exit(); await expect(closing).rejects.toThrow();
+      expect(owner.closedCleanly).toBe(false); expect(f.enumerated).not.toContain(leaf);
+      expect(f.fs.existsSync(profile)).toBe(true); expect(calls).toBeGreaterThanOrEqual(2);
+    } finally { f.restore(); }
+  });
+
+  it("retains the complete ancestor walk when canonical spelling differs", async () => {
+    const f = await lifecycle();
+    try {
+      const owner = f.create(), profile = f.profile(), deep = path.join(profile, "case"); f.fs.mkdirSync(deep);
+      f.hooks.resolve = (p, value) => p === deep ? value.toUpperCase() : value;
+      f.stats.length = 0;
+      const closing = owner.close(); f.exit(); await closing;
+      expect(owner.closedCleanly).toBe(true); expect(f.enumerated).toContain(deep);
+      expect(f.stats).toContain(f.temp); expect(f.stats).toContain(path.parse(profile).root);
+    } finally { f.restore(); }
+  });
+
+  it.each(["resolution-error", "nonregular-entry", "file-link", "directory-link", "replaced-root"])("preserves the profile and refuses %s", async mode => {
+    const f = await lifecycle();
+    try {
+      const owner = f.create(), profile = f.profile(), entry = path.join(profile, "entry");
+      f.fs.writeFileSync(entry, "synthetic");
+      if (mode === "resolution-error") f.hooks.resolve = () => { throw new Error("SYNTHETIC_RESOLUTION_FAILURE"); };
+      else if (mode === "replaced-root") { f.fs.renameSync(profile, path.join(f.root, "original-profile")); f.fs.mkdirSync(profile); }
+      else if (mode === "directory-link") { f.fs.mkdirSync(path.join(profile, "directory")); f.redirect(path.join(profile, "directory")); }
+      else f.hooks.afterStat = (p, value) => p === entry ? Object.assign(Object.create(value), {
+        isSymbolicLink: () => mode === "file-link", isDirectory: () => false, isFile: () => false
+      }) : value;
+      const closing = owner.close(); f.exit(); await expect(closing).rejects.toThrow();
+      expect(owner.closedCleanly).toBe(false); expect(f.fs.existsSync(profile)).toBe(true);
+      await expect(owner.close()).rejects.toThrow(); expect(f.spawn).toHaveBeenCalledOnce();
+    } finally { f.restore(); }
+  });
+});
+
 it.skipIf(process.platform !== "win32")("diagnoses native expiry body consumption with separately closed HTTP variants", async () => {
   const { chromium } = await vi.importActual<typeof import("@playwright/test")>("@playwright/test");
   for (const mode of ["STATUS_ONLY", "READ_BODY", "DRAIN_STREAM"] as const) {
+    const trace = runtimeTrace(mode);
     const root = mkdtempSync(path.join(os.tmpdir(), "m1d-synthetic-expiry-"));
     // Failed native closure preserves this root; never add it to roots[].
     const server = createServer((request, response) => {
@@ -238,6 +430,7 @@ it.skipIf(process.platform !== "win32")("diagnoses native expiry body consumptio
     });
     const listenController = new AbortController(), deadline = performance.now() + 30_000;
     let closing = false, nativeOwner: NativeBrowserOwner | undefined, browser: Browser | undefined, observer: Observer | undefined;
+    let observedPage: Page | undefined;
     let originalError: unknown;
     let cleanupErrors: unknown[] = [];
     let snapshot: Record<string, unknown> = {};
@@ -263,13 +456,14 @@ it.skipIf(process.platform !== "win32")("diagnoses native expiry body consumptio
         server.once("error", reject);
         server.listen({ port: 5173, host: "127.0.0.1", signal: listenController.signal }, () => { server.removeListener("error", reject); resolve(); });
       }));
-      nativeOwner = createNativeBrowser(chromium, BROWSER, root);
+      nativeOwner = createNativeBrowser(chromium, SYNTHETIC_BROWSER, root, trace.observe);
       browser = await required(() => nativeOwner!.connect(), 10_000);
       const context = nativeOwner.context!;
       context.setDefaultTimeout(5000); context.setDefaultNavigationTimeout(5000);
       const failures = new BrowserFailures(); failures.setBrowserStep("EXPIRY");
       observer = new Observer(context, failures); await required(() => observer!.install());
       const initialPages = context.pages(), page = await required(() => context.newPage());
+      observedPage = page;
       await required(() => Promise.all(initialPages.map(initial => initial.close())));
       await required(() => page.goto(ORIGIN + "/")); await required(() => page.bringToFront());
       expect(await required(() => page.evaluate(() => document.visibilityState))).toBe("visible");
@@ -330,7 +524,14 @@ it.skipIf(process.platform !== "win32")("diagnoses native expiry body consumptio
       }
     } catch (error) { originalError = error; }
     finally {
-      closing = true; listenController.abort();
+      closing = true;
+      // The status-only case can leave the response body pending in its renderer.
+      // Close the observed page after capturing the result and before native shutdown.
+      if (observedPage && !observedPage.isClosed()) {
+        const page = observedPage;
+        try { await required(() => page.close()); } catch (error) { cleanupErrors.push(error); }
+      }
+      listenController.abort();
       const closed = await Promise.allSettled([
         required(() => nativeOwner?.close() ?? Promise.resolve(), 10_000),
         required(() => new Promise<void>((resolve, reject) => {
@@ -338,7 +539,7 @@ it.skipIf(process.platform !== "win32")("diagnoses native expiry body consumptio
           server.closeAllConnections();
         }), 2000)
       ]);
-      cleanupErrors = closed.flatMap(result => result.status === "rejected" ? [result.reason] : []);
+      cleanupErrors.push(...closed.flatMap(result => result.status === "rejected" ? [result.reason] : []));
       if (observer) {
         try {
           await required(() => Promise.all(observer!.pending), 2000);
@@ -349,6 +550,7 @@ it.skipIf(process.platform !== "win32")("diagnoses native expiry body consumptio
         scenarioFailed: Boolean(originalError), cleanupFailures: cleanupErrors.length, nativeClosedCleanly: nativeOwner?.closedCleanly ?? null,
         disconnected: browser ? !browser.isConnected() : null, observerPendingAfterCleanup: observer?.pending.size ?? null,
         observerLostAfterCleanup: observer?.lost ?? null, httpListening: server.listening }) + "\n");
+      trace.print();
     }
     if (originalError || cleanupErrors.length) throw new AggregateError([...(originalError ? [originalError] : []), ...cleanupErrors], "SYNTHETIC_EXPIRY_DIAGNOSTIC_FAILED");
     expect(nativeOwner?.closedCleanly).toBe(true); expect(browser?.isConnected()).toBe(false);
@@ -358,6 +560,7 @@ it.skipIf(process.platform !== "win32")("diagnoses native expiry body consumptio
 
 it.skipIf(process.platform !== "win32")("logoutNative compares a hidden A1 click with explicit native activation after A2 and recreated B", async () => {
   const { chromium } = await vi.importActual<typeof import("@playwright/test")>("@playwright/test");
+  const trace = runtimeTrace("LOGOUT");
   // Input/actionability diagnostic only. No application session or C2 evidence.
   // Do not register this root for generic deletion after an uncertain exit.
   const root = mkdtempSync(path.join(os.tmpdir(), "m1d-synthetic-logout-"));
@@ -399,7 +602,7 @@ it.skipIf(process.platform !== "win32")("logoutNative compares a hidden A1 click
       server.once("error", reject);
       server.listen({ port: 5173, host: "127.0.0.1", signal: listenController.signal }, () => { server.removeListener("error", reject); resolve(); });
     }));
-    nativeOwner = createNativeBrowser(chromium, BROWSER, root);
+    nativeOwner = createNativeBrowser(chromium, SYNTHETIC_BROWSER, root, trace.observe);
     browser = await required(() => nativeOwner!.connect(), 10_000);
     const a = nativeOwner.context!; a.setDefaultTimeout(5000); a.setDefaultNavigationTimeout(5000);
     const failures = new BrowserFailures(); failures.setBrowserStep("LOGOUT");
@@ -470,6 +673,7 @@ it.skipIf(process.platform !== "win32")("logoutNative compares a hidden A1 click
       scenarioFailed: Boolean(originalError), cleanupFailures: cleanupErrors.length, nativeClosedCleanly: nativeOwner?.closedCleanly ?? null,
       disconnected: browser ? !browser.isConnected() : null, observerPendingAfterCleanup: observer?.pending.size ?? null,
       observerLostAfterCleanup: observer?.lost ?? null, httpListening: server.listening }) + "\n");
+    trace.print();
   }
   if (originalError || cleanupErrors.length) throw new AggregateError([...(originalError ? [originalError] : []), ...cleanupErrors], "SYNTHETIC_LOGOUT_DIAGNOSTIC_FAILED");
   expect(nativeOwner?.closedCleanly).toBe(true); expect(browser?.isConnected()).toBe(false);
@@ -612,6 +816,7 @@ describe("closed browser failure diagnostics", () => {
     writeFileSync(path.join(root, "input.json"), JSON.stringify(cases));
     const ps = String.raw`param([string]§Rail,[string]§Root)
 §ErrorActionPreference='Stop'; Set-StrictMode -Version Latest
+§script:Campaign='D'
 [void][Reflection.Assembly]::Load('System.Runtime.Serialization, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089')
 §tokens=§null; §errors=§null; §ast=[Management.Automation.Language.Parser]::ParseFile(§Rail,[ref]§tokens,[ref]§errors)
 if(§errors.Count -ne 0){throw 'FIXTURE_AST'}
@@ -698,6 +903,38 @@ function env(b: Binding): NodeJS.ProcessEnv {
 }
 
 describe("closed D invocation and reductions", () => {
+  it("keeps the synthetic Chromium target outside the historical D binding despite environment overrides", () => {
+    expect(() => readBinding({ ...env(binding()), RITOMER_M1D_BROWSER_EXECUTABLE: SYNTHETIC_BROWSER }, [])).toThrow("M1D_BINDING_FAILED");
+    expect(readBinding({ ...env(binding()), PLAYWRIGHT_BROWSERS_PATH: path.dirname(SYNTHETIC_BROWSER) }, []).executable).toBe(BROWSER);
+    for (const executable of [BROWSER, "chrome.exe", SYNTHETIC_BROWSER.toLowerCase(), SYNTHETIC_BROWSER + ".other"])
+      expect(() => resolveSyntheticBrowser(executable)).toThrow("M1D_ASSERTION_FAILED");
+  });
+  it("rejects a mismatched runtime browser version instead of inheriting an old proof", () => {
+    expect(() => checkSyntheticBrowserVersion(SYNTHETIC_BROWSER_VERSION)).not.toThrow();
+    for (const version of ["143.0.7499.4", "153.0.8010.13", "153.0.8010.12 ", "", "Chromium 153.0.8010.12"])
+      expect(() => checkSyntheticBrowserVersion(version)).toThrow("M1D_ASSERTION_FAILED");
+  });
+  it.each(["same-size-dll", "added-file", "removed-file", "renamed-file", "added-directory"])("detects distribution substitution %s on a second validation", async change => {
+    const fs = await vi.importActual<typeof import("node:fs")>("node:fs");
+    const root = mkdtempSync(path.join(os.tmpdir(), "m1d-synthetic-evidence-")); roots.push(root);
+    const dll = path.join(root, "chrome.dll"); fs.writeFileSync(dll, "original");
+    const expected = browserDistributionFingerprint(root);
+    if (change === "same-size-dll") fs.writeFileSync(dll, "modified");
+    else if (change === "added-file") fs.writeFileSync(path.join(root, "extra"), "");
+    else if (change === "removed-file") fs.unlinkSync(dll);
+    else if (change === "renamed-file") fs.renameSync(dll, path.join(root, "other.dll"));
+    else fs.mkdirSync(path.join(root, "extra"));
+    expect(browserDistributionFingerprint(root)).not.toBe(expected);
+  });
+  it.each(["entry-link", "ancestor-link"])("refuses a distribution %s even with identical target bytes", async change => {
+    const fs = await vi.importActual<typeof import("node:fs")>("node:fs");
+    const root = mkdtempSync(path.join(os.tmpdir(), "m1d-synthetic-evidence-")); roots.push(root);
+    const actual = path.join(root, "actual"), link = path.join(root, "link");
+    fs.mkdirSync(actual); fs.writeFileSync(path.join(actual, "chrome.dll"), "synthetic");
+    fs.symlinkSync(actual, link, process.platform === "win32" ? "junction" : "dir");
+    try { expect(() => browserDistributionFingerprint(change === "entry-link" ? root : link)).toThrow("M1D_ASSERTION_FAILED"); }
+    finally { fs.unlinkSync(link); }
+  });
   it("checks the emitted Domain attribute rather than inferring it from accepted cookie domain", () => {
     const header = "__Host-ritomer-session=synthetic; Path=/; Secure; HttpOnly; SameSite=Lax";
     expect(emittedCookieAttributes(header)).toBe(31);
@@ -1329,9 +1566,132 @@ describe("actual worker finalization with resource boundary doubles", () => {
     const owner: NativeBrowserOwner = { browser: f.state.browser, context: f.state.contexts[0], connect: async () => f.state.browser,
       closedCleanly: false, close: () => new Promise<void>(() => {}) };
     const pending = finishBrowserRun({ ...f.state, nativeOwner: owner });
-    await vi.advanceTimersByTimeAsync(FINALIZATION_STEP_MS); const failure = await pending;
+    await vi.advanceTimersByTimeAsync(3 * FINALIZATION_STEP_MS); const failure = await pending;
     expect(failure?.message).toContain("M1D_BROWSER_CLOSE_TIMEOUT");
     expect(f.contexts[0].close).not.toHaveBeenCalled(); expect(f.contexts[1].close).toHaveBeenCalledOnce();
+    expect(await reporterOutcome(f, failure)).toEqual({ result: { status: "failed" }, published: false });
+  });
+  function timedNativeFixture(closeWork: () => Promise<void>) {
+    const f = cookieFinishFixture(); let clean = false;
+    const owner: NativeBrowserOwner = { browser: f.state.browser, context: f.state.contexts[0], connect: async () => f.state.browser,
+      get closedCleanly() { return clean; }, close: vi.fn(async () => {
+        await closeWork(); f.contexts[0].closed = true; await f.browser.close(); clean = true;
+      }) };
+    return { ...f, owner, state: { ...f.state, nativeOwner: owner } };
+  }
+  const wait = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+  function elapsedClock() {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    let elapsed = 0;
+    vi.spyOn(performance, "now").mockImplementation(() => elapsed);
+    return { advance: (ms: number) => { elapsed += ms; }, now: () => elapsed };
+  }
+  it.each([0, 1000])("uses only unused page/context time for native close, preparation per phase=%i", async preparation => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    const f = timedNativeFixture(() => wait(preparation ? 2499 : 4499));
+    for (const page of f.pages) { const close = page.close.getMockImplementation()!; page.close.mockImplementation(async () => { if (preparation) await wait(preparation); await close(); }); }
+    const close = f.contexts[1].close.getMockImplementation()!;
+    f.contexts[1].close.mockImplementation(async () => { if (preparation) await wait(preparation); await close(); });
+    for (const observer of f.observers) observer.scan.mockImplementation(() => wait(1499));
+    f.attach.mockImplementation(() => wait(1499));
+    const pending = finishBrowserRun(f.state);
+    await vi.advanceTimersByTimeAsync(7497);
+    const failure = await pending;
+    expect(failure).toBeUndefined(); expect(f.owner.closedCleanly).toBe(true);
+    expect(f.owner.close).toHaveBeenCalledOnce(); expect(f.attach).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+    expect(await reporterOutcome(f, failure)).toEqual({ result: { status: "passed" }, published: true });
+  });
+  it("refuses native close after its real credit is consumed and preserves the failure after late cleanup", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    const f = timedNativeFixture(() => wait(2501));
+    for (const page of f.pages) { const close = page.close.getMockImplementation()!; page.close.mockImplementation(async () => { await wait(1000); await close(); }); }
+    const close = f.contexts[1].close.getMockImplementation()!;
+    f.contexts[1].close.mockImplementation(async () => { await wait(1000); await close(); });
+    const pending = finishBrowserRun(f.state);
+    await vi.advanceTimersByTimeAsync(4500); const failure = await pending;
+    expect(failure?.message).toContain("M1D_BROWSER_CLOSE_TIMEOUT"); expect(f.owner.closedCleanly).toBe(false);
+    await vi.advanceTimersByTimeAsync(1); expect(f.owner.closedCleanly).toBe(true);
+    expect(failure?.message).toContain("M1D_BROWSER_CLOSE_TIMEOUT");
+    expect(await reporterOutcome(f, failure)).toEqual({ result: { status: "failed" }, published: false });
+  });
+  it("retains the ordinary browser ceiling even when earlier phases used no time", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    const f = cookieFinishFixture(), close = f.browser.close.getMockImplementation()!;
+    f.browser.close.mockImplementation(async () => { await wait(1501); await close(); });
+    const pending = finishBrowserRun(f.state);
+    await vi.advanceTimersByTimeAsync(1500); const failure = await pending;
+    expect(failure?.message).toBe("M1D_BROWSER_CLOSE_TIMEOUT");
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await reporterOutcome(f, failure)).toEqual({ result: { status: "failed" }, published: false });
+  });
+  it("reserves privacy and attachment after stuck native closure without granting a new window", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    const f = timedNativeFixture(() => new Promise<void>(() => {}));
+    f.observers[0].scan.mockImplementation(() => new Promise<void>(() => {}));
+    f.attach.mockImplementation(() => wait(1499));
+    const pending = finishBrowserRun(f.state);
+    await vi.advanceTimersByTimeAsync(7499); const failure = await pending;
+    expect(failure?.message).toMatch(/^M1D_BROWSER_CLOSE_TIMEOUT/);
+    expect(failure?.message).toContain("M1D_PRIVACY_FINAL_TIMEOUT");
+    expect(f.observers.every(o => o.scan.mock.calls.length === 1)).toBe(true); expect(f.attach).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+    expect(await reporterOutcome(f, failure)).toEqual({ result: { status: "failed" }, published: false });
+  });
+  it("starts the monotonic window before enumeration and starts no work with an exhausted budget", async () => {
+    const clock = elapsedClock(), f = timedNativeFixture(async () => {});
+    f.contexts[0].pages = () => { clock.advance(7501); return [f.pages[0]]; };
+    const failure = await finishBrowserRun(f.state);
+    expect(failure?.message).toMatch(/^M1D_PAGE_CLOSE_TIMEOUT/);
+    expect(f.pages.every(p => p.close.mock.calls.length === 0)).toBe(true);
+    expect(f.contexts.every(c => c.close.mock.calls.length === 0)).toBe(true);
+    expect(f.owner.close).not.toHaveBeenCalled(); expect(f.attach).not.toHaveBeenCalled();
+    expect(f.observers.every(o => o.scan.mock.calls.length === 0)).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+    expect(await reporterOutcome(f, failure)).toEqual({ result: { status: "failed" }, published: false });
+  });
+  it.each(["native-exit", "profile-removal", "verification"])("rejects late %s even before a delayed timer fires", async latePart => {
+    const clock = elapsedClock();
+    const f = timedNativeFixture(async () => { if (latePart !== "verification") clock.advance(4501); });
+    if (latePart === "verification") Object.defineProperty(f.owner, "closedCleanly", { get: () => { clock.advance(4501); return true; } });
+    const failure = await finishBrowserRun(f.state);
+    expect(failure?.message).toContain("M1D_BROWSER_CLOSE_TIMEOUT");
+    expect(f.observers.every(o => o.scan.mock.calls.length === 1)).toBe(true); expect(f.attach).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+    expect(await reporterOutcome(f, failure)).toEqual({ result: { status: "failed" }, published: false });
+  });
+  it.each(["pages", "contexts", "privacy"])("shares one absolute deadline across parallel %s including synchronous work", async phase => {
+    const clock = elapsedClock(), f = cookieFinishFixture();
+    if (phase === "pages") for (const [i, page] of f.pages.entries()) {
+      const close = page.close.getMockImplementation()!; page.close.mockImplementation(async () => { clock.advance(i ? 20 : 1490); await close(); });
+    }
+    if (phase === "contexts") for (const [i, context] of f.contexts.entries()) {
+      const close = context.close.getMockImplementation()!; context.close.mockImplementation(async () => { clock.advance(i ? 20 : 1490); await close(); });
+    }
+    if (phase === "privacy") for (const [i, observer] of f.observers.entries()) observer.scan.mockImplementation(async () => { clock.advance(i ? 20 : 1490); });
+    const failure = await finishBrowserRun(f.state);
+    expect(clock.now()).toBe(1510);
+    expect(failure?.message).toContain(`M1D_${phase === "pages" ? "PAGE_CLOSE" : phase === "contexts" ? "CONTEXT_CLOSE" : "PRIVACY_FINAL"}_TIMEOUT`);
+    expect(await reporterOutcome(f, failure)).toEqual({ result: { status: "failed" }, published: false });
+  });
+  it.each(["observations", "serialization", "attachment"])("counts synchronous %s through the global verdict", async phase => {
+    const clock = elapsedClock(), f = cookieFinishFixture();
+    if (phase === "observations") Object.defineProperty(f.observers[0], "scans", { get: () => { clock.advance(7501); return 10; } });
+    if (phase === "serialization") Object.defineProperty(f.evidence, "browserVersion", { enumerable: true, get: () => { clock.advance(7501); return "143.0.7499.4"; } });
+    if (phase === "attachment") f.attach.mockImplementation(async () => { clock.advance(7501); });
+    const failure = await finishBrowserRun(f.state);
+    expect(failure?.message).toContain("M1D_ATTACHMENT_TIMEOUT");
+    if (phase === "attachment") expect(f.attach).toHaveBeenCalledOnce(); else expect(f.attach).not.toHaveBeenCalled();
+    expect(await reporterOutcome(f, failure)).toEqual({ result: { status: "failed" }, published: false });
+  });
+  it.each(["rejection", "timeout"])("keeps the earlier %s after native cleanup succeeds", async fault => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    const f = timedNativeFixture(() => wait(2000));
+    f.pages[0].close.mockImplementation(fault === "rejection" ? async () => { throw f.raw(); } : () => new Promise<void>(() => {}));
+    const pending = finishBrowserRun(f.state);
+    await vi.advanceTimersByTimeAsync(3500); const failure = await pending;
+    expect(failure?.message).toBe(`M1D_PAGE_CLOSE_${fault === "rejection" ? "FAILED" : "TIMEOUT"}`);
+    expect(f.owner.closedCleanly).toBe(true); expect(f.owner.close).toHaveBeenCalledOnce();
     expect(await reporterOutcome(f, failure)).toEqual({ result: { status: "failed" }, published: false });
   });
 });
@@ -1825,6 +2185,7 @@ describe("cookie diagnostics on the real scenario and reporter path", () => {
     const ps = String.raw`param([string]§Rail, [string]§Root)
 §ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
+§script:Campaign='D'
 if (§PSVersionTable.PSEdition -cne 'Desktop' -or §PSVersionTable.PSVersion.Major -ne 5 -or §PSVersionTable.PSVersion.Minor -ne 1) { throw 'FIXTURE_PS_VERSION' }
 [void][Reflection.Assembly]::Load('System.Runtime.Serialization, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089')
 §tokens=§null; §errors=§null
