@@ -1,6 +1,6 @@
 # 047 — Session partagée OIDC/JDBC (M1.2)
 
-**Statut au 26.11.2026 — qualification Google BROWSER_UI acceptée en non-production, repos applicatif et arrêt configuré vérifiés.** La spécification reste active jusqu’à l’intégration du complément. Le socle OIDC/JDBC a été livré par la PR #130.
+**Statut au 27.11.2026 — Done.** La [PR #131](https://github.com/Qamrito-90/ritomer/pull/131), fusionnée dans `main` au commit `b70ac61`, livre le complément au socle OIDC/JDBC de la PR #130. Le contenu fusionné correspond au commit revu `f00c4441`. Les checks backend et frontend ont réussi après fusion. La qualification B39, le repos applicatif et l’arrêt vérifié portent sur l’environnement partagé de non-production.
 Risque C ; surfaces FULLSTACK, DB, CONTRACTS et DOCS ; preuves FULL.
 Précédent : [046 Done, fondation locale](../done/046-authenticated-session-foundation-v1.md).
 Décision : [ADR 0008](../../docs/adr/0008-shared-google-oidc-jdbc-session.md).
@@ -168,7 +168,7 @@ elle ne remplace pas une validation du candidat final. Les 17 contre-exemples
 ajoutés et les régressions de profil passent dans le ciblage déterministe,
 lint/build passent, mais la confirmation standard et le Cloud restent non acquis.
 L'instrumentation temporaire est retirée ; limites et preuves figurent dans le
-runbook et le FEP privé. La spec reste Active.
+runbook et le FEP privé. À cette étape d’octobre, la spécification restait active.
 
 L'avenant de stabilisation du 09.10.2026 autorise la comparaison des fixtures
 synthétiques sur le Chromium153/r1243 associé au package Playwright1.63.0 déjà

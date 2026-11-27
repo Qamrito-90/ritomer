@@ -20,7 +20,7 @@ Le parcours cible est : utilisateur authentifié → tenant et rôle → dossier
 | `DELIVERED_AND_PROVED` | Noyau déterministe du closing, tenancy et RBAC applicatifs, import, mapping manuel, contrôles, previews, workpapers, documents, export, annexe minimale, audit append-only et mapping assisté no-provider. |
 | `LOCAL_OR_SYNTHETIC_ONLY` | Fondation de session M1.1 locale livrée : A/B/C et raccordement D ([PR #127](https://github.com/Qamrito-90/ritomer/pull/127), squash `3d1fad45cf930f446aba50d2e328958cfb1d812a`). Intégration PostgreSQL/navigateur sur données synthétiques prouvée le 03.10.2026 sur candidate-05 ; simulation offline `mapping-suggestion-v2`. Aucune session partagée. |
 | `DOCUMENTED_NOT_IMPLEMENTED` | Cible de production Cloud Run/Cloud SQL HA, provider IA réel, gateway provider générale, tracing IA et MCP. |
-| `QUALIFIED_NONPRODUCTION` | [047](specs/active/047-shared-oidc-session-v1.md) — socle OIDC/JDBC livré par la PR #130. Le 26.11.2026, la campagne B39 a vérifié les trois connexions Google, le partage des sessions entre instances, la révocation, le logout et la continuité du second compte. Le repos et l’arrêt de Run et SQL sont vérifiés. [Résultats et limites](runbooks/m1-2-shared-nonproduction.md). |
+| `QUALIFIED_NONPRODUCTION` | [047](specs/done/047-shared-oidc-session-v1.md) — socle OIDC/JDBC livré par la PR #130, complément intégré par la [PR #131](https://github.com/Qamrito-90/ritomer/pull/131). Le 26.11.2026, la campagne B39 a vérifié les trois connexions Google, le partage des sessions entre instances, la révocation, le logout et la continuité du second compte. Le repos et l’arrêt de Run et SQL sont vérifiés. [Résultats et limites](runbooks/m1-2-shared-nonproduction.md). |
 | `NOT_STARTED` | Runtime agentique goal/run/tools, site public, bêta externe et production opérable. |
 
 `DELIVERED_AND_PROVED` décrit des preuves du repo ; il ne signifie ni SaaS partagé, ni production, ni validation professionnelle. Ritomer est actuellement AI-ready, sans provider réel ni runtime agentique.
@@ -59,7 +59,7 @@ LOCAL_DEV_MUST_USE_REAL_SYNTHETIC_USERS_MEMBERSHIPS_ROLES_AND_TENANTS=YES
 SHARED_INTERNAL_ENVIRONMENT_REQUIRES_REAL_OIDC=YES
 ```
 
-Le mode local/test simplifie l'entrée seulement. La fondation M1.1 locale est livrée, D par la [PR #127](https://github.com/Qamrito-90/ritomer/pull/127). La preuve intégrée de candidate-05 reste datée du 03.10.2026, avec les limites de la [spec 046](specs/done/046-authenticated-session-foundation-v1.md). Memberships, rôles, contrôles serveur et isolation tenant restent effectifs. M1 complet et M1.2 restent non livrés ; aucune nouvelle exécution n'est autorisée par ce constat.
+Le mode local/test simplifie l'entrée seulement. La fondation M1.1 locale est livrée, D par la [PR #127](https://github.com/Qamrito-90/ritomer/pull/127). La preuve intégrée de candidate-05 reste datée du 03.10.2026, avec les limites de la [spec 046](specs/done/046-authenticated-session-foundation-v1.md). Memberships, rôles, contrôles serveur et isolation tenant restent effectifs. M1.2 est qualifiée en non-production. M1 reste ouvert.
 
 ### IA, agent et MCP
 
@@ -121,12 +121,11 @@ Le code et les tests offline ne valent ni Preflight, ni preuve PostgreSQL, ni QA
 
 ## État présent M1.1
 
-Les quatre slices A/B/C/D accomplissent l'outcome M1.1 local/synthétique ; D est livré par la [PR #127](https://github.com/Qamrito-90/ritomer/pull/127), squash `3d1fad45cf930f446aba50d2e328958cfb1d812a` du 04.10.2026. 046 est classée Done ; 047 reste active jusqu’à l’intégration du complément M1.2 qualifié en non-production. M1 complet, l’IA/MCP, l’usage externe et la production restent hors de cette livraison. Les records C1-04/C2-04 et ceux de delivery/merge de #127 restent consommés ; aucune autorisation nouvelle n'en découle.
+Les quatre slices A/B/C/D accomplissent l'outcome M1.1 local/synthétique ; D est livré par la [PR #127](https://github.com/Qamrito-90/ritomer/pull/127), squash `3d1fad45cf930f446aba50d2e328958cfb1d812a` du 04.10.2026. 046 et 047 sont classées Done. M1 complet, l’IA/MCP, l’usage externe et la production restent hors de cette livraison. Les records C1-04/C2-04 et ceux de delivery/merge de #127 restent consommés ; aucune autorisation nouvelle n'en découle.
 
 ## Socle M1.2 livré et qualification Cloud interne
 
-La PR #130 livre le socle qualifié localement. Elle ne clôture pas 047 et ne
-prouve aucun déploiement. Le complément qualifié utilise une image commune
+La PR #130 a livré le socle qualifié localement. La [PR #131](https://github.com/Qamrito-90/ritomer/pull/131) a intégré le complément qualifié en non-production. Celui-ci utilise une image commune
 serveur/opérateur, une garde avant logs/beans et une recette corrélée par requête.
 Les opérations Cloud restent liées à leurs objets exacts et records privés ;
 aucun `bootRun` ou opérateur autonome n'est une autorisation d'exécution.

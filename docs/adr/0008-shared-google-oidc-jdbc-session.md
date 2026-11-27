@@ -1,7 +1,7 @@
 # ADR 0008 — Google OIDC direct et sessions JDBC pour M1.2 interne
 
 Date initiale : 06.10.2026. Socle livré par PR #130 (`2188dd553f13ac8fda9019ebe391c2ec3bde171b`).
-Le complément [047](../../specs/active/047-shared-oidc-session-v1.md) a été qualifié en non-production le 26.11.2026 avec Google et deux instances de la même révision. La connexion SQL privée en `verify-full` et les migrations ont leurs preuves d’octobre. Voir les [résultats et limites](../../runbooks/m1-2-shared-nonproduction.md).
+Le complément [047](../../specs/done/047-shared-oidc-session-v1.md) a été qualifié en non-production le 26.11.2026 avec Google et deux instances de la même révision. La connexion SQL privée en `verify-full` et les migrations ont leurs preuves d’octobre. Voir les [résultats et limites](../../runbooks/m1-2-shared-nonproduction.md).
 Complète [0007](0007-authenticated-session-boundary.md) sans réécrire la fondation locale.
 
 ## Contexte

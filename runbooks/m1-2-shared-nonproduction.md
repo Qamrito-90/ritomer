@@ -7,8 +7,8 @@ Le 26 novembre 2026, la campagne B39 a satisfait le contrat `BROWSER_UI` dans l�
 Après révocation, A a reçu HTTP 403. Après restauration, le navigateur de A a reçu HTTP 401 jusqu’à sa reconnexion. La déconnexion normale a renvoyé HTTP 204 puis le profil de A a renvoyé HTTP 401. B a conservé ses trois accès. Le rail PostgreSQL local à deux JVM couvre le refus du cookie exact et de l’ancien CSRF. Le rejeu exact inter-instance après déconnexion reste non mesuré sur Cloud.
 
 Le repos applicatif, le retrait des accès temporaires et la fermeture du navigateur ont été vérifiés. À 20 h 10 Zurich, Run était en mode manuel à zéro et SQL en `NEVER`. Les dix Jobs de B39 étaient terminés, pour 197 exécutions recensées. Les coûts de conservation persistent. Les reçus détaillés et les comptes de qualification sont conservés hors Git.
-Le socle de la spécification [047](../specs/active/047-shared-oidc-session-v1.md)
-est livré par PR #130 (`2188dd553f13ac8fda9019ebe391c2ec3bde171b`).
+Le socle de la spécification [047](../specs/done/047-shared-oidc-session-v1.md)
+a été livré par la PR #130 (`2188dd553f13ac8fda9019ebe391c2ec3bde171b`). La [PR #131](https://github.com/Qamrito-90/ritomer/pull/131) a intégré le complément qualifié dans `main` le 27 novembre.
 
 Ce guide décrit le parcours actuel. Il ne renouvelle aucun mandat, budget,
 créneau, droit ou autorisation consommée. Les paramètres de campagne restent
