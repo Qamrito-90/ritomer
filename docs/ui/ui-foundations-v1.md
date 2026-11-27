@@ -320,7 +320,7 @@ Les libellés, contrôles et états utilisent les composants du design system et
 
 Le bootstrap partagé déclare `localLoginAvailable=false` et `oidcLoginAvailable=true`, sans catalogue d'acteurs. L'entrée anonyme affiche un lien natif « Se connecter avec Google » vers l'initiation same-origin ; aucun fetch de login, sélection d'email ou token dans le lien. Le retour est limité aux chemins internes déjà admis. Le callback réouvre le shell puis le bootstrap et `/api/me` établissent le contexte avant tout chargement métier.
 
-Un refus OIDC affiche « La connexion a été refusée. Réessayez. » sans reproduire de paramètre fournisseur. Logout, expiration, accès révoqué et réponse tardive conservent la purge, les retours de focus et l'absence de rejeu automatique du contrat précédent. Le choix local reste réservé au développement local. Le candidat de [047](../../specs/active/047-shared-oidc-session-v1.md) n'est pas livré/déployé ; ses preuves simulées ne valent pas QA Google réelle.
+Un refus OIDC affiche « La connexion a été refusée. Réessayez. » sans reproduire de paramètre fournisseur. Logout, expiration, accès révoqué et réponse tardive conservent la purge, les retours de focus et l'absence de rejeu automatique du contrat précédent. Le choix local reste réservé au développement local. Le socle de [047](../../specs/active/047-shared-oidc-session-v1.md) est livré par PR #130 ; la campagne Cloud B39 du 26.11.2026 a vérifié les trois parcours Google et l’état du Workbench pour chaque tenant. Aucun changement UX durable supplémentaire.
 
 ### Actions et feedback
 - Button / Icon Button

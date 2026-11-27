@@ -1,7 +1,7 @@
 # ADR 0008 — Google OIDC direct et sessions JDBC pour M1.2 interne
 
-Date : 06.10.2026. Statut : décision retenue pour le candidat local de
-[047 Active](../../specs/active/047-shared-oidc-session-v1.md), non livré/non déployé.
+Date initiale : 06.10.2026. Socle livré par PR #130 (`2188dd553f13ac8fda9019ebe391c2ec3bde171b`).
+Le complément [047](../../specs/active/047-shared-oidc-session-v1.md) a été qualifié en non-production le 26.11.2026 avec Google et deux instances de la même révision. La connexion SQL privée en `verify-full` et les migrations ont leurs preuves d’octobre. Voir les [résultats et limites](../../runbooks/m1-2-shared-nonproduction.md).
 Complète [0007](0007-authenticated-session-boundary.md) sans réécrire la fondation locale.
 
 ## Contexte
@@ -49,21 +49,58 @@ sont exclus de la configuration partagée pour ne pas journaliser le protocole.
 
 La recréation de session retire les anciennes lignes JDBC, contrairement à une
 simple modification du SID sur une ligne qui pourrait être réécrite par une
-requête anonyme concurrente. La preuve de cette propriété en PostgreSQL et la
-reprise multi-JVM restent requises. Les tests locaux inspectent l'ordre réel du
-pipeline et chaque sauvegarde dans le stockage synthétique.
+requête anonyme concurrente. La campagne PostgreSQL locale du 07.10.2026 a éprouvé
+cette propriété et la reprise multi-JVM avec IdP synthétique. B39 complète cette preuve locale par les observations du navigateur sur Cloud. Le rejeu exact inter-instance après logout reste couvert par le rail local.
 
 Le projet et l'unique instance SQL existants seront réutilisés : PostgreSQL 17
 Enterprise zonal à Zurich, capacité initiale 1 vCPU/3,75 GiB et base logique dédiée.
 Connectivité privée et retrait IPv4 publique seront séquencés séparément. La
 disposabilité owner des données d'essai retire l'obligation de préserver ces jeux,
 sans autoriser une opération réelle ni désactiver les sauvegardes futures.
-Estimation recalculée : **64,67 CHF / 30 jours**, conditionnelle aux mêmes volumes,
+Estimation historique du 06.10.2026 : **64,67 CHF / 30 jours**, conditionnelle aux mêmes volumes,
 prix et TVA hypothétique que le FEP, dans une enveloppe de 100 CHF ; aucune deuxième
 SQL ni durée de 21 jours dans le scénario retenu. Fin d'essai incluant cette instance.
 
 Ces décisions ne changent pas la cible production Cloud SQL régionale HA/Private IP.
 Google réel, DB, réseau/IAM, déploiement et coût observé ne sont pas prouvés ici.
+
+## Route de qualification Cloud retenue le 8 octobre 2026
+
+Une image commune est construite depuis les sources par Cloud Build régional,
+avec Dockerfile multi-stage, bases épinglées par digest, pnpm 9.15.9, Gradle 8.14.4
+inchangé avec SHA officiel et JRE 21 non-root. Docker reste absent des prérequis
+locaux. L'opérateur se lance explicitement via PropertiesLauncher, sans Spring
+Application ni endpoint d'administration ; le serveur reste l'entrée par défaut.
+
+Le trafic SQL utilise Direct VPC egress, PSA et DNS privé, avec JDBC `verify-full`
+et bundle CA public Zurich fixé avant le build. Le passage de la CA par instance
+à `GOOGLE_MANAGED_CAS_CA` est irréversible vers le mode interne ; la qualification
+du chemin privé précède le retrait IPv4. Ce choix de campagne ne modifie pas la
+cible production HA ni n'établit son exécution.
+
+La garde Cloud s'exécute après ConfigData et avant logs/beans : profil exclusif,
+runtime DB borné, GCS, initialisation SQL/Flyway interdite, pool limité et logs
+fermés. Les migrations passent séparément par le rôle NOLOGIN propriétaire,
+activé sur chaque connexion Flyway. V1–V11 restent inchangées.
+
+Un filtre temporaire default-off, placé avant Spring Session, émet seulement
+challenge UUID, bootId, révision et statut sur quatre routes fermées. La recette
+rapproche chaque requête de son instance Cloud native. Les logs HTTP de plateforme
+doivent être exclus dans tous les routages applicables et éprouvés par canari
+synthétique avant tout login ; les seuls réglages projet ne suffisent pas.
+En qualification, le refus d'un `GET /api/me` anonyme avec challenge valide peut
+également émettre un diagnostic distinct : challenge et raison parmi un enum
+fermé. Aucun nom dynamique ni valeur d'en-tête n'est enregistré ; les décisions
+de la frontière restent identiques et l'arrêt des probes désactive ce diagnostic.
+Pour un refus d'en-têtes de transfert, une seconde observation fermée distingue
+simultanément leurs présences et quelques formes attendues. Elle ne contient
+aucune valeur, adresse IP ou autorité reçue, et n'accorde aucune confiance aux
+en-têtes observés. Le diagnostic de forme ne participe jamais à l'admission.
+
+Le modèle complet de préparation est 65,06 CHF / 30 jours, avec prix historiques,
+volumes et TVA hypothétique explicités dans le plan privé du 08.10.2026. Il inclut
+DNS, Jobs et provision de transfert privé ; l'enveloppe reste 100 CHF, dont 5 CHF
+de cessation. Ces montants ne constituent pas une mesure fraîche de facturation.
 
 Références techniques : [pipeline OAuth2 Spring Security 6.5.8](https://github.com/spring-projects/spring-security/blob/6.5.8/oauth2/oauth2-client/src/main/java/org/springframework/security/oauth2/client/web/OAuth2LoginAuthenticationFilter.java),
 [schéma Session 3.5.5 PostgreSQL](https://github.com/spring-projects/spring-session/blob/3.5.5/spring-session-jdbc/src/main/resources/org/springframework/session/jdbc/schema-postgresql.sql),

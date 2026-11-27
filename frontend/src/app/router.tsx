@@ -1,6 +1,7 @@
 import type { ChangeEvent, ReactNode, RefObject } from "react";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Link, createBrowserRouter, createMemoryRouter, useLocation, useNavigate, useParams } from "react-router-dom";
+import { qualificationWindow } from "../lib/api/qualification-window";
 import { AppShell } from "../components/workbench/app-shell";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -4520,7 +4521,9 @@ function bindSession<T extends { dispose(): void }>(router: T, coordinator: Sess
 }
 
 function createAppBrowserRouter() {
-  const coordinator = createSessionCoordinator();
+  const witness = qualificationWindow();
+  const coordinator = createSessionCoordinator(witness?.request);
+  witness?.attach(coordinator);
   coordinator.install();
   return bindSession(createBrowserRouter(createRouteDefinitions(coordinator)), coordinator);
 }

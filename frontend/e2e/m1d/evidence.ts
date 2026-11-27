@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { closeSync, constants, fsyncSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
+import { closeSync, constants, fstatSync, fsyncSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { rm } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import type { Readable, Writable } from "node:stream";
@@ -129,6 +130,56 @@ const TEST_SHA = "0".repeat(64);
 const ROOT = "C:\\dev\\ritomer-local-evidence\\m1-1b-postgresql";
 // Fixed, already installed distribution. Never enumerate a user profile/cache.
 export const BROWSER = "C:\\Users\\LuisAllauca\\AppData\\Local\\ms-playwright\\chromium-1200\\chrome-win64\\chrome.exe";
+// A separately reviewed installation for synthetic Vitest fixtures only. The
+// historical D rail/readBinding still accepts only BROWSER, never this target.
+export const SYNTHETIC_BROWSER = "C:\\dev\\ritomer\\out\\m1-2-cloud-autonomous-20261008-01\\resume-20261009-01\\playwright-browsers-1243\\chromium-1243\\chrome-win64\\chrome.exe";
+export const SYNTHETIC_BROWSER_VERSION = "153.0.8010.12";
+const SYNTHETIC_DISTRIBUTION_SHA256 = "9052829182dfa007f2acb6de0946b06fe30bf2dc8c54d3bdaf674488011cff82";
+
+// Hash every distribution file, including DLLs, without loading the largest
+// file into memory. No cache of size/mtime substitutes for content validation.
+export function browserDistributionFingerprint(directory: string): string {
+  assertPlainDirectoryAncestors(directory);
+  const entries: Array<{ path: string; type: "directory" | "file"; bytes?: number; sha256?: string }> = [];
+  const buffer = Buffer.alloc(1024 * 1024);
+  const visit = (folder: string) => {
+    assertPlainDirectoryAncestors(folder);
+    for (const name of readdirSync(folder).sort()) {
+      const file = path.join(folder, name), stat = lstatSync(file);
+      check(!stat.isSymbolicLink());
+      const relative = path.relative(directory, file).split(path.sep).join("/");
+      if (stat.isDirectory()) { entries.push({ path: relative, type: "directory" }); visit(file); }
+      else {
+        check(stat.isFile());
+        const fd = openSync(file, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0)), hash = createHash("sha256");
+        try {
+          const opened = fstatSync(fd); check(opened.isFile() && opened.dev === stat.dev && opened.ino === stat.ino);
+          let read: number; while ((read = readSync(fd, buffer, 0, buffer.length, null)) > 0) hash.update(buffer.subarray(0, read));
+          const after = lstatSync(file), final = fstatSync(fd);
+          check(!after.isSymbolicLink() && after.dev === opened.dev && after.ino === opened.ino
+            && after.size === opened.size && final.size === opened.size && final.mtimeMs === opened.mtimeMs);
+          entries.push({ path: relative, type: "file", bytes: opened.size, sha256: hash.digest("hex") });
+        } finally { closeSync(fd); }
+      }
+    }
+    assertPlainDirectoryAncestors(folder);
+  };
+  visit(directory); assertPlainDirectoryAncestors(directory);
+  entries.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
+  return createHash("sha256").update(JSON.stringify(entries)).digest("hex");
+}
+export function resolveSyntheticBrowser(executable = SYNTHETIC_BROWSER): string {
+  check(process.platform === "win32" && executable === SYNTHETIC_BROWSER);
+  const require = createRequire(import.meta.url), test = require.resolve("@playwright/test/package.json");
+  const playwright = createRequire(test).resolve("playwright/package.json");
+  const core = createRequire(playwright).resolve("playwright-core/package.json");
+  for (const file of [test, playwright, core]) check(JSON.parse(readFileSync(file, "utf8")).version === "1.63.0");
+  const manifest = readFileSync(path.join(path.dirname(core), "browsers.json"));
+  check(createHash("sha256").update(manifest).digest("hex") === "545d52f8382c391e605562c330e9c1c534a16045898203037a49bb8bd769a946");
+  check(browserDistributionFingerprint(path.dirname(executable)) === SYNTHETIC_DISTRIBUTION_SHA256);
+  return executable;
+}
+export function checkSyntheticBrowserVersion(version: string): void { check(version === SYNTHETIC_BROWSER_VERSION); }
 
 export function fail(code: "BINDING" | "OBSERVATION" | "ASSERTION" | "BROWSER" | "FINALIZATION" | "PUBLICATION" | "RUNNER"): Error {
   return new Error(`M1D_${code}_FAILED`);
@@ -225,6 +276,7 @@ export function capturedValue<T>(result: Captured<T>): T {
 }
 type FinishStep = "PAGE_CLOSE" | "CONTEXT_CLOSE" | "BROWSER_CLOSE" | "PRIVACY_FINAL" | "OBSERVATIONS" | "ATTACHMENT";
 export const FINALIZATION_STEP_MS = 1_500;
+const FINALIZATION_TOTAL_MS = 5 * FINALIZATION_STEP_MS;
 
 export interface NativeBrowserOwner {
   readonly browser: Browser | undefined;
@@ -236,15 +288,22 @@ export interface NativeBrowserOwner {
 
 // Reject links before creating/removing our one new profile. Neither a personal
 // profile nor another run's TEMP is discovered, read, or recursively removed.
-function assertPlainDirectoryAncestors(directory: string) {
+function assertPlainDirectoryAncestors(directory: string, resolveChain = false) {
   check(path.isAbsolute(directory));
+  if (resolveChain) {
+    const stat = lstatSync(directory); check(stat.isDirectory() && !stat.isSymbolicLink());
+    // Resolve the entire chain afresh before each enumeration. Never cache a
+    // validated ancestor: a later traversal must still reject its redirection.
+    // Different spelling (e.g. case or a short name) keeps the full lstat walk.
+    if (realpathSync.native(directory) === path.resolve(directory)) return;
+  }
   for (let current = path.resolve(directory);;) {
     const stat = lstatSync(current); check(stat.isDirectory() && !stat.isSymbolicLink());
     const parent = path.dirname(current); if (parent === current) break; current = parent;
   }
 }
 function assertPlainProfileTree(directory: string) {
-  assertPlainDirectoryAncestors(directory);
+  assertPlainDirectoryAncestors(directory, true);
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     check(!entry.isSymbolicLink());
     const child = path.join(directory, entry.name), stat = lstatSync(child);
@@ -257,32 +316,49 @@ function assertPlainProfileTree(directory: string) {
 // context: noDefaults prevents Playwright's focus override there. The full
 // installed Chromium then supplies actual tab visibility/focus transitions.
 // The surrounding rail Job still confines this worker and every descendant.
-export function createNativeBrowser(chromium: BrowserType, executable: string, tempRoot: string): NativeBrowserOwner {
-  check(executable === BROWSER);
+export type NativeRuntimeStep = "VALIDATION_BEGIN" | "VALIDATION_END" | "LAUNCH_BEGIN" | "SPAWN" | "CONNECT_BEGIN" | "CDP_CONNECTED" | "CONTEXT_CHECKED"
+  | "DOWNLOAD_SESSION" | "DOWNLOAD_DENIED" | "CONNECT_RETURN" | "CLOSE_BEGIN" | "CLOSE_REQUEST" | "CLOSE_REPLY"
+  | "PIPE_CLOSED" | "OUTPUT_END" | "INPUT_ERROR" | "OUTPUT_ERROR" | "PROTOCOL_ERROR" | "CHILD_STREAMS_CLOSED"
+  | "PROCESS_EXIT_OBSERVED" | "DISCONNECTED" | "PLAYWRIGHT_CLOSED" | "PROFILE_VERIFIED" | "PROFILE_ABSENT" | "CLOSE_COMPLETE" | "CLOSE_REJECTED";
+type NativeCloseStage = "PLAYWRIGHT_CLOSE" | "EXIT_CHECK" | "PROFILE_TREE" | "PROFILE_IDENTITY" | "REMOVE" | "ABSENCE";
+type NativeCloseError = "ASSERTION" | "ENOENT" | "EACCES" | "EPERM" | "EBUSY" | "ENOTDIR" | "OTHER";
+export interface NativeRuntimeCheckpoint { step: NativeRuntimeStep; atMs: number; normalExit?: boolean; stage?: NativeCloseStage; error?: NativeCloseError }
+export function createNativeBrowser(chromium: BrowserType, executable: string, tempRoot: string,
+  observe?: (checkpoint: NativeRuntimeCheckpoint) => void): NativeBrowserOwner {
+  const mark = (step: NativeRuntimeStep, normalExit?: boolean, rejection?: { stage: NativeCloseStage; error: NativeCloseError }) => {
+    try { observe?.({ step, atMs: performance.now(), ...(normalExit === undefined ? {} : { normalExit }), ...rejection }); }
+    catch { /* Diagnostic observation must never change cleanup or its verdict. */ }
+  };
+  mark("VALIDATION_BEGIN");
+  if (executable !== BROWSER) resolveSyntheticBrowser(executable);
+  mark("VALIDATION_END");
   assertPlainDirectoryAncestors(tempRoot);
   const parent = realpathSync.native(tempRoot);
   const profileRoot = mkdtempSync(path.join(parent, "m1d-native-profile-"));
   const profileIdentity = lstatSync(profileRoot);
   check(path.dirname(realpathSync.native(profileRoot)) === parent);
+  mark("LAUNCH_BEGIN");
   const child = spawn(executable, ["--headless=new", "--remote-debugging-pipe", `--user-data-dir=${path.join(profileRoot, "profile")}`,
     "--no-first-run", "--no-default-browser-check", "--disable-background-networking", "--disable-component-update", "--disable-sync", "--disable-extensions"],
   { windowsHide: true, stdio: ["ignore", "ignore", "ignore", "pipe", "pipe"],
     env: { SystemRoot: "C:\\Windows", WINDIR: "C:\\Windows", OS: "Windows_NT", Path: "C:\\Windows\\System32;C:\\Windows",
       TEMP: profileRoot, TMP: profileRoot, HOME: profileRoot, USERPROFILE: profileRoot, APPDATA: profileRoot, LOCALAPPDATA: profileRoot } });
+  child.once("spawn", () => mark("SPAWN"));
+  child.once("close", () => mark("CHILD_STREAMS_CLOSED"));
   const input = child.stdio[3] as Writable, output = child.stdio[4] as Readable;
   let browser: Browser | undefined, context: BrowserContext | undefined, closedCleanly = false;
   let remainder = Buffer.alloc(0), pipeClosed = false, protocolError = false;
   const exited = new Promise<{ code: number | null; signal: string | null; spawnError: boolean }>(resolve => {
-    child.once("error", () => resolve({ code: null, signal: null, spawnError: true }));
-    child.once("exit", (code, signal) => resolve({ code, signal, spawnError: false }));
+    child.once("error", () => { mark("PROCESS_EXIT_OBSERVED", false); resolve({ code: null, signal: null, spawnError: true }); });
+    child.once("exit", (code, signal) => { mark("PROCESS_EXIT_OBSERVED", code === 0 && signal === null); resolve({ code, signal, spawnError: false }); });
   });
   const transport: ConnectOverCDPTransport = {
     send(message) { if (pipeClosed) throw fail("BROWSER"); input.write(JSON.stringify(message) + "\0"); },
-    close() { if (!pipeClosed) { pipeClosed = true; input.end(); output.destroy(); transport.onclose?.(); } }
+    close() { if (!pipeClosed) { pipeClosed = true; input.end(); output.destroy(); transport.onclose?.(); mark("PIPE_CLOSED"); } }
   };
-  input.on("error", () => { protocolError = true; transport.close(); });
-  output.on("error", () => { protocolError = true; transport.close(); });
-  output.on("end", () => transport.close());
+  input.on("error", () => { mark("INPUT_ERROR"); protocolError = true; transport.close(); });
+  output.on("error", () => { mark("OUTPUT_ERROR"); protocolError = true; transport.close(); });
+  output.on("end", () => { mark("OUTPUT_END"); transport.close(); });
   output.on("data", (chunk: Buffer) => {
     try {
       remainder = Buffer.concat([remainder, chunk]); check(remainder.length <= 16 * 1024 * 1024);
@@ -291,53 +367,85 @@ export function createNativeBrowser(chromium: BrowserType, executable: string, t
         const message: object = JSON.parse(remainder.subarray(0, end).toString("utf8"));
         remainder = remainder.subarray(end + 1); transport.onmessage?.(message);
       }
-    } catch { protocolError = true; transport.close(); }
+    } catch { mark("PROTOCOL_ERROR"); protocolError = true; transport.close(); }
   });
   let closePromise: Promise<void> | undefined;
   return {
     get browser() { return browser; }, get context() { return context; }, get closedCleanly() { return closedCleanly; },
     async connect() {
+      mark("CONNECT_BEGIN");
       browser = await chromium.connectOverCDP(transport, { noDefaults: true, timeout: 10_000 });
+      mark("CDP_CONNECTED"); browser.once("disconnected", () => mark("DISCONNECTED"));
+      if (executable === SYNTHETIC_BROWSER) checkSyntheticBrowserVersion(browser.version());
       check(browser.contexts().length === 1); context = browser.contexts()[0];
+      mark("CONTEXT_CHECKED");
       const session = await browser.newBrowserCDPSession();
+      mark("DOWNLOAD_SESSION");
       await session.send("Browser.setDownloadBehavior", { behavior: "deny" }); await session.detach();
+      mark("DOWNLOAD_DENIED"); mark("CONNECT_RETURN");
       return browser;
     },
     close() {
       closePromise ??= (async () => {
+        mark("CLOSE_BEGIN");
         let timer: ReturnType<typeof setTimeout> | undefined;
         try {
           if (browser?.isConnected()) await Promise.race([
-            (async () => { const session = await browser.newBrowserCDPSession(); await session.send("Browser.close"); })(),
+            (async () => { const session = await browser.newBrowserCDPSession(); mark("CLOSE_REQUEST"); await session.send("Browser.close"); mark("CLOSE_REPLY"); })(),
             new Promise<void>(resolve => { timer = setTimeout(resolve, FINALIZATION_STEP_MS / 2); })
           ]);
         } catch { /* A normal native exit may reject the final protocol reply. */ }
         finally { clearTimeout(timer); transport.close(); }
         const result = await exited;
+        let stage: NativeCloseStage = "PLAYWRIGHT_CLOSE";
+        try {
         if (browser) await browser.close();
+        mark("PLAYWRIGHT_CLOSED");
+        stage = "EXIT_CHECK";
         check(result.code === 0 && result.signal === null && !result.spawnError && !protocolError && !browser?.isConnected());
+        stage = "PROFILE_TREE";
         assertPlainProfileTree(profileRoot);
+        stage = "PROFILE_IDENTITY";
         const current = lstatSync(profileRoot);
         check(current.dev === profileIdentity.dev && current.ino === profileIdentity.ino && path.dirname(realpathSync.native(profileRoot)) === parent);
+        mark("PROFILE_VERIFIED");
+        stage = "REMOVE";
         await rm(profileRoot, { recursive: true, force: false });
+        stage = "ABSENCE";
         try { lstatSync(profileRoot); throw fail("FINALIZATION"); }
         catch (error) { check((error as NodeJS.ErrnoException).code === "ENOENT"); }
+        mark("PROFILE_ABSENT");
         closedCleanly = true;
+        mark("CLOSE_COMPLETE");
+        } catch (error) {
+          let category: NativeCloseError = "OTHER";
+          try {
+            const code = (error as NodeJS.ErrnoException)?.code;
+            category = code === "ENOENT" || code === "EACCES" || code === "EPERM" || code === "EBUSY" || code === "ENOTDIR"
+              ? code : error instanceof Error && error.message === "M1D_ASSERTION_FAILED" ? "ASSERTION" : "OTHER";
+          } catch { /* Even hostile accessors cannot replace the original rejection. */ }
+          mark("CLOSE_REJECTED", undefined, { stage, error: category });
+          throw error;
+        }
       })();
       return closePromise;
     }
   };
 }
 
-// Five bounded stages, at most 7.5 s of waiting, within the runner's existing
-// 10 s margin. Only resources created by this test are supplied. A rejected or
-// stuck close never prevents the other closes; the rail still owns tree death.
+// One monotonic 7.5 s qualification window, including synchronous work. Native
+// close may borrow unused page/context time, reserving privacy and attachment.
+// Timers do not guarantee real-time cessation; the runner can interrupt earlier
+// and the existing owner/rail still owns late cleanup and descendant cessation.
 export async function finishBrowserRun(state: {
   browser?: Browser; contexts: BrowserContext[]; nativeOwner?: NativeBrowserOwner;
   observers: Array<{ scan(): Promise<void>; scans: number; violations: number; lost: number }>;
   evidence?: Evidence; binding?: Binding; firstFailure?: RunStep; failures?: BrowserFailures;
   attach: (body: Buffer) => Promise<void>;
 }): Promise<Error | undefined> {
+  const deadlineFinal = performance.now() + FINALIZATION_TOTAL_MS;
+  const deadline = (cap = FINALIZATION_STEP_MS) => Math.min(deadlineFinal, performance.now() + cap);
+  const expired = (end: number) => performance.now() >= end;
   const diagnostics = state.failures?.diagnostics ?? [];
   if (state.firstFailure) diagnostics.push(`M1D_${state.firstFailure}_FAILED`);
   const note = (step: FinishStep, code: "FAILED" | "TIMEOUT" | "INCOMPLETE") => {
@@ -346,42 +454,65 @@ export async function finishBrowserRun(state: {
     if (state.binding?.kind === "browser") state.failures?.browserFailure(undefined, "FINALIZATION", code === "TIMEOUT" ? "TIMEOUT" : "OPERATION_FAILED");
     diagnostics.push(`M1D_${step}_${code}`);
   };
-  const attempt = async (step: FinishStep, operation: () => Promise<unknown>, verify = () => true) => {
+  const attempt = async (step: FinishStep, end: number, operation: () => Promise<unknown>, verify = () => true) => {
+    if (expired(end)) { note(step, "TIMEOUT"); return false; }
     let timer: ReturnType<typeof setTimeout> | undefined;
-    // Both outcomes are handled even if a timed-out operation settles later.
-    const work = Promise.resolve().then(operation).then(() => verify() ? "DONE" as const : "INCOMPLETE" as const, () => "FAILED" as const)
-      .catch(() => "FAILED" as const);
+    // All resources in a phase share its absolute deadline. Recheck at deferred
+    // invocation and after verification: synchronous work can delay the timer.
+    // Both outcomes remain handled if owned work settles after a timeout.
+    const work = Promise.resolve().then(async () => {
+      if (expired(end)) return "TIMEOUT" as const;
+      try {
+        await operation();
+        if (expired(end)) return "TIMEOUT" as const;
+        const complete = verify();
+        return expired(end) ? "TIMEOUT" as const : complete ? "DONE" as const : "INCOMPLETE" as const;
+      } catch { return expired(end) ? "TIMEOUT" as const : "FAILED" as const; }
+    });
     try {
-      const outcome = await Promise.race([work, new Promise<"TIMEOUT">(resolve => { timer = setTimeout(() => resolve("TIMEOUT"), FINALIZATION_STEP_MS); })]);
+      const remaining = end - performance.now();
+      const settled = remaining <= 0 ? "TIMEOUT" : await Promise.race([work,
+        new Promise<"TIMEOUT">(resolve => { timer = setTimeout(() => resolve("TIMEOUT"), remaining); })]);
+      const outcome = settled === "DONE" && expired(end) ? "TIMEOUT" : settled;
       if (outcome !== "DONE") note(step, outcome);
       return outcome === "DONE";
     } finally { clearTimeout(timer); }
   };
   const { contexts, observers, evidence, binding, nativeOwner } = state;
   const browser = state.browser ?? nativeOwner?.browser;
+  const pageDeadline = deadline();
   const pages = contexts.flatMap(context => {
+    if (expired(pageDeadline)) { note("PAGE_CLOSE", "TIMEOUT"); return []; }
     try { return context.pages(); } catch { note("PAGE_CLOSE", "FAILED"); return []; }
   });
-  const pageResults = await Promise.all(pages.map(page => attempt("PAGE_CLOSE", () => page.close(), () => page.isClosed())));
+  if (expired(pageDeadline)) note("PAGE_CLOSE", "TIMEOUT");
+  const pageResults = await Promise.all(pages.map(page => attempt("PAGE_CLOSE", pageDeadline, () => page.close(), () => page.isClosed())));
   // Closing a CDP default context would disconnect before native Browser.close.
   // Its actual closure is checked after the owned process has exited instead.
-  const contextResults = await Promise.all(contexts.filter(context => context !== nativeOwner?.context).map(context => attempt("CONTEXT_CLOSE", () => context.close())));
+  const contextDeadline = deadline();
+  const contextResults = await Promise.all(contexts.filter(context => context !== nativeOwner?.context).map(context => attempt("CONTEXT_CLOSE", contextDeadline, () => context.close())));
   let contextsGone = false;
   if (!nativeOwner) {
     try { contextsGone = !!browser && browser.contexts().length === 0; if (browser && !contextsGone) note("CONTEXT_CLOSE", "INCOMPLETE"); }
     catch { note("CONTEXT_CLOSE", "FAILED"); }
+    if (expired(contextDeadline)) note("CONTEXT_CLOSE", "TIMEOUT");
   }
-  const browserGone = nativeOwner ? await attempt("BROWSER_CLOSE", () => nativeOwner.close(), () => nativeOwner.closedCleanly && !!browser && !browser.isConnected())
-    : browser ? await attempt("BROWSER_CLOSE", () => browser.close(), () => !browser.isConnected()) : false;
-  if (nativeOwner) {
-    try { contextsGone = browserGone && !!browser && browser.contexts().length === 0; if (!contextsGone) note("CONTEXT_CLOSE", "INCOMPLETE"); }
-    catch { note("CONTEXT_CLOSE", "FAILED"); }
-  }
+  const browserStart = performance.now();
+  const browserCap = nativeOwner ? Math.min(3 * FINALIZATION_STEP_MS, Math.max(0, deadlineFinal - browserStart - 2 * FINALIZATION_STEP_MS)) : FINALIZATION_STEP_MS;
+  const browserDeadline = Math.min(deadlineFinal, browserStart + browserCap);
+  const browserGone = nativeOwner ? await attempt("BROWSER_CLOSE", browserDeadline, () => nativeOwner.close(), () => {
+    contextsGone = nativeOwner.closedCleanly && !!browser && !browser.isConnected() && browser.contexts().length === 0;
+    return contextsGone;
+  })
+    : browser ? await attempt("BROWSER_CLOSE", browserDeadline, () => browser.close(), () => !browser.isConnected()) : false;
+  if (nativeOwner && !browserGone) { contextsGone = false; note("CONTEXT_CLOSE", "INCOMPLETE"); }
+  const privacyDeadline = deadline();
   await Promise.all([
-    ...observers.map(observer => attempt("PRIVACY_FINAL", () => observer.scan())),
-    ...(state.failures ? [attempt("PRIVACY_FINAL", () => state.failures!.drain())] : [])
+    ...observers.map(observer => attempt("PRIVACY_FINAL", privacyDeadline, () => observer.scan())),
+    ...(state.failures ? [attempt("PRIVACY_FINAL", privacyDeadline, () => state.failures!.drain())] : [])
   ]);
-  if (evidence) {
+  if (expired(deadlineFinal)) note("OBSERVATIONS", "TIMEOUT");
+  else if (evidence) {
     try {
       record(evidence, "pagesClosed", Number(pageResults.every(Boolean) && !diagnostics.some(d => d.startsWith("M1D_PAGE_CLOSE_"))));
       record(evidence, "contextsClosed", Number(contextResults.every(Boolean) && contextsGone));
@@ -389,10 +520,12 @@ export async function finishBrowserRun(state: {
       record(evidence, "privacyScans", observers.reduce((sum, o) => sum + o.scans, 0));
       record(evidence, "privacyViolations", observers.reduce((sum, o) => sum + o.violations, 0));
       record(evidence, "lostObservations", observers.reduce((sum, o) => sum + o.lost, 0));
+      if (expired(deadlineFinal)) note("OBSERVATIONS", "TIMEOUT");
     } catch { note("OBSERVATIONS", "FAILED"); }
   }
   if (evidence && binding) {
-    await attempt("ATTACHMENT", async () => {
+    const attachmentDeadline = deadline();
+    await attempt("ATTACHMENT", attachmentDeadline, async () => {
       if (binding.kind === "cookie" && diagnostics.length) {
         state.failures?.cookieFailure("FINALIZATION", "FINALIZATION");
         evidence.cookieDiagnostic = state.failures?.cookieDiagnostic ?? { schemaVersion: 2, source: "BROWSER", step: "FINALIZATION",
@@ -403,11 +536,14 @@ export async function finishBrowserRun(state: {
         evidence.browserDiagnostic = state.failures?.browserDiagnostic ?? { schemaVersion: 1, source: "SCENARIO", step: "FINALIZATION", lastCompleted: null, reason: "UNAVAILABLE" };
       }
       const filtered = decode(Buffer.from(JSON.stringify(evidence)), binding);
-      await state.attach(Buffer.from(JSON.stringify(filtered)));
+      const body = Buffer.from(JSON.stringify(filtered));
+      if (expired(attachmentDeadline)) return; // attempt records TIMEOUT; no late attach starts.
+      await state.attach(body);
     });
   } else { note("OBSERVATIONS", "INCOMPLETE"); }
   // The first filtered diagnostic stays first. No raw error/cause/page/session
   // value enters the Error that Playwright may persist in error-context.md.
+  if (!diagnostics.length && expired(deadlineFinal)) note("ATTACHMENT", "TIMEOUT");
   return diagnostics.length ? new Error(diagnostics[0] + (diagnostics.length > 1 ? `; SECONDARY=${diagnostics.slice(1).join(",")}` : "")) : undefined;
 }
 export function emittedCookieAttributes(value: string): number {
