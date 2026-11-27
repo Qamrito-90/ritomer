@@ -10,6 +10,8 @@ La roadmap canonique M0–M8 vit dans `docs/product/product-roadmap.md`. Ce plan
 
 ```text
 M0_STATUS=DONE_CANONICAL_ROADMAP_REBASELINE
+M1_STATUS=DONE
+NEXT_MILESTONE=M2_AI_RUNTIME_CORE
 CRITICAL_PATH=M0_TO_M5
 FIRST_AI_NATIVE_VERTICAL_SLICE=MAPPING_ASSISTANT_AGENT
 
@@ -30,9 +32,23 @@ M1_1D_VALIDATION_SCOPE=LOCAL_SYNTHETIC_CANDIDATE_05_20261003
 M1_1D_DELIVERED=YES
 ```
 
-M0 a synchronisé les documents vivants et borné le checker 042 à ses responsabilités historiques. 046 a livré la fondation locale M1.1. La spécification [047](../../specs/done/047-shared-oidc-session-v1.md) est terminée. La PR #130 a livré le socle OIDC/JDBC et la [PR #131](https://github.com/Qamrito-90/ritomer/pull/131) a intégré le complément qualifié par B39 en non-production, après vérification du repos et de l’arrêt. M1 reste ouvert.
+M0 a synchronisé les documents vivants et borné le checker 042 à ses responsabilités historiques. 046 a livré la fondation locale M1.1. La spécification [047](../../specs/done/047-shared-oidc-session-v1.md) est terminée. La PR #130 a livré le socle OIDC/JDBC et la [PR #131](https://github.com/Qamrito-90/ritomer/pull/131) a intégré le complément qualifié par B39 en non-production, après vérification du repos et de l’arrêt. M1 est terminé dans la portée définie ci-dessous.
 
 Les états de review, delivery, merge, décision owner et autorisation vivent uniquement dans les Evidence Packs, la pull request et les records spécialisés.
+
+## Bilan de M1
+
+Le portefeuille (`/`) est l’accueil authentifié. Le comptable y voit son entreprise et son rôle. Il choisit **Ouvrir** sur un dossier autorisé, reprend la revue à partir de l’état du dossier (par exemple **Reprendre le mapping**), puis utilise **Retour dossiers** et **Déconnexion**. La page Paramètres et la mémorisation persistante du dernier dossier sont reportées. Le retour sécurisé vers un dossier demandé avant connexion reste disponible.
+
+Les [tests du routeur](../../frontend/src/app/router.test.tsx) couvrent la navigation, les messages et la purge du contexte. Le trajet continu a aussi été vérifié avec le routeur et le coordinateur de session réels sur des réponses HTTP synthétiques. [046](../../specs/done/046-authenticated-session-foundation-v1.md#15-bilan-de-clôture-documentaire-locale-du-04102026) a vérifié sur PostgreSQL local l’ouverture du dossier, la modification et la relecture d’une justification, l’expiration et la déconnexion. [047 / B39](../../runbooks/m1-2-shared-nonproduction.md#état-courant) apporte les preuves Google, d’isolation et de session partagée sur Cloud, ainsi que le repos et l’arrêt vérifiés. Le rejeu exact d’un ancien cookie après déconnexion sur une autre instance Cloud reste non mesuré.
+
+| Refus | Retour visible | Trace permise et vérifiée |
+| --- | --- | --- |
+| Mauvaise entreprise | Un refus contextuel sur le dossier affiche « acces dossier refuse ». Une ressource étrangère masquée par un 404 affiche « dossier introuvable ». | Un tenant demandé hors des appartenances donne `403 ACCESS_DENIED`, sans inscription de ce tenant dans le contexte des journaux ou l’audit métier. Avec un tenant autorisé, les objets étrangers restent masqués : B39 a corrélé quatre 404 sur les pièces et exports. |
+| Aucune appartenance active | À la connexion Google, le retour `/?login=failed` affiche « La connexion a été refusée. Réessayez. ». Si le dernier accès est retiré en session, « Accès refusé » remplace le contexte protégé. | Le callback refuse l’admission. L’observateur de qualification peut émettre `ADMISSION_DENIED` dans sa fenêtre autorisée. Aucun audit métier pré-tenant. En session, `403 ACCESS_REVOKED` invalide la session. |
+| Session expirée | « Session expirée » et « Se reconnecter » apparaissent. Le tenant et les données protégées disparaissent. | Le serveur répond `401 SESSION_EXPIRED`. Les tests de session couvrent l’inactivité et la durée absolue. Le refus avant autorisation du tenant ne crée aucun audit métier. |
+
+Les [règles d’autorité et d’audit de 046](../../specs/done/046-authenticated-session-foundation-v1.md) et le [contrat de session](../../contracts/openapi/auth-session-api.yaml) restent applicables. Le [test de sélection de tenant](../../backend/src/test/kotlin/ch/qamwaq/ritomer/BackendApplicationSmokeTest.kt) vérifie l’absence d’audit sur le refus. Les [tests Spring de session partagée](../../backend/src/test/kotlin/ch/qamwaq/ritomer/identity/api/SharedOidcSessionSecurityTest.kt) et les [tests d’admission](../../backend/src/test/kotlin/ch/qamwaq/ritomer/identity/application/OidcSessionAuthenticationServiceTest.kt) couvrent les statuts de session et la relecture des droits. L’audit métier de sélection d’entreprise intervient après validation explicite de l’appartenance. M2 porte sur le socle d’exécution IA et reste à cadrer.
 
 ## Outcome M1.1 local accompli — fondation de session
 
@@ -50,7 +66,7 @@ M1_1D_VALIDATION_SCOPE=LOCAL_SYNTHETIC_CANDIDATE_05_20261003
 M1_1D_DELIVERED=YES
 ```
 
-L'outcome final M1.1 est livré dans sa portée locale/synthétique : authentification same-origin par session serveur et cookie opaque sécurisé. M1.1A établit la fondation backend de principal applicatif, autorité PostgreSQL et sûreté tenant. M1.1B implémente le kernel backend de session process-local, default-off, avec bootstrap/login/logout local/test, cookie opaque, CSRF, rotation, expiration et relecture d'autorité. M1 complet reste incomplet. M1.2 dispose sous 047 du socle livré par #130, qualifié sur PostgreSQL local avec IdP synthétique. La reprise du 9–10 octobre 2026 a établi le déploiement, le TLS privé et les migrations. Le 26 novembre, B39 a qualifié les admissions Google et les comportements de session du contrat navigateur, avec retour au repos et arrêt vérifiés. Le runbook distingue les preuves PostgreSQL locales et les observations sur Cloud.
+L'outcome final M1.1 est livré dans sa portée locale/synthétique : authentification same-origin par session serveur et cookie opaque sécurisé. M1.1A établit la fondation backend de principal applicatif, autorité PostgreSQL et sûreté tenant. M1.1B implémente le kernel backend de session process-local, default-off, avec bootstrap/login/logout local/test, cookie opaque, CSRF, rotation, expiration et relecture d'autorité. M1.2 dispose sous 047 du socle livré par #130, qualifié sur PostgreSQL local avec IdP synthétique. La reprise du 9–10 octobre 2026 a établi le déploiement, le TLS privé et les migrations. Le 26 novembre, B39 a qualifié les admissions Google et les comportements de session du contrat navigateur, avec retour au repos et arrêt vérifiés. Le runbook distingue les preuves PostgreSQL locales et les observations sur Cloud.
 
 Le correctif M8 ferme l'exposition web Prometheus ; health et info restent exposés. Pris isolément, il ne livre aucune session, cookie, CSRF, login, logout, UI, IdP réel, IA, agent ou runtime MCP. Le checkpoint B n'ajoute aucun frontend ou coordinator navigateur, aucun OIDC réel ou environnement partagé, aucune session distribuée et aucun changement IA, agent ou MCP. M1.1C est livré ; D l'est par la [PR #127](https://github.com/Qamrito-90/ritomer/pull/127), squash `3d1fad45cf930f446aba50d2e328958cfb1d812a` du 04.10.2026. La validation intégrée PostgreSQL/navigateur reste liée à candidate-05 du 03.10.2026. Le [bilan de clôture de 046](../../specs/done/046-authenticated-session-foundation-v1.md#15-bilan-de-clôture-documentaire-locale-du-04102026) rattache critères, preuves, comptes et réserves. Cette clôture locale ne livre ni M1 complet, ni OIDC partagé, ni session distribuée, ni IA/MCP, externe ou production et ne crée aucune autorisation.
 

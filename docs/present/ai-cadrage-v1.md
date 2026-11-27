@@ -9,8 +9,8 @@ Il ne remplace ni la vision IA, ni le playbook IA, ni les contrats et garde-fous
 ## Ce qui est vrai maintenant
 
 - Le produit est AI-ready, mais pas encore AI-native dans le runtime.
-- La fondation M1.1 locale/synthetique A/B/C/D est livree ; D par la [PR #127](https://github.com/Qamrito-90/ritomer/pull/127), squash `3d1fad45cf930f446aba50d2e328958cfb1d812a` du 04.10.2026. [046](../../specs/done/046-authenticated-session-foundation-v1.md) est Done et aucune spec n'est active dans ce candidat documentaire, dont la publication reste separee. La preuve integree de candidate-05 du 03.10.2026 et les CI du 04.10.2026 restent distinctes, avec leurs reserves. M1 complet, M1.2, OIDC partage, session distribuee et IA/agent/MCP restent non livres par cette cloture.
-- Ce cadrage ne constitue aucune autorisation. La cloture locale M1.1 ne livre ni M1 complet, ni OIDC partage, ni session distribuee, ni capacite IA/MCP, externe ou de production. Les etats de review, delivery, merge, decision owner et autorisation vivent uniquement dans les Evidence Packs, la pull request et les records specialises.
+- Le [bilan de M1](../product/v1-plan.md#bilan-de-m1) clôt le parcours authentifié du comptable. M2 est le prochain chantier pour le socle d’exécution IA.
+- Ce cadrage ne constitue aucune autorisation. Les etats de review, delivery, merge, decision owner et autorisation vivent uniquement dans les Evidence Packs, la pull request et les records specialises.
 - Le coeur metier reste deterministe, tenant-scoped, audit-ready et utilisable sans IA.
 - `030` livre une capacite de mapping assiste no-provider, evidence-first et human-in-the-loop.
 - La capacite livree expose des suggestions structurees de mapping, des preuves visibles et une decision humaine unitaire `ACCEPT`, `CORRECT` ou `REJECT`.

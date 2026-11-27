@@ -27,7 +27,7 @@ Le `pack final` actuel reste un export audit-ready non statutaire soumis à revu
 | --- | --- | --- |
 | `DELIVERED_AND_PROVED` | Cœur déterministe du closing, identity et memberships applicatifs, tenancy/RBAC, import, mapping manuel, contrôles, previews, workpapers, documents, export, annexe minimale, audit append-only et mapping assisté no-provider. | Preuves de repo et de delivery, sans hébergement SaaS ni validation professionnelle. |
 | `LOCAL_OR_SYNTHETIC_ONLY` | Fondation de session M1.1 locale A/B/C/D livrée ; D par la [PR #127](https://github.com/Qamrito-90/ritomer/pull/127), squash `3d1fad45cf930f446aba50d2e328958cfb1d812a`. Intégration synthétique prouvée le 03.10.2026 sur candidate-05 ; fixtures et simulation offline `mapping-suggestion-v2`. | 046 Done. Les preuves de M1.1 portent sur le parcours local avec données synthétiques. |
-| `QUALIFIED_NONPRODUCTION` | [047](../../specs/done/047-shared-oidc-session-v1.md) Done. La [PR #131](https://github.com/Qamrito-90/ritomer/pull/131) a livré la connexion Google et les sessions partagées sur Cloud Run et Cloud SQL. | B39 couvre deux tenants synthétiques en environnement interne. M1 reste ouvert. |
+| `QUALIFIED_NONPRODUCTION` | [047](../../specs/done/047-shared-oidc-session-v1.md) Done. La [PR #131](https://github.com/Qamrito-90/ritomer/pull/131) a livré la connexion Google et les sessions partagées sur Cloud Run et Cloud SQL. | B39 couvre deux tenants synthétiques en environnement interne. |
 | `DOCUMENTED_NOT_IMPLEMENTED` | Cible de production Cloud Run/Cloud SQL, provider gateway réel, tracing/coûts IA, MCP client/serveur et préparation design-partner. | La documentation ne vaut ni runtime, ni autorisation, ni preuve d'exploitation. |
 | `NOT_STARTED` | Goal/run agentique, registre d'outils exécutable, site public, bêta externe, support et production opérable. | Aucun de ces sujets n'est livré ou engagé par M0. |
 
@@ -65,8 +65,11 @@ Le chemin critique produit s'arrête à l'alpha interne stable M5. M6 reste hors
 
 ### M1 — Authenticated Product Shell
 
+**Statut : terminé.** Le portefeuille est l’accueil authentifié. M2, le socle d’exécution IA, est le prochain chantier.
+
 - **Outcome :** un utilisateur authentifié entre dans son tenant, voit son rôle, reprend son travail, navigue et se déconnecte avec une session sûre.
-- **Démo de sortie :** login → accueil → dossiers → workspace → paramètres → logout ; mauvais tenant, membership absent et session expirée sont refusés clairement et audités.
+- **Démo de sortie :** le comptable se connecte, reconnaît son entreprise et son rôle dans le portefeuille, ouvre un dossier autorisé, reprend la revue à partir des points à traiter, revient au portefeuille et se déconnecte.
+- La page Paramètres et la mémorisation du dernier dossier sont reportées. Le [bilan M1](v1-plan.md#bilan-de-m1) décrit les trois refus, leur retour visible et les traces permises.
 - **Dépendances majeures :** M0 terminé ; IdP, modèle de session, callbacks et threat model décidés.
 - **Hors-scope :** onboarding self-service riche, billing, MFA entreprise généralisée, recherche universelle, mobile 11/10 et utilisateur externe.
 - **Gate :** OIDC réel en environnement partagé ; membership Ritomer autoritaire ; session, logout, révocation, CSRF et isolation tenant prouvés.
