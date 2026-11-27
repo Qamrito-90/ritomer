@@ -1,6 +1,6 @@
 # Contrat DB — OIDC et sessions partagées v1
 
-Portée : [047](../../specs/active/047-shared-oidc-session-v1.md), migration V11 additive,
+Portée : [047](../../specs/done/047-shared-oidc-session-v1.md), migration V11 additive,
 PostgreSQL 17. V11 et les cinq cas M12 sont qualifiés sur la campagne locale du
 07.10.2026, avec IdP synthétique, cessation et nettoyage attestés. Le candidat
 est livré par PR #130 (`2188dd553f13ac8fda9019ebe391c2ec3bde171b`) ; cette preuve

@@ -30,9 +30,7 @@ intégré ultérieur de candidate-05, résumé ci-dessous.
 A/B/C et D accomplissent la fondation M1.1 locale/synthétique. D est livré par
 la [PR #127](https://github.com/Qamrito-90/ritomer/pull/127), squash
 `3d1fad45cf930f446aba50d2e328958cfb1d812a` du 04.10.2026. La
-[spec 046 Done](../specs/done/046-authenticated-session-foundation-v1.md) est classée close
-dans ce candidat documentaire, sans spec active ; sa publication reste à
-autoriser. M1 complet et M1.2 restent non livrés.
+[spec 046 Done](../specs/done/046-authenticated-session-foundation-v1.md) décrit cette fondation locale. La qualification partagée de M1.2 figure dans le [runbook non-production](m1-2-shared-nonproduction.md).
 
 C1 puis C2 ont validé candidate-05 le 03.10.2026, RunId
 `966fa4bc77034e158d4602431b77f606`, avec PostgreSQL et navigateur réels sur

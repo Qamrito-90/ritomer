@@ -13,10 +13,11 @@ M0_STATUS=DONE_CANONICAL_ROADMAP_REBASELINE
 CRITICAL_PATH=M0_TO_M5
 FIRST_AI_NATIVE_VERTICAL_SLICE=MAPPING_ASSISTANT_AGENT
 
-ACTIVE_SPEC=047_SHARED_OIDC_SESSION_V1
-ACTIVE_SPEC_ID=047
-ACTIVE_SPEC_COUNT=1
+ACTIVE_SPEC=AUCUNE
+ACTIVE_SPEC_ID=AUCUN
+ACTIVE_SPEC_COUNT=0
 SPEC_046=DONE
+SPEC_047=DONE
 M1_1A_SCOPE=BACKEND_AUTH_TENANT_FOUNDATION_WITH_CORRECTIVE_M8
 M1_1A_IMPLEMENTED=YES
 M1_1_FINAL_OUTCOME_DELIVERED=YES
@@ -29,7 +30,7 @@ M1_1D_VALIDATION_SCOPE=LOCAL_SYNTHETIC_CANDIDATE_05_20261003
 M1_1D_DELIVERED=YES
 ```
 
-M0 a synchronisé les documents vivants et borné le checker 042 à ses responsabilités historiques. A/B/C/D accomplissent la fondation M1.1 locale/synthétique ; 046 est Done. La spec [047](../../specs/active/047-shared-oidc-session-v1.md) est ouverte pour le candidat local OIDC/JDBC/same-origin M1.2. Le socle qualifié localement est livré par PR #130 (squash 2188dd553f13ac8fda9019ebe391c2ec3bde171b). La campagne B39 du 26.11.2026 a qualifié le complément dans le périmètre navigateur non-production. Son repos et son arrêt configuré sont vérifiés. L’intégration Git reste distincte de ce résultat. Ce plan ne constitue aucune autorisation.
+M0 a synchronisé les documents vivants et borné le checker 042 à ses responsabilités historiques. 046 a livré la fondation locale M1.1. La spécification [047](../../specs/done/047-shared-oidc-session-v1.md) est terminée. La PR #130 a livré le socle OIDC/JDBC et la [PR #131](https://github.com/Qamrito-90/ritomer/pull/131) a intégré le complément qualifié par B39 en non-production, après vérification du repos et de l’arrêt. M1 reste ouvert.
 
 Les états de review, delivery, merge, décision owner et autorisation vivent uniquement dans les Evidence Packs, la pull request et les records spécialisés.
 
@@ -162,13 +163,14 @@ M7 attend une alpha M5 stable, des captures réelles, un slice IA-native fonctio
 
 - `specs/done/046-authenticated-session-foundation-v1.md` — fondation de session M1.1 locale/synthétique accomplie ; classement Done proposé par ce candidat documentaire, publication restant à autoriser séparément.
 
-### État du candidat local M1.2 après clôture de 046
+### État de M1.2 après livraison de 047
 
 ```text
-ACTIVE_SPEC=047_SHARED_OIDC_SESSION_V1
-ACTIVE_SPEC_ID=047
-ACTIVE_SPEC_COUNT=1
+ACTIVE_SPEC=AUCUNE
+ACTIVE_SPEC_ID=AUCUN
+ACTIVE_SPEC_COUNT=0
 SPEC_046=DONE
+SPEC_047=DONE
 M1_1A_SCOPE=BACKEND_AUTH_TENANT_FOUNDATION_WITH_CORRECTIVE_M8
 M1_1A_IMPLEMENTED=YES
 M1_1_FINAL_OUTCOME_DELIVERED=YES
