@@ -59,7 +59,7 @@ LOCAL_DEV_MUST_USE_REAL_SYNTHETIC_USERS_MEMBERSHIPS_ROLES_AND_TENANTS=YES
 SHARED_INTERNAL_ENVIRONMENT_REQUIRES_REAL_OIDC=YES
 ```
 
-Le mode local/test simplifie l'entrée seulement. La fondation M1.1 locale est livrée, D par la [PR #127](https://github.com/Qamrito-90/ritomer/pull/127). La preuve intégrée de candidate-05 reste datée du 03.10.2026, avec les limites de la [spec 046](specs/done/046-authenticated-session-foundation-v1.md). Memberships, rôles, contrôles serveur et isolation tenant restent effectifs. M1.2 est qualifiée en non-production. M1 reste ouvert.
+Le mode local/test simplifie l'entrée seulement. La fondation M1.1 locale est livrée, D par la [PR #127](https://github.com/Qamrito-90/ritomer/pull/127). La preuve intégrée de candidate-05 reste datée du 03.10.2026, avec les limites de la [spec 046](specs/done/046-authenticated-session-foundation-v1.md). Memberships, rôles, contrôles serveur et isolation tenant restent effectifs. M1 est terminé pour le [parcours du comptable](docs/product/v1-plan.md#bilan-de-m1), avec M1.2 qualifiée en non-production. M2 est le prochain chantier.
 
 ### IA, agent et MCP
 
@@ -121,7 +121,7 @@ Le code et les tests offline ne valent ni Preflight, ni preuve PostgreSQL, ni QA
 
 ## État présent M1.1
 
-Les quatre slices A/B/C/D accomplissent l'outcome M1.1 local/synthétique ; D est livré par la [PR #127](https://github.com/Qamrito-90/ritomer/pull/127), squash `3d1fad45cf930f446aba50d2e328958cfb1d812a` du 04.10.2026. 046 et 047 sont classées Done. M1 complet, l’IA/MCP, l’usage externe et la production restent hors de cette livraison. Les records C1-04/C2-04 et ceux de delivery/merge de #127 restent consommés ; aucune autorisation nouvelle n'en découle.
+Les quatre slices A/B/C/D accomplissent l'outcome M1.1 local/synthétique ; D est livré par la [PR #127](https://github.com/Qamrito-90/ritomer/pull/127), squash `3d1fad45cf930f446aba50d2e328958cfb1d812a` du 04.10.2026. 046 et 047 sont classées Done. L’usage externe et la production restent hors du périmètre qualifié. Les records C1-04/C2-04 et ceux de delivery/merge de #127 restent consommés ; aucune autorisation nouvelle n'en découle.
 
 ## Socle M1.2 livré et qualification Cloud interne
 
@@ -173,7 +173,7 @@ La [spec 043 terminale](specs/done/043-controlled-fiduciary-pilot-readiness-v1.m
 
 La [spec 044](specs/done/044-design-partner-readiness-v1.md) et la [spec 045](specs/done/045-design-partner-research-protocol-v1.md) sont `DONE_DOCS_ONLY`. Elles ne prouvent ni recrutement, ni valeur terrain, ni readiness externe et n'autorisent aucune publication, prospection, interview, collecte, donnée réelle ou activité externe.
 
-M0 ne crée, ne réserve et n'autorise aucune spec 046 ni aucune spec future. M1 reste une prochaine cible documentaire qui exigera son propre scope, ses gates et une autorisation d'implémentation distincte.
+M0 ne crée, ne réserve et n'autorise aucune spec 046 ni aucune spec future. À cette étape, M1 était la prochaine cible à cadrer.
 
 ### Snapshot historique 043b pré-clôture
 
